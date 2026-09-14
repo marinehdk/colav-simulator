@@ -100,6 +100,7 @@
 | p9 | P-C1+2+3 | **16/16+16** | 2/8（CS 对稳定） | 3 | **16/10/0/4** |
 | p10 | P-C1+2+3+goal 轴 | 16/16+16 | 1/8（HO-E4；CS 崩溃→见 p10b） | **4**（fan 单船全 True） | 17/4/**0** |
 | p10b | +hold 静态门 | （VO 不变） | 1/8 稳定，其余收敛至 L4 接受层 | — | — |
+| p11 | +floor 窗内让位 `0f04ffff` | （VO 不变） | 2/8：**CS 对 COMPLETE（819.5/695.8 m）**；HO-E4 翻回（刀尖平衡，见登记册 R6 spec） | — | — |
 
 **p10/p10b 收敛态**：VO/Fan 全绿+goal 4（fan 单船全达标；VO 执行压制在 guidance 调度层=rejoin/XTE 帽 3.0/转弯帽 4.2/FAIL_SAFE，同事侧 R13 家族扩展，命令巡航 6.77 而执行 ~3.05）；Mid 打地鼠终止——根因链=keep-way floor 保速→后期几何变化→目标重捕获→STAND_ON 全 horizon 航向钉±5°→钉住航线撞海图岛（static 场 −902.6m 穿透）→`ce00b3ff` hold 静态清障门（Rule 17(a)(ii) 时序，已承诺 hold 字节级不变）；剩余失败单层收敛：CS/OT/MS=L4 候选诚实拒绝、HO-E0=corridor-release 协调 open。
 
