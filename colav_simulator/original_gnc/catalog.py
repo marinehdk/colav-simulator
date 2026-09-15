@@ -76,7 +76,7 @@ def original_catalog() -> tuple[list[dict], dict]:
     except (OSError, ValueError, KeyError, RuntimeError) as error:
         available = False
         reason = str(error)
-    preset_description = "Authoritative GNC · ordinary/emergency speed policy · independent C++ backend"
+    preset_description = "Native C++ · course / route input."
     if build_identity and build_identity["execution_lane"] == "candidate":
         preset_description = (
             "Original GNC candidate · "

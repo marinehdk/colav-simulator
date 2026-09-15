@@ -93,7 +93,7 @@ def test_original_catalog_reports_loaded_build_identity():
         )
         assert "Baseline fidelity evidence does not automatically cover this candidate" in preset["note"]
     else:
-        assert preset["description"] == "Authoritative GNC · ordinary/emergency speed policy · independent C++ backend"
+        assert preset["description"] == "Native C++ · course / route input."
     assert "Original GNC acceptance remains diagnostic" in preset["note"]
 
 

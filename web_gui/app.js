@@ -548,10 +548,7 @@ function updateUI(proj) {
   setText('val-reproduction', proj.outcome.reproductionStatus || 'not evaluated');
   const presentation = proj.raw?.presentation;
   const controlPlayback = activeSessionRuntime.snapshot().telemetry.envelope?.playback ?? proj.raw?.playback;
-  syncPlaybackStatus(presentation?.playback_rate > 0
-    ? { ...controlPlayback, effective_multiplier: presentation.playback_rate,
-      realtime_limited: presentation.playback_rate < controlPlayback.requested_multiplier * 0.9 }
-    : controlPlayback, proj.state === 'RUNNING');
+  syncPlaybackStatus(controlPlayback);
   setText('telemetryDelay', presentation?.buffered
     ? (presentation.buffering ? '缓冲中' : `显示延后 ${presentation.delay_s.toFixed(1)}s`) : '');
 
@@ -1691,34 +1688,14 @@ function setHtml(id, val) {
   if (el) el.innerHTML = val;
 }
 
-function syncPlaybackStatus(playback, running = false) {
+function syncPlaybackStatus(playback) {
   if (!playback) return;
   const requested = Number(playback.requested_multiplier);
-  const effective = typeof playback.effective_multiplier === 'number'
-    ? playback.effective_multiplier
-    : NaN;
   document.querySelectorAll('.speed-preset').forEach(button => {
     button.classList.toggle('active', Number(button.dataset.speed) === requested);
   });
   const rateGroup = document.getElementById('livePlaybackRate');
   if (rateGroup && Number.isFinite(requested)) rateGroup.value = String(requested);
-  const status = document.getElementById('speedStatus');
-  if (!status) return;
-  status.classList.toggle('limited', Boolean(playback.realtime_limited));
-  // #74 terminology: this is the SIMULATION RATE of the Active Session
-  // (requested vs effective compute-limited) — not a Replay Speed.
-  const requestedText = Number.isFinite(requested) ? `${requested.toFixed(1)}×` : '--';
-  if (!running) {
-    status.textContent = Number.isFinite(effective)
-      ? `SIMULATION RATE 最近 ${effective.toFixed(1)}× / 请求 ${requestedText}`
-      : `SIMULATION RATE 实际 -- / 请求 ${requestedText}`;
-  } else if (!Number.isFinite(effective)) {
-    status.textContent = `SIMULATION RATE 测量中 / 请求 ${requestedText}`;
-  } else if (playback.realtime_limited) {
-    status.textContent = `SIMULATION RATE 受限 ${effective.toFixed(1)}× / 请求 ${requestedText}`;
-  } else {
-    status.textContent = `SIMULATION RATE ${effective.toFixed(1)}×`;
-  }
 }
 
 function formatCoordinate(value, positiveHemisphere, negativeHemisphere) {
@@ -2926,7 +2903,7 @@ function resetDeploymentForSession(data) {
   renderSolveTimeline();
   renderedTimelineEvents = 0;
   setEncStatus('loading');
-  syncPlaybackStatus(data.playback, false);
+  syncPlaybackStatus(data.playback);
   situationDisplay.beginSession(data.session_id || currentRunId());
 }
 
@@ -3065,7 +3042,7 @@ document.querySelectorAll('.speed-preset').forEach(button => {
     try {
       await activeSessionRuntime.setSpeed(speed);
       const playback = activeSessionRuntime.snapshot().session?.playback;
-      syncPlaybackStatus(playback, currentData?.state === 'RUNNING');
+      syncPlaybackStatus(playback);
     } catch (error) {
       pushLog(error.message, 'log-danger');
     }
@@ -3080,7 +3057,7 @@ document.getElementById('livePlaybackRate')?.addEventListener('click', async (ev
   try {
     await activeSessionRuntime.setSpeed(speed);
     const playback = activeSessionRuntime.snapshot().session?.playback;
-    syncPlaybackStatus(playback, currentData?.state === 'RUNNING');
+    syncPlaybackStatus(playback);
   } catch (error) {
     pushLog(error.message, 'log-danger');
   }

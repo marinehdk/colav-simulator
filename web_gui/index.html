@@ -6,7 +6,7 @@
   <title>综合避碰仿真器</title>
   <meta name="description" content="NTNU autonomous ship COLAV & MPC route planning algorithm verification console with real-time COLREGs risk assessment." />
   <link id="openbridgeStyles" rel="stylesheet" href="/static/vendor/openbridge/openbridge.css?v=20260827-vessel-placard-v1" onerror="this.dataset.failed='true'" />
-  <link rel="stylesheet" href="/static/style.css?v=20260914-gnc-replay-v3" />
+  <link rel="stylesheet" href="/static/style.css?v=20260915-gnc-ui" />
 </head>
 <body>
   <div class="app-container">
@@ -617,13 +617,11 @@
                 <obc-icon-button variant="flat" id="stepValidationBtn" aria-label="单步执行" title="单步执行"><obi-media-skip-next></obi-media-skip-next></obc-icon-button>
                 <obc-icon-button variant="flat" id="resetValidationBtn" aria-label="重置仿真" title="重置仿真"><obi-reset></obi-reset></obc-icon-button>
                 <span class="deployment-control-state" id="liveControlState">NOT CREATED</span>
-                <span class="deployment-rate-label">SIMULATION RATE</span>
                 <obc-toggle-button-group class="deployment-rate-compact" id="livePlaybackRate" value="1" variant="regular" type="text" aria-label="Simulation Rate 仿真倍率">
                   <obc-toggle-button-option value="1">1×</obc-toggle-button-option>
                   <obc-toggle-button-option value="2">2×</obc-toggle-button-option>
                   <obc-toggle-button-option value="5">5×</obc-toggle-button-option>
                 </obc-toggle-button-group>
-                <span class="speed-status" id="speedStatus">实际 --</span>
                 <span class="speed-status" id="telemetryDelay" aria-live="off"></span>
               </div>
               <div class="deployment-tool-zone deployment-tool-zone--tools" aria-label="海图操作工具">
@@ -919,7 +917,7 @@
     <obc-brilliance-menu class="brilliance-menu-popover" id="brillianceMenu" variant="compact" aria-label="显示模式" hidden></obc-brilliance-menu>
   </div>
 
-  <script type="module" src="/static/app.js?v=20260914-gnc-replay-v3"></script>
+  <script type="module" src="/static/app.js?v=20260915-gnc-ui"></script>
   <script type="module" src="/static/modules/config-shell.js?v=20260914-gnc-replay-v3"></script>
   <script type="module" src="/static/modules/historical-ais-workbench.js?v=20260914-gnc-replay-v3"></script>
   <script type="module" src="/static/modules/replay-runs.js?v=20260914-gnc-replay-v3"></script>

@@ -1005,8 +1005,9 @@ test('Results and Evidence expose Original GNC identity and diagnostic-only scop
   assert.match(evidence, /6da7998cf7ec55/);
 });
 
-test('Simulation Rate / Replay Speed terminology is frozen in the UI copy', () => {
-  assert.match(html, /SIMULATION RATE/);
+test('Rate controls retain accessible terminology without redundant deployment labels', () => {
+  assert.doesNotMatch(html, /SIMULATION RATE/);
+  assert.doesNotMatch(html, /id="speedStatus"|class="deployment-rate-label"/);
   assert.match(html, /aria-label="Simulation Rate 仿真倍率"/);
   const rateGroupLabel = html.match(/<span class="replay-rate-group"[^>]*>(?:[^<]|<(?!\/span>))*<\/span>/)?.[0] ?? '';
   // The Evaluation rate group keeps the Replay Speed label from #72.
