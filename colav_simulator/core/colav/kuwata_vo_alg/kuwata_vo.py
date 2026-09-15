@@ -96,8 +96,9 @@ class OwnshipEnvelope:
 
         The half-step tolerance keeps the nearest interior sample to each
         bound so the window never empties on a coarse grid. Zero speed is
-        always excluded: a non-positive route speed limit is read as "use
-        maximum command speed" by the original route manager.
+        excluded from this route envelope: a non-positive route speed limit
+        means "use maximum command speed". A native velocity input can expose
+        one stationary candidate separately when its contract supports hold.
         """
         if speed_set.size < 2:
             raise ValueError("Speed grid requires at least two samples")
@@ -519,6 +520,7 @@ class VO:
         os_avoidance_speed_cap_mps: float | None = None,
         os_min_steerage_speed_mps: float | None = None,
         os_execution_speed_policy: dict | None = None,
+        encounter_snapshot: Any | None = None,
     ) -> np.ndarray:
         policy = self._validate_execution_speed_policy(os_execution_speed_policy)
         policy_changed = policy != getattr(self, "_execution_speed_policy", None)
@@ -596,6 +598,9 @@ class VO:
         self._track_metrics = {}
         self._target_count_current = len(do_list)
         self._matched_rules_current.clear()
+        monitored = {
+            int(item.key.target_id): item for item in getattr(encounter_snapshot, "targets", ())
+        } if encounter_snapshot is not None and encounter_snapshot.sim_time_s <= t else {}
         seen_target_ids: set[int] = set()
         for target in sorted(do_list, key=lambda item: int(item[0])):
             id_do, state_do, _covariance, length_do, width_do = target
@@ -660,13 +665,32 @@ class VO:
                 p_do,
                 v_do,
             )
+            measured_geometry_rules = geometry_matched_rules.copy()
+            monitored_target = monitored.get(id_do)
+            monitored_rule = self._monitored_recovery_rule(target, monitored_target, reference_toc)
+            self._track_metrics[id_do]["monitored_encounter"] = (
+                {"risk": monitored_target.risk, "role": monitored_target.role,
+                 "encounter": monitored_target.encounter, "generation": monitored_target.key.generation,
+                 "sample_time_s": encounter_snapshot.sim_time_s,
+                 "route_recovery_allowed": getattr(monitored_target, "route_recovery_allowed", None)}
+                if monitored_target is not None else None
+            )
+            monitored_duty_eligible = monitored_rule is not None
+            if monitored_duty_eligible:
+                geometry_matched_rules = {monitored_rule}
+            self._track_metrics[id_do]["rule_activation_basis"] = (
+                ("MONITORED_COMMITMENT" if getattr(monitored_target, "route_recovery_allowed", True) is False
+                 else "MONITORED_REFERENCE_CONFLICT") if monitored_duty_eligible else "CURRENT_MOTION"
+            )
             crossing_rules = {
                 VOCOLREGSSituation.CR_SS,
                 VOCOLREGSSituation.CR_PS,
             }
             previous_rules = self._active_rules.get(id_do, set()).copy()
             matched_rules = set(geometry_matched_rules)
-            crossing_completed = self._update_crossing_completion(
+            # The completed monitoring cycle owns release of this duty; local
+            # CPA hysteresis cannot resume recovery while its guard is active.
+            crossing_completed = monitored_rule != VOCOLREGSSituation.CR_SS and self._update_crossing_completion(
                 target_id=id_do,
                 previous_rules=previous_rules,
                 geometry_matched_rules=geometry_matched_rules,
@@ -686,12 +710,12 @@ class VO:
             shape_risk_eligible = bool(
                 np.isfinite(preferred_domain_toc)
                 and 0.0 <= preferred_domain_toc <= self._horizon_s
-            )
+            ) or monitored_duty_eligible
             cpa_gate_eligible = (
                 speed_do >= self._params.colregs_min_target_speed_mps
                 and shape_risk_eligible
             )
-            give_way_lock_eligible = (
+            give_way_lock_eligible = monitored_duty_eligible or (
                 speed_do >= self._params.colregs_min_target_speed_mps
                 and (
                     (
@@ -763,7 +787,7 @@ class VO:
             self._track_metrics[id_do].update(self._overtaking_metrics.get(id_do, {}))
             self._track_metrics[id_do]["matched_rules"] = [
                 rule.name
-                for rule in sorted(geometry_matched_rules, key=lambda item: item.value)
+                for rule in sorted(measured_geometry_rules, key=lambda item: item.value)
             ]
             self._track_metrics[id_do]["effective_matched_rules"] = [
                 rule.name for rule in sorted(matched_rules, key=lambda item: item.value)
@@ -788,6 +812,7 @@ class VO:
                 candidate_velocities,
                 uncertainty,
                 rules,
+                rule_horizon_s=self._horizon_s if monitored_duty_eligible else None,
                 anticipating_crossing=(
                     VOCOLREGSSituation.CR_SS in matched_rules
                     and not rules
@@ -824,6 +849,7 @@ class VO:
             )
 
         self._update_avoidance_speed_window(float(np.linalg.norm(v_ref)))
+        self._enable_native_stop_candidate(psi_os)
         self._apply_give_way_commitment(candidate_velocities, psi_os)
         self._apply_execution_speed_policy()
         heading, speed = self._compute_optimal_controls(np.asarray(v_ref, dtype=float), psi_os)
@@ -832,12 +858,39 @@ class VO:
         self._references[3, 0] = speed
         return self._references
 
+    def _enable_native_stop_candidate(self, heading: float) -> None:
+        """Expose native hold as one zero-speed cell, retaining collision masks."""
+        if not (getattr(self, "_execution_speed_policy", None) or {}).get("supports_stop", False):
+            return
+        zero = np.flatnonzero(self._speed_set == 0.0)
+        if zero.size:
+            column = int(np.argmin(np.abs(_wrap_angle_array(self._heading_set - heading))))
+            self._envelope_mask[zero, :] = True
+            self._envelope_mask[zero, column] = False
+
+    def _monitored_recovery_rule(self, track: Any, decision: Any, reference_toc: float) -> VOCOLREGSSituation | None:
+        """Honor an existing give-way duty when nominal recovery creates risk."""
+        if decision is None or decision.risk != "ACTIVE" or decision.role != "GIVE_WAY":
+            return None
+        blocks_recovery = (
+            getattr(decision, "route_recovery_allowed", True) is False
+            and decision.commitment in {"COMMITTED", "ACHIEVED"}
+        )
+        if not blocks_recovery and (not np.isfinite(reference_toc) or not 0.0 <= reference_toc <= self._horizon_s):
+            return None
+        key = getattr(track, "key", None)
+        if key is not None and key.generation != decision.key.generation:
+            return None
+        return {"CROSSING": VOCOLREGSSituation.CR_SS, "HEAD_ON": VOCOLREGSSituation.HO}.get(decision.encounter)
+
     @staticmethod
     def _validate_execution_speed_policy(policy: dict | None) -> dict | None:
         if policy is None:
             return None
         if not isinstance(policy, dict):
             raise ValueError("Invalid execution speed policy")
+        if not isinstance(policy.get("supports_stop", False), bool):
+            raise ValueError("Invalid stop capability")
         keys = ("cruise_cap_mps", "ordinary_cap_mps", "emergency_cap_mps")
         if any(
             isinstance(policy.get(key), bool)
@@ -1528,6 +1581,10 @@ class VO:
                 )
                 previous_progress = _wrap_angle(self._selected_heading - commitment_frame)
                 commitment |= candidate_progress[None, :] < previous_progress - 1e-12
+        if (getattr(self, "_execution_speed_policy", None) or {}).get("supports_stop", False):
+            # Stopping has no port/backward course; keep physical collision and
+            # COLREG masks, but do not demand positive progress while yielding.
+            commitment[self._speed_set == 0.0, :] = False
         hard_before_commitment = self._hard_constraint_mask.copy()
         executable = ~self._envelope_mask
         self._crossing_commitment_mask = commitment
@@ -1586,6 +1643,7 @@ class VO:
         rules: set[VOCOLREGSSituation],
         *,
         anticipating_crossing: bool = False,
+        rule_horizon_s: float | None = None,
         hard_clearance_domain: geometry.Polygon | None = None,
         preferred_clearance_domain: geometry.Polygon | None = None,
     ) -> None:
@@ -1640,6 +1698,15 @@ class VO:
         ):
             rel_position = p_do - p_os
             v1 = self._colregs_v1_mask(rel_position, candidates, v_do, uncertainty)
+            if rule_horizon_s is not None:
+                # A monitored duty persists across solves, but distant targets
+                # must not prohibit a velocity for an infinite straight voyage.
+                # Physical collision masks above remain unchanged.
+                relative = candidates - v_do
+                denominator = np.einsum("...i,...i->...", relative, relative)
+                tcpa = np.divide(np.einsum("...i,i->...", relative, rel_position), denominator,
+                                 out=np.full(denominator.shape, np.inf), where=denominator > 1e-12)
+                v1 &= (tcpa >= 0.0) & (tcpa <= rule_horizon_s)
             self._colregs_v1_mask_grid |= v1
             self._hard_constraint_mask |= v1
         self._violation_costs[self._hard_constraint_mask] = np.inf
@@ -1861,6 +1928,9 @@ class VO:
                 <= -self._params.give_way_course_family_min_rad
             )
             port_mask = port_alterations[None, :] & np.isfinite(self._total_costs)
+            port_mask &= (self._speed_set[:, None] > 0.0) | (
+                not (getattr(self, "_execution_speed_policy", None) or {}).get("supports_stop", False)
+            )
             if np.any(np.isfinite(self._total_costs) & ~port_mask):
                 self._total_costs[port_mask] = np.inf
         if self._stand_on_hold_active:

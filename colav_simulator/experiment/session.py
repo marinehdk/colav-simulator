@@ -290,6 +290,9 @@ class SimulationSession:
                 predictions=inputs.predictions,
                 baseline_prediction=inputs.baseline_prediction,
             )
+            observer = getattr(self.ship_list[0], "observe_encounter_snapshot", None)
+            if callable(observer):
+                observer(snapshot.lifecycle_snapshot)
             active_targets = [
                 {
                     "target_id": int(target.key.target_id),

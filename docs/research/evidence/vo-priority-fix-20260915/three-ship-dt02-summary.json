@@ -1,0 +1,68 @@
+{
+  "run_dir": "/Users/marine/Code/.worktrees/Colav-Simulator/gnc-avoidance-contract/tmp/gnc_execution/three-ship-priority-final-dt02/runs/5ca0f281-cf50-45b9-aab0-d8b4ae6bd606",
+  "state": "FINISHED",
+  "expired_publications": 0,
+  "max_solve_interval_s": 1.0000000000002274,
+  "runtime_safety_events": [],
+  "goal_events": [
+    {
+      "event_id": 1314,
+      "sequence": 6354,
+      "sim_time": 1270.8000000001518,
+      "type": "goal_reached",
+      "details": {
+        "ship_id": 0
+      }
+    }
+  ],
+  "pairs": [
+    {
+      "ownship_id": 0,
+      "target_id": 1,
+      "encounter": "overtaking",
+      "minimum_hull_clearance_m": 244.888551704942,
+      "cpa_time_s": 232.39999999999534,
+      "collision": false
+    },
+    {
+      "ownship_id": 0,
+      "target_id": 2,
+      "encounter": "crossing_give_way",
+      "minimum_hull_clearance_m": 197.6172297011661,
+      "cpa_time_s": 743.400000000032,
+      "collision": false
+    },
+    {
+      "ownship_id": 0,
+      "target_id": 3,
+      "encounter": "crossing_give_way",
+      "minimum_hull_clearance_m": 206.40129327324385,
+      "cpa_time_s": 1053.8000000001025,
+      "collision": false
+    },
+    {
+      "ownship_id": 1,
+      "target_id": 2,
+      "encounter": "crossing_give_way",
+      "minimum_hull_clearance_m": 2161.4020947971726,
+      "cpa_time_s": 1023.0000000000956,
+      "collision": false
+    },
+    {
+      "ownship_id": 1,
+      "target_id": 3,
+      "encounter": "clear",
+      "minimum_hull_clearance_m": 3857.7534884687,
+      "cpa_time_s": 1270.6000000001518,
+      "collision": false
+    },
+    {
+      "ownship_id": 2,
+      "target_id": 3,
+      "encounter": "overtaken",
+      "minimum_hull_clearance_m": 967.4243559933334,
+      "cpa_time_s": 0.0,
+      "collision": false
+    }
+  ]
+}

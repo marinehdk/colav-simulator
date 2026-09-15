@@ -461,7 +461,7 @@ class OriginalGncShipAdapter(IShip):
 
     @property
     def execution_speed_policy(self) -> dict:
-        """Read mode ceilings from the executing authoritative C++ instance."""
+        """Read source ceilings and identify native velocity-input hold support."""
         policy = self.stack.states["ship_guidance_node"].get("speed_policy")
         if not isinstance(policy, dict):
             raise OriginalGncError("Executing GNC has no speed policy contract")
@@ -470,7 +470,8 @@ class OriginalGncShipAdapter(IShip):
         if any(isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v) or v <= 0
                for v in (ordinary, emergency)) or emergency > ordinary:
             raise OriginalGncError("Executing GNC published invalid speed ceilings")
-        return {"cruise_cap_mps": ordinary, "ordinary_cap_mps": ordinary,
+        return {"supports_stop": self._response_approximation.get("input_kind") == "velocity_intent",
+                "cruise_cap_mps": ordinary, "ordinary_cap_mps": ordinary,
                 "emergency_cap_mps": emergency,
                 "source_manifest_sha256": SOURCE_MANIFEST_SHA256,
                 "library_sha256": self._build_identity["library_sha256"]}

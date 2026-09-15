@@ -95,3 +95,16 @@ def test_native_cruise_velocity_is_supported_without_a_route_switch(ship):
     assert ship.stack.latest["/gnc/route_execution_status"]["rejected"] is False
     ship.forward(0.5)
     assert ship.stack.latest["/gnc/velocity_execution_status"]["behavior_mode"] == "cruise"
+
+
+def test_native_zero_speed_intent_requests_hold_without_replacing_mission(ship):
+    mission = copy.deepcopy(ship.stack.latest["/gnc/active_route"])
+    publish(ship, intent(ship, speed=0.0))
+    ship.forward(0.5)
+    assert ship.stack.latest["/control/speed_setpoint"]["data"] == 0.0
+    assert ship.stack.latest["/gnc/velocity_execution_status"]["state"] == "STOPPING"
+    assert ship.stack.latest["/gnc/active_route"] == mission
+    publish(ship, intent(ship, speed=4.0))
+    ship.forward(0.5)
+    assert ship.stack.latest["/gnc/velocity_execution_status"]["state"] == "TRACKING"
+    assert ship.stack.latest["/control/speed_setpoint"]["data"] > 0.0

@@ -1,0 +1,42 @@
+[
+  {
+    "case": "three-ship-priority-v1",
+    "outcome": "INFEASIBLE",
+    "last_recorded_time_s": 1453.9,
+    "note": "Reference-conflict-only activation was too late; not deployed."
+  },
+  {
+    "case": "three-ship-priority-v2",
+    "run_dir": "/Users/marine/Code/.worktrees/Colav-Simulator/gnc-avoidance-contract/tmp/gnc_execution/three-ship-priority-v2/runs/79f0f450-73a9-4f14-bec6-0905929337b7",
+    "outcome": "RUNTIME_GROUNDING",
+    "runtime_events": [
+      {
+        "event_id": 639,
+        "sequence": 5568,
+        "sim_time": 556.800000000058,
+        "type": "grounding",
+        "details": {
+          "ship_id": 0
+        }
+      }
+    ],
+    "note": "Unbounded rule regions for distant monitored targets; evaluator terminal-frame gap did not override runtime failure."
+  },
+  {
+    "case": "three-ship-priority-v3",
+    "run_dir": "/Users/marine/Code/.worktrees/Colav-Simulator/gnc-avoidance-contract/tmp/gnc_execution/three-ship-priority-v3/runs/6cac91e6-1063-4f04-aaf5-4b8e130ca26d",
+    "outcome": "RUNTIME_GROUNDING",
+    "runtime_events": [
+      {
+        "event_id": 639,
+        "sequence": 5568,
+        "sim_time": 556.800000000058,
+        "type": "grounding",
+        "details": {
+          "ship_id": 0
+        }
+      }
+    ],
+    "note": "Unbounded rule regions for distant monitored targets; evaluator terminal-frame gap did not override runtime failure."
+  }
+]

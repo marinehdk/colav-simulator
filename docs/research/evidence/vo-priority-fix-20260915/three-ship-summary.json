@@ -1,0 +1,343 @@
+{
+  "run_dir": "/Users/marine/Code/.worktrees/Colav-Simulator/gnc-avoidance-contract/tmp/gnc_execution/three-ship-priority-v5/runs/8abfb874-f111-40b0-814a-e1279599f39d",
+  "expiry_count": 0,
+  "runtime_safety_events": [],
+  "goal_events": [
+    {
+      "event_id": 1314,
+      "sequence": 12707,
+      "sim_time": 1270.6999999999398,
+      "type": "goal_reached",
+      "details": {
+        "ship_id": 0
+      }
+    }
+  ],
+  "hard_gate": {
+    "outcome": "PASS",
+    "checks": [
+      {
+        "check_id": "physical_collision",
+        "outcome": "PASS",
+        "reason": "0 Ship0-vs-target physical footprint contacts",
+        "evidence": {
+          "oracle_id": "c2a-rect2d-v1",
+          "scope": "ship0_vs_target",
+          "global_all_vessel_collision_count": 0
+        }
+      },
+      {
+        "check_id": "minimum_hull_clearance",
+        "outcome": "PASS",
+        "reason": "0 Ship0-vs-target clearances below 50.0 m",
+        "evidence": {
+          "scope": "ship0_vs_target",
+          "required_clearance_m": 50.0,
+          "minimum_hull_clearance_m": 197.61723022790758
+        }
+      },
+      {
+        "check_id": "physical_grounding",
+        "outcome": "PASS",
+        "reason": "0 Ship0 groundings; 0 Ship0 evaluations unavailable",
+        "evidence": {
+          "policy_id": "chart-geometric-footprint-v1",
+          "scope": "ship0",
+          "global_all_vessel_grounding_count": 0,
+          "global_all_vessel_grounding_not_evaluated_count": 0
+        }
+      },
+      {
+        "check_id": "fallback_used",
+        "outcome": "PASS",
+        "reason": "no fallback",
+        "evidence": {}
+      },
+      {
+        "check_id": "run_completion",
+        "outcome": "PASS",
+        "reason": "run completed",
+        "evidence": {}
+      }
+    ]
+  },
+  "pairs": [
+    {
+      "ownship_id": 0,
+      "target_id": 1,
+      "encounter": "overtaking",
+      "minimum_hull_clearance_m": 244.88855063046154,
+      "cpa_time_s": 232.49999999999108,
+      "collision": false
+    },
+    {
+      "ownship_id": 0,
+      "target_id": 2,
+      "encounter": "crossing_give_way",
+      "minimum_hull_clearance_m": 197.61723022790758,
+      "cpa_time_s": 743.4000000001005,
+      "collision": false
+    },
+    {
+      "ownship_id": 0,
+      "target_id": 3,
+      "encounter": "crossing_give_way",
+      "minimum_hull_clearance_m": 206.40128964758927,
+      "cpa_time_s": 1053.800000000137,
+      "collision": false
+    },
+    {
+      "ownship_id": 1,
+      "target_id": 2,
+      "encounter": "crossing_give_way",
+      "minimum_hull_clearance_m": 2161.2936437690546,
+      "cpa_time_s": 1019.6000000001633,
+      "collision": false
+    },
+    {
+      "ownship_id": 1,
+      "target_id": 3,
+      "encounter": "clear",
+      "minimum_hull_clearance_m": 3857.6424004646224,
+      "cpa_time_s": 1270.5999999999399,
+      "collision": false
+    },
+    {
+      "ownship_id": 2,
+      "target_id": 3,
+      "encounter": "overtaken",
+      "minimum_hull_clearance_m": 967.4243559933334,
+      "cpa_time_s": 0.0,
+      "collision": false
+    }
+  ],
+  "ts3_rule_active_interval_s": [
+    651.0000000000795,
+    1081.9000000001115
+  ],
+  "activation_bases": {
+    "MONITORED_COMMITMENT": 4280,
+    "CURRENT_MOTION": 30
+  },
+  "ts3_events": [
+    {
+      "details": {
+        "avoidance_action_active": false,
+        "canonical_event_id": 3,
+        "commitment": null,
+        "dcpa_m": 4452.746930783419,
+        "display_class": "CLEAR",
+        "encounter": null,
+        "from_state": null,
+        "generation": 1,
+        "observation_health": "UPDATED",
+        "priority_class": "UNKNOWN",
+        "range_m": 4463.795191208652,
+        "reason": null,
+        "risk": null,
+        "role": null,
+        "snapshot_sequence": 1,
+        "target_id": 3,
+        "tcpa_s": 60.646772622272586,
+        "to_state": "CLEAR/NONE/NONE"
+      },
+      "event_id": 6,
+      "sequence": 1,
+      "sim_time": 0.1,
+      "type": "target_transition"
+    },
+    {
+      "details": {
+        "avoidance_action_active": false,
+        "canonical_event_id": 9,
+        "commitment": null,
+        "dcpa_m": 178.36940711414002,
+        "display_class": "LOW",
+        "encounter": null,
+        "from_state": "CLEAR/NONE/NONE",
+        "generation": 1,
+        "observation_health": "UPDATED",
+        "priority_class": "UNKNOWN",
+        "range_m": 2534.663018059234,
+        "reason": null,
+        "risk": null,
+        "role": null,
+        "snapshot_sequence": 3229,
+        "target_id": 3,
+        "tcpa_s": 439.5538718436156,
+        "to_state": "CANDIDATE/NONE/NONE"
+      },
+      "event_id": 670,
+      "sequence": 6457,
+      "sim_time": 645.7000000000783,
+      "type": "target_transition"
+    },
+    {
+      "details": {
+        "generation": 1,
+        "target_id": 3
+      },
+      "event_id": 677,
+      "sequence": 6507,
+      "sim_time": 650.7000000000794,
+      "type": "threat_lifecycle_active"
+    },
+    {
+      "details": {
+        "avoidance_action_active": false,
+        "canonical_event_id": 10,
+        "commitment": null,
+        "dcpa_m": 122.09278497669985,
+        "display_class": "LOW",
+        "encounter": null,
+        "from_state": "CANDIDATE/NONE/NONE",
+        "generation": 1,
+        "observation_health": "UPDATED",
+        "priority_class": "COMMITTED_ACTIVE",
+        "range_m": 2505.8952095694676,
+        "reason": null,
+        "risk": null,
+        "role": null,
+        "snapshot_sequence": 3254,
+        "target_id": 3,
+        "tcpa_s": 433.2502045493662,
+        "to_state": "ACTIVE/COMMITTED/NONE"
+      },
+      "event_id": 679,
+      "sequence": 6507,
+      "sim_time": 650.7000000000794,
+      "type": "target_transition"
+    },
+    {
+      "details": {
+        "avoidance_action_active": true,
+        "commitment": null,
+        "dcpa_m": 10.89625375147978,
+        "display_class": "HIGH",
+        "encounter": null,
+        "generation": 1,
+        "observation_health": "UPDATED",
+        "priority_class": "RESPONSE_TIME_EMERGENCY",
+        "range_m": 1237.1745571564961,
+        "risk": null,
+        "role": null,
+        "target_id": 3,
+        "tcpa_s": 218.13448994395864
+      },
+      "event_id": 903,
+      "sequence": 8685,
+      "sim_time": 868.5000000001289,
+      "type": "avoidance_action_started"
+    },
+    {
+      "details": {
+        "avoidance_action_active": false,
+        "canonical_event_id": 13,
+        "commitment": null,
+        "dcpa_m": 298.40073896085227,
+        "display_class": "CLEAR",
+        "encounter": null,
+        "from_state": "ACTIVE/COMMITTED/NONE",
+        "generation": 1,
+        "observation_health": "UPDATED",
+        "priority_class": "UNKNOWN",
+        "range_m": 298.40073896085227,
+        "reason": null,
+        "risk": null,
+        "role": null,
+        "snapshot_sequence": 5395,
+        "target_id": 3,
+        "tcpa_s": 0.0,
+        "to_state": "PAST_CLEAR/COMMITTED/NONE"
+      },
+      "event_id": 1116,
+      "sequence": 10789,
+      "sim_time": 1078.9000000001142,
+      "type": "target_transition"
+    },
+    {
+      "details": {
+        "avoidance_action_active": false,
+        "commitment": null,
+        "dcpa_m": 298.40073896085227,
+        "display_class": "CLEAR",
+        "encounter": null,
+        "generation": 1,
+        "observation_health": "UPDATED",
+        "priority_class": "UNKNOWN",
+        "range_m": 298.40073896085227,
+        "risk": null,
+        "role": null,
+        "target_id": 3,
+        "tcpa_s": 0.0
+      },
+      "event_id": 1117,
+      "sequence": 10789,
+      "sim_time": 1078.9000000001142,
+      "type": "avoidance_action_ended"
+    },
+    {
+      "details": {
+        "avoidance_action_active": false,
+        "canonical_event_id": 14,
+        "commitment": null,
+        "dcpa_m": 349.3291106693647,
+        "display_class": "CLEAR",
+        "encounter": null,
+        "from_state": "PAST_CLEAR/COMMITTED/NONE",
+        "generation": 1,
+        "observation_health": "UPDATED",
+        "priority_class": "UNKNOWN",
+        "range_m": 349.3291106693647,
+        "reason": null,
+        "risk": null,
+        "role": null,
+        "snapshot_sequence": 5446,
+        "target_id": 3,
+        "tcpa_s": 0.0,
+        "to_state": "RELEASED/ACHIEVED/NONE"
+      },
+      "event_id": 1130,
+      "sequence": 10891,
+      "sim_time": 1089.100000000105,
+      "type": "target_transition"
+    },
+    {
+      "details": {
+        "avoidance_action_active": false,
+        "canonical_event_id": 1,
+        "commitment": null,
+        "dcpa_m": 379.40077579521983,
+        "display_class": "CLEAR",
+        "encounter": null,
+        "from_context": "CURRENT_PRIMARY",
+        "generation": 1,
+        "observation_health": "UPDATED",
+        "predicted": true,
+        "priority_class": "UNKNOWN",
+        "range_m": 379.40077579521983,
+        "reason": "threat_evidence_unknown",
+        "risk": null,
+        "role": null,
+        "snapshot_sequence": 5473,
+        "target_id": 3,
+        "tcpa_s": 0.0,
+        "to_context": "RELEASED"
+      },
+      "event_id": 1136,
+      "sequence": 10945,
+      "sim_time": 1094.5000000001,
+      "type": "threat_released"
+    }
+  ],
+  "wpt3_incoming_end_plane_passage_s": 974.600000000153,
+  "ts3_cpa_own_along_m": -32.13768241601282,
+  "ts3_cpa_own_lateral_m": -232.92926087992026,
+  "ts3_track_crossings": [
+    {
+      "time_s": 1230.3999999999764,
+      "own_along_m": -1276.89629062501
+    }
+  ],
+  "ts3_P_ahead15": 0.0
+}

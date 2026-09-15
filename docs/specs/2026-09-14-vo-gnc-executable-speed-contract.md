@@ -111,3 +111,7 @@ No current execution policy or source parameters were changed by this investigat
 | Mid-MPC | Native avoidance path + speed profile | RoutePlan | Explicit route/return contract |
 
 Scalar requests retain parent route identity, solve identity, ordinary/emergency mode and finite expiry. A held tick cannot renew an expired solve. Expiry stops in GNC until fresh authorization or explicit return; clearing an encounter alone must not silently transfer guidance ownership. SOG demand and signed body-surge controller reference are distinct quantities. Both response profiles are remeasured against the revised source.
+
+## Confirmed monitoring priority integration
+
+The completed monitoring lifecycle snapshot feeds the next VO solve. An established give-way duty that forbids recovery constrains VO before nominal route tracking; local release logic cannot silently supersede that guard. The duty persists across solves while candidate interaction constraints remain bounded by the existing planning horizon. Physical collision constraints remain independent. Record measured geometry, monitored duty and active rule separately. Verify the actual passing side and astern geometry in addition to minimum clearance and mission completion. A native velocity backend may explicitly advertise stationary hold; this does not make zero route-speed limits a stop command.

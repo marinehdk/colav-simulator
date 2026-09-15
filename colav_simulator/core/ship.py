@@ -782,6 +782,12 @@ class Ship(IShip):
             raise ValueError(msg)
         self._ext_colav_data = colav_data
 
+    def observe_encounter_snapshot(self, snapshot: Any) -> None:
+        """Deliver the completed monitoring cycle to the next planner solve."""
+        observer = getattr(self._colav, "observe_encounter_snapshot", None)
+        if callable(observer):
+            observer(snapshot)
+
     def get_colav_data(self) -> dict:
         if self._colav is None:
             if self._ext_colav_data:

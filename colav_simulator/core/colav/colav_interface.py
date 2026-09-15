@@ -30,6 +30,7 @@ import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from enum import Enum
+from typing import Any
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -260,6 +261,7 @@ class VOWrapper(ICOLAV):
             raise ValueError(msg)
         self._vo = kvo.VO(config.layer1.vo)
         self._nominal_horizon_s = config.layer1.vo.t_max
+        self._encounter_snapshot = None
 
         if not (config.layer2 and config.layer2.los is not None):
             msg = "LOS guidance must be on the second layer for the VO wrapper."
@@ -277,10 +279,15 @@ class VOWrapper(ICOLAV):
         self._decision_space_solve_id = 0
         self._decision_space_sim_time = 0.0
 
+    def observe_encounter_snapshot(self, snapshot: Any) -> None:
+        """Keep the previous completed monitoring cycle as immutable evidence."""
+        self._encounter_snapshot = snapshot
+
     def reset(self):
         """Resets the VO-COLAV to its initial state."""
         self._t_prev = 0.0
         self._initialized = False
+        self._encounter_snapshot = None
         self._vo.reset()
         self._los.reset()
         self._solve_id = 0
@@ -337,6 +344,7 @@ class VOWrapper(ICOLAV):
             os_max_turn_rate_radps=kwargs.get("os_max_turn_rate_radps"),
             os_avoidance_speed_cap_mps=kwargs.get("os_avoidance_speed_cap_mps"),
             os_execution_speed_policy=kwargs.get("os_execution_speed_policy"),
+            encounter_snapshot=self._encounter_snapshot,
             os_min_steerage_speed_mps=kwargs.get("os_min_steerage_speed_mps"),
         )
         solver_executed = self._vo.plan_executed
