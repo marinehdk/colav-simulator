@@ -1,0 +1,11 @@
+{
+  "1.2": {
+    "max_abs_rot": 1.3503569055161044,
+    "recovery_course_mae_deg": 51.397639916835075
+  },
+  "3.2": {
+    "max_abs_rot": 1.278357634357084,
+    "recovery_course_mae_deg": 39.7940138864217
+  },
+  "baseline_max_xte_difference_m": 3.30430793837877e-10
+}
