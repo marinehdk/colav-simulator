@@ -667,7 +667,23 @@ class VO:
             )
             measured_geometry_rules = geometry_matched_rules.copy()
             monitored_target = monitored.get(id_do)
-            monitored_rule = self._monitored_recovery_rule(target, monitored_target, reference_toc)
+            reference_cpa = self._cpa_metrics(p_os, v_ref, p_do, v_do)
+            reference_in_v1 = bool(self._colregs_v1_mask(
+                p_do - p_os, v_ref[None, None, :], v_do, uncertainty,
+            )[0, 0])
+            reference_rule_toc = reference_cpa["tcpa_s"] if reference_in_v1 else None
+            reference_conflict_toc = min(
+                reference_toc,
+                reference_rule_toc if reference_rule_toc is not None and reference_rule_toc >= 0.0 else np.inf,
+            )
+            admission_horizon = self._reference_admission_horizon(
+                v_ref, p_do - p_os, v_do, candidate_velocities, uncertainty, reference_in_v1,
+            )
+            self._track_metrics[id_do]["reference_rule_conflict_tcpa_s"] = reference_rule_toc
+            self._track_metrics[id_do]["reference_admission_horizon_s"] = admission_horizon
+            monitored_rule = self._monitored_recovery_rule(
+                target, monitored_target, reference_conflict_toc, admission_horizon,
+            )
             self._track_metrics[id_do]["monitored_encounter"] = (
                 {"risk": monitored_target.risk, "role": monitored_target.role,
                  "encounter": monitored_target.encounter, "generation": monitored_target.key.generation,
@@ -679,7 +695,7 @@ class VO:
             if monitored_duty_eligible:
                 geometry_matched_rules = {monitored_rule}
             self._track_metrics[id_do]["rule_activation_basis"] = (
-                ("MONITORED_COMMITMENT" if getattr(monitored_target, "route_recovery_allowed", True) is False
+                ("MONITORED_MANEUVER_HOLD" if monitored_rule in self._active_rules.get(id_do, set())
                  else "MONITORED_REFERENCE_CONFLICT") if monitored_duty_eligible else "CURRENT_MOTION"
             )
             crossing_rules = {
@@ -812,7 +828,6 @@ class VO:
                 candidate_velocities,
                 uncertainty,
                 rules,
-                rule_horizon_s=self._horizon_s if monitored_duty_eligible else None,
                 anticipating_crossing=(
                     VOCOLREGSSituation.CR_SS in matched_rules
                     and not rules
@@ -868,20 +883,48 @@ class VO:
             self._envelope_mask[zero, :] = True
             self._envelope_mask[zero, column] = False
 
-    def _monitored_recovery_rule(self, track: Any, decision: Any, reference_toc: float) -> VOCOLREGSSituation | None:
+    def _reference_admission_horizon(
+        self, reference: np.ndarray, relative_position: np.ndarray, target_velocity: np.ndarray,
+        candidates: np.ndarray, uncertainty: np.ndarray, reference_in_v1: bool,
+    ) -> float:
+        """Allow time for an executable turn before a reference conflict arrives."""
+        if self._envelope is None or np.linalg.norm(reference) <= 1e-9:
+            return self._horizon_s
+        turn_time = abs(_wrap_angle(
+            float(np.arctan2(reference[1], reference[0])) - self._ownship_heading,
+        )) / self._envelope.max_turn_rate_radps
+        if reference_in_v1:
+            # An aligned but conflicting reference still needs an avoidance
+            # turn. Use the nearest moving COLREG-admissible course.
+            admissible = ~self._colregs_v1_mask(relative_position, candidates, target_velocity, uncertainty)
+            admissible &= ~self._envelope_mask & ~self._speed_window_mask
+            if np.any(admissible):
+                angles = np.broadcast_to(
+                    np.abs(_wrap_angle_array(self._heading_set - self._ownship_heading))[None, :], admissible.shape,
+                )
+                turn_time = max(turn_time, float(np.min(angles[admissible])) / self._envelope.max_turn_rate_radps)
+        return self._horizon_s + turn_time
+
+    def _monitored_recovery_rule(
+        self, track: Any, decision: Any, reference_toc: float, admission_horizon: float,
+    ) -> VOCOLREGSSituation | None:
         """Honor an existing give-way duty when nominal recovery creates risk."""
         if decision is None or decision.risk != "ACTIVE" or decision.role != "GIVE_WAY":
             return None
+        rule = {"CROSSING": VOCOLREGSSituation.CR_SS, "HEAD_ON": VOCOLREGSSituation.HO}.get(decision.encounter)
+        # A monitoring commitment retains duty, but cannot initiate a maneuver.
+        # Its recovery guard only sustains a rule already admitted by VO risk.
         blocks_recovery = (
-            getattr(decision, "route_recovery_allowed", True) is False
+            rule in self._active_rules.get(int(track[0]), set())
+            and getattr(decision, "route_recovery_allowed", True) is False
             and decision.commitment in {"COMMITTED", "ACHIEVED"}
         )
-        if not blocks_recovery and (not np.isfinite(reference_toc) or not 0.0 <= reference_toc <= self._horizon_s):
+        if not blocks_recovery and (not np.isfinite(reference_toc) or not 0.0 <= reference_toc <= admission_horizon):
             return None
         key = getattr(track, "key", None)
         if key is not None and key.generation != decision.key.generation:
             return None
-        return {"CROSSING": VOCOLREGSSituation.CR_SS, "HEAD_ON": VOCOLREGSSituation.HO}.get(decision.encounter)
+        return rule
 
     @staticmethod
     def _validate_execution_speed_policy(policy: dict | None) -> dict | None:
@@ -1574,7 +1617,10 @@ class VO:
         else:
             commitment = body_velocities[..., 1] < -self._params.crossing_commitment_deadband_mps
             commitment |= body_velocities[..., 0] <= 0.0
-            if was_active:
+            # Crossing candidates may reduce an earlier alteration while staying
+            # starboard of the entry course and satisfying collision/COLREG masks.
+            # A monotonically increasing angle can trap recovery into a full turn.
+            if was_active and VOCOLREGSSituation.HO in self._give_way_commitment_rules:
                 candidate_progress = np.arctan2(
                     np.sin(self._heading_set - commitment_frame),
                     np.cos(self._heading_set - commitment_frame),
@@ -1643,7 +1689,6 @@ class VO:
         rules: set[VOCOLREGSSituation],
         *,
         anticipating_crossing: bool = False,
-        rule_horizon_s: float | None = None,
         hard_clearance_domain: geometry.Polygon | None = None,
         preferred_clearance_domain: geometry.Polygon | None = None,
     ) -> None:
@@ -1698,15 +1743,6 @@ class VO:
         ):
             rel_position = p_do - p_os
             v1 = self._colregs_v1_mask(rel_position, candidates, v_do, uncertainty)
-            if rule_horizon_s is not None:
-                # A monitored duty persists across solves, but distant targets
-                # must not prohibit a velocity for an infinite straight voyage.
-                # Physical collision masks above remain unchanged.
-                relative = candidates - v_do
-                denominator = np.einsum("...i,...i->...", relative, relative)
-                tcpa = np.divide(np.einsum("...i,i->...", relative, rel_position), denominator,
-                                 out=np.full(denominator.shape, np.inf), where=denominator > 1e-12)
-                v1 &= (tcpa >= 0.0) & (tcpa <= rule_horizon_s)
             self._colregs_v1_mask_grid |= v1
             self._hard_constraint_mask |= v1
         self._violation_costs[self._hard_constraint_mask] = np.inf

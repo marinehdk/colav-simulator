@@ -1,0 +1,815 @@
+{
+  "run_dir": "/Users/marine/Code/.worktrees/Colav-Simulator/gnc-avoidance-contract/tmp/gnc_execution/three-ship-risk-gate-env-on-v5/runs/284b5db6-5f5c-4f12-bce6-605d878758a8",
+  "hard_gate": {
+    "outcome": "PASS",
+    "checks": [
+      {
+        "check_id": "physical_collision",
+        "outcome": "PASS",
+        "reason": "0 Ship0-vs-target physical footprint contacts",
+        "evidence": {
+          "oracle_id": "c2a-rect2d-v1",
+          "scope": "ship0_vs_target",
+          "global_all_vessel_collision_count": 0
+        }
+      },
+      {
+        "check_id": "minimum_hull_clearance",
+        "outcome": "PASS",
+        "reason": "0 Ship0-vs-target clearances below 50.0 m",
+        "evidence": {
+          "scope": "ship0_vs_target",
+          "required_clearance_m": 50.0,
+          "minimum_hull_clearance_m": 185.29413450992385
+        }
+      },
+      {
+        "check_id": "physical_grounding",
+        "outcome": "PASS",
+        "reason": "0 Ship0 groundings; 0 Ship0 evaluations unavailable",
+        "evidence": {
+          "policy_id": "chart-geometric-footprint-v1",
+          "scope": "ship0",
+          "global_all_vessel_grounding_count": 0,
+          "global_all_vessel_grounding_not_evaluated_count": 0
+        }
+      },
+      {
+        "check_id": "fallback_used",
+        "outcome": "PASS",
+        "reason": "no fallback",
+        "evidence": {}
+      },
+      {
+        "check_id": "run_completion",
+        "outcome": "PASS",
+        "reason": "run completed",
+        "evidence": {}
+      }
+    ]
+  },
+  "goal_events": [
+    {
+      "event_id": 1774,
+      "sequence": 15034,
+      "sim_time": 1503.3999999997282,
+      "type": "goal_reached",
+      "details": {
+        "ship_id": 0
+      }
+    }
+  ],
+  "runtime_safety_events": [],
+  "expired_publications": 0,
+  "first_active_rules": {
+    "1": {
+      "t": 0.0,
+      "active_rules": [
+        "OT_ing"
+      ],
+      "rule_activation_basis": "CURRENT_MOTION",
+      "center_distance_m": 926.0777505155817,
+      "tcpa_s": 225.22391384664036,
+      "preferred_domain_toc_s": 172.29374515131167,
+      "reference_preferred_domain_toc_s": 172.29374515131167
+    },
+    "2": {
+      "t": 655.0000000000804,
+      "active_rules": [
+        "CR_SS"
+      ],
+      "rule_activation_basis": "MONITORED_REFERENCE_CONFLICT",
+      "center_distance_m": 1024.5000958307294,
+      "tcpa_s": 142.39574724572864,
+      "preferred_domain_toc_s": 112.56489841976604,
+      "reference_preferred_domain_toc_s": 109.97653278969705
+    },
+    "3": {
+      "t": 1004.0000000001597,
+      "active_rules": [
+        "CR_SS"
+      ],
+      "rule_activation_basis": "MONITORED_REFERENCE_CONFLICT",
+      "center_distance_m": 1058.9353021451316,
+      "tcpa_s": 149.97885198286738,
+      "preferred_domain_toc_s": null,
+      "reference_preferred_domain_toc_s": null
+    }
+  },
+  "first_stop_s": null,
+  "samples": {
+    "328": {
+      "heading_deg": -80.71820973013727,
+      "course_command_deg": -120.9375,
+      "speed_command_mps": 6.774193548387097,
+      "rules": {}
+    },
+    "417": {
+      "heading_deg": 7.97646025637616,
+      "course_command_deg": 33.749999999999986,
+      "speed_command_mps": 4.666666666666667,
+      "rules": {}
+    },
+    "425": {
+      "heading_deg": 17.51351852963948,
+      "course_command_deg": 30.937499999999996,
+      "speed_command_mps": 4.666666666666667,
+      "rules": {}
+    },
+    "436": {
+      "heading_deg": 26.889278687473567,
+      "course_command_deg": 22.5,
+      "speed_command_mps": 4.666666666666667,
+      "rules": {}
+    },
+    "510": {
+      "heading_deg": 14.626617943222636,
+      "course_command_deg": 11.250000000000012,
+      "speed_command_mps": 4.666666666666667,
+      "rules": {}
+    },
+    "531": {
+      "heading_deg": 12.284574607311606,
+      "course_command_deg": 11.250000000000012,
+      "speed_command_mps": 4.666666666666667,
+      "rules": {}
+    },
+    "580": {
+      "heading_deg": 9.184918377680972,
+      "course_command_deg": 8.437499999999996,
+      "speed_command_mps": 4.666666666666667,
+      "rules": {}
+    },
+    "650": {
+      "heading_deg": 6.395660532922396,
+      "course_command_deg": 5.625000000000006,
+      "speed_command_mps": 4.666666666666667,
+      "rules": {}
+    }
+  },
+  "pairs": [
+    {
+      "target_id": 1,
+      "encounter": "overtaking",
+      "minimum_hull_clearance_m": 192.18724002056794,
+      "cpa_time_s": 238.49999999999073,
+      "collision": false,
+      "own_along_target_at_cpa_m": -59.207162557585285,
+      "track_crossings": [
+        {
+          "t": 28.000000000000128,
+          "along_m": -816.9392542538234
+        }
+      ],
+      "P_ahead15": null
+    },
+    {
+      "target_id": 2,
+      "encounter": "clear",
+      "minimum_hull_clearance_m": 185.29413450992385,
+      "cpa_time_s": 789.0000000001108,
+      "collision": false,
+      "own_along_target_at_cpa_m": -33.82643322979966,
+      "track_crossings": [
+        {
+          "t": 892.1000000001343,
+          "along_m": -739.6194937912423
+        },
+        {
+          "t": 1264.0999999999458,
+          "along_m": -1818.8786864873218
+        }
+      ],
+      "P_ahead15": null
+    },
+    {
+      "target_id": 3,
+      "encounter": "clear",
+      "minimum_hull_clearance_m": 211.03860614869953,
+      "cpa_time_s": 1209.2999999999956,
+      "collision": false,
+      "own_along_target_at_cpa_m": 65.96110178043867,
+      "track_crossings": [
+        {
+          "t": 1463.5999999997643,
+          "along_m": -1686.863316198126
+        }
+      ],
+      "P_ahead15": null
+    }
+  ],
+  "monitor_admissions": [
+    {
+      "t": 655.0000000000804,
+      "target": "2",
+      "toc": 109.97653278969705,
+      "horizon": 110.47425893903026
+    },
+    {
+      "t": 655.1000000000804,
+      "target": "2",
+      "toc": 109.97653278969705,
+      "horizon": 110.47425893903026
+    },
+    {
+      "t": 655.2000000000804,
+      "target": "2",
+      "toc": 109.97653278969705,
+      "horizon": 110.47425893903026
+    },
+    {
+      "t": 655.3000000000804,
+      "target": "2",
+      "toc": 109.97653278969705,
+      "horizon": 110.47425893903026
+    },
+    {
+      "t": 655.4000000000805,
+      "target": "2",
+      "toc": 109.97653278969705,
+      "horizon": 110.47425893903026
+    },
+    {
+      "t": 655.5000000000805,
+      "target": "2",
+      "toc": 109.97653278969705,
+      "horizon": 110.47425893903026
+    },
+    {
+      "t": 655.6000000000805,
+      "target": "2",
+      "toc": 109.97653278969705,
+      "horizon": 110.47425893903026
+    },
+    {
+      "t": 655.7000000000805,
+      "target": "2",
+      "toc": 109.97653278969705,
+      "horizon": 110.47425893903026
+    },
+    {
+      "t": 655.8000000000806,
+      "target": "2",
+      "toc": 109.97653278969705,
+      "horizon": 110.47425893903026
+    },
+    {
+      "t": 655.9000000000806,
+      "target": "2",
+      "toc": 109.97653278969705,
+      "horizon": 110.47425893903026
+    },
+    {
+      "t": 1004.0000000001597,
+      "target": "3",
+      "toc": 148.81054882240244,
+      "horizon": 149.134798613753
+    },
+    {
+      "t": 1004.1000000001598,
+      "target": "3",
+      "toc": 148.81054882240244,
+      "horizon": 149.134798613753
+    },
+    {
+      "t": 1004.2000000001598,
+      "target": "3",
+      "toc": 148.81054882240244,
+      "horizon": 149.134798613753
+    },
+    {
+      "t": 1004.3000000001598,
+      "target": "3",
+      "toc": 148.81054882240244,
+      "horizon": 149.134798613753
+    },
+    {
+      "t": 1004.4000000001598,
+      "target": "3",
+      "toc": 148.81054882240244,
+      "horizon": 149.134798613753
+    },
+    {
+      "t": 1004.5000000001598,
+      "target": "3",
+      "toc": 148.81054882240244,
+      "horizon": 149.134798613753
+    },
+    {
+      "t": 1004.6000000001599,
+      "target": "3",
+      "toc": 148.81054882240244,
+      "horizon": 149.134798613753
+    },
+    {
+      "t": 1004.7000000001599,
+      "target": "3",
+      "toc": 148.81054882240244,
+      "horizon": 149.134798613753
+    },
+    {
+      "t": 1004.8000000001599,
+      "target": "3",
+      "toc": 148.81054882240244,
+      "horizon": 149.134798613753
+    },
+    {
+      "t": 1004.9000000001599,
+      "target": "3",
+      "toc": 148.81054882240244,
+      "horizon": 149.134798613753
+    }
+  ],
+  "target_events": [
+    {
+      "details": {
+        "avoidance_action_active": false,
+        "canonical_event_id": 1,
+        "commitment": null,
+        "dcpa_m": 22.12336073756488,
+        "display_class": "LOW",
+        "encounter": null,
+        "from_state": null,
+        "generation": 1,
+        "observation_health": "UPDATED",
+        "priority_class": "RESPONSE_TIME_EMERGENCY",
+        "range_m": 925.4105656369942,
+        "reason": null,
+        "risk": null,
+        "role": null,
+        "snapshot_sequence": 1,
+        "target_id": 1,
+        "tcpa_s": 225.94733626143008,
+        "to_state": "CANDIDATE/NONE/NONE"
+      },
+      "event_id": 4,
+      "sequence": 1,
+      "sim_time": 0.1,
+      "type": "target_transition"
+    },
+    {
+      "details": {
+        "avoidance_action_active": false,
+        "canonical_event_id": 2,
+        "commitment": null,
+        "dcpa_m": 3378.250982902454,
+        "display_class": "CLEAR",
+        "encounter": null,
+        "from_state": null,
+        "generation": 1,
+        "observation_health": "UPDATED",
+        "priority_class": "UNKNOWN",
+        "range_m": 4098.976761986654,
+        "reason": null,
+        "risk": null,
+        "role": null,
+        "snapshot_sequence": 1,
+        "target_id": 2,
+        "tcpa_s": 442.58286252136384,
+        "to_state": "CLEAR/NONE/NONE"
+      },
+      "event_id": 5,
+      "sequence": 1,
+      "sim_time": 0.1,
+      "type": "target_transition"
+    },
+    {
+      "details": {
+        "avoidance_action_active": false,
+        "canonical_event_id": 3,
+        "commitment": null,
+        "dcpa_m": 4452.755598147189,
+        "display_class": "CLEAR",
+        "encounter": null,
+        "from_state": null,
+        "generation": 1,
+        "observation_health": "UPDATED",
+        "priority_class": "UNKNOWN",
+        "range_m": 4463.795193598696,
+        "reason": null,
+        "risk": null,
+        "role": null,
+        "snapshot_sequence": 1,
+        "target_id": 3,
+        "tcpa_s": 60.61921930228498,
+        "to_state": "CLEAR/NONE/NONE"
+      },
+      "event_id": 6,
+      "sequence": 1,
+      "sim_time": 0.1,
+      "type": "target_transition"
+    },
+    {
+      "details": {
+        "avoidance_action_active": false,
+        "canonical_event_id": 4,
+        "commitment": null,
+        "dcpa_m": 16.248365709950317,
+        "display_class": "LOW",
+        "encounter": null,
+        "from_state": "CANDIDATE/NONE/NONE",
+        "generation": 1,
+        "observation_health": "UPDATED",
+        "priority_class": "RESPONSE_TIME_EMERGENCY",
+        "range_m": 904.5843114060358,
+        "reason": null,
+        "risk": null,
+        "role": null,
+        "snapshot_sequence": 27,
+        "target_id": 1,
+        "tcpa_s": 227.39547353012404,
+        "to_state": "ACTIVE/COMMITTED/NONE"
+      },
+      "event_id": 13,
+      "sequence": 53,
+      "sim_time": 5.299999999999997,
+      "type": "target_transition"
+    },
+    {
+      "details": {
+        "avoidance_action_active": true,
+        "commitment": null,
+        "dcpa_m": 18.05133116872221,
+        "display_class": "HIGH",
+        "encounter": null,
+        "generation": 1,
+        "observation_health": "UPDATED",
+        "priority_class": "RESPONSE_TIME_EMERGENCY",
+        "range_m": 848.9948271964286,
+        "risk": null,
+        "role": null,
+        "target_id": 1,
+        "tcpa_s": 220.05892398095355
+      },
+      "event_id": 28,
+      "sequence": 195,
+      "sim_time": 19.500000000000007,
+      "type": "avoidance_action_started"
+    },
+    {
+      "details": {
+        "avoidance_action_active": false,
+        "canonical_event_id": 5,
+        "commitment": null,
+        "dcpa_m": 263.03613218253446,
+        "display_class": "CLEAR",
+        "encounter": null,
+        "from_state": "ACTIVE/COMMITTED/NONE",
+        "generation": 1,
+        "observation_health": "UPDATED",
+        "priority_class": "UNKNOWN",
+        "range_m": 263.03613218253446,
+        "reason": null,
+        "risk": null,
+        "role": null,
+        "snapshot_sequence": 1384,
+        "target_id": 1,
+        "tcpa_s": 0.0,
+        "to_state": "PAST_CLEAR/COMMITTED/NONE"
+      },
+      "event_id": 287,
+      "sequence": 2767,
+      "sim_time": 276.6999999999944,
+      "type": "target_transition"
+    },
+    {
+      "details": {
+        "avoidance_action_active": false,
+        "commitment": null,
+        "dcpa_m": 263.03613218253446,
+        "display_class": "CLEAR",
+        "encounter": null,
+        "generation": 1,
+        "observation_health": "UPDATED",
+        "priority_class": "UNKNOWN",
+        "range_m": 263.03613218253446,
+        "risk": null,
+        "role": null,
+        "target_id": 1,
+        "tcpa_s": 0.0
+      },
+      "event_id": 288,
+      "sequence": 2767,
+      "sim_time": 276.6999999999944,
+      "type": "avoidance_action_ended"
+    },
+    {
+      "details": {
+        "avoidance_action_active": false,
+        "canonical_event_id": 6,
+        "commitment": null,
+        "dcpa_m": 285.00482255553965,
+        "display_class": "CLEAR",
+        "encounter": null,
+        "from_state": "PAST_CLEAR/COMMITTED/NONE",
+        "generation": 1,
+        "observation_health": "UPDATED",
+        "priority_class": "UNKNOWN",
+        "range_m": 285.00482255553965,
+        "reason": null,
+        "risk": null,
+        "role": null,
+        "snapshot_sequence": 1434,
+        "target_id": 1,
+        "tcpa_s": 0.0,
+        "to_state": "RELEASED/ACHIEVED/NONE"
+      },
+      "event_id": 300,
+      "sequence": 2867,
+      "sim_time": 286.6999999999967,
+      "type": "target_transition"
+    },
+    {
+      "details": {
+        "avoidance_action_active": false,
+        "canonical_event_id": 7,
+        "commitment": null,
+        "dcpa_m": 177.0400202376859,
+        "display_class": "LOW",
+        "encounter": null,
+        "from_state": "CLEAR/NONE/NONE",
+        "generation": 1,
+        "observation_health": "UPDATED",
+        "priority_class": "UNKNOWN",
+        "range_m": 2738.6746252446183,
+        "reason": null,
+        "risk": null,
+        "role": null,
+        "snapshot_sequence": 2097,
+        "target_id": 2,
+        "tcpa_s": 384.4619602533031,
+        "to_state": "CANDIDATE/NONE/NONE"
+      },
+      "event_id": 435,
+      "sequence": 4193,
+      "sim_time": 419.30000000002684,
+      "type": "target_transition"
+    },
+    {
+      "details": {
+        "avoidance_action_active": false,
+        "canonical_event_id": 8,
+        "commitment": null,
+        "dcpa_m": 13.31241067756509,
+        "display_class": "LOW",
+        "encounter": null,
+        "from_state": "CANDIDATE/NONE/NONE",
+        "generation": 1,
+        "observation_health": "UPDATED",
+        "priority_class": "RESPONSE_TIME_EMERGENCY",
+        "range_m": 2702.868468561221,
+        "reason": null,
+        "risk": null,
+        "role": null,
+        "snapshot_sequence": 2122,
+        "target_id": 2,
+        "tcpa_s": 373.56007473832506,
+        "to_state": "ACTIVE/COMMITTED/NONE"
+      },
+      "event_id": 467,
+      "sequence": 4243,
+      "sim_time": 424.300000000028,
+      "type": "target_transition"
+    },
+    {
+      "details": {
+        "avoidance_action_active": false,
+        "canonical_event_id": 9,
+        "commitment": null,
+        "dcpa_m": 165.11100538600465,
+        "display_class": "LOW",
+        "encounter": null,
+        "from_state": "CLEAR/NONE/NONE",
+        "generation": 1,
+        "observation_health": "UPDATED",
+        "priority_class": "UNKNOWN",
+        "range_m": 4095.2271889392405,
+        "reason": null,
+        "risk": null,
+        "role": null,
+        "snapshot_sequence": 2151,
+        "target_id": 3,
+        "tcpa_s": 714.4564587795198,
+        "to_state": "CANDIDATE/NONE/NONE"
+      },
+      "event_id": 474,
+      "sequence": 4301,
+      "sim_time": 430.1000000000293,
+      "type": "target_transition"
+    },
+    {
+      "details": {
+        "avoidance_action_active": false,
+        "canonical_event_id": 10,
+        "commitment": null,
+        "dcpa_m": 121.06016983224893,
+        "display_class": "LOW",
+        "encounter": null,
+        "from_state": "CANDIDATE/NONE/NONE",
+        "generation": 1,
+        "observation_health": "UPDATED",
+        "priority_class": "COMMITTED_ACTIVE",
+        "range_m": 4066.3138265333914,
+        "reason": null,
+        "risk": null,
+        "role": null,
+        "snapshot_sequence": 2176,
+        "target_id": 3,
+        "tcpa_s": 697.2291759736268,
+        "to_state": "ACTIVE/COMMITTED/NONE"
+      },
+      "event_id": 493,
+      "sequence": 4351,
+      "sim_time": 435.10000000003043,
+      "type": "target_transition"
+    },
+    {
+      "details": {
+        "avoidance_action_active": true,
+        "commitment": null,
+        "dcpa_m": 49.65097168431155,
+        "display_class": "HIGH",
+        "encounter": null,
+        "generation": 1,
+        "observation_health": "UPDATED",
+        "priority_class": "COMMITTED_ACTIVE",
+        "range_m": 943.5892935942022,
+        "risk": null,
+        "role": null,
+        "target_id": 2,
+        "tcpa_s": 130.70764350416644
+      },
+      "event_id": 818,
+      "sequence": 6663,
+      "sim_time": 666.300000000083,
+      "type": "avoidance_action_started"
+    },
+    {
+      "details": {
+        "avoidance_action_active": false,
+        "canonical_event_id": 11,
+        "commitment": null,
+        "dcpa_m": 303.88512953923254,
+        "display_class": "CLEAR",
+        "encounter": null,
+        "from_state": "ACTIVE/COMMITTED/NONE",
+        "generation": 1,
+        "observation_health": "UPDATED",
+        "priority_class": "UNKNOWN",
+        "range_m": 303.88512953923254,
+        "reason": null,
+        "risk": null,
+        "role": null,
+        "snapshot_sequence": 4090,
+        "target_id": 2,
+        "tcpa_s": 0.0,
+        "to_state": "PAST_CLEAR/COMMITTED/NONE"
+      },
+      "event_id": 1074,
+      "sequence": 8179,
+      "sim_time": 817.9000000001174,
+      "type": "target_transition"
+    },
+    {
+      "details": {
+        "avoidance_action_active": false,
+        "commitment": null,
+        "dcpa_m": 303.88512953923254,
+        "display_class": "CLEAR",
+        "encounter": null,
+        "generation": 1,
+        "observation_health": "UPDATED",
+        "priority_class": "UNKNOWN",
+        "range_m": 303.88512953923254,
+        "risk": null,
+        "role": null,
+        "target_id": 2,
+        "tcpa_s": 0.0
+      },
+      "event_id": 1075,
+      "sequence": 8179,
+      "sim_time": 817.9000000001174,
+      "type": "avoidance_action_ended"
+    },
+    {
+      "details": {
+        "avoidance_action_active": false,
+        "canonical_event_id": 12,
+        "commitment": null,
+        "dcpa_m": 360.92492720392806,
+        "display_class": "CLEAR",
+        "encounter": null,
+        "from_state": "PAST_CLEAR/COMMITTED/NONE",
+        "generation": 1,
+        "observation_health": "UPDATED",
+        "priority_class": "UNKNOWN",
+        "range_m": 360.92492720392806,
+        "reason": null,
+        "risk": null,
+        "role": null,
+        "snapshot_sequence": 4140,
+        "target_id": 2,
+        "tcpa_s": 0.0,
+        "to_state": "RELEASED/ACHIEVED/NONE"
+      },
+      "event_id": 1087,
+      "sequence": 8279,
+      "sim_time": 827.9000000001197,
+      "type": "target_transition"
+    },
+    {
+      "details": {
+        "avoidance_action_active": true,
+        "commitment": null,
+        "dcpa_m": 701.7957723322048,
+        "display_class": "HIGH",
+        "encounter": null,
+        "generation": 1,
+        "observation_health": "UPDATED",
+        "priority_class": "COMMITTED_ACTIVE",
+        "range_m": 1021.5845870457013,
+        "risk": null,
+        "role": null,
+        "target_id": 3,
+        "tcpa_s": 141.90465545073275
+      },
+      "event_id": 1276,
+      "sequence": 10139,
+      "sim_time": 1013.900000000162,
+      "type": "avoidance_action_started"
+    },
+    {
+      "details": {
+        "avoidance_action_active": false,
+        "canonical_event_id": 13,
+        "commitment": null,
+        "dcpa_m": 297.416515828755,
+        "display_class": "CLEAR",
+        "encounter": null,
+        "from_state": "ACTIVE/COMMITTED/NONE",
+        "generation": 1,
+        "observation_health": "UPDATED",
+        "priority_class": "UNKNOWN",
+        "range_m": 297.416515828755,
+        "reason": null,
+        "risk": null,
+        "role": null,
+        "snapshot_sequence": 6172,
+        "target_id": 3,
+        "tcpa_s": 0.0,
+        "to_state": "PAST_CLEAR/COMMITTED/NONE"
+      },
+      "event_id": 1499,
+      "sequence": 12343,
+      "sim_time": 1234.299999999973,
+      "type": "target_transition"
+    },
+    {
+      "details": {
+        "avoidance_action_active": false,
+        "commitment": null,
+        "dcpa_m": 297.416515828755,
+        "display_class": "CLEAR",
+        "encounter": null,
+        "generation": 1,
+        "observation_health": "UPDATED",
+        "priority_class": "UNKNOWN",
+        "range_m": 297.416515828755,
+        "risk": null,
+        "role": null,
+        "target_id": 3,
+        "tcpa_s": 0.0
+      },
+      "event_id": 1500,
+      "sequence": 12343,
+      "sim_time": 1234.299999999973,
+      "type": "avoidance_action_ended"
+    },
+    {
+      "details": {
+        "avoidance_action_active": false,
+        "canonical_event_id": 14,
+        "commitment": null,
+        "dcpa_m": 345.42963148918085,
+        "display_class": "CLEAR",
+        "encounter": null,
+        "from_state": "PAST_CLEAR/COMMITTED/NONE",
+        "generation": 1,
+        "observation_health": "UPDATED",
+        "priority_class": "UNKNOWN",
+        "range_m": 345.42963148918085,
+        "reason": null,
+        "risk": null,
+        "role": null,
+        "snapshot_sequence": 6223,
+        "target_id": 3,
+        "tcpa_s": 0.0,
+        "to_state": "RELEASED/ACHIEVED/NONE"
+      },
+      "event_id": 1512,
+      "sequence": 12445,
+      "sim_time": 1244.4999999999636,
+      "type": "target_transition"
+    }
+  ]
+}

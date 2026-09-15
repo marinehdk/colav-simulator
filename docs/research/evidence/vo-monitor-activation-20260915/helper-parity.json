@@ -1,0 +1,7 @@
+{
+  "seed": 20260915,
+  "stateful_sequences": 40,
+  "matched_solves": 240,
+  "command_comparison": "exact array equality",
+  "track_metrics_comparison": "exact equality"
+}

@@ -1,0 +1,19 @@
+{
+  "matched_frames": 3280,
+  "maximum_absolute_state_errors": [
+    0.0,
+    0.0,
+    8.881784197001252e-16,
+    8.881784197001252e-16,
+    9.853229343548264e-16,
+    9.99417562597138e-16
+  ],
+  "state_order": [
+    "north",
+    "east",
+    "heading",
+    "surge",
+    "sway",
+    "yaw_rate"
+  ]
+}

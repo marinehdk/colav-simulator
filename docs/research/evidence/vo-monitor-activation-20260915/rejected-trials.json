@@ -1,0 +1,26 @@
+[
+  {
+    "case": "three-ship-risk-gate-env-on-v1",
+    "change": "admission gate only",
+    "result": "INFEASIBLE near 1201s",
+    "last_recorded_time_s": 1200.9
+  },
+  {
+    "case": "three-ship-risk-gate-env-on-v2",
+    "change": "admission gate and full admitted COLREG exclusions",
+    "result": "INFEASIBLE near 1402s",
+    "last_recorded_time_s": 1401.9
+  },
+  {
+    "case": "three-ship-risk-gate-env-off-v1",
+    "result": "INTERRUPTED obsolete trial; not acceptance evidence"
+  },
+  {
+    "case": "three-ship-risk-gate-env-on-v3",
+    "result": "Completed with physical clearance, rejected for crossing ahead of TS3"
+  },
+  {
+    "case": "three-ship-risk-gate-env-on-v4",
+    "result": "Reference alignment lead alone still admits TS3 too late; rejected by astern crossing assertion"
+  }
+]
