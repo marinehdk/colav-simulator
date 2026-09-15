@@ -523,7 +523,10 @@ class VO:
         policy = self._validate_execution_speed_policy(os_execution_speed_policy)
         policy_changed = policy != getattr(self, "_execution_speed_policy", None)
         self._execution_speed_policy = policy
-        if not policy_changed and self._initialized and t - self._t_prev < 1.0 / self._params.planning_frequency:
+        # Decimal outer steps may sum to 0.9999999999999 rather than one second.
+        # Compare elapsed durations at the native clock's nanosecond precision.
+        solve_due = round((t - self._t_prev) * 1e9) >= round(1e9 / self._params.planning_frequency)
+        if not policy_changed and self._initialized and not solve_due:
             self._plan_executed = False
             return self._references
 

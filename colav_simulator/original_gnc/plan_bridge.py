@@ -291,7 +291,7 @@ class OriginalPlanBridge:
         self._algorithm = None
         self._intent_generation = 0
         self._lateral_blend = 1.0
-        self._last_solve_time = None
+        self._last_solve_time_ns = None
         self._last_submission = None
         self._last_submission_time = None
         self._mid_plan_id = None
@@ -630,27 +630,28 @@ class OriginalPlanBridge:
         self._last_submission = signature
         self._last_submission_time = t
 
-    def _submit_velocity(self, t: float, planner: dict, details: dict, course: float, speed: float) -> None:
+    def _submit_velocity(self, _t: float, planner: dict, details: dict, course: float, speed: float) -> None:
         """Forward scalar planner intent through the authoritative GNC input."""
         algorithm = planner["algorithm_id"]
         if planner.get("solver_executed") is True:
-            self._last_solve_time = t
+            self._last_solve_time_ns = self.ship.stack.time_ns
         avoiding = avoidance_constraints_active(algorithm, details)
         period = details.get("solve_period_s")
         if (isinstance(period, bool) or not isinstance(period, (int, float))
-                or not math.isfinite(period) or period <= 0 or self._last_solve_time is None):
+                or not math.isfinite(period) or period <= 0 or self._last_solve_time_ns is None):
             raise OriginalGncError("Velocity intent requires an executed solve and finite validity period")
-        valid_until_s = self._last_solve_time + period
-        if valid_until_s <= t:
+        # A fresh solve leases execution from its native issue time. Do not
+        # reconstruct that clock from accumulated floating-point simulator time.
+        deadline = self._last_solve_time_ns + round(period * 1e9)
+        if deadline <= self.ship.stack.time_ns:
             raise OriginalGncError("Expired planner velocity intent cannot be renewed by a held tick")
         mode = details.get("execution_mode") or ("avoidance" if avoiding else "cruise")
         if mode not in {"cruise", "avoidance", "emergency_avoidance"}:
             raise OriginalGncError(f"Unsupported velocity execution mode: {mode}")
         identifier = f"{algorithm}-velocity-{planner.get('solve_id')}"
-        signature = (identifier, course, speed, mode, valid_until_s)
+        signature = (identifier, course, speed, mode, deadline)
         if signature == getattr(self, "_last_velocity_signature", None):
             return
-        deadline = self.ship.stack.epoch_ns + round((valid_until_s - self.ship._planner_time_origin) * 1e9)
         request = {
             "header": {"stamp": stamp(self.ship.stack.time_ns), "frame_id": "map"},
             "intent_id": identifier, "parent_route_id": self.ship._nominal_id,

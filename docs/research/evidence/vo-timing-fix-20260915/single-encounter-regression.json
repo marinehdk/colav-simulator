@@ -1,0 +1,38 @@
+[
+  {
+    "case": "vo-overtaking-E0",
+    "run_dir": "/Users/marine/Code/.worktrees/Colav-Simulator/gnc-avoidance-contract/tmp/gnc_execution/vo-timing-regression-matrix/vo-overtaking-E0/2dad9ea7-9f18-4667-9d9c-c4ff43872997",
+    "hard_gate": "PASS",
+    "runtime_safety_events": [],
+    "goal_reached": true,
+    "state": "FINISHED",
+    "minimum_hull_clearance_m": 350.3271766337294
+  },
+  {
+    "case": "vo-head_on-E0",
+    "run_dir": "/Users/marine/Code/.worktrees/Colav-Simulator/gnc-avoidance-contract/tmp/gnc_execution/vo-timing-regression-matrix/vo-head_on-E0/2f2f25cb-bfc2-49b1-a953-7cfecc1d14e2",
+    "hard_gate": "PASS",
+    "runtime_safety_events": [],
+    "goal_reached": true,
+    "state": "FINISHED",
+    "minimum_hull_clearance_m": 225.17280298589532
+  },
+  {
+    "case": "vo-crossing_give_way-E0",
+    "run_dir": "/Users/marine/Code/.worktrees/Colav-Simulator/gnc-avoidance-contract/tmp/gnc_execution/vo-timing-regression-matrix/vo-crossing_give_way-E0/b42dc743-7934-4d43-97c9-9cf490dc5136",
+    "hard_gate": "PASS",
+    "runtime_safety_events": [],
+    "goal_reached": true,
+    "state": "FINISHED",
+    "minimum_hull_clearance_m": 223.15702071138685
+  },
+  {
+    "case": "vo-overtaking-E4",
+    "run_dir": "/Users/marine/Code/.worktrees/Colav-Simulator/gnc-avoidance-contract/tmp/gnc_execution/vo-timing-regression-matrix/vo-overtaking-E4/5b43207f-1de1-4383-b8fa-0e806770256f",
+    "hard_gate": "PASS",
+    "runtime_safety_events": [],
+    "goal_reached": true,
+    "state": "FINISHED",
+    "minimum_hull_clearance_m": 332.70145224651526
+  }
+]

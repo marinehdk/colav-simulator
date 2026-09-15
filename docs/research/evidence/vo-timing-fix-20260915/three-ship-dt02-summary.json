@@ -1,0 +1,116 @@
+{
+  "run_dir": "/Users/marine/Code/.worktrees/Colav-Simulator/gnc-avoidance-contract/tmp/gnc_execution/three-ship-timing-dt02/runs/1dd9d10b-7d82-42ba-bb26-40e230389353",
+  "state": "FINISHED",
+  "expired_publications": 0,
+  "max_solve_interval_s": 1.0000000000002274,
+  "runtime_safety_events": [],
+  "goal_events": [
+    {
+      "event_id": 1510,
+      "sequence": 7084,
+      "sim_time": 1416.800000000185,
+      "type": "goal_reached",
+      "details": {
+        "ship_id": 0
+      }
+    }
+  ],
+  "hard_gate": {
+    "outcome": "PASS",
+    "checks": [
+      {
+        "check_id": "physical_collision",
+        "outcome": "PASS",
+        "reason": "0 Ship0-vs-target physical footprint contacts",
+        "evidence": {
+          "oracle_id": "c2a-rect2d-v1",
+          "scope": "ship0_vs_target",
+          "global_all_vessel_collision_count": 0
+        }
+      },
+      {
+        "check_id": "minimum_hull_clearance",
+        "outcome": "PASS",
+        "reason": "0 Ship0-vs-target clearances below 50.0 m",
+        "evidence": {
+          "scope": "ship0_vs_target",
+          "required_clearance_m": 50.0,
+          "minimum_hull_clearance_m": 182.93171993047397
+        }
+      },
+      {
+        "check_id": "physical_grounding",
+        "outcome": "PASS",
+        "reason": "0 Ship0 groundings; 0 Ship0 evaluations unavailable",
+        "evidence": {
+          "policy_id": "chart-geometric-footprint-v1",
+          "scope": "ship0",
+          "global_all_vessel_grounding_count": 0,
+          "global_all_vessel_grounding_not_evaluated_count": 0
+        }
+      },
+      {
+        "check_id": "fallback_used",
+        "outcome": "PASS",
+        "reason": "no fallback",
+        "evidence": {}
+      },
+      {
+        "check_id": "run_completion",
+        "outcome": "PASS",
+        "reason": "run completed",
+        "evidence": {}
+      }
+    ]
+  },
+  "pairs": [
+    {
+      "ownship_id": 0,
+      "target_id": 1,
+      "encounter": "overtaking",
+      "minimum_hull_clearance_m": 244.888551704942,
+      "cpa_time_s": 232.39999999999534,
+      "collision": false
+    },
+    {
+      "ownship_id": 0,
+      "target_id": 2,
+      "encounter": "crossing_give_way",
+      "minimum_hull_clearance_m": 209.15502858910978,
+      "cpa_time_s": 745.8000000000326,
+      "collision": false
+    },
+    {
+      "ownship_id": 0,
+      "target_id": 3,
+      "encounter": "clear",
+      "minimum_hull_clearance_m": 182.93171993047397,
+      "cpa_time_s": 1165.2000000001278,
+      "collision": false
+    },
+    {
+      "ownship_id": 1,
+      "target_id": 2,
+      "encounter": "crossing_give_way",
+      "minimum_hull_clearance_m": 2161.4020947971726,
+      "cpa_time_s": 1023.0000000000956,
+      "collision": false
+    },
+    {
+      "ownship_id": 1,
+      "target_id": 3,
+      "encounter": "clear",
+      "minimum_hull_clearance_m": 3664.6277938624835,
+      "cpa_time_s": 1416.600000000185,
+      "collision": false
+    },
+    {
+      "ownship_id": 2,
+      "target_id": 3,
+      "encounter": "overtaken",
+      "minimum_hull_clearance_m": 967.4243559933334,
+      "cpa_time_s": 0.0,
+      "collision": false
+    }
+  ]
+}
