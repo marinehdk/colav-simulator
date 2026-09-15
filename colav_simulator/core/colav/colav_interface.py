@@ -259,6 +259,7 @@ class VOWrapper(ICOLAV):
             msg = "Kuwata VO must be on the first layer for the VO wrapper."
             raise ValueError(msg)
         self._vo = kvo.VO(config.layer1.vo)
+        self._nominal_horizon_s = config.layer1.vo.t_max
 
         if not (config.layer2 and config.layer2.los is not None):
             msg = "LOS guidance must be on the second layer for the VO wrapper."
@@ -311,6 +312,13 @@ class VOWrapper(ICOLAV):
         references = self._los.compute_references(
             waypoints, speed_plan, None, ownship_state, t - self._t_prev,
             recover_corner=not self._vo.give_way_commitment_active,
+            course_response_time_constant_s=kwargs.get("os_course_time_constant_s") or 0.0,
+            max_course_rate_radps=kwargs.get("os_max_turn_rate_radps"),
+            terminal_time_horizon_s=(
+                self._nominal_horizon_s + kwargs["os_course_time_constant_s"]
+                + (kwargs.get("os_speed_time_constant_s") or 0.0)
+                if kwargs.get("os_course_time_constant_s") else 0.0
+            ),
         )
         self._t_prev = t
         course_ref = references[2, 0]

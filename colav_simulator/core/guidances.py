@@ -537,6 +537,9 @@ class LOSGuidance(IGuidance):
         dt: float,
         *,
         recover_corner: bool = False,
+        course_response_time_constant_s: float = 0.0,
+        max_course_rate_radps: float | None = None,
+        terminal_time_horizon_s: float = 0.0,
     ) -> np.ndarray:
         """Computes references in course and speed using the LOS guidance law.
 
@@ -550,6 +553,12 @@ class LOSGuidance(IGuidance):
                 function.
             recover_corner (bool): Allow forward adjacent-leg recovery after
                 avoidance, while preserving ordinary waypoint passage.
+            course_response_time_constant_s (float): Reported course lag used
+                to anticipate lateral drift; zero preserves ordinary LOS.
+            max_course_rate_radps (float | None): Executable course-rate bound
+                for anticipating lateral travel while turning parallel.
+            terminal_time_horizon_s (float): Final-leg speed reference keeps
+                the nominal prediction within the mission endpoint; zero disables.
 
         Returns:
             np.ndarray: 9 x 1 dimensional reference vector.
@@ -582,9 +591,38 @@ class LOSGuidance(IGuidance):
             self._params.max_cross_track_error_int,
         )
 
-        chi_r = np.arctan2(-(self._params.K_p * e + self._params.K_i * self._e_int), 1)
+        if not np.isfinite(course_response_time_constant_s) or course_response_time_constant_s < 0:
+            raise ValueError("Course response time must be finite and nonnegative")
+        # Anticipate lateral travel while the course loop responds. The nominal
+        # reference starts braking before the vessel crosses the route; VO still
+        # evaluates every candidate against its unchanged collision constraints.
+        lateral_speed = xs[3] * np.sin(xs[2] - alpha) + xs[4] * np.cos(xs[2] - alpha)
+        recovery_error = e + course_response_time_constant_s * lateral_speed
+        if max_course_rate_radps is not None:
+            if not np.isfinite(max_course_rate_radps) or max_course_rate_radps <= 0:
+                raise ValueError("Course rate bound must be finite and positive")
+            speed = np.hypot(xs[3], xs[4])
+            course_offset = mf.wrap_angle_to_pmpi(xs[2] + np.arctan2(xs[4], xs[3]) - alpha)
+            # Integral of lateral velocity during a rate-bounded turn back to
+            # parallel. Add response-lag drift above without increasing limits.
+            turn_drift = speed / max_course_rate_radps * (1.0 - np.cos(course_offset))
+            recovery_error += np.sign(course_offset) * turn_drift
+        recovery_gain = self._params.K_p
+        if course_response_time_constant_s > 0:
+            # Match convergence to the measured course response, rather than
+            # demanding another large reversal before the previous one settles.
+            response_speed = max(float(np.hypot(xs[3], xs[4])), float(speed_plan[self._wp_counter]))
+            response_distance = 2.0 * response_speed * course_response_time_constant_s
+            if response_distance > 0:
+                recovery_gain = min(recovery_gain, 1.0 / response_distance)
+        chi_r = np.arctan2(-(recovery_gain * recovery_error + self._params.K_i * self._e_int), 1)
         chi_d = mf.wrap_angle_to_pmpi(alpha + chi_r)
         U_d = speed_plan[self._wp_counter]
+        if not np.isfinite(terminal_time_horizon_s) or terminal_time_horizon_s < 0:
+            raise ValueError("Terminal horizon must be finite and nonnegative")
+        if terminal_time_horizon_s > 0 and self._wp_counter >= n_wps - 2:
+            remaining = np.dot(waypoints[:, -1] - xs[:2], [np.cos(alpha), np.sin(alpha)])
+            U_d = min(U_d, max(0.0, remaining) / terminal_time_horizon_s)
 
         # print(
         #     f"e_int: {self._e_int} | e: {e} | chi_r: {chi_r * 180.0 / np.pi} | Kp_b: {self._params.K_p * e} " +

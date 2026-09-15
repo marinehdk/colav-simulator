@@ -1,0 +1,72 @@
+{
+  "run_dir": "/Users/marine/Code/.worktrees/Colav-Simulator/gnc-avoidance-contract/tmp/gnc_execution/vo-ot-damped-v7/runs/108f4710-7512-4f5f-ae83-10f81505ce7f",
+  "hard_gate": {
+    "outcome": "PASS",
+    "checks": [
+      {
+        "check_id": "physical_collision",
+        "outcome": "PASS",
+        "reason": "0 Ship0-vs-target physical footprint contacts",
+        "evidence": {
+          "oracle_id": "c2a-rect2d-v1",
+          "scope": "ship0_vs_target",
+          "global_all_vessel_collision_count": 0
+        }
+      },
+      {
+        "check_id": "minimum_hull_clearance",
+        "outcome": "PASS",
+        "reason": "0 Ship0-vs-target clearances below 50.0 m",
+        "evidence": {
+          "scope": "ship0_vs_target",
+          "required_clearance_m": 50.0,
+          "minimum_hull_clearance_m": 350.3271766337294
+        }
+      },
+      {
+        "check_id": "physical_grounding",
+        "outcome": "PASS",
+        "reason": "0 Ship0 groundings; 0 Ship0 evaluations unavailable",
+        "evidence": {
+          "policy_id": "chart-geometric-footprint-v1",
+          "scope": "ship0",
+          "global_all_vessel_grounding_count": 0,
+          "global_all_vessel_grounding_not_evaluated_count": 0
+        }
+      },
+      {
+        "check_id": "fallback_used",
+        "outcome": "PASS",
+        "reason": "no fallback",
+        "evidence": {}
+      },
+      {
+        "check_id": "run_completion",
+        "outcome": "PASS",
+        "reason": "run completed",
+        "evidence": {}
+      }
+    ]
+  },
+  "runtime_safety_events": [],
+  "goal_events": [
+    {
+      "details": {
+        "ship_id": 0
+      },
+      "event_id": 794,
+      "sequence": 1554,
+      "sim_time": 777.0,
+      "type": "goal_reached"
+    }
+  ],
+  "after_550s": {
+    "old_min_xte_m": -185.76332916658197,
+    "old_max_xte_m": 421.9361481715972,
+    "new_min_xte_m": 49.1091776933116,
+    "new_max_xte_m": 159.5683615323151
+  },
+  "end_xte_m": 107.06066075147638,
+  "end_actual_speed_mps": 2.135533244994658,
+  "end_requested_speed_mps": 1.935483870967742
+}

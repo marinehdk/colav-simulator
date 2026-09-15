@@ -1974,8 +1974,12 @@ class VO:
         contexts are exempt, and the in-extremis path in the caller keeps port
         executable when no non-port cell remains.
         """
+        # Cleared/receding tracks also have empty rule sets. They must not
+        # rearm the fresh-hazard starboard prior during nominal recovery.
         unclassified_detections = any(
             not (set(m.get("active_rules", ())) | set(m.get("effective_matched_rules", ())))
+            and bool(m.get("colregs_eligible") or m.get("cpa_gate_eligible"))
+            and m.get("tcpa_s", -1.0) >= 0.0
             for m in self._track_metrics.values()
         )
         return (
