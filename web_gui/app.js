@@ -550,7 +550,7 @@ function updateUI(proj) {
   const controlPlayback = activeSessionRuntime.snapshot().telemetry.envelope?.playback ?? proj.raw?.playback;
   syncPlaybackStatus(controlPlayback);
   setText('telemetryDelay', presentation?.buffered
-    ? (presentation.buffering ? '缓冲中' : `显示延后 ${presentation.delay_s.toFixed(1)}s`) : '');
+    ? (presentation.buffering ? 'Cache buffering' : `Cache ${presentation.delay_s.toFixed(1)}s`) : '');
 
   const primary = proj.risk.primary;
   setText('val-primary-target', primary?.targetLabel || '无目标');

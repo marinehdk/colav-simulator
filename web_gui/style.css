@@ -648,13 +648,29 @@ obc-clock:not(:defined),
 /* Historical AIS is an independent OpenBridge workface. It consumes the same
    token sheet as Config and deliberately has no lifecycle/session chrome. */
 .historical-ais-scenario-workface {
+  display: grid;
+  grid-template-columns: 236px minmax(0, 1fr);
+  gap: var(--s-3);
   min-width: 0;
   min-height: 0;
-  overflow: auto;
-  padding: var(--s-5);
+  overflow: hidden;
+  padding: 0;
   background: var(--ob-app-bg);
   color: var(--ob-text);
 }
+.evaluation-content {
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+}
+.evaluation-view {
+  min-width: 0;
+  min-height: 100%;
+}
+.evaluation-progress .config-progress-track i { width: 25%; }
+.evaluation-step[aria-pressed="true"] { background: var(--ob-accent-pale); box-shadow: inset 3px 0 0 var(--ob-accent); }
+.evaluation-step:disabled { opacity: .5; cursor: not-allowed; }
+.evaluation-step:disabled:hover { background: transparent; }
 .historical-ais-workbench { display: flex; flex-direction: column; gap: var(--s-4); max-width: 1480px; margin: 0 auto; }
 .historical-ais-workbench-header,
 .historical-ais-card-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--s-4); }
@@ -749,6 +765,7 @@ obc-clock:not(:defined),
 @media (max-width: 1050px) {
   .product-shell-header { grid-template-columns: 170px minmax(460px, 1fr) 120px; }
   .config-workface { grid-template-columns: 220px minmax(0, 1fr) 220px; }
+  .evaluation-workface { grid-template-columns: 220px minmax(0, 1fr); }
   .algorithm-detail-grid { grid-template-columns: 1fr; }
   .plan-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
@@ -760,8 +777,10 @@ obc-clock:not(:defined),
   .topbar-actions { display: none; }
   .workface-tab { padding: 0 4px; font-size: .7rem; }
   .config-workface { min-height: 900px; grid-template-columns: minmax(0, 1fr); padding: var(--s-3); overflow: visible; }
+  .evaluation-workface { min-height: 900px; grid-template-columns: minmax(0, 1fr); padding: var(--s-3); overflow: visible; }
   .assembly-steps { min-height: auto; }
   .assembly-step-list { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .evaluation-step-list { grid-template-columns: repeat(4, minmax(0, 1fr)); }
   .assembly-step { min-height: 56px; grid-template-columns: 28px minmax(0, 1fr); border-bottom: 0; border-right: 1px solid var(--ob-border); }
   .assembly-step-list .assembly-step:last-child { border-right: 0; }
   .assembly-step .step-state-dot,
@@ -3308,6 +3327,7 @@ canvas#simCanvas.route-pick-mode { cursor: crosshair; }
 .deployment-time-readout strong { color: var(--ob-accent); font: 600 13px/16px var(--font-mono); white-space: nowrap; }
 
 .deployment-control-state { padding: 3px 8px; border: 1px solid var(--ob-border); border-radius: var(--radius); color: var(--ob-muted); font: 600 10px/14px var(--font-mono); text-transform: uppercase; white-space: nowrap; }
+.speed-status { text-transform: none; }
 .deployment-rate-compact { max-width: none; }
 
 /* Right Sidebar - Monitor / Algo pages */
