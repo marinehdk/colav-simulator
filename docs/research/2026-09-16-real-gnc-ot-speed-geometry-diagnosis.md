@@ -167,3 +167,49 @@ before choosing, since fixing only execution still leaves the initial brake.
 - GNC source anchors: `src/gnc/ship_guidance/src/ship_guidance_node.cpp`
   (`[EXTERNAL TURN SPEED]`, `[DENSE TURN PREDECEL]`, `[前瞻规划]` turn
   tables, `[Fix-C v2]` 300 m min-upcoming window) at GNC main `4dcfedd`.
+
+## Fix addendum (same day, evening session)
+
+Fix scope chosen by user: WP2 (bounded GNC guidance fix) plus planner-side
+completion work; no control gains, actuator, hydrodynamic or safety changes.
+
+| Layer | Change | Commit |
+|---|---|---|
+| GNC guidance | Planner-owned routes (`command_source == "mid_mpc_ipopt"`, new subscription to `/gnc/route_execution_status`) skip only the external-turn SPEED application; heading preview/corridor/dense-predecel/model caps unchanged; rollback parameter `external_route_turn_skip_planner_routes` (default true) | GNC main `11a21c3` |
+| Native build | `build/gnc-extturn-gate-20260916`, library sha256 `7eec389c...`; source manifest `10f454b3...`; route+velocity response re-qualified (course R^2 0.9889 tau 87.0, speed R^2 0.9848 tau 24.1) | Simulator main `aebcade3` |
+| Arrival references | Leg-recovery lead clamped to distance outside the arrival region (old lead could put the intercept inside the disk) | Simulator main `aebcade3` |
+| Route truncation | While any target owes avoidance/recovery, the published suffix truncates at the shared arrival-region boundary; recovery iterate filter mirrors it | Simulator main `aebcade3` |
+
+Note: `build/original_gnc-current` still points to the previous qualified
+build; runs need `COLAV_ORIGINAL_GNC_SOURCE`/`COLAV_ORIGINAL_GNC_BUILD`
+pointed at the worktree source and `gnc-extturn-gate-20260916` until the
+pointer is switched after full acceptance.
+
+### Closed-loop evidence (OT env-off, 10 s solves, 3000 s diagnostic)
+
+- Attempt 1 (`ot_extturn_e0`): T650 `QUALITY_NAVIGATION_CAPTURE` — with speed
+  unlocked, every plan after ~t=500 first reached the goal inside its
+  horizon while the OT target was still active; the speculative tail entered
+  the 308.7 m arrival region 36.9 m off the mission leg (gate limit 20 m).
+- Attempt 2 (`ot_extturn2_e0`): reference-lead fix alone did not apply during
+  the active encounter (arrival references are only built for cleared
+  snapshots) — identical failure; motivated the route truncation.
+- Attempt 3 (`ot_extturn3_e0`, run `517846c6`): overtake COMPLETE (max lead
+  +226 m at ~T900), return-to-leg underway (mission XTE 1159->530 m), then
+  T1080 `NUMERICAL_FAILURE` in the recovery solve: timeout at 39 iterations,
+  terminal violation 1.10 (seed violation 0.48), 34-knot fixed prefix,
+  unresolved-streak 2 s budget active. This is the known late-recovery
+  family (previously T1599 grounding / T2183 INFEASIBLE), not a recurrence
+  of the speed root cause.
+
+### Remaining open items
+
+1. Late recovery-phase solve quality (T1080): budget spiral vs problem
+   structure (long fixed prefix + recovery windows). Frozen artifact
+   retained in the run directory for offline re-solve.
+2. OT env-on closed loop; three-ship `paper_ccta2023_multiship`; 5x
+   performance acceptance on the new build; 8010 deployment/pointer switch.
+3. Pre-existing main failure unrelated to this work:
+   `test_mid_mpc_anticipatory_runtime` (`INLINE_CAPACITY_EXCEEDED`,
+   prediction-evidence 8 KB inline summary) — verified failing with the
+   fixes stashed.
