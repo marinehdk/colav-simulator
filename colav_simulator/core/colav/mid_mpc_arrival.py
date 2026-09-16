@@ -8,6 +8,42 @@ import numpy as np
 
 GOAL_POSITION_TOLERANCE_M = 5.0
 GOAL_SPEED_TOLERANCE_MPS = 0.05
+ROUTE_RECOVERY_TOLERANCE_M = 20.0
+
+
+def navigation_capture_error(
+    north: np.ndarray, east: np.ndarray, mission: tuple[tuple[float, float], ...], radius_m: float
+) -> float:
+    """Worst mission-leg offset inside the arrival disk, including between knots."""
+    if len(mission) < 2 or len(north) < 2:
+        return 0.0
+    route = np.asarray(mission, dtype=float)
+    leg = route[-1] - route[-2]
+    length = float(np.linalg.norm(leg))
+    if length <= 1e-9:
+        return 0.0
+    normal = np.array([-leg[1], leg[0]]) / length
+    points = np.column_stack((north, east))
+    relative = points[:-1] - route[-1]
+    steps = np.diff(points, axis=0)
+    aa = np.sum(steps * steps, axis=1)
+    bb = 2.0 * np.sum(relative * steps, axis=1)
+    cc = np.sum(relative * relative, axis=1) - radius_m**2
+    discriminant = bb * bb - 4.0 * aa * cc
+    moving = aa > 1e-12
+    denominator = np.maximum(2.0 * aa, 1e-12)
+    root = np.sqrt(np.maximum(discriminant, 0.0))
+    lower = np.maximum(0.0, (-bb - root) / denominator)
+    upper = np.minimum(1.0, (-bb + root) / denominator)
+    valid = moving & (discriminant >= 0.0) & (lower <= upper)
+    offsets = (points[:-1] - route[-2]) @ normal
+    changes = steps @ normal
+    values = np.r_[
+        np.abs(offsets[valid] + lower[valid] * changes[valid]),
+        np.abs(offsets[valid] + upper[valid] * changes[valid]),
+        np.abs(offsets[~moving & (cc <= 0.0)]),
+    ]
+    return float(np.max(values)) if values.size else 0.0
 
 
 def terminal_weight(distance: float, cruise: float, horizon_s: float, response_s: float, deceleration: float) -> float:
@@ -52,8 +88,25 @@ def arrival_references(
     route_anchor: tuple[float, float],
     route_bearing: float,
     lag_s: float = 0.0,
+    *,
+    arrival_radius_m: float | None = None,
 ) -> tuple[tuple[float, ...], tuple[float, ...], tuple[float, ...], tuple[float, float] | None] | None:
-    """Build a reachable braking reference on the final mission leg."""
+    """Build final-leg references under the selected arrival policy."""
+    if arrival_radius_m is not None:
+        return _navigation_arrival_references(
+            waypoints,
+            position,
+            heading,
+            speed,
+            cruise,
+            dt,
+            count,
+            deceleration,
+            turn_rate,
+            route_anchor,
+            route_bearing,
+            arrival_radius_m,
+        )
     if len(waypoints) < 2 or cruise <= 0.0:
         return None
     points = np.asarray(waypoints, dtype=float)
@@ -172,3 +225,66 @@ def _rejoin_geometry(
             return length, fraction * fraction * (3.0 - 2.0 * fraction)
         length *= 1.1
     return 1.0, 0.0
+
+
+def _navigation_arrival_references(
+    waypoints: tuple[tuple[float, float], ...],
+    position: tuple[float, float],
+    heading: float,
+    speed: float,
+    cruise: float,
+    dt: float,
+    count: int,
+    acceleration: float,
+    turn_rate: float,
+    route_anchor: tuple[float, float],
+    route_bearing: float,
+    radius_m: float,
+) -> tuple[tuple[float, ...], tuple[float, ...], tuple[float, ...], None] | None:
+    """Pass through the shared arrival region without a precision-stop tail.
+
+    Once the reference enters the arrival region, continue its approach
+    course. The complete prediction remains subject to normal safety checks.
+    """
+    if not math.isfinite(radius_m) or radius_m <= 0:
+        raise ValueError("navigation arrival radius must be finite and positive")
+    if len(waypoints) < 2 or cruise <= 0.0:
+        return None
+    points = np.asarray(waypoints, dtype=float)
+    location = np.asarray(position, dtype=float).copy()
+    if not on_final_leg(points, location):
+        return None
+    normal = np.array([-math.sin(route_bearing), math.cos(route_bearing)])
+    anchor = np.asarray(route_anchor)
+    leg = points[-1] - points[-2]
+    tangent = leg / max(float(np.linalg.norm(leg)), 1e-9)
+    leg_normal = np.array([-tangent[1], tangent[0]])
+    leg_bearing = math.atan2(tangent[1], tangent[0])
+    # Recovery starts from executed motion. An unachieved cruise request
+    # otherwise stretches the capture distance and delays rejoining until
+    # after a slow vessel has entered the shared arrival region.
+    lookahead = max(speed / max(turn_rate, 1e-9), 2.0 * speed * dt)
+    headings, lateral, speeds = [], [], []
+    arrived = False
+    for _ in range(count):
+        error = points[-1] - location
+        arrived = arrived or float(np.linalg.norm(error)) <= radius_m
+        remaining_along = float(error @ tangent)
+        cross_track = float((location - points[-2]) @ leg_normal)
+        if arrived:
+            desired = heading
+        elif remaining_along > radius_m:
+            # Rejoin the mission leg before the arrival region. Direct-to-goal
+            # steering can enter that region while still hundreds of metres
+            # off the leg and never complete the requested recovery.
+            desired = leg_bearing - math.atan2(cross_track, lookahead)
+        else:
+            desired = math.atan2(error[1], error[0])
+        delta = math.atan2(math.sin(desired - heading), math.cos(desired - heading))
+        heading += float(np.clip(delta, -turn_rate * dt, turn_rate * dt))
+        speed = float(np.clip(cruise, max(0.0, speed - acceleration * dt), speed + acceleration * dt))
+        headings.append(heading)
+        lateral.append(float((location - anchor) @ normal))
+        speeds.append(speed)
+        location += speed * dt * np.array([math.cos(heading), math.sin(heading)])
+    return tuple(headings), tuple(lateral), tuple(speeds), None

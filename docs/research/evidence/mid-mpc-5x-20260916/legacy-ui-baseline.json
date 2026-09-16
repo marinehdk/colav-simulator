@@ -1,0 +1,12 @@
+[
+  {
+    "file": "web_gui/index.html",
+    "unchanged_from_head": true,
+    "legacy_assertion_in_head": false
+  },
+  {
+    "file": "web_gui/modules/situation-display.js",
+    "unchanged_from_head": true,
+    "legacy_assertion_in_head": false
+  }
+]

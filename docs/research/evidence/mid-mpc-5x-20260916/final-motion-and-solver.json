@@ -1,0 +1,630 @@
+{
+  "frames_compared": 2400,
+  "motion_hashes": [
+    "c45fb7200ac79dc3a761e6535bf452bdf3d4e8181de14f995f63725934151f1e",
+    "c45fb7200ac79dc3a761e6535bf452bdf3d4e8181de14f995f63725934151f1e"
+  ],
+  "mismatch_times": [],
+  "first_step": {
+    "step_ms": 878.8364578504115,
+    "planner_ms": 814.793833065778,
+    "graph_ms": 0.0,
+    "graph_cache_hit": true,
+    "ipopt_ms": 458.0626250244677
+  },
+  "max_step_ms": 2429.3167078867555,
+  "planner_attempts": 120,
+  "attempts_with_iteration_evidence": 61,
+  "max_attempt_ms": 2338.671833043918,
+  "max_accepted_ipopt_ms": 2029.4126661028713,
+  "event_counts": {
+    "planner_solved": 61,
+    "threat_entered": 1,
+    "target_transition": 2,
+    "avoidance_action_started": 1,
+    "risk_level_changed": 1,
+    "time_limit": 1
+  },
+  "attempts": [
+    {
+      "t": 0.0,
+      "elapsed_ms": 814.793833065778,
+      "iterations": 21
+    },
+    {
+      "t": 10.0,
+      "elapsed_ms": 116.68237508274615,
+      "iterations": 1
+    },
+    {
+      "t": 20.0,
+      "elapsed_ms": 338.7073748745024,
+      "iterations": null
+    },
+    {
+      "t": 30.0,
+      "elapsed_ms": 361.08712502755225,
+      "iterations": 16
+    },
+    {
+      "t": 40.0,
+      "elapsed_ms": 445.44212496839464,
+      "iterations": null
+    },
+    {
+      "t": 50.0,
+      "elapsed_ms": 418.32237504422665,
+      "iterations": 21
+    },
+    {
+      "t": 60.0,
+      "elapsed_ms": 376.03854085318744,
+      "iterations": null
+    },
+    {
+      "t": 70.0,
+      "elapsed_ms": 464.0654590912163,
+      "iterations": 25
+    },
+    {
+      "t": 80.0,
+      "elapsed_ms": 423.32762479782104,
+      "iterations": null
+    },
+    {
+      "t": 90.0,
+      "elapsed_ms": 785.4729578830302,
+      "iterations": 43
+    },
+    {
+      "t": 100.0,
+      "elapsed_ms": 351.6875000204891,
+      "iterations": null
+    },
+    {
+      "t": 110.0,
+      "elapsed_ms": 560.0942079909146,
+      "iterations": 31
+    },
+    {
+      "t": 120.0,
+      "elapsed_ms": 974.5439160615206,
+      "iterations": null
+    },
+    {
+      "t": 130.0,
+      "elapsed_ms": 1404.5194999780506,
+      "iterations": 93
+    },
+    {
+      "t": 140.0,
+      "elapsed_ms": 392.9347922094166,
+      "iterations": null
+    },
+    {
+      "t": 150.0,
+      "elapsed_ms": 1112.836582819,
+      "iterations": 70
+    },
+    {
+      "t": 160.0,
+      "elapsed_ms": 358.51695807650685,
+      "iterations": null
+    },
+    {
+      "t": 170.0,
+      "elapsed_ms": 1054.5433338265866,
+      "iterations": 69
+    },
+    {
+      "t": 180.0,
+      "elapsed_ms": 385.4964170604944,
+      "iterations": null
+    },
+    {
+      "t": 190.0,
+      "elapsed_ms": 932.279541855678,
+      "iterations": 56
+    },
+    {
+      "t": 200.0,
+      "elapsed_ms": 981.600834056735,
+      "iterations": null
+    },
+    {
+      "t": 210.0,
+      "elapsed_ms": 704.1577498894185,
+      "iterations": 37
+    },
+    {
+      "t": 220.0,
+      "elapsed_ms": 393.983333138749,
+      "iterations": null
+    },
+    {
+      "t": 230.0,
+      "elapsed_ms": 969.3787079304457,
+      "iterations": 62
+    },
+    {
+      "t": 240.0,
+      "elapsed_ms": 482.3724578600377,
+      "iterations": null
+    },
+    {
+      "t": 250.0,
+      "elapsed_ms": 2338.671833043918,
+      "iterations": 166
+    },
+    {
+      "t": 260.0,
+      "elapsed_ms": 449.8009579256177,
+      "iterations": null
+    },
+    {
+      "t": 270.0,
+      "elapsed_ms": 667.0227909926325,
+      "iterations": 39
+    },
+    {
+      "t": 280.0,
+      "elapsed_ms": 294.40983291715384,
+      "iterations": null
+    },
+    {
+      "t": 290.0,
+      "elapsed_ms": 739.2223330680281,
+      "iterations": 58
+    },
+    {
+      "t": 300.0,
+      "elapsed_ms": 585.4310840368271,
+      "iterations": null
+    },
+    {
+      "t": 310.0,
+      "elapsed_ms": 1126.0837919544429,
+      "iterations": 92
+    },
+    {
+      "t": 320.0,
+      "elapsed_ms": 314.9102081079036,
+      "iterations": null
+    },
+    {
+      "t": 330.0,
+      "elapsed_ms": 364.3120841588825,
+      "iterations": 26
+    },
+    {
+      "t": 340.0,
+      "elapsed_ms": 321.2029589340091,
+      "iterations": null
+    },
+    {
+      "t": 350.0,
+      "elapsed_ms": 329.373124986887,
+      "iterations": 21
+    },
+    {
+      "t": 360.0,
+      "elapsed_ms": 279.88216700032353,
+      "iterations": null
+    },
+    {
+      "t": 370.0,
+      "elapsed_ms": 361.23816715553403,
+      "iterations": 24
+    },
+    {
+      "t": 380.0,
+      "elapsed_ms": 279.6763749793172,
+      "iterations": null
+    },
+    {
+      "t": 390.0,
+      "elapsed_ms": 376.96212506853044,
+      "iterations": 27
+    },
+    {
+      "t": 400.0,
+      "elapsed_ms": 312.17708298936486,
+      "iterations": null
+    },
+    {
+      "t": 410.0,
+      "elapsed_ms": 356.5189999062568,
+      "iterations": 24
+    },
+    {
+      "t": 420.0,
+      "elapsed_ms": 287.8754590637982,
+      "iterations": null
+    },
+    {
+      "t": 430.0,
+      "elapsed_ms": 355.8082920499146,
+      "iterations": 24
+    },
+    {
+      "t": 440.0,
+      "elapsed_ms": 274.36650008894503,
+      "iterations": null
+    },
+    {
+      "t": 450.0,
+      "elapsed_ms": 371.75674992613494,
+      "iterations": 25
+    },
+    {
+      "t": 460.0,
+      "elapsed_ms": 285.19133292138577,
+      "iterations": null
+    },
+    {
+      "t": 470.0,
+      "elapsed_ms": 329.74374992772937,
+      "iterations": 22
+    },
+    {
+      "t": 480.0,
+      "elapsed_ms": 309.80395898222923,
+      "iterations": null
+    },
+    {
+      "t": 490.0,
+      "elapsed_ms": 365.9503338858485,
+      "iterations": 24
+    },
+    {
+      "t": 500.0,
+      "elapsed_ms": 299.8728328384459,
+      "iterations": null
+    },
+    {
+      "t": 510.0,
+      "elapsed_ms": 315.1607080362737,
+      "iterations": 20
+    },
+    {
+      "t": 520.0,
+      "elapsed_ms": 316.96087517775595,
+      "iterations": null
+    },
+    {
+      "t": 530.0,
+      "elapsed_ms": 341.03537490591407,
+      "iterations": 21
+    },
+    {
+      "t": 540.0,
+      "elapsed_ms": 264.1832078807056,
+      "iterations": null
+    },
+    {
+      "t": 550.0,
+      "elapsed_ms": 362.88991710171103,
+      "iterations": 24
+    },
+    {
+      "t": 560.0,
+      "elapsed_ms": 545.3604590147734,
+      "iterations": null
+    },
+    {
+      "t": 570.0,
+      "elapsed_ms": 375.3822920843959,
+      "iterations": 24
+    },
+    {
+      "t": 580.0,
+      "elapsed_ms": 288.6142919305712,
+      "iterations": null
+    },
+    {
+      "t": 590.0,
+      "elapsed_ms": 378.54866590350866,
+      "iterations": 24
+    },
+    {
+      "t": 600.0,
+      "elapsed_ms": 325.72695799171925,
+      "iterations": null
+    },
+    {
+      "t": 610.0,
+      "elapsed_ms": 378.957208013162,
+      "iterations": 24
+    },
+    {
+      "t": 620.0,
+      "elapsed_ms": 330.19116683863103,
+      "iterations": null
+    },
+    {
+      "t": 630.0,
+      "elapsed_ms": 386.37695903889835,
+      "iterations": 24
+    },
+    {
+      "t": 640.0,
+      "elapsed_ms": 305.27375009842217,
+      "iterations": null
+    },
+    {
+      "t": 650.0,
+      "elapsed_ms": 365.9628329332918,
+      "iterations": 22
+    },
+    {
+      "t": 660.0,
+      "elapsed_ms": 316.31233310326934,
+      "iterations": null
+    },
+    {
+      "t": 670.0,
+      "elapsed_ms": 391.00479194894433,
+      "iterations": 24
+    },
+    {
+      "t": 680.0,
+      "elapsed_ms": 294.0052498597652,
+      "iterations": null
+    },
+    {
+      "t": 690.0,
+      "elapsed_ms": 401.62241691723466,
+      "iterations": 25
+    },
+    {
+      "t": 700.0,
+      "elapsed_ms": 379.94462507776916,
+      "iterations": null
+    },
+    {
+      "t": 710.0,
+      "elapsed_ms": 327.7760420460254,
+      "iterations": 21
+    },
+    {
+      "t": 720.0,
+      "elapsed_ms": 349.9453749973327,
+      "iterations": null
+    },
+    {
+      "t": 730.0,
+      "elapsed_ms": 345.2888750471175,
+      "iterations": 22
+    },
+    {
+      "t": 740.0,
+      "elapsed_ms": 342.67320786602795,
+      "iterations": null
+    },
+    {
+      "t": 750.0,
+      "elapsed_ms": 339.542041067034,
+      "iterations": 21
+    },
+    {
+      "t": 760.0,
+      "elapsed_ms": 274.9022089410573,
+      "iterations": null
+    },
+    {
+      "t": 770.0,
+      "elapsed_ms": 356.1015829909593,
+      "iterations": 22
+    },
+    {
+      "t": 780.0,
+      "elapsed_ms": 333.95633404143155,
+      "iterations": null
+    },
+    {
+      "t": 790.0,
+      "elapsed_ms": 363.09491703286767,
+      "iterations": 24
+    },
+    {
+      "t": 800.0,
+      "elapsed_ms": 298.00666705705225,
+      "iterations": null
+    },
+    {
+      "t": 810.0,
+      "elapsed_ms": 368.2710840366781,
+      "iterations": 23
+    },
+    {
+      "t": 820.0,
+      "elapsed_ms": 351.70845803804696,
+      "iterations": null
+    },
+    {
+      "t": 830.0,
+      "elapsed_ms": 379.23070904798806,
+      "iterations": 25
+    },
+    {
+      "t": 840.0,
+      "elapsed_ms": 351.937583880499,
+      "iterations": null
+    },
+    {
+      "t": 850.0,
+      "elapsed_ms": 360.3520831093192,
+      "iterations": 24
+    },
+    {
+      "t": 860.0,
+      "elapsed_ms": 301.2896671425551,
+      "iterations": null
+    },
+    {
+      "t": 870.0,
+      "elapsed_ms": 359.8173330537975,
+      "iterations": 23
+    },
+    {
+      "t": 880.0,
+      "elapsed_ms": 306.17975001223385,
+      "iterations": null
+    },
+    {
+      "t": 890.0,
+      "elapsed_ms": 363.6002908460796,
+      "iterations": 25
+    },
+    {
+      "t": 900.0,
+      "elapsed_ms": 346.2152499705553,
+      "iterations": null
+    },
+    {
+      "t": 910.0,
+      "elapsed_ms": 363.12075005844235,
+      "iterations": 25
+    },
+    {
+      "t": 920.0,
+      "elapsed_ms": 316.480458015576,
+      "iterations": null
+    },
+    {
+      "t": 930.0,
+      "elapsed_ms": 353.90874999575317,
+      "iterations": 24
+    },
+    {
+      "t": 940.0,
+      "elapsed_ms": 325.6629998795688,
+      "iterations": null
+    },
+    {
+      "t": 950.0,
+      "elapsed_ms": 370.4255409538746,
+      "iterations": 25
+    },
+    {
+      "t": 960.0,
+      "elapsed_ms": 315.56066614575684,
+      "iterations": null
+    },
+    {
+      "t": 970.0,
+      "elapsed_ms": 379.35020797885954,
+      "iterations": 26
+    },
+    {
+      "t": 980.0,
+      "elapsed_ms": 325.8392079733312,
+      "iterations": null
+    },
+    {
+      "t": 990.0,
+      "elapsed_ms": 344.41458294168115,
+      "iterations": 23
+    },
+    {
+      "t": 1000.0,
+      "elapsed_ms": 338.33487518131733,
+      "iterations": null
+    },
+    {
+      "t": 1010.0,
+      "elapsed_ms": 367.20174993388355,
+      "iterations": 26
+    },
+    {
+      "t": 1020.0,
+      "elapsed_ms": 335.8967078384012,
+      "iterations": null
+    },
+    {
+      "t": 1030.0,
+      "elapsed_ms": 409.3204578384757,
+      "iterations": 29
+    },
+    {
+      "t": 1040.0,
+      "elapsed_ms": 326.8885831348598,
+      "iterations": null
+    },
+    {
+      "t": 1050.0,
+      "elapsed_ms": 387.22925004549325,
+      "iterations": 25
+    },
+    {
+      "t": 1060.0,
+      "elapsed_ms": 283.6502499412745,
+      "iterations": null
+    },
+    {
+      "t": 1070.0,
+      "elapsed_ms": 341.84220898896456,
+      "iterations": 20
+    },
+    {
+      "t": 1080.0,
+      "elapsed_ms": 487.504709046334,
+      "iterations": null
+    },
+    {
+      "t": 1090.0,
+      "elapsed_ms": 356.5946670714766,
+      "iterations": 23
+    },
+    {
+      "t": 1100.0,
+      "elapsed_ms": 360.6130841653794,
+      "iterations": null
+    },
+    {
+      "t": 1110.0,
+      "elapsed_ms": 352.5707498192787,
+      "iterations": 21
+    },
+    {
+      "t": 1120.0,
+      "elapsed_ms": 413.56287500821054,
+      "iterations": null
+    },
+    {
+      "t": 1130.0,
+      "elapsed_ms": 327.35916692763567,
+      "iterations": 21
+    },
+    {
+      "t": 1140.0,
+      "elapsed_ms": 413.07758283801377,
+      "iterations": null
+    },
+    {
+      "t": 1150.0,
+      "elapsed_ms": 483.34120819345117,
+      "iterations": 26
+    },
+    {
+      "t": 1160.0,
+      "elapsed_ms": 418.83937478996813,
+      "iterations": null
+    },
+    {
+      "t": 1170.0,
+      "elapsed_ms": 335.23945789784193,
+      "iterations": 20
+    },
+    {
+      "t": 1180.0,
+      "elapsed_ms": 360.7547921128571,
+      "iterations": null
+    },
+    {
+      "t": 1190.0,
+      "elapsed_ms": 348.6267498228699,
+      "iterations": 25
+    }
+  ]
+}

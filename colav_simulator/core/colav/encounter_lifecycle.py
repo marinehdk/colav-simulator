@@ -231,6 +231,7 @@ class EncounterCycle:
     avoidance_intent_keys: tuple[TrackKey, ...] | None = None
     anticipatory_planning: bool = False
     rearm_horizon_s: float | None = None
+    route_recovery_complete: bool | None = None
 
     def __post_init__(self) -> None:
         """Validate one immutable lifecycle input cycle."""
@@ -242,6 +243,8 @@ class EncounterCycle:
             raise ValueError("route reference must be finite")
         if self.rearm_horizon_s is not None and (not math.isfinite(self.rearm_horizon_s) or self.rearm_horizon_s <= 0.0):
             raise ValueError("rearm horizon must be finite and positive")
+        if self.route_recovery_complete is not None and not isinstance(self.route_recovery_complete, bool):
+            raise TypeError("route recovery confirmation must be boolean when supplied")
         object.__setattr__(self, "targets", tuple(self.targets))
         object.__setattr__(self, "physical_facts", tuple(self.physical_facts))
         object.__setattr__(self, "primary_priority_facts", tuple(self.primary_priority_facts))
@@ -296,6 +299,11 @@ class EncounterCycle:
                 "planned_speed_mps": self.planned_speed_mps,
                 "anticipatory_planning": self.anticipatory_planning,
                 "rearm_horizon_s": self.rearm_horizon_s,
+                **(
+                    {"route_recovery_complete": self.route_recovery_complete}
+                    if self.route_recovery_complete is not None
+                    else {}
+                ),
                 "avoidance_intent_keys": (
                     None if self.avoidance_intent_keys is None else [asdict(key) for key in self.avoidance_intent_keys]
                 ),
@@ -1638,7 +1646,7 @@ def _recovery_guard_holds(state: _TargetState, cycle: EncounterCycle, target: Ta
         abs(_wrap(cycle.ownship.heading_rad - cycle.route_bearing_rad))
         <= cycle.ownship.maneuverability.turn_rate_rad_s * cycle.profile.entry_confirmation_s
     )
-    if course_recovered and recovery_geometry.signed_tcpa_s <= 0.0:
+    if course_recovered and cycle.route_recovery_complete is not False and recovery_geometry.signed_tcpa_s <= 0.0:
         state.recovery_guard_active = False
     return state.recovery_guard_active
 

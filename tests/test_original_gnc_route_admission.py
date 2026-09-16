@@ -8,6 +8,7 @@ import numpy as np
 import pytest
 
 from colav_simulator.core.colav.diagnostics import ColavExecutionError
+from colav_simulator.core.colav.retained_route import compile_execution_route, compile_retained_prefix
 from colav_simulator.core.ship import Config, build_ship
 from colav_simulator.modular_gnc.contracts import ControlTask, TrackedRoute
 from colav_simulator.modular_gnc.route_bridge import RouteDecision
@@ -178,6 +179,29 @@ def _mid_decision(tick: int, waypoints: np.ndarray, speeds: np.ndarray, until_ti
     return RouteDecision(tick=tick, route=route)
 
 
+def _compiled_mid_packet(bridge, ship) -> dict:
+    constraint = bridge.planning_constraint()
+    state = ship.state
+    prefix = compile_retained_prefix(
+        constraint,
+        state,
+        horizon_steps=80,
+        dt_s=5.0,
+        max_speed_mps=8.0,
+        rot_max_rad_s=np.radians(1.2),
+        accel_max_mps2=0.3,
+    )
+    course = np.r_[prefix.course_rad, np.full(30, prefix.incoming_course_rad)]
+    speed = np.r_[prefix.speed_mps, np.linspace(6.0, 7.0, 30)]
+    predicted = np.zeros((9, len(course) + 1))
+    predicted[:6, 0] = state
+    predicted[0, 1:] = state[0] + np.cumsum(speed * np.cos(course) * 5.0)
+    predicted[1, 1:] = state[1] + np.cumsum(speed * np.sin(course) * 5.0)
+    predicted[2, 1:] = course
+    predicted[3, 1:] = speed
+    return compile_execution_route(prefix, predicted)
+
+
 def test_mid_receipt_becomes_route_contract_with_segments_and_speeds(original_ship):
     ship = original_ship
     ship.stack.advance(11)
@@ -188,12 +212,16 @@ def test_mid_receipt_becomes_route_contract_with_segments_and_speeds(original_sh
     raw = np.hstack([origin + np.array([[20.0 * i], [3.0 * i]]) for i in range(40)])  # 20 m spacing
     decision = _mid_decision(110, raw, np.full(raw.shape[1], 6.0), 400)
     bridge._mid = SimpleNamespace(current_route=lambda tick, planner_data: decision)
+    packet = _compiled_mid_packet(bridge, ship)
+    data["planner"]["algorithm_details"]["execution_route"] = packet
     bridge.submit(11)
     request = ship.requested_plans[-1]["message"]
     assert request["plan_id"] == "mid-mpc-" + "a" * 24
     speeds = np.asarray(request["command_speed_mps"])
     assert len(speeds) == len(request["latitude"])
     points = ship.frame.northeast(request["latitude"], request["longitude"])
+    np.testing.assert_allclose(points.T, packet["points_ne_m"], atol=1e-6)
+    np.testing.assert_array_equal(speeds, packet["speed_mps"])
     new = points[:, 1:]
     gaps = np.linalg.norm(np.diff(new, axis=1), axis=0)
     assert gaps.min() >= 30.0
@@ -217,6 +245,7 @@ def test_mid_receipt_becomes_route_contract_with_segments_and_speeds(original_sh
         )
     )
     data["planner"]["algorithm_details"]["accepted_plan_receipt"]["receipt_hash"] = "b" * 64
+    data["planner"]["algorithm_details"]["execution_route"] = _compiled_mid_packet(bridge, ship)
     bridge.submit(11.2)
     assert ship.requested_plans[-1]["message"]["plan_id"] == "mid-mpc-" + "b" * 24
 
@@ -239,6 +268,8 @@ def test_mid_receipt_schema_sequence_key_is_read_tolerantly(original_ship):
     raw = np.hstack([origin + np.array([[20.0 * i], [3.0 * i]]) for i in range(40)])  # 20 m spacing
     decision = _mid_decision(110, raw, np.full(raw.shape[1], 6.0), 400)
     bridge._mid = SimpleNamespace(current_route=lambda tick, planner_data: decision)
+    packet = _compiled_mid_packet(bridge, ship)
+    data["planner"]["algorithm_details"]["execution_route"] = packet
     bridge.submit(11)
     request = ship.requested_plans[-1]["message"]
     assert request["plan_id"] == "mid-mpc-" + "a" * 24
@@ -246,42 +277,21 @@ def test_mid_receipt_schema_sequence_key_is_read_tolerantly(original_ship):
     assert coordinate["accepted"] is True
 
 
-def test_mid_route_short_of_splice_margin_holds_instead_of_raising(original_ship):
-    """Hold the active route when the plan stays short of the splice margin.
-
-    An accepted Mid plan whose geometry never reaches the 160 m splice margin
-    (give-way standby or flee geometry) cannot become a new avoidance route;
-    the frozen manager would reject it as a sub-margin dynamic update. The
-    bridge must hold the active route for that tick instead of aborting the
-    run (seam-01 crossing_give_way died raising at t=51 s).
-    """
+def test_mid_raw_stub_without_compiled_prefix_is_rejected(original_ship):
+    """A raw receipt cannot authorize an adapter-generated splice or silent hold."""
     ship = original_ship
     ship.stack.advance(11)
     ship._sync_state()
     data = _mid_planner_data(1, "a" * 64)
     bridge = _mount(ship, data)
-    origin = np.array([[1086.0], [2000.0]])
-    raw = np.hstack([origin + np.array([[20.0 * i], [3.0 * i]]) for i in range(40)])
-    decision = _mid_decision(110, raw, np.full(raw.shape[1], 6.0), 400)
+    origin = ship.state[:2, None]
+    stub = origin + np.array([[0.0, 0.0], [0.0, 30.0]])
+    decision = _mid_decision(110, stub, np.full(2, 6.0), 400)
     bridge._mid = SimpleNamespace(current_route=lambda tick, planner_data: decision)
-    bridge.submit(11)
-    # Sideways stub: along-track progress on the reference never gains 160 m.
-    perpendicular = np.array([[3.0], [2.0]])
-    perpendicular = perpendicular / np.linalg.norm(perpendicular)
-    stub = np.hstack([origin + 5.0 * i * perpendicular for i in range(40)])
-    held = _mid_decision(110, stub, np.full(stub.shape[1], 6.0), 400)
-    bridge._mid = SimpleNamespace(current_route=lambda tick, planner_data: held)
     submissions = len(ship.requested_plans)
-    bridge.submit(11.5)
-    assert len(ship.requested_plans) == submissions  # held: no submission, no rejection storm
-    # The hold is recoverable: a route that reaches the margin admits.
-    revised = _mid_decision(112, raw, np.full(raw.shape[1], 6.0), 402, revision=1)
-    bridge._mid = SimpleNamespace(current_route=lambda tick, planner_data: revised)
-    data["planner"]["algorithm_details"]["accepted_plan_receipt"]["receipt_hash"] = "c" * 64
-    bridge.submit(12.0)
-    request = ship.requested_plans[-1]["message"]
-    assert request["plan_id"] == "mid-mpc-" + "c" * 24
-    assert _coordinate_feedback(bridge)["accepted"] is True
+    with pytest.raises(OriginalGncError, match="planner-compiled"):
+        bridge.submit(11)
+    assert len(ship.requested_plans) == submissions
 
 
 def _vo_static_only_intent(

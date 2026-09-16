@@ -332,6 +332,11 @@ class MidMpcProblem:
     targets: tuple[MidMpcTarget, ...] = ()
     static_field: MidMpcStaticField | None = None
     static_origin_ne_m: tuple[float, float] = (0.0, 0.0)
+    route_constraint_points_m: tuple[tuple[float, float], ...] = ()
+    route_constraint_limit_m: float | None = None
+    route_suffix_min_extent_m: float = 0.0
+    navigation_recovery_lookahead_m: float = 0.0
+    cpa_braking_floor_mps: float = 0.0
 
     def __post_init__(self) -> None:
         """Normalize the pure optimizer input."""
@@ -345,6 +350,22 @@ class MidMpcProblem:
             raise TypeError("row_schedule must be MidMpcRowSchedule")
         if self.static_field is not None and not isinstance(self.static_field, MidMpcStaticField):
             raise TypeError("static_field must be MidMpcStaticField or None")
+        if not math.isfinite(self.navigation_recovery_lookahead_m) or self.navigation_recovery_lookahead_m < 0:
+            raise ValueError("navigation recovery lookahead must be finite and nonnegative")
+        if not math.isfinite(self.cpa_braking_floor_mps) or not 0 <= self.cpa_braking_floor_mps <= self.speed_bounds_mps[1]:
+            raise ValueError("CPA braking floor must lie within the available speed range")
+        if self.route_constraint_limit_m is not None:
+            if not math.isfinite(self.route_suffix_min_extent_m) or self.route_suffix_min_extent_m < 0:
+                raise ValueError("route suffix extent must be finite and non-negative")
+            points = tuple(_pair(point, "route_constraint_point") for point in self.route_constraint_points_m)
+            if (
+                len(points) < 2
+                or not np.isfinite(points).all()
+                or not np.isfinite(self.route_constraint_limit_m)
+                or self.route_constraint_limit_m <= 0
+            ):
+                raise ValueError("route corridor requires finite geometry and a positive limit")
+            object.__setattr__(self, "route_constraint_points_m", points)
         origin = _pair(self.static_origin_ne_m, "static_origin_ne_m")
         _require_finite(*origin)
         object.__setattr__(self, "static_origin_ne_m", origin)

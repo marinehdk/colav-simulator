@@ -24,6 +24,7 @@ from colav_simulator.core.colav.mid_mpc.models import (
     MidMpcRouteObjective,
     MidMpcRowLayout,
     MidMpcRowSpan,
+    MidMpcStaticField,
     MidMpcStatus,
     MidMpcTarget,
     MidMpcTrajectoryPoint,
@@ -85,7 +86,9 @@ class MidMpcIpoptSolver:
         """Build the capacity-one strict graph so the first tick pays no JIT stall."""
         self.prewarm_capacity(1)
 
-    def prewarm_capacity(self, target_capacity: int) -> None:
+    def prewarm_capacity(
+        self, target_capacity: int, *, static_field: MidMpcStaticField | None = None, retained_route: bool = False
+    ) -> None:
         """Build one strict graph at a scenario's full target capacity.
 
         The nlpsol construction for a ten-target graph costs seconds inside
@@ -96,7 +99,7 @@ class MidMpcIpoptSolver:
         if not self._config.strict_slack_bounds:
             return
         capacity = max(1, min(int(target_capacity), self._config.max_targets))
-        graph_key = (True, None, None, None)
+        graph_key = (True, retained_route, None, None, None if static_field is None else static_field.graph_key)
         cached = self._graph_cache.get(graph_key)
         if cached is not None and cached.target_capacity >= capacity and cached.audit_capacity >= capacity:
             return
@@ -131,6 +134,9 @@ class MidMpcIpoptSolver:
             ),
             targets=(MidMpcTarget(x_m=1.0e6, y_m=1.0e6, cog_rad=0.0, sog_mps=0.0),) * capacity,
             audit_row_count=capacity,
+            static_field=static_field,
+            route_constraint_limit_m=500.0 if retained_route else None,
+            route_constraint_points_m=((0.0, 0.0), (1.0, 0.0)) if retained_route else (),
         )
         self._graph_cache[graph_key] = _build_graph(self._config, shell)
 
@@ -147,6 +153,7 @@ class MidMpcIpoptSolver:
         started_at = time.perf_counter()
         graph_key = (
             problem.route_objective is not None,
+            problem.route_constraint_limit_m is not None,
             None if self._config.strict_slack_bounds else min(problem.prefix_active_k, self._config.horizon_steps),
             None if self._config.strict_slack_bounds else problem.cpa_hard_m,
             None if problem.static_field is None else problem.static_field.graph_key,
@@ -598,6 +605,9 @@ def _build_graph(  # noqa: C901, PLR0912, PLR0915
     static_origin_start = parameter_dim
     if problem.static_field is not None:
         parameter_dim += 2
+    route_constraint_start = parameter_dim
+    if problem.route_constraint_limit_m is not None:
+        parameter_dim += 8 * n + 3
     dt = ca.DM(config.dt_s)
     psi = ca.MX.sym("psi", n)
     speed = ca.MX.sym("u", n)
@@ -624,6 +634,11 @@ def _build_graph(  # noqa: C901, PLR0912, PLR0915
     continuity_weight = p[continuity_start + 2 * n : continuity_start + 3 * n] if staged_route_objective else ca.DM.zeros(n)
     planned_speed = p[_P.PLANNED_SPEED]
     distance_error = psi - route_reference
+    if staged_route_objective and problem.route_constraint_limit_m is not None:
+        distance_error = _navigation_recovery_errors(
+            psi, speed, p, config.dt_s, route_reference, avoidance_active_until,
+            p[route_constraint_start + 8 * n + 2],
+        )
     arrival_start = route_objective_start + 5 * n + 1
     speed_reference = p[arrival_start : arrival_start + n] if staged_route_objective else ca.repmat(planned_speed, n, 1)
     velocity_error = speed - speed_reference
@@ -762,6 +777,8 @@ def _build_graph(  # noqa: C901, PLR0912, PLR0915
         )
     if problem.static_field is not None:
         rows.extend(_static_rows(psi, speed, p, config, problem, static_origin_start))
+    if problem.route_constraint_limit_m is not None:
+        rows.extend(_route_constraint_rows(psi, speed, p, config, route_constraint_start))
     g = ca.vertcat(*rows)
 
     options = {
@@ -780,7 +797,12 @@ def _build_graph(  # noqa: C901, PLR0912, PLR0915
         "ipopt.acceptable_constr_viol_tol": 1.0e-2,
         "print_time": False,
     }
-    row_layout = _row_layout(config, target_capacity, audit_capacity, static_rows=n if problem.static_field else 0)
+    row_layout = _row_layout(
+        config,
+        target_capacity,
+        audit_capacity,
+        static_rows=(n if problem.static_field else 0) + (n + 1 if problem.route_constraint_limit_m is not None else 0),
+    )
     nlp = {"x": x, "p": p, "f": objective, "g": g}
     iteration_callback = _IterationCallback(
         int(x.numel()),
@@ -799,7 +821,7 @@ def _build_graph(  # noqa: C901, PLR0912, PLR0915
         charted_multi_target = problem.static_field is not None and target_capacity > 1
         options.update(
             {
-                "expand": target_capacity > 1,
+                "expand": target_capacity > 1 or problem.static_field is not None,
                 "ipopt.bound_relax_factor": 0.0,
                 # L4 checks speed increments to 1e-6 m/s. Do not declare a
                 # numerically acceptable candidate that violates that contract.
@@ -842,6 +864,41 @@ def _build_graph(  # noqa: C901, PLR0912, PLR0915
         target_capacity,
         audit_capacity,
     )
+
+
+def _route_constraint_rows(psi: ca.MX, speed: ca.MX, p: ca.MX, config: MidMpcConfig, start: int) -> list[ca.MX]:
+    """Use GNC's admitted polyline as a spatial update envelope, not a new mission."""
+    count = 2 * config.horizon_steps
+    segments = ca.reshape(p[start : start + 4 * count], 4, count)
+    ax, ay, bx, by = (segments[index, :] for index in range(4))
+    dx, dy = bx - ax, by - ay
+    segment_length2 = dx * dx + dy * dy
+    length2 = ca.fmax(segment_length2, 1e-12)
+    radius = p[start + 4 * count]
+    minimum_extent = p[start + 4 * count + 1]
+    n = config.horizon_steps
+    prefix_psi = p[_P.PREFIX_PSI : _P.PREFIX_PSI + n]
+    prefix_u_start = int(_P.PREFIX_PSI) + max(n, _FROZEN_PREFIX_CAPACITY)
+    prefix_u = p[prefix_u_start : prefix_u_start + n]
+    retained = ca.DM(np.arange(n)) < p[_P.PREFIX_ACTIVE_K]
+    anchor_x = ca.sum1(ca.if_else(retained, prefix_u * ca.cos(prefix_psi) * config.dt_s, 0))
+    anchor_y = ca.sum1(ca.if_else(retained, prefix_u * ca.sin(prefix_psi) * config.dt_s, 0))
+    extents = []
+    x, y = ca.MX(0), ca.MX(0)
+    result = []
+    for k in range(config.horizon_steps):
+        x += speed[k] * config.dt_s * ca.cos(psi[k])
+        y += speed[k] * config.dt_s * ca.sin(psi[k])
+        # Match CoordinateTransformNode::compute_max_lateral_delta: distance
+        # to supporting lines. Forward extension is not lateral displacement.
+        cross = dx * (y - ay) - dy * (x - ax)
+        distance2 = ca.if_else(segment_length2 >= 1e-12, cross * cross / length2, 1e18)
+        result.append(radius - ca.sqrt(ca.mmin(distance2) + 1e-12))
+        extents.append(ca.if_else(ca.DM(k) >= p[_P.PREFIX_ACTIVE_K], (x - anchor_x) ** 2 + (y - anchor_y) ** 2, 0))
+    # A transit packet must contain a segment beyond the immutable anchor.
+    # The millimetre reserve protects waypoint selection from NLP roundoff.
+    result.append(ca.if_else(minimum_extent > 0, ca.mmax(ca.vertcat(*extents)) - (minimum_extent + 2e-3) ** 2, 1))
+    return result
 
 
 def _static_rows(
@@ -998,6 +1055,35 @@ def _recovery_envelope_cost(
     return cost
 
 
+def _navigation_recovery_errors(
+    psi: ca.MX, speed: ca.MX, p: ca.MX, dt_s: float,
+    reference: ca.MX, recovery_from: ca.MX, lookahead: ca.MX,
+) -> ca.MX:
+    """Keep recovering until the candidate reaches the line, regardless of speed.
+
+    A time-indexed reference can straighten a slow candidate while it is still
+    off the mission leg. Native navigation instead measures the heading error
+    against the candidate's own cross-track position after maneuver release.
+    """
+    cx, cy = p[_P.X0], p[_P.Y0]
+    mission = ca.atan2(-p[_P.ROUTE_NORMAL_X], p[_P.ROUTE_NORMAL_Y])
+    errors = []
+    for k in range(psi.numel()):
+        cross_track = (
+            (cx - p[_P.ROUTE_ORIGIN_X]) * p[_P.ROUTE_NORMAL_X]
+            + (cy - p[_P.ROUTE_ORIGIN_Y]) * p[_P.ROUTE_NORMAL_Y]
+        )
+        desired = mission - ca.atan2(cross_track, ca.fmax(lookahead, 1.0))
+        delta = psi[k] - desired
+        errors.append(ca.if_else(
+            ca.logic_and(lookahead > 0, ca.DM(k) >= recovery_from),
+            ca.atan2(ca.sin(delta), ca.cos(delta)), psi[k] - reference[k],
+        ))
+        cx += speed[k] * dt_s * ca.cos(psi[k])
+        cy += speed[k] * dt_s * ca.sin(psi[k])
+    return ca.vertcat(*errors)
+
+
 def _route_cost(
     psi: ca.MX,
     speed: ca.MX,
@@ -1145,10 +1231,19 @@ def _repair_infeasible_seed(
         return None
     best_x0: np.ndarray | None = None
     best_violation = baseline
-    for step_index in range(1, _SEED_REPAIR_MAX_STEPS + 1):
-        magnitude = _SEED_REPAIR_STEP_RAD * step_index
-        for sign in (-1.0, 1.0):
-            candidate = _ramped_offset_seed(prepared.x0, problem, config, sign * magnitude)
+    if problem.route_constraint_limit_m is not None:
+        # A retained route can leave insufficient lateral room to pass yet.
+        # Seed braking as well as turning; this only initializes IPOPT and
+        # must satisfy the same prefix, rate, clearance and corridor rows.
+        n = config.horizon_steps
+        start_k = min(problem.prefix_active_k, n)
+        for fraction in (0.75, 0.5, 0.25, 0.0):
+            candidate = prepared.x0.copy()
+            target_speed = fraction * problem.speed_bounds_mps[1]
+            previous = float(candidate[n + start_k - 1]) if start_k else problem.own_ship.u_mps
+            for k in range(start_k, n):
+                previous = max(target_speed, previous - problem.decel_max_mps2 * config.dt_s)
+                candidate[n + k] = previous
             candidate = np.clip(candidate, prepared.lbx, prepared.ubx)
             violation = _max_row_violation(graph, candidate, prepared)
             if violation <= 1.0e-9:
@@ -1156,6 +1251,43 @@ def _repair_infeasible_seed(
             if violation < best_violation:
                 best_violation = violation
                 best_x0 = candidate
+    # Recovery-only search envelopes can legitimately be wider than the
+    # ordinary +/-45 degree cold-start scan.  Follow the actual problem bounds
+    # so the seed repair can reach that declared envelope, while keeping a
+    # finite cap on the number of graph evaluations.
+    maximum_delta = max(
+        abs(problem.heading_bounds_rad[0] - problem.own_ship.psi_rad),
+        abs(problem.heading_bounds_rad[1] - problem.own_ship.psi_rad),
+    )
+    repair_steps = min(
+        72,
+        max(_SEED_REPAIR_MAX_STEPS, int(math.ceil(maximum_delta / _SEED_REPAIR_STEP_RAD))),
+    )
+    for step_index in range(1, repair_steps + 1):
+        magnitude = _SEED_REPAIR_STEP_RAD * step_index
+        for sign in (-1.0, 1.0):
+            heading_seed = _ramped_offset_seed(prepared.x0, problem, config, sign * magnitude)
+            speed_fractions = (1.0, 0.75, 0.5, 0.25, 0.0) if problem.route_constraint_limit_m is not None else (1.0,)
+            for fraction in speed_fractions:
+                candidate = heading_seed.copy()
+                if problem.route_constraint_limit_m is not None:
+                    start_k = min(problem.prefix_active_k, config.horizon_steps)
+                    previous = (
+                        problem.prefix_u_mps[start_k - 1]
+                        if start_k
+                        else problem.own_ship.u_mps
+                    )
+                    target_speed = fraction * problem.speed_bounds_mps[1]
+                    for k in range(start_k, config.horizon_steps):
+                        previous = max(target_speed, previous - problem.decel_max_mps2 * config.dt_s)
+                        candidate[config.horizon_steps + k] = previous
+                candidate = np.clip(candidate, prepared.lbx, prepared.ubx)
+                violation = _max_row_violation(graph, candidate, prepared)
+                if violation <= 1.0e-9:
+                    return _reseeded(prepared, candidate)
+                if violation < best_violation:
+                    best_violation = violation
+                    best_x0 = candidate
     if best_x0 is not None and best_violation < 0.5 * baseline:
         return _reseeded(prepared, best_x0)
     return None
@@ -1256,7 +1388,18 @@ def _stage_speed_bounds(problem: MidMpcProblem, config: MidMpcConfig, lbx: np.nd
     for window in problem.row_schedule.cpa_hard_windows:
         start = max(0, min(window.start_k, n))
         stop = max(start, min(window.stop_k, n))
-        lbx[n + start : n + stop] = np.minimum(lbx[n + start : n + stop], 0.0)
+        lbx[n + start : n + stop] = np.minimum(lbx[n + start : n + stop], problem.cpa_braking_floor_mps)
+    prefix_k = min(problem.prefix_active_k, n)
+    if problem.route_constraint_limit_m is not None and prefix_k:
+        lbx[n : n + prefix_k] = np.minimum(lbx[n : n + prefix_k], problem.prefix_u_mps[:prefix_k])
+        ubx[n : n + prefix_k] = np.maximum(ubx[n : n + prefix_k], problem.prefix_u_mps[:prefix_k])
+        # The immutable prefix can end below the policy floor. Stage the
+        # free suffix from that actual boundary, not a hypothetical ramp
+        # starting at the measured state before the retained leg.
+        suffix_steps = np.arange(1, n - prefix_k + 1)
+        boundary_speed = problem.prefix_u_mps[prefix_k - 1]
+        lbx[n + prefix_k : 2 * n] = np.minimum(lbx[n + prefix_k : 2 * n], boundary_speed + rate * suffix_steps)
+        ubx[n + prefix_k : 2 * n] = np.maximum(ubx[n + prefix_k : 2 * n], boundary_speed - rate * suffix_steps)
 
 
 def _prepare(config: MidMpcConfig, problem: MidMpcProblem, layout: MidMpcRowLayout) -> MidMpcPreparedProblem:
@@ -1414,6 +1557,11 @@ def _apply_primal_warm_start(
         seed[:n][reusable] = np.interp(query_times[reusable], source_times, unwrapped)
         seed[n : 2 * n][reusable] = np.interp(query_times[reusable], source_times, warm.speed_mps)
     seed = np.clip(seed, prepared.lbx, prepared.ubx)
+    prefix_k = int(prepared.p[_P.PREFIX_ACTIVE_K])
+    if prefix_k:
+        capacity = max(n, _FROZEN_PREFIX_CAPACITY)
+        seed[:prefix_k] = prepared.p[_P.PREFIX_PSI : _P.PREFIX_PSI + prefix_k]
+        seed[n : n + prefix_k] = prepared.p[_P.PREFIX_PSI + capacity : _P.PREFIX_PSI + capacity + prefix_k]
     if config.strict_slack_bounds:
         seed[2 * n :] = 0.0
     return MidMpcPreparedProblem(
@@ -1477,7 +1625,20 @@ def _pack_parameters(config: MidMpcConfig, problem: MidMpcProblem) -> np.ndarray
     static_origin_start = parameter_dim
     if problem.static_field is not None:
         parameter_dim += 2
+    route_constraint_start = parameter_dim
+    parameter_dim += int(problem.route_constraint_limit_m is not None) * (8 * config.horizon_steps + 3)
     p = np.zeros(parameter_dim)
+    if problem.route_constraint_limit_m is not None:
+        points = np.asarray(problem.route_constraint_points_m)
+        capacity = 2 * config.horizon_steps
+        if len(points) - 1 > capacity:
+            raise ValueError("Retained route exceeds the fixed corridor segment capacity")
+        segments = np.tile(np.r_[points[-1], points[-1]], (capacity, 1))
+        segments[: len(points) - 1] = np.hstack((points[:-1], points[1:]))
+        p[route_constraint_start : route_constraint_start + 4 * capacity] = segments.ravel()
+        p[route_constraint_start + 4 * capacity] = problem.route_constraint_limit_m
+        p[route_constraint_start + 4 * capacity + 1] = problem.route_suffix_min_extent_m
+        p[route_constraint_start + 4 * capacity + 2] = problem.navigation_recovery_lookahead_m
     if problem.static_field is not None:
         p[static_origin_start : static_origin_start + 2] = problem.static_origin_ne_m
     p[_P.PSI0 : _P.Y0 + 1] = (

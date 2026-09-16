@@ -23,6 +23,7 @@ from colav_simulator.core.colav.custom_mpc_adapter import (
     CustomMPCAdapter,
     DeadlineMode,
     FactoryContext,
+    PlannerInput,
 )
 from colav_simulator.core.colav.diagnostics import ColavExecutionError, PlanStatus
 from colav_simulator.core.colav.encounter_lifecycle import EncounterLifecycle
@@ -687,6 +688,30 @@ class ExperimentRunner:
                 artifact_sink=artifact_sink,
                 threat_management_coordinator=threat_management_coordinator,
                 domain_profile=spec.domain_profile,
+                preparation_input=(
+                    PlannerInput(
+                        sim_time_s=0.0,
+                        dt_sim_s=episode["config"].dt_sim,
+                        waypoints_enu_m=episode["ship_list"][0].waypoints,
+                        speed_plan_mps=episode["ship_list"][0].speed_plan,
+                        ownship_state=episode["ship_list"][0].state,
+                        tracks=(),
+                        enc=enc,
+                        goal_state=None,
+                        disturbance=None,
+                        algorithm_seed=spec.seeds.algorithm,
+                        ownship_length_m=episode["ship_list"][0].length,
+                        ownship_width_m=episode["ship_list"][0].width,
+                        ownship_draft_m=episode["ship_list"][0].draft,
+                        ownship_model=(
+                            "original_gnc_20260824_v2"
+                            if callable(getattr(episode["ship_list"][0], "original_gnc_evidence", None))
+                            else "UNKNOWN"
+                        ),
+                    )
+                    if spec.algorithm_id == "mid_mpc_ipopt"
+                    else None
+                ),
             )
             algorithm = self.registry.build_algorithm(
                 spec.algorithm_id,

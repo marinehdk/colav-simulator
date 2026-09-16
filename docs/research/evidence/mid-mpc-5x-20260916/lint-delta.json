@@ -1,0 +1,55 @@
+[
+  {
+    "file": "colav_simulator/common/map_functions.py",
+    "new_findings": [],
+    "existing_findings": []
+  },
+  {
+    "file": "colav_simulator/core/colav/custom_mpc_adapter.py",
+    "new_findings": [],
+    "existing_findings": [
+      [
+        "PLR0912",
+        "Too many branches (13 > 12)"
+      ]
+    ]
+  },
+  {
+    "file": "colav_simulator/core/colav/mid_mpc/solver.py",
+    "new_findings": [],
+    "existing_findings": [
+      [
+        "C901",
+        "`solve` is too complex (16 > 15)"
+      ],
+      [
+        "E501",
+        "Line too long (128 > 125)"
+      ],
+      [
+        "PLR0911",
+        "Too many return statements (11 > 10)"
+      ]
+    ]
+  },
+  {
+    "file": "colav_simulator/experiment/runner.py",
+    "new_findings": [],
+    "existing_findings": []
+  },
+  {
+    "file": "colav_simulator/integrations/mid_mpc_ipopt.py",
+    "new_findings": [],
+    "existing_findings": []
+  },
+  {
+    "file": "colav_simulator/original_gnc/native.py",
+    "new_findings": [],
+    "existing_findings": []
+  },
+  {
+    "file": "gui_server/main.py",
+    "new_findings": [],
+    "existing_findings": []
+  }
+]

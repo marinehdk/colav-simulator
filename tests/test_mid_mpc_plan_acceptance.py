@@ -1215,3 +1215,36 @@ def test_future_action_requires_solver_consumed_schedule_evidence() -> None:
     )
     result = MidMpcPlanAcceptance().evaluate(_request(authority_targets=(target,)))
     assert "COLREG_FUTURE_PLAN_MISSING" in {finding.code for finding in result.findings}
+
+
+def test_observed_action_onset_does_not_replace_course_achievement() -> None:
+    target = AuthorityTarget(
+        key=TrackKey(1, 1),
+        encounter="OVERTAKING",
+        role="OVERTAKING",
+        risk="ACTIVE",
+        commitment="COMMITTED",
+        passing_side="STARBOARD",
+        baseline_course_rad=0.0,
+        required_course_change_rad=np.deg2rad(5.0),
+        action_achieved=False,
+        action_started=True,
+        route_recovery_allowed=False,
+        reachability_verified=True,
+        committed_at_s=0.0,
+        action_start_deadline_s=15.0,
+        action_achievement_deadline_s=30.0,
+        actual_course_change_rad=0.0,
+    )
+    request = _request(authority_targets=(target,), course=np.deg2rad([0.0, 0.0, 6.0]))
+    result = MidMpcPlanAcceptance().evaluate(request)
+    assert result.accepted, [f.code for f in result.findings if f.outcome is AcceptanceOutcome.FAIL]
+    not_started = replace(request, authority=replace(request.authority, targets=(replace(target, action_started=False),)))
+    result = MidMpcPlanAcceptance().evaluate(not_started)
+    assert "COLREG_ACTION_START_DEADLINE" in {f.code for f in result.findings}
+    too_small = replace(request, candidate=replace(request.candidate, course_rad=np.deg2rad([0.0, 0.0, 2.0])))
+    result = MidMpcPlanAcceptance().evaluate(too_small)
+    assert "COLREG_ACTION_DEADLINE" in {f.code for f in result.findings}
+    wrong_side = replace(request, candidate=replace(request.candidate, course_rad=np.deg2rad([0.0, -2.0, 6.0])))
+    result = MidMpcPlanAcceptance().evaluate(wrong_side)
+    assert "COLREG_LOCKED_SIDE" in {f.code for f in result.findings}

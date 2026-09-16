@@ -322,3 +322,18 @@ def test_hard_row_rejects_crossing_with_midpoint_outside_grid() -> None:
     rows = _static_rows(ca.DM([0.0, 0.0]), ca.DM([5.0, 5.0]), ca.DM(parameters), config, problem, len(parameters) - 2)
     assert float(ca.vertcat(*rows)[0]) < 0.0
     assert LineString([(0.0, 0.0), (0.0, 500.0)]).intersects(island)
+
+
+def test_chart_prewarm_serves_first_real_solve_without_advancing_authority() -> None:
+    data = _input(_enc(box(-40, 500, 40, 650)))
+    adapter = create(context=FactoryContext(
+        requested_algorithm="mid_mpc_ipopt", algorithm_seed=0,
+        preparation_input=data,
+    ))
+    facade = adapter._solve.__self__
+    assert facade._cycle_sequence == 0
+    assert facade._accepted_request is None
+    result = facade.solve(data)
+    assert result.feasible
+    assert result.algorithm_details["graph_cache_hit"]
+    assert result.algorithm_details["graph_build_elapsed_ms"] == 0.0

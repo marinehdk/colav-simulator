@@ -13,7 +13,7 @@ import threading
 from pathlib import Path
 from typing import Any
 
-APPROVED_SOURCE_MANIFEST_SHA256 = "bf5de3f2b5717b62bf2755aa71e261e0cc7b30c952ea89dd5e166f8aa6b16059"
+APPROVED_SOURCE_MANIFEST_SHA256 = "0af8012364c477d91f135614ba9c3fb6b1eb1a280a29557c9fb2f2fb79f06417"
 
 
 class OriginalGncError(RuntimeError):
@@ -54,8 +54,13 @@ class NativeModule:
         self._library.original_gnc_create.restype = ctypes.c_void_p
         self._library.original_gnc_describe.argtypes = [ctypes.c_void_p]
         self._library.original_gnc_describe.restype = ctypes.c_char_p
-        self._library.original_gnc_invoke.argtypes = [ctypes.c_void_p, ctypes.c_char_p, ctypes.c_char_p, ctypes.c_int64]
-        self._library.original_gnc_invoke.restype = ctypes.c_char_p
+        # Each callback is short, synchronous native work. Keep the GIL for
+        # that call to avoid hundreds of thread handoffs per simulation step
+        # when telemetry/recording threads are active. The ABI and original
+        # numerical callback, message bytes, and scheduler order are unchanged.
+        self._invoke_native = ctypes.PYFUNCTYPE(
+            ctypes.c_char_p, ctypes.c_void_p, ctypes.c_char_p, ctypes.c_char_p, ctypes.c_int64
+        )(("original_gnc_invoke", self._library))
         self._library.original_gnc_error.restype = ctypes.c_char_p
         self._library.original_gnc_destroy.argtypes = [ctypes.c_void_p]
         self._library.original_gnc_destroy.restype = None
@@ -89,7 +94,7 @@ class NativeModule:
         with self._lock:
             if not self._handle:
                 raise OriginalGncError("Original GNC module has been closed")
-            result = self._library.original_gnc_invoke(
+            result = self._invoke_native(
                 self._handle, callback.encode(), json.dumps(message, allow_nan=False).encode(), time_ns
             )
             if result is None:

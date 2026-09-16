@@ -1,0 +1,171 @@
+diff --git a/src/gnc/ship_guidance/src/active_route_manager_node.cpp b/src/gnc/ship_guidance/src/active_route_manager_node.cpp
+index 63bf037..d8ffd41 100644
+--- a/src/gnc/ship_guidance/src/active_route_manager_node.cpp
++++ b/src/gnc/ship_guidance/src/active_route_manager_node.cpp
+@@ -79,6 +79,7 @@ struct FeasibilityResult {
+     double available_decel_distance_m{std::numeric_limits<double>::infinity()};
+     double suggested_max_speed_mps{0.0};
+     double suggested_min_distance_m{0.0};
++    std::vector<double> admitted_speed_limits_mps;
+ };
+ 
+ }  // namespace
+@@ -366,7 +367,7 @@ private:
+         }
+ 
+         clear_velocity_intent();
+-        apply_speed_degradation(route, result.suggested_max_speed_mps);
++        apply_speed_degradation(route, result.admitted_speed_limits_mps);
+         set_active_route_context(route, command_source, result);
+         active_route_pub_->publish(route);
+         mark_avoidance_active(*msg);
+@@ -974,6 +975,10 @@ private:
+         result.requested_speed_mps = max_requested_speed(route);
+         result.applied_speed_mps = std::min(result.requested_speed_mps, max_command_speed_mps_);
+         result.suggested_max_speed_mps = result.applied_speed_mps;
++        result.admitted_speed_limits_mps.reserve(points.size());
++        for (size_t i = 0; i < points.size(); ++i) {
++            result.admitted_speed_limits_mps.push_back(requested_speed_at(route, i));
++        }
+         if (!plan.command_heading_deg.empty()) {
+             result.requested_heading_deg = clamp_angle_deg(plan.command_heading_deg.front());
+             result.applied_heading_deg = result.requested_heading_deg;
+@@ -1053,6 +1058,8 @@ private:
+                     yaw_required_radius >= static_min_turn_radius;
+                 result.suggested_max_speed_mps =
+                     std::min(result.suggested_max_speed_mps, safe_speed);
++                result.admitted_speed_limits_mps[i] =
++                    std::min(result.admitted_speed_limits_mps[i], safe_speed);
+                 if (plan.require_exact_speed || !plan.allow_degraded_execution) {
+                     auto rejected = rejected_result(
+                         yaw_rate_is_dominant ? "yaw_rate_too_high" : "turn_radius_too_small",
+@@ -1103,7 +1110,17 @@ private:
+         if (!result.degraded) {
+             result.state = "ACCEPTED";
+         }
+-        result.applied_speed_mps = std::min(result.requested_speed_mps, result.suggested_max_speed_mps);
++        // A local turn limit is not a permanent cruise limit. Propagate only
++        // the necessary braking envelope upstream; keep later requested speeds.
++        for (size_t i = points.size() - 1; i > 0; --i) {
++            const double next = result.admitted_speed_limits_mps[i];
++            const double upstream = std::sqrt(next * next +
++                2.0 * max_decel_mps2_ * distance(points[i - 1], points[i]));
++            result.admitted_speed_limits_mps[i - 1] =
++                std::min(result.admitted_speed_limits_mps[i - 1], upstream);
++        }
++        result.applied_speed_mps = *std::max_element(
++            result.admitted_speed_limits_mps.begin(), result.admitted_speed_limits_mps.end());
+         return result;
+     }
+ 
+@@ -1186,22 +1203,10 @@ private:
+ 
+     void apply_speed_degradation(
+         ship_interfaces::msg::RoutePlan& route,
+-        double suggested_max_speed_mps) const
++        const std::vector<double>& admitted_speed_limits_mps) const
+     {
+-        if (!std::isfinite(suggested_max_speed_mps) || suggested_max_speed_mps <= 0.0) {
+-            return;
+-        }
+-        const double cap = std::min(suggested_max_speed_mps, max_command_speed_mps_);
+-        if (route.speed_limit_mps.empty()) {
+-            route.speed_limit_mps.assign(route.latitude.size(), cap);
+-            return;
+-        }
+-        for (double& speed : route.speed_limit_mps) {
+-            if (!std::isfinite(speed) || speed <= 0.0) {
+-                speed = cap;
+-            } else {
+-                speed = std::min(speed, cap);
+-            }
++        if (admitted_speed_limits_mps.size() == route.latitude.size()) {
++            route.speed_limit_mps = admitted_speed_limits_mps;
+         }
+     }
+ 
+diff --git a/src/gnc/ship_guidance/src/ship_guidance_node.cpp b/src/gnc/ship_guidance/src/ship_guidance_node.cpp
+index 67df37f..46a7eee 100644
+--- a/src/gnc/ship_guidance/src/ship_guidance_node.cpp
++++ b/src/gnc/ship_guidance/src/ship_guidance_node.cpp
+@@ -2147,6 +2147,14 @@ void ShipGuidanceNode::path_callback(const nav_msgs::msg::Path::SharedPtr msg)
+     last_path_signature_ = incoming_path_signature;
+     last_path_size_ = msg->poses.size();
+ 
++    // Preserve state only when the actual local guidance frame survives.
++    // current_wp_idx_ names the target; the active segment is [idx-1, idx].
++    const int previous_target_idx = current_wp_idx_;
++    const bool had_local_frame = path_from_callback_ && previous_target_idx > 0 &&
++        previous_target_idx < static_cast<int>(waypoints_.size());
++    const Waypoint previous_start = had_local_frame ? waypoints_[previous_target_idx - 1] : Waypoint{};
++    const Waypoint previous_target = had_local_frame ? waypoints_[previous_target_idx] : Waypoint{};
++
+     waypoints_.clear();
+     raw_waypoints_.clear();
+     for (const auto& pose : msg->poses) {
+@@ -2174,26 +2182,7 @@ void ShipGuidanceNode::path_callback(const nav_msgs::msg::Path::SharedPtr msg)
+     dp_hold_x_ = 0.0;
+     dp_hold_y_ = 0.0;
+     dp_hold_psi_ = 0.0;
+-    raw_route_rejoin_active_ = false;
+-    speed_recovery_segment_idx_ = -1;
+-    speed_recovery_gate_cleared_ = false;
+-    speed_recovery_speed_cap_ = 0.0;
+-    speed_recovery_last_time_ = this->now();
+-    turn_segment_speed_gate_active_ = false;
+-    cruise_envelope_state_ = ship_guidance::CruiseEnvelopeState::Normal;
+-    cruise_speed_cap_mps_ = cruise_base_speed_mps_;
+     final_dp_stop_envelope_latched_ = false;
+-    current_crab_command_rad_ = 0.0;
+-    current_crab_command_initialized_ = false;
+-    current_vector_crab_command_rad_ = 0.0;
+-    current_vector_crab_command_initialized_ = false;
+-    current_vector_target_xte_m_ = 0.0;
+-    current_vector_target_xte_initialized_ = false;
+-    current_vector_residual_filtered_force_n_ = 0.0;
+-    current_vector_residual_filter_initialized_ = false;
+-    current_vector_residual_engaged_ = false;
+-    current_vector_residual_command_rad_ = 0.0;
+-    current_vector_residual_command_initialized_ = false;
+     publish_dp_hold_state(false);
+ 
+     // ========== 智能航点索引确定：找到船当前所在的航段 ==========
+@@ -2267,6 +2256,38 @@ void ShipGuidanceNode::path_callback(const nav_msgs::msg::Path::SharedPtr msg)
+     const size_t raw_waypoint_count = waypoints_.size();
+     waypoints_ = smooth_waypoints_for_turns(waypoints_);
+     current_wp_idx_ = std::clamp(current_wp_idx_, 0, static_cast<int>(waypoints_.size()) - 1);
++    const auto same_local_waypoint = [](const Waypoint& old, const Waypoint& incoming) {
++        // Geographic/local round trips can move retained points by nanometres.
++        return std::hypot(old.x - incoming.x, old.y - incoming.y) <= 1.0e-6 &&
++            old.navigation_mode == incoming.navigation_mode;
++    };
++    const bool preserve_local_guidance_state = had_local_frame &&
++        previous_target_idx < static_cast<int>(waypoints_.size()) &&
++        same_local_waypoint(previous_start, waypoints_[previous_target_idx - 1]) &&
++        same_local_waypoint(previous_target, waypoints_[previous_target_idx]);
++    if (!preserve_local_guidance_state) {
++        raw_route_rejoin_active_ = false;
++        speed_recovery_segment_idx_ = -1;
++        speed_recovery_gate_cleared_ = false;
++        speed_recovery_speed_cap_ = 0.0;
++        speed_recovery_last_time_ = this->now();
++        turn_segment_speed_gate_active_ = false;
++        cruise_envelope_state_ = ship_guidance::CruiseEnvelopeState::Normal;
++        cruise_speed_cap_mps_ = cruise_base_speed_mps_;
++        cruise_recovery_gate_cleared_ = false;
++        cruise_recovery_stable_timer_active_ = false;
++        current_crab_command_rad_ = 0.0;
++        current_crab_command_initialized_ = false;
++        current_vector_crab_command_rad_ = 0.0;
++        current_vector_crab_command_initialized_ = false;
++        current_vector_target_xte_m_ = 0.0;
++        current_vector_target_xte_initialized_ = false;
++        current_vector_residual_filtered_force_n_ = 0.0;
++        current_vector_residual_filter_initialized_ = false;
++        current_vector_residual_engaged_ = false;
++        current_vector_residual_command_rad_ = 0.0;
++        current_vector_residual_command_initialized_ = false;
++    }
+     if (smoothed_waypoints_pub_) {
+         nav_msgs::msg::Path smoothed_path;
+         smoothed_path.header.stamp = this->now();

@@ -9,6 +9,7 @@ Author: Trym Tengesdal
 
 import os
 from dataclasses import dataclass
+from functools import lru_cache
 from typing import Any
 
 os.environ["USE_PYGEOS"] = "0"
@@ -49,8 +50,11 @@ class GroundingHazardSet:
 
     @property
     def combined_geometry(self) -> BaseGeometry:
-        geometries = [layer.geometry for layer in self.layers if not layer.geometry.is_empty]
-        return ops.unary_union(geometries) if geometries else GeometryCollection()
+        # Shapely geometries are immutable and compare exact ordered coordinates.
+        # Include precision/SRID too; WKB alone loses the overlay precision model.
+        geometries = tuple(layer.geometry for layer in self.layers)
+        metadata = tuple((float(shapely.get_precision(g)), int(shapely.get_srid(g))) for g in geometries)
+        return _combined_hazard_geometry(geometries, metadata)
 
     def evidence(self) -> dict[str, Any]:
         return {
@@ -66,6 +70,14 @@ class GroundingHazardSet:
             "coverage_status": self.coverage_status,
             "quality_status": self.quality_status,
         }
+
+
+@lru_cache(maxsize=16)
+def _combined_hazard_geometry(
+    geometries: tuple[BaseGeometry, ...], _geometry_metadata: tuple[tuple[float, int], ...]
+) -> BaseGeometry:
+    geometries = [geometry for geometry in geometries if not geometry.is_empty]
+    return ops.unary_union(geometries) if geometries else GeometryCollection()
 
 
 def check_if_pointing_too_close_towards_land(

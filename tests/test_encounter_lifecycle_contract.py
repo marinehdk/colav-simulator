@@ -24,6 +24,8 @@ from colav_simulator.core.colav.encounter_lifecycle import (
     RiskPhase,
     Rule17Stage,
     TargetObservation,
+    _recovery_guard_holds,
+    _TargetState,
     pairwise_geometry,
 )
 from colav_simulator.core.tracking.trackers import TrackKey
@@ -1121,3 +1123,18 @@ def _stand_on_cycle(sequence: int, sim_time_s: float, *, range_scale: float) -> 
             ),
         ),
     )
+
+
+def test_route_recovery_confirmation_prevents_heading_only_guard_release() -> None:
+    cycle = _head_on_cycle(sequence=1, sim_time_s=30.0)
+    cycle = replace(
+        cycle,
+        ownship=replace(cycle.ownship, position_ne_m=np.array([2000.0, 0.0]), heading_rad=0.0),
+        targets=(replace(cycle.targets[0], state_enu=np.array([0.0, 0.0, -7.0, 0.0])),),
+        route_recovery_complete=False,
+    )
+    state = _TargetState(risk=RiskPhase.RELEASED, role=OwnshipRole.OVERTAKING, recovery_guard_active=True)
+    assert _recovery_guard_holds(state, cycle, cycle.targets[0])
+    assert state.recovery_guard_active
+    recovered = replace(cycle, route_recovery_complete=True)
+    assert not _recovery_guard_holds(state, recovered, recovered.targets[0])

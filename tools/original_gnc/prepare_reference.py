@@ -13,7 +13,7 @@ import json
 import shutil
 from pathlib import Path
 
-SOURCE_MANIFEST_SHA256 = "bf5de3f2b5717b62bf2755aa71e261e0cc7b30c952ea89dd5e166f8aa6b16059"
+SOURCE_MANIFEST_SHA256 = "0af8012364c477d91f135614ba9c3fb6b1eb1a280a29557c9fb2f2fb79f06417"
 
 
 def sha256(path: Path) -> str:

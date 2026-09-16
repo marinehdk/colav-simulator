@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import copy
 import hashlib
+import json
 import math
 from collections.abc import Callable
 from typing import Any
@@ -11,6 +12,7 @@ from typing import Any
 import numpy as np
 
 from colav_simulator.core.colav.diagnostics import ColavExecutionError, PlanStatus
+from colav_simulator.core.colav.retained_route import RetainedRouteConstraint
 from colav_simulator.modular_gnc.route_bridge import ProductRouteBridge
 from colav_simulator.original_gnc.geometry import stamp
 from colav_simulator.original_gnc.native import OriginalGncError
@@ -22,7 +24,6 @@ from colav_simulator.original_gnc.route_splice import (
     MIN_SEGMENT_M,
     SEGMENT_FLOOR_M,
     ReferencePath,
-    along_track_progress,
     blend_deviation_toward_reference,
     build_avoidance_route,
     build_forward_intent_route,
@@ -210,7 +211,9 @@ class ReferenceMirror:
     def __init__(self, ship: Any, nominal_only: bool = False):
         self.ship = ship
         self.path: ReferencePath | None = None
+        self.frozen_path: ReferencePath | None = None
         self.frozen_points: np.ndarray | None = None
+        self.execution_speeds: tuple[float, ...] | None = None
         self.route_type: str | None = None
         self.route_id: str | None = None
         self._nominal_only = nominal_only
@@ -245,11 +248,16 @@ class ReferenceMirror:
             return
         points = self.ship.frame.northeast(latitudes, longitudes)
         speeds = self._reference_speeds(route, len(latitudes))
+        admitted_speeds = route.get("speed_limit_mps")
+        self.execution_speeds = tuple(map(float, admitted_speeds)) if admitted_speeds else None
         modes = [str(value) for value in (route.get("navigation_mode") or [])]
         speeds += [0.0] * (len(latitudes) - len(speeds))
         modes += ["cruise"] * (len(latitudes) - len(modes))
         merged, keep = merge_short_segments(points, min_segment_m=SEGMENT_FLOOR_M)
         self.frozen_points = points
+        self.frozen_path = ReferencePath(
+            points=points, speeds=speeds, modes=modes, latitudes=latitudes, longitudes=longitudes
+        )
         self.path = ReferencePath(
             points=merged,
             speeds=[speeds[index] for index in keep],
@@ -295,7 +303,8 @@ class OriginalPlanBridge:
         self._last_submission = None
         self._last_submission_time = None
         self._mid_plan_id = None
-        self._mid_revision = None
+        self._mid_admitted_receipt = None
+        self._mid_admitted_candidate = None
         self.last_outcome = None
         self.admission_metrics = {
             "submitted": 0,
@@ -497,26 +506,6 @@ class OriginalPlanBridge:
             self._lateral_blend = min(1.0, self._lateral_blend + 0.5)
         return blend_deviation_toward_reference(deviation, reference.points, self._lateral_blend)
 
-    def _mid_deviation(self, path: np.ndarray, reference: ReferencePath) -> tuple[np.ndarray, list[int]] | None:
-        """Deviation columns from the first waypoint at the splice margin.
-
-        Returns None when no accepted-plan waypoint reaches FIRST_CHANGE_MARGIN_M
-        ahead of the ship along the reference (give-way standby or standoff
-        geometry). The frozen manager answers such an update with a
-        first-changed-waypoint rejection and keeps executing the active route,
-        so the bridge holds the active route for this tick instead of raising;
-        manager-owned expiry still governs the admitted route's lifecycle.
-        """
-        ref = reference.points
-        ship_along = along_track_progress(self.ship.state[:2], ref)
-        ahead = [along_track_progress(path[:, index], ref) - ship_along for index in range(path.shape[1])]
-        first = next((index for index, value in enumerate(ahead) if value >= FIRST_CHANGE_MARGIN_M), None)
-        if first is None:
-            return None
-        filtered = path[:, first:]
-        merged, keep = merge_short_segments(filtered)
-        return merged, [first + index for index in keep]
-
     # Keep source contract branches together for audit against the frozen implementation.
     def submit(self, t: float) -> None:  # noqa: PLR0912, PLR0915
         """Translate the current accepted authority without extending its validity."""
@@ -541,92 +530,89 @@ class OriginalPlanBridge:
         if algorithm in {"vo", "potocnik_colreg_fan_mpc"}:
             self._submit_velocity(t, planner, details, float(heading), float(speed))
             return
-        reference = self._reference()
-        candidate = None
-        if algorithm == "mid_mpc_ipopt":
-            decision = self._mid.current_route(tick=round(t / self.dt_s), planner_data=data)
-            if decision.failure is not None or decision.route is None:
-                raise OriginalGncError(f"Mid-MPC accepted route unavailable: {decision.failure}")
-            route = decision.route
-            receipt = details["accepted_plan_receipt"]
-            # CONTINUITY_PRESERVED rolls keep the plan identity; a revision change
-            # (reference discontinuity) starts a new generation.
-            fresh_geometry = self._mid_plan_id is None or route.revision != self._mid_revision
-            if fresh_geometry:
-                self._mid_plan_id = "mid-mpc-" + receipt["receipt_hash"][:24]
-                self._mid_revision = route.revision
-                self._lateral_blend = 1.0
-            plan_id = self._mid_plan_id
-            raw = np.asarray(route.waypoints_ne_m, dtype=float)
-            deviation = self._mid_deviation(raw, reference)
-            if deviation is None:
-                self._record_hold("short_of_splice_margin", {"algorithm": algorithm, "continuity_revision": route.revision})
-                return  # accepted plan never reaches the splice margin: hold the active route this tick
-            geometry, source_indices = deviation
-            speeds = np.asarray(route.speed_mps, dtype=float)[source_indices]
-            geometry = self._split_lateral_offset(geometry, reference, fresh_geometry)
-            deviation_speeds = [float(value) for value in speeds]
-            # Mid routes roll continuously inside one continuity revision: rebuild
-            # every tick, never latch (the held-intent latch is VO/Fan-only).
-            candidate = self._build_candidate(reference, reference, geometry, deviation_speeds, None)
-            if not candidate["gate_clean"]:
-                self._record_hold("unadmittable_splice", {"algorithm": algorithm, "continuity_revision": route.revision})
-                return  # unadmittable splice: hold the current route this tick
-            # Accepted prediction geometry is a route. It is not a sequence of
-            # body-heading commands, so retain only its geometric authority.
-            valid_until_s = route.valid_until_tick * self.dt_s
-            identity = {
-                "algorithm": algorithm,
-                "authority": "accepted_mid_mpc_receipt",
-                "receipt_hash": receipt["receipt_hash"],
-                # colav.mid_mpc.receipt@1 calls the authority cycle "sequence";
-                # the canonical accepted-plan-receipt schema calls it
-                # "accepted_sequence" (same tolerant read as threat management).
-                "accepted_sequence": receipt.get("accepted_sequence", receipt.get("sequence")),
-                "continuity_revision": route.revision,
-                "planner_speed_semantics": "accepted_command_speed",
-                "source_speed_semantics": "original_route_speed_limit",
-                "splice": {"lateral_blend_fraction": self._lateral_blend},
-            }
-        else:
+        if algorithm != "mid_mpc_ipopt":
             raise OriginalGncError(f"Planner not supported by the original GNC bridge: {algorithm}")
-        if valid_until_s <= t:
-            raise OriginalGncError("Accepted planner authority has expired; it cannot be extended by the bridge")
-        signature_payload = (
-            np.ascontiguousarray(candidate["points"], dtype=float).tobytes()
-            + np.asarray(candidate["speeds"], dtype=float).tobytes()
-            + ",".join(candidate["modes"]).encode()
+        self._submit_mid_route(t, data, details)
+
+    def planning_constraint(self) -> RetainedRouteConstraint:
+        """Publish the actual accepted route and existing admission limits to Mid."""
+        self._mirror.refresh()
+        reference = self._mirror.frozen_path
+        if reference is None:
+            raise OriginalGncError("GNC has no accepted reference for constrained Mid planning")
+        return RetainedRouteConstraint(
+            reference_id=str(self._mirror.route_id),
+            points_ne_m=tuple(map(tuple, reference.points.T)),
+            speed_mps=tuple(reference.speeds),
+            navigation_modes=tuple(reference.modes),
+            minimum_update_distance_m=FIRST_CHANGE_MARGIN_M,
+            minimum_segment_m=SEGMENT_FLOOR_M,
+            lateral_limit_m=LATERAL_ENVELOPE_M,
+            execution_speed_mps=self._mirror.execution_speeds,
         )
-        signature = (plan_id, hashlib.sha256(signature_payload).hexdigest(), valid_until_s)
-        if signature == self._last_submission and (
-            self._last_submission_time is None or t - self._last_submission_time < _RESUBMIT_INTERVAL_S
-        ):
+
+    def _submit_mid_route(self, t: float, data: dict, details: dict) -> None:
+        packet = details.get("execution_route")
+        if not isinstance(packet, dict) or packet.get("schema_version") != "colav.mid-mpc.execution-route@1":
+            raise OriginalGncError("Mid must supply a planner-compiled GNC execution route")
+        payload = {key: value for key, value in packet.items() if key != "geometry_hash"}
+        digest = hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+        if digest != packet.get("geometry_hash"):
+            raise OriginalGncError("Mid execution route hash does not match its geometry and metadata")
+        decision = self._mid.current_route(tick=round(t / self.dt_s), planner_data=data)
+        if decision.failure is not None or decision.route is None:
+            raise OriginalGncError(f"Mid-MPC accepted route unavailable: {decision.failure}")
+        receipt = details["accepted_plan_receipt"]
+        same_receipt = receipt["receipt_hash"] == self._mid_admitted_receipt
+        if not same_receipt and packet["reference_hash"] != self.planning_constraint().semantic_hash:
+            raise OriginalGncError("Mid execution route was compiled against a stale GNC reference")
+        if same_receipt:
+            self._mirror.refresh()
+            if self._mirror.route_id is not None and self._mirror.route_id != self._mid_plan_id:
+                raise OriginalGncError("GNC changed the route underlying the held Mid receipt")
+        if same_receipt and self._mid_admitted_candidate != packet["geometry_hash"]:
+            raise OriginalGncError("Held Mid receipt changed its frozen route")
+        valid_until_s = decision.route.valid_until_tick * self.dt_s
+        if valid_until_s <= t:
+            raise OriginalGncError("Accepted Mid route authority has expired")
+        plan_id = "mid-mpc-" + receipt["receipt_hash"][:24]
+        signature = (plan_id, packet["geometry_hash"], valid_until_s)
+        if signature == self._last_submission:
             return
-        deadline_ns = self.ship.stack.epoch_ns + round((valid_until_s - self.ship._planner_time_origin) * 1e9)
-        request = self._base(algorithm, plan_id, deadline_ns)
-        if algorithm == "vo" and details.get("execution_mode") == "emergency_avoidance":
-            request["behavior_mode"] = "emergency_avoidance"
-        request["latitude"] = candidate["latitudes"]
-        request["longitude"] = candidate["longitudes"]
-        request["command_speed_mps"] = [float(value) for value in candidate["speeds"]]
-        # Route geometry is the sole heading authority: the frozen 20 deg
-        # per-segment heading gate cannot hold across a mixed reference splice.
-        request["command_heading_deg"] = []
-        request["require_exact_heading"] = False
-        request["navigation_mode"] = list(candidate["modes"])
-        identity["splice"] = {
-            **identity.get("splice", {}),
-            "first_change_ahead_m": candidate["first_change_ahead_m"],
-            "first_change_ahead_frozen_m": candidate.get("first_change_ahead_frozen_m"),
-            "max_lateral_delta_m": candidate["max_lateral_delta_m"],
-            "min_interior_turn_deg": candidate["min_interior_turn_deg"],
-            "min_new_segment_m": candidate["min_new_segment_m"],
-            "prefix_length": candidate["prefix_length"],
-            "rejoin_index": candidate["rejoin_index"],
-            "rejoin_reference": "nominal_mission",
-            "intent_deviation_m": candidate["intent_deviation_m"],
+        points = np.asarray(packet["points_ne_m"], dtype=float).T
+        latitudes, longitudes = self.ship.frame.geographic(points)
+        request = self._base(
+            "mid_mpc_ipopt",
+            plan_id,
+            self.ship.stack.epoch_ns + round((valid_until_s - self.ship._planner_time_origin) * 1e9),
+        )
+        request.update(
+            latitude=latitudes,
+            longitude=longitudes,
+            command_speed_mps=list(packet["speed_mps"]),
+            navigation_mode=list(packet["navigation_modes"]),
+        )
+        identity = {
+            "algorithm": "mid_mpc_ipopt",
+            "authority": "planner_compiled_retained_route",
+            "receipt_hash": receipt["receipt_hash"],
+            "geometry_hash": packet["geometry_hash"],
+            "reference_hash": packet["reference_hash"],
+            "retained_point_count": packet["retained_point_count"],
+            "prefix_intervals": packet["prefix_intervals"],
+            "geometry_modified_by_adapter": False,
+            "planner_speed_semantics": "accepted_waypoint_speed_profile",
+            "source_speed_semantics": "original_route_speed_limit",
         }
         self._deliver(request, identity)
+        if self.last_outcome and self.last_outcome["outcome"] in {
+            "ADMITTED",
+            "ADMITTED_DUPLICATE",
+            "EXECUTING_WITH_LIMIT",
+        }:
+            self._mid_admitted_receipt = receipt["receipt_hash"]
+            self._mid_admitted_candidate = packet["geometry_hash"]
+            self._mid_plan_id = plan_id
         self._last_submission = signature
         self._last_submission_time = t
 
@@ -752,8 +738,7 @@ class OriginalPlanBridge:
         # 30.0 m geodesic leg can measure 29.97 there and be rejected. Re-check
         # the exact frozen metric on the coordinates actually submitted.
         candidate["gate_clean"] = bool(
-            candidate["gate_clean"]
-            and _manager_min_leg_m(candidate["latitudes"], candidate["longitudes"]) >= MIN_SEGMENT_M
+            candidate["gate_clean"] and _manager_min_leg_m(candidate["latitudes"], candidate["longitudes"]) >= MIN_SEGMENT_M
         )
         return candidate
 

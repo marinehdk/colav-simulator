@@ -1153,6 +1153,7 @@ def _filter_stand_in(
         ownship_state=np.array([0.0, 0.0, 0.0, 7.0, 0.0]),
         waypoints_enu_m=np.array([[0.0, 0.0], [0.0, 20000.0]]),
         tracks=tracks,
+        execution_route_constraint=None,
     )
     assembly = SimpleNamespace(
         problem=SimpleNamespace(route_objective=SimpleNamespace(terminal_position_m=None)),
@@ -1232,3 +1233,22 @@ def test_recovery_filter_returns_none_without_staged_recovery() -> None:
     planner_input, assembly = _filter_stand_in(None, (track,))
 
     assert mid_mpc_module._recovery_iterate_filter(planner_input, assembly) is None
+
+
+def test_override_period_is_shared_by_adapter_and_native_route_contract() -> None:
+    adapter = mid_mpc_module.create(
+        context=FactoryContext("mid_mpc_ipopt", 0, solve_period_override_s=10.0),
+        solve_period_s=5.0,
+    )
+    facade = adapter._solve.__self__
+    assert facade._config.assembly.decision_period_s == 10.0
+    assert adapter.descriptor.execution_profile.solve_period_s == 10.0
+    assert adapter.solve_period_s == 10.0
+
+
+def test_default_mid_mpc_period_is_ten_seconds_across_modules() -> None:
+    adapter = mid_mpc_module.create(context=FactoryContext("mid_mpc_ipopt", 0))
+    assert adapter.solve_period_s == 10.0
+    assert adapter.descriptor.execution_profile.solve_period_s == 10.0
+    assert adapter._solve.__self__._config.assembly.decision_period_s == 10.0
+    assert mid_mpc_module.MidMpcAssemblyConfig().decision_period_s == 10.0

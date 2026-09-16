@@ -215,3 +215,44 @@ def test_terminal_reference_stops_inside_goal_tolerance() -> None:
         location = location + speed * 5.0 * np.array([math.cos(heading), math.sin(heading)])
     assert np.linalg.norm(location - [300.0, 0.0]) <= 5.0
     np.testing.assert_allclose(terminal, [60.0, 0.0], atol=0.5)
+
+
+def test_navigation_arrival_rejoins_the_leg_before_the_goal_region() -> None:
+    references = arrival_references(
+        ((0.0, 0.0), (5000.0, 0.0)),
+        (1000.0, 800.0),
+        0.2,
+        7.0,
+        7.0,
+        5.0,
+        80,
+        0.3,
+        np.deg2rad(1.2),
+        100.0,
+        (0.0, 0.0),
+        0.0,
+        arrival_radius_m=308.7,
+    )
+    assert references is not None
+    headings, _, speeds, terminal = references
+    positions = np.array([1000.0, 800.0]) + np.cumsum(
+        5.0 * np.column_stack([np.array(speeds) * np.cos(headings), np.array(speeds) * np.sin(headings)]), axis=0
+    )
+    aligned = (np.abs(positions[:, 1]) <= 20.0) & (np.abs(headings) <= np.deg2rad(8.0))
+    assert np.any(aligned & (np.linalg.norm(positions - [5000.0, 0.0], axis=1) > 308.7))
+    assert terminal is None
+    np.testing.assert_allclose(speeds, 7.0)
+
+
+def test_native_recovery_capture_uses_measured_speed_before_cruise_is_reached():
+    headings = []
+    for cruise in (4.0, 8.0):
+        refs = arrival_references(
+            ((0.0, 0.0), (5000.0, 0.0)), (1000.0, 100.0), 0.0,
+            3.2, cruise, 5.0, 80, 0.3, 0.5, 100.0, (0.0, 0.0), 0.0,
+            arrival_radius_m=308.7,
+        )
+        assert refs is not None
+        headings.append(refs[0][0])
+    # Future requested cruise must not enlarge the current recovery lookahead.
+    assert headings[0] == headings[1]

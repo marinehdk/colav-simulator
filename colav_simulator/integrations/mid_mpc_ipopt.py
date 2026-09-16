@@ -65,7 +65,12 @@ from colav_simulator.core.colav.mid_mpc_acceptance import (
     recovery_evidence_from_k,
     recovery_progress,
 )
-from colav_simulator.core.colav.mid_mpc_arrival import goal_reached, on_final_leg
+from colav_simulator.core.colav.mid_mpc_arrival import (
+    ROUTE_RECOVERY_TOLERANCE_M,
+    goal_reached,
+    navigation_capture_error,
+    on_final_leg,
+)
 from colav_simulator.core.colav.mid_mpc_assembler import (
     AssemblyFailure,
     AssemblyProfile,
@@ -78,7 +83,7 @@ from colav_simulator.core.colav.mid_mpc_assembler import (
     TargetPrediction,
     problem_hash_document,
 )
-from colav_simulator.core.colav.mid_mpc_static import STATIC_HULL_CLEARANCE_M, static_execution_context
+from colav_simulator.core.colav.mid_mpc_static import STATIC_HULL_CLEARANCE_M, compile_static_field, static_execution_context
 from colav_simulator.core.colav.prediction_evidence import (
     EvidenceEnvelope,
     EvidenceTrackKey,
@@ -90,6 +95,7 @@ from colav_simulator.core.colav.prediction_evidence import (
     PredictionPurpose,
     TargetPredictionEvidence,
 )
+from colav_simulator.core.colav.retained_route import compile_execution_route, course_speed_state
 from colav_simulator.core.colav.rolling_plan import (
     PlanRevisionReason,
     RollingPlan,
@@ -154,6 +160,7 @@ class _MidMpcFacade:
         *,
         threat_management_coordinator: ThreatManagementCoordinator,
         artifact_sink: Callable[[object], object] | None = None,
+        preparation_input: PlannerInput | None = None,
     ) -> None:
         self._config = config
         self._los = LOSGuidance()
@@ -164,7 +171,15 @@ class _MidMpcFacade:
             max_wall_time_s=config.total_deadline_s - config.acceptance_reservation_s,
         )
         self._solver = MidMpcIpoptSolver(core_config)
-        if config.prewarm_targets and config.prewarm_targets > 1:
+        if preparation_input is not None:
+            # Compile chart/hull-specific data before RUNNING. No threat cycle,
+            # optimizer execution, or accepted-plan authority is created here.
+            self._solver.prewarm_capacity(
+                config.prewarm_targets or 1,
+                static_field=compile_static_field(preparation_input),
+                retained_route=preparation_input.ownship_model.startswith("original_gnc_"),
+            )
+        elif config.prewarm_targets and config.prewarm_targets > 1:
             # One graph at the scenario's full capacity serves the first
             # multiship cycle and every smaller track count afterwards; the
             # capacity-one prewarm is subsumed by it.
@@ -214,6 +229,7 @@ class _MidMpcFacade:
         solution: MPCSolution,
         elapsed_s: float,
     ) -> dict[str, object]:
+        planner_input = _gnc_course_input(planner_input)
         context = solution.algorithm_details.get("acceptance_context")
         acceptance = solution.algorithm_details.get("plan_acceptance")
         receipt = solution.algorithm_details.get("accepted_plan_receipt")
@@ -233,8 +249,11 @@ class _MidMpcFacade:
         expected_keys = sorted(tuple(item) for item in context.get("target_keys", []))
         if current_keys != expected_keys:
             raise _hold_rejection("HOLD_TARGET_SET_CHANGED", "held target identity set changed")
-        if _planner_route_hash(planner_input) != context.get("route_hash"):
-            raise _hold_rejection("HOLD_ROUTE_CHANGED", "held route or speed plan changed")
+        if _planner_route_hash(planner_input) != context.get("route_hash") or (
+            planner_input.execution_route_constraint is not None
+            and planner_input.execution_route_constraint.reference_id != "mid-mpc-" + receipt["receipt_hash"][:24]
+        ):
+            raise _hold_rejection("HOLD_ROUTE_CHANGED", "held mission or GNC route changed")
         capability = _active_capability(planner_input, self._config)
         if (
             capability.exact_tuple != context.get("capability_tuple")
@@ -342,6 +361,7 @@ class _MidMpcFacade:
 
     def solve(self, planner_input: PlannerInput) -> MPCSolution:  # noqa: C901, PLR0912, PLR0915
         solve_started_at = time.perf_counter()
+        planner_input = _gnc_course_input(planner_input)
         if len(planner_input.tracks) > self._config.assembly.max_targets:
             self._accepted_primal = None
             self._accepted_request = None
@@ -420,7 +440,9 @@ class _MidMpcFacade:
                 planner_input, snapshot, capability
             )
             continuation_allowed = (
-                prior_plan_safe and rolling_reference.revision_reason is PlanRevisionReason.CONTINUITY_PRESERVED
+                prior_plan_safe and rolling_reference.revision_reason in {
+                    PlanRevisionReason.CONTINUITY_PRESERVED, PlanRevisionReason.NATIVE_RETAINED_ROUTE,
+                }
             )
             assembly = self._assembler.assemble(
                 AssemblyRequest(
@@ -501,6 +523,12 @@ class _MidMpcFacade:
             ownship,
             self._config.assembly.horizon_dt_s,
         )
+        execution_route = (
+            compile_execution_route(assembly.execution_prefix, predicted)
+            if assembly.execution_prefix is not None
+            and result.status in {MidMpcStatus.CONVERGED, MidMpcStatus.FEASIBLE_NONOPTIMAL}
+            else None
+        )
         status, feasible = _plan_status(result.status, result.max_constraint_violation)
         if status not in {PlanStatus.SUCCESS, PlanStatus.TIMEOUT_FEASIBLE}:
             if warm_semantic_token == self._unresolved_streak_token:
@@ -538,6 +566,7 @@ class _MidMpcFacade:
         continuous_cpa = result.continuous_cpa_min_m if math.isfinite(result.continuous_cpa_min_m) else None
         replay_artifact = _replay_artifact_document(assembly, result)
         replay_artifact["solver"]["iterate_filter"] = "l4_recovery_progress" if iterate_filter is not None else "none"
+        replay_artifact["execution_route"] = execution_route
         if _document_hash(replay_artifact["problem_stage"]) != assembly.problem_hash:
             raise RuntimeError("Mid-MPC problem evidence does not match assembled problem hash")
         prepared_stage = {
@@ -804,7 +833,8 @@ class _MidMpcFacade:
             "effective_node_cpa_hard_m": assembly.effective_cpa_hard_m,
             "static_context_required": acceptance_request.execution.static_context_required,
             "static_hull_clearance_m": STATIC_HULL_CLEARANCE_M,
-            "static_constraint_rows": result.row_layout.zone.count,
+            "static_constraint_rows": assembly.grid.control_intervals if assembly.problem.static_field is not None else 0,
+            "retained_route_constraint_rows": assembly.grid.control_intervals + 1 if execution_route is not None else 0,
             "slack_bounds_mode": "fixed_zero",
             "slack_bounds": {
                 "cpa": [float(result.prepared.lbx[-2]), float(result.prepared.ubx[-2])],
@@ -905,6 +935,7 @@ class _MidMpcFacade:
                 "artifact": artifact_reference,
             },
             "plan_acceptance": acceptance_inline,
+            "execution_route": execution_route,
             "accepted_plan_receipt": accepted_plan_receipt,
             "acceptance_context": {
                 "target_keys": [[track.target_id, track.generation] for track in planner_input.tracks],
@@ -1054,6 +1085,15 @@ class _MidMpcFacade:
             )
             and all(d.route_recovery_allowed or d.risk in {RiskPhase.CLEAR, RiskPhase.RELEASED} for d in snapshot.targets),
         )
+        if planner_input.execution_route_constraint is not None:
+            # GNC's acknowledged spatial prefix is compiled into the NLP and
+            # transported verbatim. A second, time-aligned point-mass gate
+            # would reject valid route revisions solely because the real
+            # vessel traverses that same geometry at a different speed.
+            reference = replace(
+                reference, active=False, revision_reason=PlanRevisionReason.NATIVE_RETAINED_ROUTE,
+                objective_weight=(0.0,) * self._config.assembly.horizon_steps,
+            )
         return identity, reference, prior_plan_safe, failure_codes
 
     def _encounter_cycle(
@@ -1071,6 +1111,11 @@ class _MidMpcFacade:
             ]
         )
         targets = tuple(self._target_observation(track) for track in planner_input.tracks)
+        route_recovery_complete = None
+        if planner_input.execution_route_constraint is not None:
+            anchor, _ = _nearest_route_projection(planner_input.waypoints_enu_m, ownship[:2])
+            normal = np.array([-math.sin(route_bearing_rad), math.cos(route_bearing_rad)])
+            route_recovery_complete = abs(float((ownship[:2] - np.asarray(anchor)) @ normal)) <= 20.0
         return EncounterCycle(
             epoch=self._cycle_epoch,
             sequence=self._cycle_sequence,
@@ -1094,6 +1139,7 @@ class _MidMpcFacade:
             profile=self._config.profile,
             anticipatory_planning=len(planner_input.tracks) > 1,
             rearm_horizon_s=self._config.assembly.horizon_steps * self._config.assembly.horizon_dt_s,
+            route_recovery_complete=route_recovery_complete,
         )
 
     def _canonical_snapshot_at(
@@ -1372,6 +1418,7 @@ def create(  # noqa: PLR0913
 ) -> CustomMPCAdapter:
     """Build Mid-MPC under the strict native adapter contract."""
     del min_alteration_deg
+    solve_period_s = context.solve_period_override_s or solve_period_s
     if not math.isclose(deadline_s, _TOTAL_DEADLINE_S, abs_tol=1.0e-9, rel_tol=0.0):
         raise ValueError("Mid-MPC production deadline_s is frozen at 20 s")
     assembly = MidMpcAssemblyConfig(
@@ -1416,6 +1463,7 @@ def create(  # noqa: PLR0913
         config,
         threat_management_coordinator=threat_management_coordinator,
         artifact_sink=context.artifact_sink,
+        preparation_input=context.preparation_input,
     )
     descriptor = AlgorithmDescriptor(
         algorithm_id=context.requested_algorithm,
@@ -1628,19 +1676,21 @@ def _recovery_iterate_filter(
     release knot — a candidate still pressing the avoidance course at release
     reaches its CPA later, and measuring from the release knot would sanction
     iterates the gate rejects), with L4's recovery-pending escape for suffixes
-    too short to demonstrate a return. Arrival has its own finite-endpoint
-    gate and is not filtered here.
+    too short to demonstrate a return. Native arrival capture is also checked
+    when there are no remaining active maneuver targets.
     """
     objective = assembly.problem.route_objective
     start = assembly.horizon_encounter_plan.recovery_from_k
     n, dt = assembly.grid.control_intervals, assembly.grid.dt_s
-    if (
+    recovery_required = not (
         objective is None
         or objective.terminal_position_m is not None
         or start is None
         or start >= n
         or not assembly.horizon_encounter_plan.target_windows
-    ):
+    )
+    native_capture = planner_input.execution_route_constraint is not None
+    if not recovery_required and not native_capture:
         return None
     staged_keys = {window.key for window in assembly.horizon_encounter_plan.target_windows}
     origin = np.asarray(planner_input.ownship_state[:2])
@@ -1659,6 +1709,20 @@ def _recovery_iterate_filter(
         course, speed = values[:n], values[n : 2 * n]
         north = np.r_[origin[0], origin[0] + np.cumsum(speed * np.cos(course) * dt)]
         east = np.r_[origin[1], origin[1] + np.cumsum(speed * np.sin(course) * dt)]
+        native_north, native_east = north, east
+        prefix = getattr(assembly, "execution_prefix", None)
+        if native_capture and prefix is not None:
+            points = list(prefix.points_ne_m)
+            for point in np.column_stack((north, east))[len(prefix.course_rad) + 1:]:
+                if np.linalg.norm(point - np.asarray(points[-1])) >= prefix.constraint.minimum_segment_m:
+                    points.append(tuple(point))
+            native_north, native_east = np.asarray(points).T
+        if native_capture and navigation_capture_error(
+            native_north, native_east, mission, 7.0 * planner_input.ownship_length_m
+        ) > ROUTE_RECOVERY_TOLERANCE_M:
+            return False
+        if not recovery_required:
+            return True
         errors, xte = polyline_recovery_errors(north, east, np.r_[initial_course, course], mission)
         evidence_k = recovery_evidence_from_k(north, east, target_tracks, start)
         if evidence_k >= n:
@@ -1668,6 +1732,13 @@ def _recovery_iterate_filter(
         return recovery_progress(errors, xte, evidence_k)
 
     return acceptable
+
+
+def _gnc_course_input(planner_input: PlannerInput) -> PlannerInput:
+    """Preserve actual world velocity at the body-state / CSOG model boundary."""
+    if planner_input.execution_route_constraint is None:
+        return planner_input
+    return replace(planner_input, ownship_state=course_speed_state(planner_input.ownship_state))
 
 
 def _active_capability(
@@ -1774,6 +1845,7 @@ def _acceptance_request(  # noqa: PLR0913
             baseline_course_rad=decision.baseline_course_rad,
             required_course_change_rad=decision.required_course_change_rad,
             action_achieved=decision.action_achieved,
+            action_started=decision.action_started,
             route_recovery_allowed=decision.route_recovery_allowed,
             reachability_verified=_decision_reachable(decision, capability, grid.duration_s),
             committed_at_s=decision.committed_at_s,
@@ -1814,6 +1886,10 @@ def _acceptance_request(  # noqa: PLR0913
             capability=capability,
             tracker_id=tracker_id,
             mission_waypoints_ne_m=tuple(map(tuple, planner_input.waypoints_enu_m.T)),
+            navigation_route_points_ne_m=(
+                tuple(compile_execution_route(assembly.execution_prefix, predicted)["points_ne_m"])
+                if assembly.execution_prefix is not None else ()
+            ),
             **static_execution_context(planner_input),
         ),
         prior=PriorEvidence(mode=AcceptanceMode.FRESH_CANDIDATE),
@@ -1910,6 +1986,10 @@ def _held_acceptance_request(
         ),
         capability=capability,
         tracker_id=_tracker_identity(planner_input),
+        navigation_route_points_ne_m=(
+            planner_input.execution_route_constraint.points_ne_m
+            if planner_input.execution_route_constraint is not None else ()
+        ),
         **{
             **static_execution_context(planner_input),
             "static_context_required": accepted.execution.static_context_required or planner_input.enc is not None,

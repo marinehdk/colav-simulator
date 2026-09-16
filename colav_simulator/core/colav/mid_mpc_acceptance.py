@@ -13,6 +13,8 @@ import numpy as np
 import shapely
 from shapely.geometry import LineString
 
+from colav_simulator.core.colav.mid_mpc_arrival import ROUTE_RECOVERY_TOLERANCE_M, navigation_capture_error
+
 from colav_simulator.core.colav.prediction_evidence import PredictionPhaseEvidence
 from colav_simulator.core.tracking.trackers import TrackKey
 
@@ -140,6 +142,7 @@ class AuthorityTarget:
     actual_course_change_rad: float | None = None
     rule17: str = "NONE"
     planned_action_at_s: float | None = None
+    action_started: bool = False
 
 
 @dataclass(frozen=True)
@@ -225,6 +228,7 @@ class ExecutionEvidence:
     static_start_ne_m: tuple[float, float] | None = None
     static_layer_status: tuple[tuple[str, str], ...] = ()
     mission_waypoints_ne_m: tuple[tuple[float, float], ...] = ()
+    navigation_route_points_ne_m: tuple[tuple[float, float], ...] = ()
 
     def __post_init__(self) -> None:
         """Freeze execution targets."""
@@ -239,6 +243,10 @@ class ExecutionEvidence:
         if points and (len(points) < 2 or any(len(point) != 2 for point in points) or not np.isfinite(points).all()):
             raise ValueError("mission route must contain finite NE waypoint pairs")
         object.__setattr__(self, "mission_waypoints_ne_m", points)
+        route = tuple(tuple(float(value) for value in point) for point in self.navigation_route_points_ne_m)
+        if route and (len(route) < 2 or any(len(point) != 2 for point in route) or not np.isfinite(route).all()):
+            raise ValueError("navigation route must contain finite NE waypoint pairs")
+        object.__setattr__(self, "navigation_route_points_ne_m", route)
 
 
 @dataclass(frozen=True)
@@ -886,7 +894,7 @@ class MidMpcPlanAcceptance:
                 if start_deadline_s < request.execution.sim_time_s:
                     start_offset_s = first_executable_offset_s
                 start_delta = side_sign * _course_delta_at(candidate, target.baseline_course_rad, start_offset_s)
-                if not target.action_achieved and start_delta < math.radians(1.0):
+                if not target.action_started and not target.action_achieved and start_delta < math.radians(1.0):
                     _fail(
                         findings,
                         AcceptanceLayer.COLREG,
@@ -970,6 +978,7 @@ class MidMpcPlanAcceptance:
             if (
                 target.action_start_deadline_s is not None
                 and request.execution.sim_time_s > target.action_start_deadline_s
+                and not target.action_started
                 and float(target.actual_course_change_rad or 0.0) < math.radians(1.0)
             ):
                 findings.append(
@@ -1084,6 +1093,23 @@ class MidMpcPlanAcceptance:
         findings: list[AcceptanceFinding],
         target_safety: tuple[TargetSafetyWitness, ...],
     ) -> None:
+        if (
+            request.candidate.profile is AcceptanceProfile.COLAV_STRICT
+            and request.execution.capability.plant.startswith("original_gnc_")
+        ):
+            route = request.execution.navigation_route_points_ne_m
+            north = np.asarray(route)[:, 0] if route else request.candidate.north_m
+            east = np.asarray(route)[:, 1] if route else request.candidate.east_m
+            capture_error = navigation_capture_error(
+                north, east,
+                request.execution.mission_waypoints_ne_m, 7.0 * request.execution.ownship_length_m,
+            )
+            if capture_error > ROUTE_RECOVERY_TOLERANCE_M:
+                _fail(
+                    findings, AcceptanceLayer.QUALITY, "QUALITY_NAVIGATION_CAPTURE",
+                    "arrival-region entry precedes mission-leg recovery",
+                    witness={"arrival_cross_track_m": capture_error, "limit_m": ROUTE_RECOVERY_TOLERANCE_M},
+                )
         course_steps = np.diff(np.unwrap(request.candidate.course_rad))
         speed_steps = np.diff(request.candidate.speed_mps)
         witness = {

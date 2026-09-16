@@ -22,8 +22,8 @@ def test_playback_deadline_recovers_after_one_slow_step() -> None:
 
 def test_playback_deadline_bounds_unrecoverable_backlog() -> None:
     deadline, lag = _bounded_playback_deadline(0.0, 5.0, 0.1)
-    assert deadline == pytest.approx(4.2)
-    assert lag == pytest.approx(0.8)
+    assert deadline == pytest.approx(2.0)
+    assert lag == pytest.approx(3.0)
 
 
 def test_session_speed_is_authoritative_and_resets_with_session() -> None:
@@ -113,3 +113,15 @@ def test_ownship_uses_fcb45_top_view_sprite() -> None:
     assert sprite.content.startswith(b"\x89PNG\r\n\x1a\n")
     assert "setSpriteSrc(ownshipSprite, '/static/assets/fcb45-top.png');" in situation_display.text
     assert "drawOwnshipSprite(point, data.os.psi, FCB45_LENGTH_M, FCB45_WIDTH_M);" in situation_display.text
+
+
+def test_five_times_playback_recovers_solver_gap_inside_display_reserve() -> None:
+    # 0.5 simulation seconds per step at 5x: 0.1 wall seconds per step.
+    # A sporadic 1.8-second solve fits the display reserve. Ordinary steps
+    # leave sufficient headroom to recover it without dropping simulated work.
+    now = deadline = 0.0
+    for index in range(100):
+        now += 1.8 if index == 20 else 0.04
+        deadline, _ = _bounded_playback_deadline(deadline, now, 0.1)
+        now = max(now, deadline)
+    assert now == pytest.approx(10.0)

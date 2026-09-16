@@ -1,0 +1,13 @@
+{
+  "base_head": "7b8095feb3f0109d8ace156547720bed0031fc6a",
+  "source_sha256": {
+    "colav_simulator/common/map_functions.py": "6269358eeff7401ab19324016791fb5270e62260a8070fb58c13046bf10eabac",
+    "colav_simulator/core/colav/custom_mpc_adapter.py": "32837a860a5f0d212df76e9eeb0f6439ab67c2897f621b98042a8a75f20aac90",
+    "colav_simulator/core/colav/mid_mpc/solver.py": "29bffabecec68199bdeb06f80be3f481fae48e3c1cfe03709725e6ea4a073c2b",
+    "colav_simulator/experiment/runner.py": "348dd67903fd00c623eb5129bc94ef76b998c5e67cb911a7d9b1e821fd491918",
+    "colav_simulator/integrations/mid_mpc_ipopt.py": "b2cd080e92e99e966e2dde2e6c6c11579fc7cffe5f88678e105078ced0895c85",
+    "colav_simulator/original_gnc/native.py": "3e787129194536dacde887e1ced6f5f74f11a75bacae444e777b99427b48c352",
+    "gui_server/main.py": "0d6c083eb3f121efc00711f61b386708051298bcc319db5c9a458ed3aeccd9d7"
+  },
+  "precision_policy": "Unchanged double-precision model, tolerances, constraints, cadence, GNC callbacks and integration steps; no fallback or target pruning."
+}

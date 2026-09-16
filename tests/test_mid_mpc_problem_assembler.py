@@ -45,6 +45,7 @@ from colav_simulator.core.colav.mid_mpc_assembler import (
     _staged_route_references,
 )
 from colav_simulator.core.colav.rolling_plan import PlanRevisionReason, RollingPlanReference
+from colav_simulator.core.colav.retained_route import RetainedRouteConstraint
 from colav_simulator.core.tracking.trackers import TrackKey
 
 
@@ -403,7 +404,7 @@ def test_stand_on_hold_yields_when_the_baseline_runs_into_a_charted_hazard() -> 
     assert outcome.problem.prefix_active_k == 0
 
 
-def test_assembler_releases_safe_completed_target_from_optimizer_graph() -> None:
+def test_assembler_releases_unreachable_completed_target_from_optimizer_graph() -> None:
     planner_input = _planner_input()
     lifecycle = EncounterLifecycle()
     lifecycle.step(_cycle(planner_input, sequence=0, sim_time_s=0.0))
@@ -421,7 +422,7 @@ def test_assembler_releases_safe_completed_target_from_optimizer_graph() -> None
     )
     safe_input = replace(
         planner_input,
-        tracks=(replace(planner_input.tracks[0], state_enu=np.array([1000.0, 1000.0, -7.0, 0.0])),),
+        tracks=(replace(planner_input.tracks[0], state_enu=np.array([10000.0, 10000.0, -7.0, 0.0])),),
     )
 
     outcome = MidMpcProblemAssembler().assemble(_request(safe_input, released_snapshot))
@@ -527,14 +528,8 @@ def test_strict_assembler_compiles_finite_hard_windows_from_horizon_phases() -> 
     assert isinstance(outcome, AssemblySuccess)
     schedule = outcome.problem.row_schedule
     target_window = outcome.horizon_encounter_plan.target_windows[0]
-    # Hard CPA coverage is inclusive of the first recovery knot: the recovery
-    # prediction was already breached exactly at its stop knot (overtaking-E0
-    # witness at k=59), so the window keeps one knot of executed evidence.
-    expected_stop = (
-        outcome.grid.control_intervals
-        if target_window.recovery_from_k is None
-        else target_window.recovery_from_k + 1
-    )
+    # Recovery releases maneuver obligations, never physical collision safety.
+    expected_stop = outcome.grid.control_intervals
     expected_start = outcome.activation_plan.targets[0].cpa_hard_from_k
     assert tuple((window.start_k, window.stop_k) for window in schedule.cpa_hard_windows) == (
         (expected_start, min(expected_stop, outcome.grid.control_intervals)),
@@ -542,8 +537,7 @@ def test_strict_assembler_compiles_finite_hard_windows_from_horizon_phases() -> 
     assert schedule.direction_hard_window is not None
     assert schedule.direction_hard_window.stop_k == outcome.grid.control_intervals
     assert schedule.min_alt_hard_window is not None
-    # Heading-authority windows release at the recovery knot itself; only the
-    # CPA clearance coverage gains the inclusive recovery knot.
+    # Heading-authority windows still release at the recovery knot itself.
     assert schedule.min_alt_hard_window.stop_k == (
         outcome.grid.control_intervals
         if target_window.recovery_from_k is None
@@ -672,6 +666,82 @@ def test_route_recovery_wait_holds_current_course_until_rejoin_is_safe() -> None
     assert outcome.horizon_encounter_plan.recovery_from_k not in {None, 0}
     assert outcome.horizon_encounter_plan.phases[0] is HorizonEncounterPhase.PASS
     assert outcome.horizon_encounter_plan.avoidance_corridor_bearing_rad == pytest.approx(current_heading)
+
+
+def test_recovery_search_window_expands_only_after_native_route_release(monkeypatch) -> None:
+    """The wider heading envelope belongs to post-encounter route recovery."""
+    planner_input = replace(
+        _planner_input(),
+        execution_route_constraint=RetainedRouteConstraint(
+            "accepted",
+            ((0.0, 0.0), (5000.0, 0.0)),
+            (7.0, 7.0),
+            ("cruise", "cruise"),
+            160.0,
+            32.0,
+            480.0,
+        ),
+    )
+    lifecycle = EncounterLifecycle()
+    lifecycle.step(_cycle(planner_input, sequence=0, sim_time_s=0.0))
+    snapshot = lifecycle.step(_cycle(planner_input, sequence=1, sim_time_s=5.0))
+    released = replace(
+        snapshot.targets[0],
+        risk=RiskPhase.RELEASED,
+        route_recovery_allowed=True,
+        recovery_guard_active=True,
+    )
+    released_snapshot = replace(
+        snapshot,
+        targets=(released,),
+        directive=replace(
+            snapshot.directive,
+            required_targets=(),
+            passing_side=PassingSide.NONE,
+            minimum_course_change_rad=0.0,
+        ),
+    )
+    n = 80
+    recovery_plan = HorizonEncounterPlan(
+        reference_time_s=5.0,
+        times_s=np.arange(n + 1) * 5.0,
+        mission_route_bearing_rad=0.0,
+        avoidance_corridor_bearing_rad=0.0,
+        phases=(HorizonEncounterPhase.PASS,) * 8 + (HorizonEncounterPhase.RECOVER,) * (n - 7),
+        recovery_from_k=7,
+        target_windows=(
+            TargetHorizonWindow(
+                released.key,
+                0,
+                7,
+                True,
+                200.0,
+                0.0,
+            ),
+        ),
+        corridor_reference_rad=(),
+    )
+    monkeypatch.setattr(
+        "colav_simulator.core.colav.mid_mpc_assembler._compile_horizon_encounter_plan",
+        lambda *args, **kwargs: recovery_plan,
+    )
+
+    outcome = MidMpcProblemAssembler().assemble(_request(planner_input, released_snapshot))
+
+    assert isinstance(outcome, AssemblySuccess)
+    own_heading = planner_input.ownship_state[2]
+    assert outcome.problem.heading_bounds_rad == pytest.approx(
+        (
+            own_heading - math.radians(90.0),
+            own_heading + math.radians(90.0),
+        )
+    )
+
+    active_outcome = MidMpcProblemAssembler().assemble(_request(planner_input, snapshot))
+
+    assert isinstance(active_outcome, AssemblySuccess)
+    assert active_outcome.problem.heading_bounds_rad[0] > own_heading - math.radians(90.0)
+    assert active_outcome.problem.heading_bounds_rad[1] < own_heading + math.radians(90.0)
 
 
 def test_assembler_stages_recovery_on_qualified_course_lag() -> None:
@@ -1336,13 +1406,11 @@ def test_inverted_cpa_window_falls_back_to_hard_until_horizon(monkeypatch) -> No
     assert windows[0].stop_k == n
 
 
-def test_hard_cpa_window_covers_the_first_recovery_knot(monkeypatch) -> None:
-    """The recovery prediction was breached exactly at its stop knot (OT-E0).
+def test_hard_cpa_window_covers_the_entire_recovery_suffix(monkeypatch) -> None:
+    """An OT return can meet the target long after predicted release.
 
-    Hard CPA coverage must include the first recovery knot: the exclusive
-    window released the clearance row one knot before the executed closest
-    approach and the candidate rode the gap to a negative hull clearance.
-    Hard coverage may only grow, so this is +1 over the predicted stop.
+    The GNC OT run at T=35 predicted recovery at k=48 but approached within
+    126m hull clearance at k=69. One extra protected knot is insufficient.
     """
     request, outcome = _head_on_plan_with_recovery(monkeypatch, recovery_from_k=30)
 
@@ -1350,7 +1418,7 @@ def test_hard_cpa_window_covers_the_first_recovery_knot(monkeypatch) -> None:
     windows = outcome.problem.row_schedule.cpa_hard_windows
     assert len(windows) == 1
     assert windows[0].start_k < 30
-    assert windows[0].stop_k == 31
+    assert windows[0].stop_k == request.config.horizon_steps
 
 
 def test_degenerate_recovery_prediction_keeps_full_horizon_fallback(monkeypatch) -> None:

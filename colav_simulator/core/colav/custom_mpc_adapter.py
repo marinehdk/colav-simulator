@@ -35,6 +35,7 @@ from colav_simulator.core.colav.prediction_evidence import (
     reduce_evidence,
     render_snapshot,
 )
+from colav_simulator.core.colav.retained_route import RetainedRouteConstraint, course_speed_state
 from colav_simulator.core.colav.threat_assessment import ShipDomainProfile
 from colav_simulator.core.tracking.trackers import TrackSnapshot
 
@@ -65,6 +66,7 @@ class FactoryContext:
     artifact_sink: Callable[[Any], object] | None = field(default=None, compare=False, repr=False)
     threat_management_coordinator: Any | None = field(default=None, compare=False, repr=False)
     domain_profile: ShipDomainProfile | None = field(default=None, compare=True, repr=False)
+    preparation_input: PlannerInput | None = field(default=None, compare=False, repr=False)
 
     def __post_init__(self) -> None:
         """Normalize and validate injected runtime values."""
@@ -308,9 +310,14 @@ class PlannerInput:
     ownship_avoidance_speed_cap_mps: float | None = None
     ownship_min_steerage_speed_mps: float | None = None
     ownship_max_speed_mps: float | None = None
+    execution_route_constraint: RetainedRouteConstraint | None = None
 
     def __post_init__(self) -> None:
         """Copy and validate all planner inputs."""
+        if self.execution_route_constraint is not None and not isinstance(
+            self.execution_route_constraint, RetainedRouteConstraint
+        ):
+            raise TypeError("execution_route_constraint must be a frozen RetainedRouteConstraint")
         if not np.isfinite(self.sim_time_s) or self.sim_time_s < 0.0:
             raise ValueError("sim_time_s must be finite and non-negative")
         if not np.isfinite(self.dt_sim_s) or self.dt_sim_s <= 0.0:
@@ -682,6 +689,7 @@ class CustomMPCAdapter(ICOLAV):
                     key: details[key]
                     for key in (
                         "accepted_plan_receipt",
+                        "execution_route",
                         "hold_acceptance",
                         "rolling_plan",
                         "active_encounters",
@@ -752,7 +760,11 @@ class CustomMPCAdapter(ICOLAV):
                 dt_sim_s=dt_sim_s,
                 waypoints_enu_m=waypoints,
                 speed_plan_mps=speed_plan,
-                ownship_state=ownship_state,
+                ownship_state=(
+                    course_speed_state(ownship_state)
+                    if kwargs.get("os_execution_route_constraint") is not None
+                    else ownship_state
+                ),
                 tracks=tuple(tracks),
                 enc=enc,
                 goal_state=goal_state if goal_state is not None and np.asarray(goal_state).size else None,
@@ -769,6 +781,7 @@ class CustomMPCAdapter(ICOLAV):
                 ownship_avoidance_speed_cap_mps=_optional_positive(kwargs.get("os_avoidance_speed_cap_mps")),
                 ownship_min_steerage_speed_mps=_optional_positive(kwargs.get("os_min_steerage_speed_mps")),
                 ownship_max_speed_mps=_optional_positive(kwargs.get("os_max_speed_mps")),
+                execution_route_constraint=kwargs.get("os_execution_route_constraint"),
             )
             if self.descriptor.execution_profile.requires_enc and planner_input.enc is None:
                 raise ValueError("algorithm execution profile requires ENC")

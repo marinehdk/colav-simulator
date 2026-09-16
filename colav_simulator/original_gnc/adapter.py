@@ -206,6 +206,11 @@ class OriginalGncShipAdapter(IShip):
             self._planner_time_origin = t - self._stack.elapsed_s
         if self._plan_bridge is None:
             self._plan_bridge = OriginalPlanBridge(self, self._dt_s)
+        route_constraint = (
+            self._plan_bridge.planning_constraint()
+            if (self._legacy._colav.get_colav_data().get("planner") or {}).get("algorithm_id") == "mid_mpc_ipopt"
+            else None
+        )
         self._legacy._references = validate_plan(
             self._legacy._colav.plan(
                 t,
@@ -228,6 +233,7 @@ class OriginalGncShipAdapter(IShip):
                 os_execution_speed_policy=self.execution_speed_policy,
                 os_min_steerage_speed_mps=self.min_steerage_speed,
                 os_max_speed_mps=self.max_speed,
+                os_execution_route_constraint=route_constraint,
                 dt=dt,
             )
         )
@@ -395,6 +401,15 @@ class OriginalGncShipAdapter(IShip):
             "final_source_states": copy.deepcopy(self.stack.states),
             "last_outputs": copy.deepcopy(self.stack.latest),
         }
+
+    def goal_reached(self) -> None:
+        """Use the stack's common navigation gate; qualify precision DP separately.
+
+        The simulator's shared distance gate applies equally to VO, Fan and
+        Mid under GNC. A planner's private point-mass stop criterion is not
+        the completion policy of this independently executing vessel stack.
+        """
+        return None
 
     def get_ship_info(self) -> dict:
         return {

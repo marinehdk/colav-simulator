@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import ctypes
 import hashlib
 import json
 from collections import Counter
@@ -147,3 +148,20 @@ def test_default_observers_do_not_change_executing_core(original_config, monkeyp
         core.advance(5.0)
         assert core.states == expected
         assert {key: core.latest[key] for key in expected_outputs} == expected_outputs
+
+
+def test_native_gil_binding_preserves_callback_outputs(original_config):
+    with (
+        stack_for(original_config, enabled_environment=("wind", "current", "wave")) as retained,
+        stack_for(original_config, enabled_environment=("wind", "current", "wave")) as released,
+    ):
+        for module in released.modules.values():
+            if hasattr(module, "_library"):
+                module._invoke_native = ctypes.CFUNCTYPE(
+                    ctypes.c_char_p, ctypes.c_void_p, ctypes.c_char_p, ctypes.c_char_p, ctypes.c_int64
+                )(("original_gnc_invoke", module._library))
+        for dt in (0.13, 0.17, 0.7, 0.5):
+            retained.advance(dt)
+            released.advance(dt)
+            assert retained.states == released.states
+            assert retained.latest == released.latest

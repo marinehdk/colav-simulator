@@ -1558,10 +1558,12 @@ def _bounded_playback_deadline(
     now: float,
     interval: float,
     *,
-    max_catch_up_steps: int = 8,
+    max_catch_up_s: float = 3.0,
 ) -> tuple[float, float]:
+    # Preserve recoverable solver gaps across rates. A step-count limit loses
+    # wall-clock debt at 5x even when subsequent full steps can catch up.
     deadline = previous_deadline + interval
-    deadline = max(deadline, now - interval * max_catch_up_steps)
+    deadline = max(deadline, now - max_catch_up_s)
     return deadline, max(0.0, now - deadline)
 
 
