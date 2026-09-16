@@ -58,7 +58,7 @@ async function loadOpenBridge() {
   try {
     // Single locally-bundled module: components + icons + lit, pinned to
     // @oicl/openbridge-webcomponents@1.0.1. See vendor/openbridge/entry-source.mjs.
-    await import('/static/vendor/openbridge/openbridge-components.mjs?v=20260909-balance-v1');
+    await import('/static/vendor/openbridge/openbridge-components.mjs?v=20260916-replay-layout-v4');
     await Promise.all([
       customElements.whenDefined('obc-top-bar'),
       customElements.whenDefined('obc-card'),

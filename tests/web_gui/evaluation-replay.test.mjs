@@ -161,15 +161,17 @@ function makeFetchRef() {
 
 function makeDisplay() {
   const renders = [];
+  const layerVisibility = [];
   return {
     renders,
+    layerVisibility,
     render: envelope => renders.push(envelope),
     setTargetThreatLevels: () => {},
     beginSession: () => {},
     clearSession: () => {},
     fitView: () => {},
     selectTarget: () => {},
-    setLayerVisible: () => {},
+    setLayerVisible: (id, visible) => layerVisibility.push([id, visible]),
     destroy: () => {},
   };
 }
@@ -197,10 +199,20 @@ test('Evaluation workface hosts the replay viewer between the run panel and Hist
   assert.ok(viewer > evaluationStart, 'replay viewer must live in the Evaluation workface');
   assert.ok(viewer > runsPanel, 'replay viewer must follow the run catalog');
   assert.ok(historical > viewer, 'Historical AIS workbench must stay present');
-  for (const id of ['replaySealedBadge', 'replayEvidenceBadge', 'replayTimeline', 'replayTimeCurrent', 'replayTimeTotal', 'replaySourceFrame', 'replayStatusLine', 'replayStartBtn', 'replayEndBtn', 'replayCloseBtn', 'replayCanvas', 'replayCanvasWrapper', 'replayInspection']) {
+  for (const id of ['replayTimeline', 'replayTimeStart', 'replayTimeCurrent', 'replayTimeTotal', 'replaySourceFrame', 'replayStatusLine', 'replayStartBtn', 'replayCloseBtn', 'replayCanvas', 'replayCanvasWrapper', 'replayPlayPauseBtn', 'replayPlaybackRate', 'replayRate05', 'replayRate1', 'replayRate5', 'replayRate20', 'replayPrevEventBtn', 'replayNextEventBtn', 'replayEventFilter', 'replayZoomOutBtn', 'replayChartScaleInput', 'replayZoomInBtn', 'replayFitTrafficBtn', 'replayRecenterBtn', 'replayChartLayersBtn', 'replayChartDisplayPopover']) {
     assert.match(html, new RegExp(`id="${id}"`), id);
   }
+  assert.match(html, /data-replay-layer="history" checked/);
+  assert.doesNotMatch(html, /id="replayEndBtn"|id="replayRate025"|id="replayRate2"|id="replayRate10"/);
+  assert.doesNotMatch(html, /id="replayInspection"|id="replayEventFocus"|Replay inspection context/);
+  assert.doesNotMatch(html, /replay-viewer-header/);
+  assert.match(html, /class="replay-viewer-context"/);
+  assert.match(html, /<obc-icon-button id="replayCloseBtn"[^>]*aria-label="Back to Replay"/);
+  assert.match(html, /id="replayCloseBtn"[^>]*>\s*<obi-chevron-left-google>/);
   assert.match(styles, /\.replay-viewer/);
+  assert.match(styles, /#evalViewReplay\s*\{\s*height:\s*100%/);
+  assert.match(styles, /\.replay-viewer-main\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\)/s);
+  assert.match(styles, /\.replay-viewer-context/);
   // The timeline is a real slider so keyboard seek works without pointer drag.
   assert.match(html, /id="replayTimeline"[^>]*type="range"/);
 });
@@ -213,14 +225,14 @@ test('replay frontend reuses the canonical projection/display and never parses r
   assert.doesNotMatch(moduleSource, /method\s*:\s*['"](POST|PUT|PATCH|DELETE)['"]/);
   assert.doesNotMatch(moduleSource, /parquet|pzip|DecompressionStream|gzip/i);
   assert.doesNotMatch(adapterSource, /parquet|pzip|DecompressionStream|gzip/i);
-  assert.match(moduleSource, /replay-runs\.js\?v=20260914-gnc-replay-v3/);
-  assert.match(html, /replay-runs\.js\?v=20260914-gnc-replay-v3/);
+  assert.match(moduleSource, /replay-runs\.js\?v=20260916-replay-layout-v4/);
+  assert.match(html, /replay-runs\.js\?v=20260916-replay-layout-v4/);
 });
 
 /* ── Open / seek behavior ── */
 
 test('open loads descriptor, context and initial window; reads are run-scoped GETs only', async () => {
-  const { controller, network, documentRef } = await makeController();
+  const { controller, network, documentRef, display } = await makeController();
   const opened = controller.open(RUN_ID);
   await network.open(network);
   await opened;
@@ -235,15 +247,15 @@ test('open loads descriptor, context and initial window; reads are run-scoped GE
   assert.match(network.calls[1].url, /replay\/context$/);
   assert.match(network.calls[2].url, /replay\/events$/);
   assert.match(network.calls[3].url, /replay\/window\?from=0\.1&to=8\.1$/);
-  assert.equal(documentRef.getElementById('replaySealedBadge').textContent, 'SEALED · HISTORICAL');
-  assert.match(documentRef.getElementById('replayEvidenceBadge').textContent, /REPLAY READY · FULL EVIDENCE/);
+  assert.equal(documentRef.getElementById('replayRunTitle').textContent, 'REPLAY · cdcdcdcd · head_on · vo');
+  assert.ok(display.layerVisibility.some(([id, visible]) => id === 'history' && visible === true));
   const timeline = documentRef.getElementById('replayTimeline');
   assert.equal(timeline.min, '0.1');
   assert.equal(timeline.max, '40');
   assert.equal(timeline.value, '0.1');
   assert.equal(controller.state.status, 'READY');
   assert.equal(controller.state.playhead, 0.1);
-  assert.equal(documentRef.getElementById('replayStatusLine').textContent, 'PAUSED · HISTORICAL INSPECTION');
+  assert.equal(documentRef.getElementById('replayStatusLine').textContent, 'PAUSED · HISTORICAL REPLAY');
 });
 
 test('Replay adapts persisted ENC context to the Situation Display contract before rendering', async () => {
@@ -376,7 +388,7 @@ test('unbracketable seek shows a buffering state and never invents motion', asyn
   assert.equal(controller.state.playhead, 30.0, 'cursor stays at the requested time');
 });
 
-test('target selection changes inspection context only', async () => {
+test('target selection remains local state without an inspection rail', async () => {
   const { controller, network, documentRef } = await makeController();
   const opened = controller.open(RUN_ID);
   await network.open(network);
@@ -384,15 +396,13 @@ test('target selection changes inspection context only', async () => {
   const callsBeforeSelection = network.calls.length;
 
   controller.selectTarget('1');
-  const inspection = documentRef.getElementById('replayInspection');
-  const inspectionText = inspection.children.map(row => row.textContent).join('\n');
-  assert.match(inspectionText, /TS1/);
-  assert.match(inspectionText, /Inspection Context only/);
+  assert.equal(documentRef.getElementById('replayInspection'), null);
+  assert.equal(controller.state.selectedTargetId, '1');
   // Selection performs no network access at all (and therefore no session calls).
   assert.equal(network.calls.length, callsBeforeSelection);
 });
 
-test('start and end controls seek the recorded bounds; close hides the viewer', async () => {
+test('replay button returns to the recorded start; close hides the viewer', async () => {
   const { controller, network, documentRef } = await makeController();
   const opened = controller.open(RUN_ID);
   await network.open(network);
@@ -404,8 +414,6 @@ test('start and end controls seek the recorded bounds; close hides the viewer', 
   assert.equal(documentRef.getElementById('replayRunsPanel').hidden, true);
   documentRef.getElementById('replayStartBtn').click();
   assert.equal(controller.state.playhead, 0.1);
-  documentRef.getElementById('replayEndBtn').click();
-  assert.equal(controller.state.playhead, 40);
   documentRef.getElementById('replayCloseBtn').click();
   assert.equal(documentRef.getElementById('evaluationReplayPanel').hidden, true);
   assert.equal(documentRef.getElementById('replayRunsPanel').hidden, false);
@@ -423,8 +431,7 @@ test('incomplete evidence restricts the timeline to the trusted boundary and say
 
   const timeline = documentRef.getElementById('replayTimeline');
   assert.equal(timeline.max, '20');
-  assert.match(documentRef.getElementById('replayEvidenceBadge').textContent, /REPLAY INCOMPLETE/);
-  assert.match(documentRef.getElementById('replayEvidenceBadge').textContent, /20\.0 s/);
+  assert.equal(controller.state.evidenceState, 'INCOMPLETE');
   assert.equal(controller.state.replayPlayable, true);
   assert.equal(documentRef.getElementById('replayTimeline').disabled, false);
 });
@@ -449,7 +456,7 @@ test('incomplete evidence without a trusted boundary is unavailable and cannot i
   assert.equal(network.calls.length, 1, 'no context/events/window request without a trusted prefix');
   assert.equal(controller.state.status, 'UNAVAILABLE');
   assert.equal(controller.state.replayPlayable, false);
-  assert.match(documentRef.getElementById('replayEvidenceBadge').textContent, /TRACE_DIGEST_MISMATCH/);
+  assert.equal(controller.state.evidenceState, 'INCOMPLETE');
   assert.match(documentRef.getElementById('replayStatusLine').textContent, /PLAYBACK DISABLED/);
   assert.equal(documentRef.getElementById('replayTimeline').disabled, true);
   assert.equal(documentRef.getElementById('replayTimeCurrent').textContent, '— s');
@@ -482,7 +489,7 @@ test('reduced trajectory evidence stays explicit and cannot enter the full repla
   assert.equal(controller.state.status, 'UNAVAILABLE');
   assert.equal(controller.state.replayPlayable, false);
   assert.equal(documentRef.getElementById('replayTimeline').disabled, true);
-  assert.match(documentRef.getElementById('replayEvidenceBadge').textContent, /TRAJECTORY ONLY/);
+  assert.equal(controller.state.evidenceState, 'REDUCED');
   assert.match(documentRef.getElementById('replayStatusLine').textContent, /PLAYBACK DISABLED/);
   assert.match(documentRef.getElementById('replayStatusLine').textContent, /REDUCED_TRAJECTORY_ONLY/);
 });
@@ -498,8 +505,7 @@ test('failed incomplete runs retain failure identity beside the historical repla
   await network.open(network, failed);
   await opened;
 
-  assert.equal(documentRef.getElementById('replaySealedBadge').textContent, 'FAILED · SEALED · HISTORICAL');
-  assert.match(documentRef.getElementById('replayEvidenceBadge').textContent, /REPLAY INCOMPLETE/);
+  assert.equal(controller.state.evidenceState, 'INCOMPLETE');
   assert.equal(controller.state.replayPlayable, true);
 });
 
@@ -507,6 +513,7 @@ test('failed incomplete runs retain failure identity beside the historical repla
 /* ── #72: deterministic playback (ReplayClock / Play / Pause / Replay Speed) ── */
 
 const elText = (documentRef, id) => documentRef.getElementById(id)?.textContent ?? '';
+const iconTag = (documentRef, id) => documentRef.getElementById(id)?.children?.[0]?.tag ?? null;
 
 function makeWallClock() {
   let wallMs = 0;
@@ -566,7 +573,7 @@ test('play advances the playhead from wall elapsed × speed with zero session mu
 
   controller.playPause();
   assert.equal(controller.state.clockState, 'PLAYING');
-  assert.equal(elText(documentRef, 'replayPlayPauseBtn'), 'PAUSE ⏸');
+  assert.equal(iconTag(documentRef, 'replayPlayPauseBtn'), 'obi-media-pause');
 
   wall.advance(1000);
   await scheduler.fireNext();
@@ -639,7 +646,7 @@ test('reaching trusted t_end transitions to ENDED; play restarts deterministical
   assert.equal(controller.state.clockState, 'ENDED');
   assert.equal(controller.state.playhead, 40.0);
   assert.match(elText(documentRef, 'replayStatusLine'), /REPLAY ENDED/);
-  assert.equal(elText(documentRef, 'replayPlayPauseBtn'), 'PLAY ▶');
+  assert.equal(iconTag(documentRef, 'replayPlayPauseBtn'), 'obi-media-play');
   const windowsBefore = network.calls.filter(call => call.url.includes('/replay/window')).length;
 
   controller.playPause(); // restart from the trusted start
@@ -758,7 +765,7 @@ test('Previous/Next Event seeks the correct recorded event after manual seek and
   await drainWindowResponses(network, windowDoc(38.5, 39.5));
   assert.equal(controller.state.playhead, 39.0); // landed on the collision event
   assert.equal(controller.state.selectedEventId, '3');
-  assert.equal(elText(documentRef, 'replayPlayPauseBtn'), 'PLAY ▶');
+  assert.equal(iconTag(documentRef, 'replayPlayPauseBtn'), 'obi-media-play');
 
   documentRef.getElementById('replayPrevEventBtn').click();
   await drainWindowResponses(network, windowDoc(4.5, 5.5));
@@ -796,7 +803,7 @@ test('event filtering is presentation-only; the complete journal stays unchanged
   assert.match(markers[0].getAttribute('aria-label'), /SAFETY_FAILURE/);
 });
 
-test('dense recorded events cluster visually; opening the cluster exposes every underlying event in order', async () => {
+test('dense recorded events cluster visually; opening the cluster keeps the recorded selection local', async () => {
   const dense = JSON.parse(JSON.stringify(EVENTS));
   dense.events = [
     { sequence: 1, type: 'threat_schedule_update', sim_time: 5.0, details: {}, category: 'RISK_LIFECYCLE' },
@@ -813,10 +820,9 @@ test('dense recorded events cluster visually; opening the cluster exposes every 
   assert.equal(markers[0].dataset.cluster, '3');
   assert.equal(markers[0].textContent, '≡');
   markers[0].click();
-  const focus = documentRef.getElementById('replayEventFocus');
-  assert.equal(focus.children.length, 3);
-  assert.match(focus.children[0].textContent, /threat_schedule_update @ 5\.0 s/);
-  assert.match(focus.children[2].textContent, /collision @ 5\.1 s/); // recorded order preserved
+  assert.equal(documentRef.getElementById('replayEventFocus'), null);
+  assert.equal(documentRef.getElementById('replayInspection'), null);
+  assert.equal(parts.controller.state.selectedEventId, '1');
 });
 
 test('zero recorded events renders an explicit empty state and navigation is a safe no-op', async () => {
@@ -1009,18 +1015,19 @@ test('Rate controls retain accessible terminology without redundant deployment l
   assert.doesNotMatch(html, /SIMULATION RATE/);
   assert.doesNotMatch(html, /id="speedStatus"|class="deployment-rate-label"/);
   assert.match(html, /aria-label="Simulation Rate 仿真倍率"/);
-  const rateGroupLabel = html.match(/<span class="replay-rate-group"[^>]*>(?:[^<]|<(?!\/span>))*<\/span>/)?.[0] ?? '';
   // The Evaluation rate group keeps the Replay Speed label from #72.
-  const evaluationModule = moduleSource;
   assert.ok(
     html.includes('aria-label="Replay Speed (presentation only)"'),
     'Evaluation speed control is labeled Replay Speed',
   );
+  assert.match(html, /<obc-toggle-button-group[^>]*class="deployment-rate-compact replay-rate-group"/);
+  const replayRateGroup = html.match(/<obc-toggle-button-group[^>]*id="replayPlaybackRate"[\s\S]*?<\/obc-toggle-button-group>/)?.[0] ?? '';
+  assert.doesNotMatch(replayRateGroup, />0\.25×<|>2×<|>10×</);
 });
 
 test('Historical AIS Open Replay routes through the shared player without a second player', async () => {
   const workbenchSource = await readFile(new URL('../../web_gui/modules/historical-ais-workbench.js', import.meta.url), 'utf8');
-  assert.match(workbenchSource, /import \{ openReplayForRun \} from '\.\/evaluation-replay\.js\?v=20260914-gnc-replay-v3'/);
+  assert.match(workbenchSource, /import \{ openReplayForRun \} from '\.\/evaluation-replay\.js\?v=20260916-replay-layout-v4'/);
   assert.match(workbenchSource, /replayable = state === 'READY' \|\| state === 'INCOMPLETE'/);
   assert.match(html, /id="historicalAISOpenReplay"/);
 

@@ -9,6 +9,15 @@ const situationDisplay = await readFile(new URL('../../web_gui/modules/situation
 const lineGraph = await readFile(new URL('../../web_gui/modules/line-graph.js', import.meta.url), 'utf8');
 const vendorEntry = await readFile(new URL('../../web_gui/vendor/openbridge/entry-source.mjs', import.meta.url), 'utf8');
 
+test('simulation footer keeps rate controls stable and removes empty Cache status', () => {
+  assert.match(html, /<span class="speed-status deployment-control-state" id="telemetryDelay"/);
+  assert.match(app, /presentation\.buffering \? `Buffering \$\{presentation\.delay_s\.toFixed\(1\)\}s`/);
+  assert.match(app, /`Cache \$\{presentation\.delay_s\.toFixed\(1\)\}s`/);
+  assert.match(styles, /\.deployment-control-state \{[^}]*min-width: 60px;[^}]*text-align: center;/s);
+  assert.match(styles, /\.speed-status \{ width: 104px; text-transform: none; \}/);
+  assert.match(styles, /\.speed-status:empty \{ visibility: hidden; \}/);
+});
+
 test('OWN SHIP exposes five OpenBridge sensor-source dropdowns with mock option wiring', () => {
   for (const id of ['sidebarHdgSource', 'sidebarCogSource', 'sidebarStwSource', 'sidebarDepthSource', 'sidebarPositionSource']) {
     assert.match(html, new RegExp(`<obc-dropdown-button[^>]*id="${id}"`));

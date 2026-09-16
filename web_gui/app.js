@@ -376,7 +376,7 @@ customElements.whenDefined('obc-top-bar').then(syncDeploymentSidebarControls);
 // Brilliance-menu ships inside the same locally-bundled module config-shell.js
 // loads (vendor/openbridge/entry-source.mjs); re-import is a cache no-op and
 // failure degrades like every other best-effort OpenBridge piece.
-import('/static/vendor/openbridge/openbridge-components.mjs?v=20260909-balance-v1').catch(() => {});
+import('/static/vendor/openbridge/openbridge-components.mjs?v=20260916-replay-layout-v4').catch(() => {});
 
 function applyPalette(palette, persist = true) {
   const nextPalette = PALETTE_NAMES[palette] ? palette : 'day';
@@ -550,7 +550,7 @@ function updateUI(proj) {
   const controlPlayback = activeSessionRuntime.snapshot().telemetry.envelope?.playback ?? proj.raw?.playback;
   syncPlaybackStatus(controlPlayback);
   setText('telemetryDelay', presentation?.buffered
-    ? (presentation.buffering ? '缓冲中' : `显示延后 ${presentation.delay_s.toFixed(1)}s`) : '');
+    ? (presentation.buffering ? `Buffering ${presentation.delay_s.toFixed(1)}s` : `Cache ${presentation.delay_s.toFixed(1)}s`) : '');
 
   const primary = proj.risk.primary;
   setText('val-primary-target', primary?.targetLabel || '无目标');
