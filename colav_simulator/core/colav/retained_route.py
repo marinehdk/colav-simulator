@@ -413,18 +413,45 @@ def _prefix_distance_samples(
     return samples
 
 
-def compile_execution_route(plan: RetainedPrefixPlan, predicted: np.ndarray) -> dict:
-    """Emit the planner-owned native route; transport must not reshape it."""
+def _segment_enters_arrival_region(a: np.ndarray, b: np.ndarray, goal: np.ndarray, radius_m: float) -> bool:
+    """True when segment a-b passes within the goal's arrival region."""
+    span = b - a
+    length2 = float(span @ span)
+    fraction = 0.0 if length2 <= 0.0 else float(np.clip((goal - a) @ span / length2, 0.0, 1.0))
+    return float(np.linalg.norm(a + fraction * span - goal)) <= radius_m
+
+
+def compile_execution_route(
+    plan: RetainedPrefixPlan,
+    predicted: np.ndarray,
+    *,
+    arrival_boundary: tuple[tuple[float, float], float] | None = None,
+) -> dict:
+    """Emit the planner-owned native route; transport must not reshape it.
+
+    While ``arrival_boundary`` (goal position, radius) is set, the optimized
+    suffix stops before the first segment that would cross into the shared
+    arrival region. Arrival-region entry is authorized only by plans whose
+    arrival references have captured the mission leg (the L4 navigation
+    capture gate); an encounter tail that merely passes over the goal must
+    not promise the GNC an off-leg arrival.
+    """
     count = len(plan.course_rad)
     anchor = np.asarray(plan.points_ne_m[-1])
     if np.linalg.norm(predicted[:2, count] - anchor) > 1e-3:
         raise ValueError("Optimizer did not preserve the compiled route anchor")
+    goal = np.asarray(arrival_boundary[0], dtype=float) if arrival_boundary is not None else None
+    arrival_radius = float(arrival_boundary[1]) if arrival_boundary is not None else None
     points = list(plan.points_ne_m)
     speeds = list(plan.route_speed_mps)
     modes = list(plan.navigation_modes)
     for index in range(count + 1, predicted.shape[1]):
         point = predicted[:2, index]
         if np.linalg.norm(point - np.asarray(points[-1])) >= plan.constraint.minimum_segment_m:
+            if goal is not None and _segment_enters_arrival_region(
+                np.asarray(points[-1]), point, goal, arrival_radius
+            ):
+                break
             points.append(tuple(point))
             speeds.append(float(np.hypot(predicted[3, index], predicted[4, index])))
             modes.append(plan.navigation_modes[-1])

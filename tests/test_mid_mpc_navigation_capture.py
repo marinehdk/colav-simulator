@@ -48,3 +48,91 @@ def test_l4_checks_executable_route_even_when_prediction_stays_outside_goal():
     findings=[]
     MidMpcPlanAcceptance._quality(request,findings,())
     assert 'QUALITY_NAVIGATION_CAPTURE' in {finding.code for finding in findings}
+
+
+def test_navigation_arrival_reference_closes_cross_track_before_disk_entry():
+    """Arrival references must rejoin the leg before entering the arrival disk.
+
+    ot_extturn_e0 (2026-09-16) failed L4 QUALITY_NAVIGATION_CAPTURE: the plan
+    entered the 308.7 m arrival region 36.9 m off the mission leg because the
+    recovery lead could put the leg intercept inside the disk. The reference
+    kinematics themselves must satisfy the 20 m capture gate whenever the
+    approach leaves room to turn.
+    """
+    import math
+
+    import numpy as np
+    from colav_simulator.core.colav.mid_mpc_arrival import _navigation_arrival_references
+
+    for cross, heading_deg, along in ((-36.7, 50.0, 2700.0), (-500.0, 45.0, 2000.0), (-1000.0, 60.0, 1500.0)):
+        headings, _lateral, speeds, _terminal = _navigation_arrival_references(
+            ((0.0, 0.0), (3000.0, 0.0)),
+            (along, cross),
+            math.radians(heading_deg),
+            8.0,
+            8.0,
+            5.0,
+            80,
+            0.3,
+            0.020943951023931952,
+            (0.0, 0.0),
+            0.0,
+            308.7,
+        )
+        location = np.array([float(along), float(cross)])
+        entry_cross = None
+        for heading, speed in zip(headings, speeds):
+            location = location + speed * 5.0 * np.array([math.cos(heading), math.sin(heading)])
+            if math.hypot(location[0] - 3000.0, location[1]) <= 308.7:
+                entry_cross = abs(location[1])
+                break
+        assert entry_cross is not None and entry_cross <= 20.0, (cross, heading_deg, entry_cross)
+
+
+def test_execution_route_stops_at_arrival_boundary_while_encounter_uncleared():
+    """An uncleared encounter must not publish a tail into the arrival region.
+
+    ot_extturn_e0 (2026-09-16): with the external-turn speed gate fixed, every
+    plan after ~t=500 reached the goal inside its horizon while the OT target
+    was still active; the speculative tail crossed into the 308.7 m arrival
+    region 36.9 m off the mission leg and L4 rejected the route. The compiled
+    route must stop at the arrival-region boundary instead.
+    """
+    from types import SimpleNamespace
+
+    import numpy as np
+
+    from colav_simulator.core.colav.retained_route import (
+        compile_execution_route,
+        _segment_enters_arrival_region,
+    )
+
+    assert _segment_enters_arrival_region(
+        np.array([0.0, 0.0]), np.array([1000.0, 0.0]), np.array([500.0, 0.0]), 100.0
+    )
+    assert not _segment_enters_arrival_region(
+        np.array([0.0, 0.0]), np.array([300.0, 0.0]), np.array([500.0, 0.0]), 100.0
+    )
+
+    plan = SimpleNamespace(
+        course_rad=(0.0,) * 4,
+        points_ne_m=((0.0, 0.0), (40.0, 0.0), (80.0, 0.0), (120.0, 0.0), (160.0, 0.0)),
+        route_speed_mps=(8.0,) * 5,
+        navigation_modes=("cruise",) * 5,
+        retained_point_count=5,
+        constraint=SimpleNamespace(minimum_segment_m=32.0, semantic_hash="test-constraint", reference_id="test"),
+    )
+    # Suffix knots march to 460 m; a 100 m arrival disk at 500 m truncates the
+    # route before the final segment crosses the boundary.
+    knots = 81
+    predicted = np.zeros((5, knots))
+    predicted[0, :] = np.minimum(160.0 + np.maximum(np.arange(knots) - 4, 0) * 40.0, 460.0)
+    predicted[1, :] = 0.0
+    predicted[3, :] = 8.0
+    truncated = compile_execution_route(plan, predicted, arrival_boundary=((500.0, 0.0), 100.0))
+    distances = [np.hypot(n - 500.0, e) for n, e in truncated["points_ne_m"]]
+    assert min(distances) > 100.0
+    assert len(truncated["points_ne_m"]) < len(plan.points_ne_m) + knots
+
+    full = compile_execution_route(plan, predicted)
+    assert len(full["points_ne_m"]) > len(truncated["points_ne_m"])

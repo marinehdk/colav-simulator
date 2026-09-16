@@ -1,6 +1,6 @@
 {
   "schema": "original-gnc.observed-baseline.v1",
-  "source_manifest_sha256": "0af8012364c477d91f135614ba9c3fb6b1eb1a280a29557c9fb2f2fb79f06417",
+  "source_manifest_sha256": "10f454b3fbebe7dc14d98ecf1ed7bb65a9e798016259db8016ba62856c329370",
   "parameters": {
     "ship_dynamics_node": {
       "auto_initial_yaw_from_route": {
@@ -2572,6 +2572,10 @@
       "velocity_course_gain": {
         "type": 3,
         "value": 4.0
+      },
+      "external_route_turn_skip_planner_routes": {
+        "type": 1,
+        "value": true
       }
     },
     "thrust_allocation_node": {

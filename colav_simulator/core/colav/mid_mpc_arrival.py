@@ -276,8 +276,15 @@ def _navigation_arrival_references(
         elif remaining_along > radius_m:
             # Rejoin the mission leg before the arrival region. Direct-to-goal
             # steering can enter that region while still hundreds of metres
-            # off the leg and never complete the requested recovery.
-            desired = leg_bearing - math.atan2(cross_track, lookahead)
+            # off the leg and never complete the requested recovery. The leg
+            # intercept must also stay ahead of the arrival region: with the
+            # full kinematic lookahead the intercept point can fall inside
+            # the disk, leaving residual cross-track at disk entry that the
+            # L4 navigation-capture gate (20 m inside the arrival region)
+            # rejects. Clamp the lead to the distance still outside the disk
+            # so the crab closes before entry.
+            lead = min(lookahead, max(remaining_along - radius_m, 2.0 * speed * dt))
+            desired = leg_bearing - math.atan2(cross_track, lead)
         else:
             desired = math.atan2(error[1], error[0])
         delta = math.atan2(math.sin(desired - heading), math.cos(desired - heading))

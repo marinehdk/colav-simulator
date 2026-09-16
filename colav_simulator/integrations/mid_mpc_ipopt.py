@@ -95,7 +95,11 @@ from colav_simulator.core.colav.prediction_evidence import (
     PredictionPurpose,
     TargetPredictionEvidence,
 )
-from colav_simulator.core.colav.retained_route import compile_execution_route, course_speed_state
+from colav_simulator.core.colav.retained_route import (
+    _segment_enters_arrival_region,
+    compile_execution_route,
+    course_speed_state,
+)
 from colav_simulator.core.colav.rolling_plan import (
     PlanRevisionReason,
     RollingPlan,
@@ -499,7 +503,8 @@ class _MidMpcFacade:
             )
         warm_semantic_token = _warm_semantic_token(snapshot, assembly)
         warm_start = self._primal_warm_start(planner_input, capability, warm_semantic_token)
-        iterate_filter = _recovery_iterate_filter(planner_input, assembly)
+        arrival_boundary = _arrival_route_boundary(planner_input, snapshot)
+        iterate_filter = _recovery_iterate_filter(planner_input, assembly, arrival_boundary)
         try:
             cycle_budget_s = 2.0 if self._unresolved_streak >= 1 else self._config.total_deadline_s
             # R8: the solver slice is floored so a downgraded retry cannot be
@@ -524,7 +529,7 @@ class _MidMpcFacade:
             self._config.assembly.horizon_dt_s,
         )
         execution_route = (
-            compile_execution_route(assembly.execution_prefix, predicted)
+            compile_execution_route(assembly.execution_prefix, predicted, arrival_boundary=arrival_boundary)
             if assembly.execution_prefix is not None
             and result.status in {MidMpcStatus.CONVERGED, MidMpcStatus.FEASIBLE_NONOPTIMAL}
             else None
@@ -1664,9 +1669,33 @@ def _replay_artifact_document(
     )
 
 
+def _arrival_route_boundary(
+    planner_input: PlannerInput,
+    snapshot: DecisionSnapshot,
+) -> tuple[tuple[float, float], float] | None:
+    """Goal and arrival radius an uncleared encounter must not promise entry to.
+
+    While any target still owes avoidance or recovery, the published execution
+    route must stop at the shared arrival-region boundary: entry is authorized
+    only by plans whose arrival references have captured the mission leg (the
+    L4 navigation-capture gate), never by an encounter tail passing over the
+    goal. Cleared snapshots keep the untruncated route.
+    """
+    if planner_input.execution_route_constraint is None:
+        return None
+    if all(
+        decision.route_recovery_allowed or decision.risk in {RiskPhase.CLEAR, RiskPhase.RELEASED}
+        for decision in snapshot.targets
+    ):
+        return None
+    goal = np.asarray(planner_input.waypoints_enu_m.T[-1], dtype=float)
+    return ((float(goal[0]), float(goal[1])), 7.0 * planner_input.ownship_length_m)
+
+
 def _recovery_iterate_filter(
     planner_input: PlannerInput,
     assembly: AssemblySuccess,
+    arrival_boundary: tuple[tuple[float, float], float] | None = None,
 ) -> Callable[[np.ndarray], bool] | None:
     """Do not stop at first numerical feasibility while a declared recovery fails.
 
@@ -1677,7 +1706,10 @@ def _recovery_iterate_filter(
     reaches its CPA later, and measuring from the release knot would sanction
     iterates the gate rejects), with L4's recovery-pending escape for suffixes
     too short to demonstrate a return. Native arrival capture is also checked
-    when there are no remaining active maneuver targets.
+    when there are no remaining active maneuver targets; while an arrival
+    boundary truncates the published route at the arrival region, the same
+    truncation applies here so shapable candidates are not rejected for a
+    tail the transport would never publish.
     """
     objective = assembly.problem.route_objective
     start = assembly.horizon_encounter_plan.recovery_from_k
@@ -1696,6 +1728,8 @@ def _recovery_iterate_filter(
     origin = np.asarray(planner_input.ownship_state[:2])
     mission = tuple(map(tuple, planner_input.waypoints_enu_m.T))
     initial_course = float(planner_input.ownship_state[2])
+    goal = np.asarray(arrival_boundary[0], dtype=float) if arrival_boundary is not None else None
+    arrival_radius = float(arrival_boundary[1]) if arrival_boundary is not None else None
     target_tracks = tuple(
         (
             np.asarray(track.state_enu[0], dtype=float) + np.arange(n + 1, dtype=float) * dt * float(track.state_enu[2]),
@@ -1715,6 +1749,10 @@ def _recovery_iterate_filter(
             points = list(prefix.points_ne_m)
             for point in np.column_stack((north, east))[len(prefix.course_rad) + 1:]:
                 if np.linalg.norm(point - np.asarray(points[-1])) >= prefix.constraint.minimum_segment_m:
+                    if goal is not None and _segment_enters_arrival_region(
+                        np.asarray(points[-1]), point, goal, arrival_radius
+                    ):
+                        break
                     points.append(tuple(point))
             native_north, native_east = np.asarray(points).T
         if native_capture and navigation_capture_error(
@@ -1887,7 +1925,13 @@ def _acceptance_request(  # noqa: PLR0913
             tracker_id=tracker_id,
             mission_waypoints_ne_m=tuple(map(tuple, planner_input.waypoints_enu_m.T)),
             navigation_route_points_ne_m=(
-                tuple(compile_execution_route(assembly.execution_prefix, predicted)["points_ne_m"])
+                tuple(
+                    compile_execution_route(
+                        assembly.execution_prefix,
+                        predicted,
+                        arrival_boundary=_arrival_route_boundary(planner_input, snapshot),
+                    )["points_ne_m"]
+                )
                 if assembly.execution_prefix is not None else ()
             ),
             **static_execution_context(planner_input),
