@@ -6,7 +6,7 @@
   <title>综合避碰仿真器</title>
   <meta name="description" content="NTNU autonomous ship COLAV & MPC route planning algorithm verification console with real-time COLREGs risk assessment." />
   <link id="openbridgeStyles" rel="stylesheet" href="/static/vendor/openbridge/openbridge.css?v=20260827-vessel-placard-v1" onerror="this.dataset.failed='true'" />
-  <link rel="stylesheet" href="/static/style.css?v=20260915-gnc-ui" />
+  <link rel="stylesheet" href="/static/style.css?v=20260916-replay-layout-v4" />
 </head>
 <body>
   <div class="app-container">
@@ -751,73 +751,114 @@
       </aside>
       <div class="evaluation-content">
       <section class="evaluation-view" id="evalViewReplay" aria-label="Replay local view">
-      <div class="replay-runs-card" id="replayRunsPanel" aria-label="Sealed Run Replay runs">
-        <header class="replay-runs-header">
-          <div>
-            <p class="historical-ais-eyebrow">EVALUATION / REPLAY</p>
-            <h1>Sealed Run Replay</h1>
-            <p>SEALED · HISTORICAL — open a recorded Run to seek, play and inspect its original results.</p>
-          </div>
-          <div class="historical-ais-header-status">
+      <div class="replay-runs-card config-obc-card" id="replayRunsPanel" aria-label="Sealed Run Replay runs">
+        <header class="config-card-title replay-runs-title-bar">
+          <span class="step">01</span>
+          <span class="card-title-copy"><strong>REPLAY</strong></span>
+          <div class="replay-runs-header-status">
             <span class="historical-ais-status-pill" id="replayRunsStatus">LOADING</span>
-            <obc-button id="replayRunsRefreshBtn" variant="flat">Refresh</obc-button>
+            <obc-icon-button id="replayRunsRefreshBtn" variant="flat" aria-label="Refresh" title="Refresh"><obi-refresh-google></obi-refresh-google></obc-icon-button>
           </div>
         </header>
         <div class="replay-runs-table-wrap">
-          <table class="replay-runs-table">
-            <thead>
-              <tr><th>Run</th><th>Scenario</th><th>Algorithm</th><th>Tracker</th><th>Frames</th><th>Sim time (s)</th><th>Replay evidence</th><th>Created</th><th><span class="sr-only">Open replay</span></th></tr>
-            </thead>
-            <tbody id="replayRunsBody"></tbody>
-          </table>
+          <obc-table id="replayRunsTable" class="replay-runs-table" rowdivider narrowheader aria-label="Sealed Run Replay runs"></obc-table>
         </div>
+        <footer class="replay-runs-pagination" aria-label="Replay pagination">
+          <span class="replay-runs-pagination-summary" id="replayRunsPaginationSummary">0–0 of 0</span>
+          <div class="replay-runs-pagination-controls">
+            <label for="replayRunsPageSize">Rows per page</label>
+            <select id="replayRunsPageSize" aria-label="Rows per page">
+              <option value="10" selected>10</option>
+              <option value="20">20</option>
+              <option value="50">50</option>
+            </select>
+            <obc-icon-button id="replayRunsPrevBtn" variant="flat" aria-label="Previous page" title="Previous page"><obi-chevron-left-google></obi-chevron-left-google></obc-icon-button>
+            <span class="replay-runs-page-indicator" id="replayRunsPageIndicator" aria-live="polite">1 / 1</span>
+            <obc-icon-button id="replayRunsNextBtn" variant="flat" aria-label="Next page" title="Next page"><obi-chevron-right-google></obi-chevron-right-google></obc-icon-button>
+          </div>
+        </footer>
       </div>
       <section class="replay-viewer" id="evaluationReplayPanel" aria-label="Sealed Run Replay viewer" hidden>
-        <header class="replay-viewer-header">
-          <div>
-            <p class="historical-ais-eyebrow" id="replayRunTitle">EVALUATION / REPLAY</p>
-            <p>Paused historical inspection of sealed recorded evidence — the Simulator is never executed.</p>
-          </div>
-          <div class="historical-ais-header-status">
-            <span class="historical-ais-status-pill" id="replaySealedBadge">SEALED · HISTORICAL</span>
-            <span class="historical-ais-status-pill" id="replayEvidenceBadge">LOADING</span>
-            <obc-button id="replayCloseBtn" variant="flat">Close</obc-button>
-          </div>
-        </header>
         <div class="replay-viewer-main">
           <div class="replay-canvas-wrapper" id="replayCanvasWrapper">
+            <div class="replay-viewer-context">
+              <p class="historical-ais-eyebrow replay-viewer-title" id="replayRunTitle">REPLAY</p>
+              <obc-icon-button id="replayCloseBtn" variant="flat" aria-label="Back to Replay" title="Back to Replay"><obi-chevron-left-google></obi-chevron-left-google></obc-icon-button>
+            </div>
             <canvas id="replayCanvas" aria-label="Historical situation chart"></canvas>
           </div>
-          <aside class="replay-inspection" id="replayInspection" aria-label="Replay inspection context"></aside>
-          <div class="replay-inspection" id="replayEventFocus" aria-label="Selected recorded event focus"></div>
         </div>
         <footer class="replay-timeline-bar">
           <div class="replay-timeline-times">
-            <span id="replayTimeCurrent">— s</span>
+            <span id="replayTimeStart">— s</span>
             <div class="replay-timeline-track">
               <input id="replayTimeline" type="range" min="0" max="0" step="0.1" value="0" aria-label="Replay timeline: recorded simulation time" />
               <div class="replay-event-markers" id="replayEventMarkers" aria-label="Recorded event markers"></div>
             </div>
             <span id="replayTimeTotal">— s</span>
           </div>
-          <div class="replay-timeline-controls">
-            <obc-button id="replayPlayPauseBtn" variant="flat" aria-pressed="false">PLAY ▶</obc-button>
-            <obc-button id="replayPrevEventBtn" variant="flat" aria-label="Previous recorded event">|◀ Event</obc-button>
-            <obc-button id="replayNextEventBtn" variant="flat" aria-label="Next recorded event">Event ▶|</obc-button>
+          <div class="deployment-tool-zone deployment-tool-zone--chart replay-chart-tool-zone" aria-label="Replay chart display controls">
+            <div class="map-zoom-control" aria-label="Replay chart scale">
+              <button class="map-symbol-button" type="button" id="replayZoomOutBtn" aria-label="Zoom out replay chart" title="Zoom out replay chart">−</button>
+              <label class="map-scale-input" aria-label="Replay chart scale, nautical miles">
+                <input id="replayChartScaleInput" type="number" min="0.15" max="1.00" step="0.05" value="0.50" inputmode="decimal"><span>NM</span>
+              </label>
+              <button class="map-symbol-button" type="button" id="replayZoomInBtn" aria-label="Zoom in replay chart" title="Zoom in replay chart">+</button>
+            </div>
+            <div class="map-mode-control" aria-label="Replay chart view">
+              <button class="map-mode-button" type="button" data-replay-map-orientation="heading" aria-pressed="false" aria-label="Heading Up" title="Heading Up">H</button>
+              <button class="map-mode-button active" type="button" data-replay-map-orientation="north" aria-pressed="true" aria-label="North Up" title="North Up">N</button>
+              <button class="map-mode-button" type="button" id="replayFitTrafficBtn" aria-label="Fit View" title="Fit View">F</button>
+              <button class="map-mode-button" type="button" id="replayRecenterBtn" aria-label="Centre on Ownship" title="Centre on Ownship">C</button>
+            </div>
+            <obc-icon-button variant="flat" id="replayChartLayersBtn" aria-label="Replay chart display" title="Replay chart display" aria-expanded="false" aria-controls="replayChartDisplayPopover"><obi-chart-layers></obi-chart-layers></obc-icon-button>
+            <section class="chart-display-popover" id="replayChartDisplayPopover" role="dialog" aria-label="Replay chart display" hidden>
+              <div class="chart-display-popover-header">
+                <strong>海图显示</strong>
+                <obc-icon-button variant="flat" id="replayCloseChartDisplayBtn" aria-label="Close replay chart display" title="Close replay chart display"><span aria-hidden="true">×</span></obc-icon-button>
+              </div>
+              <div class="chart-display-popover-body">
+                <section class="chart-display-section" aria-labelledby="replayChartLayersHeading">
+                  <h3 id="replayChartLayersHeading">航行展示</h3>
+                  <div class="layer-controls" aria-label="Replay chart layers">
+                    <fieldset>
+                      <legend>基础</legend>
+                      <label><input type="checkbox" data-replay-layer="safeWater" checked> 安全海域</label>
+                      <label><input type="checkbox" data-replay-layer="ships" checked> 船舶</label>
+                    </fieldset>
+                    <fieldset>
+                      <legend>导航</legend>
+                      <label><input type="checkbox" data-replay-layer="route" checked> 初始航线</label>
+                      <label><input type="checkbox" data-replay-layer="waypoints" checked> 航点</label>
+                      <label><input type="checkbox" data-replay-layer="history" checked> 历史航迹</label>
+                      <label><input type="checkbox" data-replay-layer="motionVectors" checked> 60s 向量</label>
+                    </fieldset>
+                    <fieldset>
+                      <legend>算法</legend>
+                      <label><input type="checkbox" data-replay-layer="prediction" checked> 当前预测</label>
+                      <label><input type="checkbox" data-replay-layer="previousPrediction"> 上次预测</label>
+                      <label><input type="checkbox" data-replay-layer="executionPoint" checked> 执行点</label>
+                    </fieldset>
+                  </div>
+                </section>
+              </div>
+            </section>
+          </div>
+          <div class="deployment-tool-zone deployment-tool-zone--simulation replay-timeline-controls" aria-label="Replay playback controls">
+            <div class="deployment-time-readout" aria-label="Replay simulation time"><span>SIM TIME</span><strong id="replayTimeCurrent">— s</strong></div>
+            <obc-icon-button id="replayPlayPauseBtn" variant="normal" aria-label="Play replay" title="Play replay" aria-pressed="false"><obi-media-play></obi-media-play></obc-icon-button>
+            <obc-icon-button id="replayStartBtn" variant="flat" aria-label="Replay from start" title="Replay from start"><obi-reset></obi-reset></obc-icon-button>
+            <obc-toggle-button-group class="deployment-rate-compact replay-rate-group" id="replayPlaybackRate" value="1" variant="regular" type="text" aria-label="Replay Speed (presentation only)">
+              <obc-toggle-button-option id="replayRate05" value="0.5">0.5×</obc-toggle-button-option>
+              <obc-toggle-button-option id="replayRate1" value="1">1×</obc-toggle-button-option>
+              <obc-toggle-button-option id="replayRate5" value="5">5×</obc-toggle-button-option>
+              <obc-toggle-button-option id="replayRate20" value="20">20×</obc-toggle-button-option>
+            </obc-toggle-button-group>
             <select id="replayEventFilter" aria-label="Filter event markers (presentation only)"><option value="ALL">ALL EVENTS</option></select>
-            <obc-button id="replayStartBtn" variant="flat">|◀ Start</obc-button>
-            <obc-button id="replayEndBtn" variant="flat">End ▶|</obc-button>
-            <span class="replay-rate-group" role="group" aria-label="Replay Speed (presentation only)">
-              <obc-button id="replayRate025" variant="flat" aria-pressed="false">0.25×</obc-button>
-              <obc-button id="replayRate05" variant="flat" aria-pressed="false">0.5×</obc-button>
-              <obc-button id="replayRate1" variant="flat" aria-pressed="true">1×</obc-button>
-              <obc-button id="replayRate2" variant="flat" aria-pressed="false">2×</obc-button>
-              <obc-button id="replayRate5" variant="flat" aria-pressed="false">5×</obc-button>
-              <obc-button id="replayRate10" variant="flat" aria-pressed="false">10×</obc-button>
-              <obc-button id="replayRate20" variant="flat" aria-pressed="false">20×</obc-button>
-            </span>
+            <obc-icon-button id="replayPrevEventBtn" variant="flat" aria-label="Previous recorded event" title="Previous recorded event"><obi-chevron-left-google></obi-chevron-left-google></obc-icon-button>
+            <obc-icon-button id="replayNextEventBtn" variant="flat" aria-label="Next recorded event" title="Next recorded event"><obi-chevron-right-google></obi-chevron-right-google></obc-icon-button>
             <span class="replay-source-frame" id="replaySourceFrame">source frame —</span>
-            <span class="historical-ais-status-pill" id="replayStatusLine">PAUSED · HISTORICAL INSPECTION</span>
+            <span class="deployment-control-state" id="replayStatusLine" aria-live="polite">PAUSED · HISTORICAL REPLAY</span>
           </div>
         </footer>
       </section>
@@ -924,10 +965,10 @@
     <obc-brilliance-menu class="brilliance-menu-popover" id="brillianceMenu" variant="compact" aria-label="显示模式" hidden></obc-brilliance-menu>
   </div>
 
-  <script type="module" src="/static/app.js?v=20260915-gnc-ui"></script>
-  <script type="module" src="/static/modules/config-shell.js?v=20260914-gnc-replay-v3"></script>
-  <script type="module" src="/static/modules/historical-ais-workbench.js?v=20260914-gnc-replay-v3"></script>
-  <script type="module" src="/static/modules/replay-runs.js?v=20260914-gnc-replay-v3"></script>
-  <script type="module" src="/static/modules/evaluation-replay.js?v=20260914-gnc-replay-v3"></script>
+  <script type="module" src="/static/app.js?v=20260916-replay-layout-v4"></script>
+  <script type="module" src="/static/modules/config-shell.js?v=20260916-replay-layout-v4"></script>
+  <script type="module" src="/static/modules/historical-ais-workbench.js?v=20260916-replay-layout-v4"></script>
+  <script type="module" src="/static/modules/replay-runs.js?v=20260916-replay-layout-v4"></script>
+  <script type="module" src="/static/modules/evaluation-replay.js?v=20260916-replay-layout-v4"></script>
 </body>
 </html>

@@ -2,22 +2,21 @@
  * Evaluation > Replay — paused historical inspection host (ticket #71).
  *
  * Owns ONLY replay presentation state (Technical Design §3.3): the selected
- * Run, the sealed evidence descriptor/context/window, the paused playhead and
- * the inspection selection. It renders through the EXISTING
+ * Run, the sealed evidence descriptor/context/window and the paused playhead.
+ * It renders through the EXISTING
  * telemetry-projection.js + situation-display.js modules (own instances, the
  * same semantics Deployment uses) and issues GET reads against /api/runs/*
- * only. There is no play/pause/rate clock here (ticket #72), no event
- * navigation (ticket #73) and never an Active Session mutation.
+ * only and never mutates an Active Session.
  */
 
 import { createSituationDisplay } from './situation-display.js';
 import { createTelemetryProjection } from './telemetry-projection.js';
 import { projectReplayFrame, REPLAY_PRESENTATION_MODE } from './replay-source.js';
-import { createReplayClock, REPLAY_RATES, ReplayPlayState } from './replay-clock.js';
+import { createReplayClock, ReplayPlayState } from './replay-clock.js';
 // Keep the URL identical to the shell's standalone module tag. Native ESM
 // treats query-string variants as different module instances; without this
 // pin the catalog and replay host would own different opener registries.
-import { setReplayRunOpener } from './replay-runs.js?v=20260914-gnc-replay-v3';
+import { setReplayRunOpener } from './replay-runs.js?v=20260916-replay-layout-v4';
 
 // Scrub windows stay small and bounded; the backend enforces the frozen caps.
 const SEEK_WINDOW_HALF_SPAN_S = 0.5;
@@ -31,6 +30,7 @@ const PREFETCH_FRAME_BUDGET = 240;
 const PREFETCH_MIN_SPAN_S = 8.0;
 
 const THREAT_LEVELS = { HIGH: 'danger', LOW: 'warn', CLEAR: 'safe' };
+const REPLAY_UI_RATES = [0.5, 1, 5, 20];
 
 function formatTime(value) {
   if (value === null || value === undefined || value === '') return '—';
@@ -67,6 +67,7 @@ export function createEvaluationReplayController({
   let clock = null;
   let timerId = null;
   let prefetchInFlight = false;
+  let replayScaleValue = 0.5;
   // #73 event journal: recorded evidence, loaded once per open. Filtering is
   // presentation state; recorded identity/time/order are never rewritten.
   let eventJournal = null;
@@ -151,17 +152,6 @@ export function createEvaluationReplayController({
 
   function inspectEvent(members) {
     selectedEventId = String(members[0].sequence ?? `${members[0].type}@${members[0].sim_time}`);
-    renderEventInspection(members);
-  }
-
-  function renderEventInspection(members) {
-    const rail = el('replayEventFocus');
-    if (!rail) return;
-    rail.replaceChildren(...members.map(event => {
-      const row = documentRef.createElement('p');
-      row.textContent = `${event.category ?? 'RUNTIME'} · ${event.type} @ ${formatTime(event.sim_time)} s · seq ${event.sequence ?? '—'}${event.details ? ` · ${JSON.stringify(event.details)}` : ''}`;
-      return row;
-    }));
   }
 
   /** Frozen navigation semantics: Previous/Next move over the FILTERED
@@ -196,21 +186,7 @@ export function createEvaluationReplayController({
     if (clockState === ReplayPlayState.ENDED) {
       return 'REPLAY ENDED · SEEK BACKWARD OR PRESS PLAY TO RESTART';
     }
-    return 'PAUSED · HISTORICAL INSPECTION';
-  }
-
-  function evidenceLabel(facts) {
-    const state = String(facts?.state ?? 'UNAVAILABLE').toUpperCase();
-    if (state === 'READY') return 'REPLAY READY · FULL EVIDENCE';
-    if (state === 'INCOMPLETE') {
-      const trusted = Number(facts?.trusted_t_end);
-      return facts?.trusted_t_end !== null && facts?.trusted_t_end !== undefined && Number.isFinite(trusted)
-        ? `REPLAY INCOMPLETE · TRUSTED THROUGH ${formatTime(trusted)} s`
-        : `REPLAY INCOMPLETE · ${String(facts?.reason ?? 'TRUSTED_PREFIX_UNAVAILABLE')}`;
-    }
-    if (state === 'REDUCED') return 'REDUCED EVIDENCE · TRAJECTORY ONLY';
-    if (state === 'CAPTURING') return 'CAPTURING';
-    return facts?.reason ? `REPLAY UNAVAILABLE · ${String(facts.reason)}` : 'REPLAY UNAVAILABLE';
+    return 'PAUSED · HISTORICAL REPLAY';
   }
 
   function replayRange(facts = descriptor?.replay) {
@@ -254,10 +230,109 @@ export function createEvaluationReplayController({
     return `REPLAY UNAVAILABLE${facts.reason ? ` · ${facts.reason}` : ''}`;
   }
 
+  function setIconButton(button, iconName, label) {
+    if (!button) return;
+    button.replaceChildren(documentRef.createElement(iconName));
+    button.setAttribute('aria-label', label);
+    button.setAttribute('title', label);
+  }
+
   function syncPlayButton() {
     const button = el('replayPlayPauseBtn');
     if (!button) return;
-    button.textContent = clock?.state === ReplayPlayState.PLAYING ? 'PAUSE ⏸' : 'PLAY ▶';
+    const playing = clock?.state === ReplayPlayState.PLAYING;
+    setIconButton(button, playing ? 'obi-media-pause' : 'obi-media-play', playing ? 'Pause replay' : 'Play replay');
+    button.setAttribute('aria-pressed', String(playing));
+  }
+
+  function syncReplayLayerControls(state = display?.getLayerState?.()) {
+    if (!state) return;
+    for (const input of documentRef.querySelectorAll?.('[data-replay-layer]') ?? []) {
+      const layer = state[input.dataset.replayLayer];
+      if (!layer) continue;
+      input.disabled = !layer.available;
+      input.checked = layer.available && Boolean(layer.userVisible);
+    }
+  }
+
+  function syncReplayOrientationControls(orientation = display?.getOrientation?.()) {
+    if (!orientation) return;
+    for (const button of documentRef.querySelectorAll?.('[data-replay-map-orientation]') ?? []) {
+      const active = button.dataset.replayMapOrientation === orientation;
+      button.classList.toggle('active', active);
+      button.setAttribute('aria-pressed', String(active));
+    }
+  }
+
+  function setupReplayChartControls() {
+    const layerButton = el('replayChartLayersBtn');
+    const panel = el('replayChartDisplayPopover');
+    const closeButton = el('replayCloseChartDisplayBtn');
+    const syncPopoverState = () => {
+      if (layerButton && panel) layerButton.setAttribute('aria-expanded', String(!panel.hidden));
+    };
+    const closePopover = () => {
+      if (!panel) return;
+      panel.hidden = true;
+      syncPopoverState();
+    };
+    layerButton?.addEventListener('click', event => {
+      event.stopPropagation();
+      if (!panel) return;
+      panel.hidden = !panel.hidden;
+      syncPopoverState();
+    });
+    closeButton?.addEventListener('click', closePopover);
+    panel?.addEventListener('click', event => event.stopPropagation());
+    documentRef.addEventListener?.('click', event => {
+      if (!panel?.hidden && !panel.contains(event.target) && !event.composedPath?.().includes(layerButton)) closePopover();
+    });
+    documentRef.addEventListener?.('keydown', event => {
+      if (event.key !== 'Escape' || panel?.hidden) return;
+      closePopover();
+      (layerButton?.shadowRoot?.querySelector('button') || layerButton)?.focus?.();
+    });
+
+    const updateScaleInput = () => {
+      const input = el('replayChartScaleInput');
+      if (input) input.value = replayScaleValue.toFixed(2);
+    };
+    const zoom = direction => {
+      if (direction > 0) display?.zoomIn?.(); else display?.zoomOut?.();
+      replayScaleValue = Math.max(0.15, Math.min(1.0, replayScaleValue + direction * 0.05));
+      updateScaleInput();
+    };
+    el('replayZoomInBtn')?.addEventListener('click', () => zoom(1));
+    el('replayZoomOutBtn')?.addEventListener('click', () => zoom(-1));
+    el('replayChartScaleInput')?.addEventListener('change', event => {
+      const next = Number(event?.target?.value);
+      if (!Number.isFinite(next)) return updateScaleInput();
+      const clamped = Math.max(0.15, Math.min(1.0, next));
+      const direction = clamped >= replayScaleValue ? 1 : -1;
+      const steps = Math.min(20, Math.max(1, Math.round(Math.abs(clamped - replayScaleValue) / 0.05)));
+      for (let index = 0; index < steps; index += 1) {
+        if (direction > 0) display?.zoomIn?.(); else display?.zoomOut?.();
+      }
+      replayScaleValue = clamped;
+      updateScaleInput();
+    });
+    el('replayFitTrafficBtn')?.addEventListener('click', () => display?.fitTraffic?.());
+    el('replayRecenterBtn')?.addEventListener('click', () => display?.recenterOwnship?.());
+    for (const button of documentRef.querySelectorAll?.('[data-replay-map-orientation]') ?? []) {
+      button.addEventListener('click', () => {
+        const orientation = button.dataset.replayMapOrientation;
+        display?.setOrientation?.(orientation);
+        syncReplayOrientationControls(orientation);
+      });
+    }
+    for (const input of documentRef.querySelectorAll?.('[data-replay-layer]') ?? []) {
+      input.addEventListener('change', () => {
+        display?.setLayerVisible?.(input.dataset.replayLayer, input.checked);
+      });
+    }
+    syncPopoverState();
+    syncReplayOrientationControls('north');
+    syncReplayLayerControls();
   }
 
   function setReplayControlsEnabled(enabled) {
@@ -268,13 +343,9 @@ export function createEvaluationReplayController({
       'replayPrevEventBtn',
       'replayNextEventBtn',
       'replayStartBtn',
-      'replayEndBtn',
-      'replayRate025',
       'replayRate05',
       'replayRate1',
-      'replayRate2',
       'replayRate5',
-      'replayRate10',
       'replayRate20',
     ]) {
       const control = el(id);
@@ -289,6 +360,8 @@ export function createEvaluationReplayController({
   }
 
   function readouts() {
+    const range = replayRange();
+    el('replayTimeStart').textContent = `${formatTime(range?.start)} s`;
     el('replayTimeCurrent').textContent = `${formatTime(playhead)} s`;
     el('replayTimeTotal').textContent = `${formatTime(trustedEnd())} s`;
     el('replaySourceFrame').textContent = lastSourceSequence === null
@@ -298,31 +371,6 @@ export function createEvaluationReplayController({
     if (timeline) timeline.value = playhead === null || playhead === undefined || !Number.isFinite(Number(playhead))
       ? ''
       : String(playhead);
-  }
-
-  function renderInspection() {
-    const inspection = el('replayInspection');
-    if (!inspection) return;
-    const snapshot = projection.snapshot();
-    const target = selectedTargetId === null
-      ? null
-      : (snapshot.risk?.targets ?? []).find(entry => String(entry.targetId) === String(selectedTargetId));
-    const lines = [
-      selectedTargetId === null ? 'INSPECTION: scenario overview' : `INSPECTION: TS${selectedTargetId}`,
-      target ? [
-        target.displayClass ? `recorded threat class ${target.displayClass}` : null,
-        target.dcpaM !== null && target.dcpaM !== undefined ? `DCPA ${Number(target.dcpaM).toFixed(0)} m` : null,
-        target.rangeM !== null && target.rangeM !== undefined ? `range ${Number(target.rangeM).toFixed(0)} m` : null,
-      ].filter(Boolean).join(' · ') : (selectedTargetId === null ? null : 'no recorded threat vector for this target'),
-      lastSourceSequence === null ? null : `evidence: source frame #${lastSourceSequence} @ ${formatTime(lastSourceSimTime)} s`,
-      selectedEventId === null ? null : `event focus: ${selectedEventId}`,
-      'selection changes Inspection Context only',
-    ];
-    inspection.replaceChildren(...lines.filter(Boolean).map(line => {
-      const row = documentRef.createElement('p');
-      row.textContent = line;
-      return row;
-    }));
   }
 
   function renderCurrent() {
@@ -336,7 +384,6 @@ export function createEvaluationReplayController({
         el('replayStatusLine').textContent = 'REPLAY · BUFFERING RECORDED DATA';
       }
       readouts();
-      renderInspection();
       return false;
     }
     const envelope = result.envelope;
@@ -358,7 +405,6 @@ export function createEvaluationReplayController({
     setStatus('READY');
     el('replayStatusLine').textContent = statusLineFor(clock?.state ?? ReplayPlayState.PAUSED);
     readouts();
-    renderInspection();
     return true;
   }
 
@@ -379,7 +425,7 @@ export function createEvaluationReplayController({
       const document_ = await fetchJson(
         `/api/runs/${runId}/replay/window?from=${fromS}&to=${toS}`,
       );
-      if (gen !== generation) return; // a newer seek/cursor owns the Inspection Cursor
+      if (gen !== generation) return; // a newer seek/cursor owns the replay cursor
       windowDoc = document_;
       clock?.resume();
       renderCurrent();
@@ -388,7 +434,7 @@ export function createEvaluationReplayController({
         if (clock?.state === ReplayPlayState.PLAYING) {
           clock.pause();
           stopPlaybackTimer();
-          el('replayPlayPauseBtn').textContent = 'PLAY ▶';
+          syncPlayButton();
         }
         setStatus('ERROR');
         el('replayStatusLine').textContent = 'RECORDED DATA UNAVAILABLE · RETRY FROM THE TIMELINE';
@@ -396,14 +442,6 @@ export function createEvaluationReplayController({
     } finally {
       prefetchInFlight = false;
     }
-  }
-
-  function historicalBadge(run) {
-    const executionState = String(run?.execution_state ?? '').toUpperCase();
-    if (['FAILED', 'CRASHED', 'ABORTED', 'ERROR'].includes(executionState)) {
-      return `${executionState} · SEALED · HISTORICAL`;
-    }
-    return 'SEALED · HISTORICAL';
   }
 
   function stopPlaybackTimer() {
@@ -477,7 +515,9 @@ export function createEvaluationReplayController({
   function setRate(rateValue) {
     if (!clock || !replayControlsEnabled || !replayCanPlay()) return;
     clock.setRate(Number(rateValue));
-    for (const rate of REPLAY_RATES) {
+    const rateGroup = el('replayPlaybackRate');
+    if (rateGroup) rateGroup.value = String(clock.rate);
+    for (const rate of REPLAY_UI_RATES) {
       const button = el(`replayRate${String(rate).replace('.', '')}`);
       if (button) button.setAttribute('aria-pressed', String(rate === clock.rate));
     }
@@ -511,11 +551,12 @@ export function createEvaluationReplayController({
     lastSourceSequence = null;
     lastSourceSimTime = null;
     selectedTargetId = null;
+    replayScaleValue = 0.5;
+    const replayScaleInput = el('replayChartScaleInput');
+    if (replayScaleInput) replayScaleInput.value = '0.50';
     eventJournal = null;
     eventFilter = 'ALL';
     selectedEventId = null;
-    el('replayInspection')?.replaceChildren();
-    el('replayEventFocus')?.replaceChildren();
     const eventMarkers = el('replayEventMarkers');
     if (eventMarkers) {
       eventMarkers.replaceChildren();
@@ -542,18 +583,12 @@ export function createEvaluationReplayController({
     if (panel) panel.hidden = false;
     const runsPanel = el('replayRunsPanel');
     if (runsPanel) runsPanel.hidden = true;
-    // Persistent, non-color-only historical state. Replay never presents a
-    // recorded frame as LIVE, whatever the evidence state degrades to.
-    el('replaySealedBadge').textContent = 'SEALED · HISTORICAL';
     el('replayStatusLine').textContent = 'LOADING RECORDED EVIDENCE';
-    el('replayEvidenceBadge').textContent = 'LOADING';
 
     descriptor = await fetchJson(`/api/runs/${runId}/replay`);
     if (gen !== generation) return;
 
-    el('replayRunTitle').textContent = `EVALUATION / REPLAY · ${descriptor.run_id.slice(0, 8)} · ${descriptor.run?.scenario_id ?? ''} · ${descriptor.run?.executed_algorithm ?? ''}`;
-    el('replaySealedBadge').textContent = historicalBadge(descriptor.run);
-    el('replayEvidenceBadge').textContent = evidenceLabel(descriptor.replay);
+    el('replayRunTitle').textContent = `REPLAY · ${descriptor.run_id.slice(0, 8)} · ${descriptor.run?.scenario_id ?? ''} · ${descriptor.run?.executed_algorithm ?? ''}`;
     const timeline = el('replayTimeline');
     const range = replayRange(descriptor.replay);
     if (timeline && range && replayCanPlay()) {
@@ -595,6 +630,7 @@ export function createEvaluationReplayController({
     const start = range.start;
     const end = range.end;
     playhead = start;
+    display?.setOrientation?.('north');
     clock = createReplayClock({ now: nowFn, tStart: start, tEnd: end });
     ensureDisplay();
     await display?.beginSession?.(runId);
@@ -635,6 +671,7 @@ export function createEvaluationReplayController({
         };
       },
       fetchTile: () => context?.enc?.image_url ?? '',
+      onLayerStateChange: state => syncReplayLayerControls(state),
     };
     if (displayFactory) {
       display = displayFactory(displayOptions);
@@ -646,6 +683,9 @@ export function createEvaluationReplayController({
         getPlannerSurface: () => null,
       });
     }
+    display?.setLayerVisible?.('history', true);
+    syncReplayLayerControls(display?.getLayerState?.());
+    syncReplayOrientationControls(display?.getOrientation?.());
     return display;
   }
 
@@ -692,7 +732,6 @@ export function createEvaluationReplayController({
 
   function selectTarget(targetId) {
     selectedTargetId = targetId === null || targetId === undefined ? null : String(targetId);
-    renderInspection();
   }
 
   function close() {
@@ -713,11 +752,8 @@ export function createEvaluationReplayController({
   el('replayStartBtn')?.addEventListener('click', () => {
     seek(Number(descriptor?.replay?.t_start) || 0.0);
   });
-  el('replayEndBtn')?.addEventListener('click', () => {
-    seek(trustedEnd());
-  });
   el('replayPlayPauseBtn')?.addEventListener('click', playPause);
-  for (const rate of REPLAY_RATES) {
+  for (const rate of REPLAY_UI_RATES) {
     el(`replayRate${String(rate).replace('.', '')}`)?.addEventListener('click', () => {
       setRate(rate);
     });
@@ -881,6 +917,7 @@ export function createEvaluationReplayController({
   el('replayEventFilter')?.addEventListener('change', event => {
     setEventFilter(event?.target?.value ?? 'ALL');
   });
+  setupReplayChartControls();
 
   return {
     open,
