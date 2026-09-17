@@ -135,14 +135,15 @@ def original_catalog() -> tuple[list[dict], dict]:
         "id": "original_gnc",
         "display_name": "Authoritative GNC · 2026-09-14",
         "description": preset_description,
-        "input": "Velocity intent (VO/Fan) / path (Mid)",
+        "input": "Velocity intent (VO/Fan) / timed trajectory (Mid)",
         "available": available,
         "unavailable_reason": reason,
         "variants": {"off": entries[0]["stack_id"], "on": entries[1]["stack_id"]},
         "environment_description": ENVIRONMENT_DESCRIPTION,
         "note": (
             "VO/Fan velocity intents require a valid parent route, mode and unexpired lease. "
-            "Mid path updates retain original route guards, including 500 m ordinary lookahead. "
+            "Mid timed trajectories receive independent source motion, identity and expiry checks. "
+            "Ordinary operator routes retain their original route guards. "
             "PGD degradation retained. Source equivalence and scenario safety are separate results. "
             + _build_note(build_identity)
         ),
