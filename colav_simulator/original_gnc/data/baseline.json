@@ -1,6 +1,6 @@
 {
   "schema": "original-gnc.observed-baseline.v1",
-  "source_manifest_sha256": "10f454b3fbebe7dc14d98ecf1ed7bb65a9e798016259db8016ba62856c329370",
+  "source_manifest_sha256": "60777ce5da80df0913a636e90a3796d6f8fc4e83ebb1ea4fab0604bdcd11cce2",
   "parameters": {
     "ship_dynamics_node": {
       "auto_initial_yaw_from_route": {

@@ -1,6 +1,6 @@
 {
   "schema": "original-gnc.response-approximation.v2",
-  "source_manifest_sha256": "10f454b3fbebe7dc14d98ecf1ed7bb65a9e798016259db8016ba62856c329370",
+  "source_manifest_sha256": "60777ce5da80df0913a636e90a3796d6f8fc4e83ebb1ea4fab0604bdcd11cce2",
   "input_kind": "velocity_intent",
   "course": {
     "time_constant_s": 39.42557115667648,
@@ -21,7 +21,7 @@
     "method": "closed-loop first-order trajectory least squares: speed' = (gain*speed_setpoint - speed)/tau, exact zero-order-hold discretization, active window = last nonzero command + 60 s settle"
   },
   "evidence": {
-    "library_sha256": "7eec389c3452dd6f7137db4169304ad1aed3877ec2be149975723ab04aec9702",
+    "library_sha256": "0884924cd47e139f703f65e1ca303f4f0c010ece10f911756a1b2ea6a970ac87",
     "rows_sha256": "b4f01dcbf8c9fe605cdd4cfe12f81b626daec45bbbad0a0e6957873ca3fcceff",
     "cases": [
       "plus10deg",
