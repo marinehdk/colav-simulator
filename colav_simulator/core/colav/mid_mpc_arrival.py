@@ -11,6 +11,22 @@ GOAL_SPEED_TOLERANCE_MPS = 0.05
 ROUTE_RECOVERY_TOLERANCE_M = 20.0
 
 
+def navigation_arrival_reached(
+    north: np.ndarray, east: np.ndarray, mission: tuple[tuple[float, float], ...], radius_m: float
+) -> bool:
+    """Check the complete polyline for actual entry into the shared goal disk."""
+    if len(mission) < 2 or len(north) < 2:
+        return False
+    points = np.column_stack((north, east))
+    steps = np.diff(points, axis=0)
+    goal = np.asarray(mission[-1])
+    fraction = np.clip(
+        np.sum((goal - points[:-1]) * steps, axis=1) / np.maximum(np.sum(steps * steps, axis=1), 1e-12), 0.0, 1.0
+    )
+    closest = points[:-1] + fraction[:, None] * steps
+    return bool(np.min(np.linalg.norm(closest - goal, axis=1)) <= radius_m)
+
+
 def navigation_capture_error(
     north: np.ndarray, east: np.ndarray, mission: tuple[tuple[float, float], ...], radius_m: float
 ) -> float:
@@ -90,6 +106,9 @@ def arrival_references(
     lag_s: float = 0.0,
     *,
     arrival_radius_m: float | None = None,
+    navigation_lookahead_m: float | None = None,
+    approach_heading_reference_rad: tuple[float, ...] | None = None,
+    finite_navigation_tail: bool = False,
 ) -> tuple[tuple[float, ...], tuple[float, ...], tuple[float, ...], tuple[float, float] | None] | None:
     """Build final-leg references under the selected arrival policy."""
     if arrival_radius_m is not None:
@@ -106,6 +125,10 @@ def arrival_references(
             route_anchor,
             route_bearing,
             arrival_radius_m,
+            lookahead_m=navigation_lookahead_m,
+            finite_stop=finite_navigation_tail,
+            speed_response_s=lag_s,
+            approach_headings=approach_heading_reference_rad,
         )
     if len(waypoints) < 2 or cruise <= 0.0:
         return None
@@ -113,7 +136,22 @@ def arrival_references(
     origin = np.asarray(position, dtype=float)
     starts, legs = points[:-1], np.diff(points, axis=0)
     if not on_final_leg(points, origin):
-        return None
+        return _future_final_leg_references(
+            waypoints,
+            position,
+            heading,
+            speed,
+            cruise,
+            dt,
+            count,
+            deceleration,
+            turn_rate,
+            response_s,
+            route_anchor,
+            route_bearing,
+            lag_s,
+            approach_heading_reference_rad,
+        )
     goal = points[-1]
     terminal_in_window = np.linalg.norm(goal - origin) <= cruise * dt * count
     location = origin.copy()
@@ -189,6 +227,76 @@ def arrival_references(
     return tuple(headings), tuple(lateral), tuple(speeds), terminal
 
 
+def _future_final_leg_references(
+    waypoints: tuple[tuple[float, float], ...],
+    position: tuple[float, float],
+    heading: float,
+    speed: float,
+    cruise: float,
+    dt: float,
+    count: int,
+    deceleration: float,
+    turn_rate: float,
+    response_s: float,
+    route_anchor: tuple[float, float],
+    route_bearing: float,
+    lag_s: float,
+    approach_headings: tuple[float, ...] | None,
+    *,
+    navigation_arrival_radius_m: float | None = None,
+    navigation_lookahead_m: float | None = None,
+    finite_navigation_tail: bool = False,
+) -> tuple[tuple[float, ...], tuple[float, ...], tuple[float, ...], tuple[float, float] | None] | None:
+    """Join the finite arrival tail when a staged polyline reaches its final leg."""
+    if approach_headings is None:
+        return None
+    if len(approach_headings) != count:
+        raise ValueError("Approach references must match the prediction horizon")
+    points = np.asarray(waypoints, dtype=float)
+    origin = np.asarray(position, dtype=float)
+    location = origin.copy()
+    normal = np.array([-math.sin(route_bearing), math.cos(route_bearing)])
+    headings, lateral, speeds = [], [], []
+    for k, desired in enumerate(approach_headings):
+        if on_final_leg(points, location):
+            tail = arrival_references(
+                waypoints,
+                tuple(location),
+                heading,
+                speed,
+                cruise,
+                dt,
+                count - k,
+                deceleration,
+                turn_rate,
+                response_s,
+                route_anchor,
+                route_bearing,
+                lag_s,
+                arrival_radius_m=navigation_arrival_radius_m,
+                navigation_lookahead_m=navigation_lookahead_m,
+                finite_navigation_tail=finite_navigation_tail,
+            )
+            if tail is None:
+                raise ValueError("Final-leg arrival reference could not be constructed")
+            tail_heading, tail_lateral, tail_speed, terminal = tail
+            terminal = None if terminal is None else tuple(np.asarray(terminal) + location - origin)
+            return (
+                tuple(headings) + tail_heading,
+                tuple(lateral) + tail_lateral,
+                tuple(speeds) + tail_speed,
+                terminal,
+            )
+        delta = math.atan2(math.sin(desired - heading), math.cos(desired - heading))
+        heading += float(np.clip(delta, -turn_rate * dt, turn_rate * dt))
+        speed = float(np.clip(cruise, max(0.0, speed - deceleration * dt), speed + deceleration * dt))
+        headings.append(heading)
+        lateral.append(float((location - route_anchor) @ normal))
+        speeds.append(speed)
+        location += speed * dt * np.array([math.cos(heading), math.sin(heading)])
+    return None
+
+
 def _join_curve(
     q: float | np.ndarray, cross: float, slope: float, length: float
 ) -> tuple[float | np.ndarray, float | np.ndarray, float | np.ndarray]:
@@ -240,11 +348,16 @@ def _navigation_arrival_references(
     route_anchor: tuple[float, float],
     route_bearing: float,
     radius_m: float,
-) -> tuple[tuple[float, ...], tuple[float, ...], tuple[float, ...], None] | None:
+    *,
+    lookahead_m: float | None = None,
+    finite_stop: bool = False,
+    speed_response_s: float = 0.0,
+    approach_headings: tuple[float, ...] | None = None,
+) -> tuple[tuple[float, ...], tuple[float, ...], tuple[float, ...], tuple[float, float] | None] | None:
     """Pass through the shared arrival region without a precision-stop tail.
 
-    Once the reference enters the arrival region, continue its approach
-    course. The complete prediction remains subject to normal safety checks.
+    Once the reference enters the arrival region, continue along the mission
+    line. The complete prediction remains subject to normal safety checks.
     """
     if not math.isfinite(radius_m) or radius_m <= 0:
         raise ValueError("navigation arrival radius must be finite and positive")
@@ -253,7 +366,25 @@ def _navigation_arrival_references(
     points = np.asarray(waypoints, dtype=float)
     location = np.asarray(position, dtype=float).copy()
     if not on_final_leg(points, location):
-        return None
+        return _future_final_leg_references(
+            waypoints,
+            position,
+            heading,
+            speed,
+            cruise,
+            dt,
+            count,
+            acceleration,
+            turn_rate,
+            speed_response_s,
+            route_anchor,
+            route_bearing,
+            speed_response_s,
+            approach_headings,
+            navigation_arrival_radius_m=radius_m,
+            navigation_lookahead_m=lookahead_m,
+            finite_navigation_tail=finite_stop,
+        )
     normal = np.array([-math.sin(route_bearing), math.cos(route_bearing)])
     anchor = np.asarray(route_anchor)
     leg = points[-1] - points[-2]
@@ -263,7 +394,7 @@ def _navigation_arrival_references(
     # Recovery starts from executed motion. An unachieved cruise request
     # otherwise stretches the capture distance and delays rejoining until
     # after a slow vessel has entered the shared arrival region.
-    lookahead = max(speed / max(turn_rate, 1e-9), 2.0 * speed * dt)
+    lookahead = max(speed / max(turn_rate, 1e-9), 2.0 * speed * dt, float(lookahead_m or 0.0))
     headings, lateral, speeds = [], [], []
     arrived = False
     for _ in range(count):
@@ -272,7 +403,10 @@ def _navigation_arrival_references(
         remaining_along = float(error @ tangent)
         cross_track = float((location - points[-2]) @ leg_normal)
         if arrived:
-            desired = heading
+            # The timed route publishes the whole horizon. Freezing its entry
+            # intercept would cross the opposite edge of the arrival region
+            # off-route and make the optimizer reject a valid approach.
+            desired = leg_bearing - math.atan2(cross_track, lookahead)
         elif remaining_along > radius_m:
             # Rejoin the mission leg before the arrival region. Direct-to-goal
             # steering can enter that region while still hundreds of metres
@@ -289,9 +423,22 @@ def _navigation_arrival_references(
             desired = math.atan2(error[1], error[0])
         delta = math.atan2(math.sin(desired - heading), math.cos(desired - heading))
         heading += float(np.clip(delta, -turn_rate * dt, turn_rate * dt))
-        speed = float(np.clip(cruise, max(0.0, speed - acceleration * dt), speed + acceleration * dt))
+        requested_speed = cruise
+        if finite_stop:
+            # Keep the same leg-capture geometry while braking. A separate
+            # direct-to-goal stop reference can enter the disk off-route.
+            brake = 0.5 * acceleration
+            lag = max(speed_response_s, dt)
+            reserve = max(0.0, remaining_along - 0.5 * GOAL_POSITION_TOLERANCE_M)
+            requested_speed = min(cruise, -brake * lag + math.sqrt((brake * lag) ** 2 + 2.0 * brake * reserve))
+        speed = float(np.clip(requested_speed, max(0.0, speed - acceleration * dt), speed + acceleration * dt))
         headings.append(heading)
         lateral.append(float((location - anchor) @ normal))
         speeds.append(speed)
         location += speed * dt * np.array([math.cos(heading), math.sin(heading)])
-    return tuple(headings), tuple(lateral), tuple(speeds), None
+    terminal = None
+    origin = np.asarray(position)
+    if finite_stop and np.linalg.norm(points[-1] - origin) <= cruise * dt * count:
+        endpoint = points[-1] if np.linalg.norm(points[-1] - location) <= GOAL_POSITION_TOLERANCE_M else location
+        terminal = tuple(float(value) for value in endpoint - origin)
+    return tuple(headings), tuple(lateral), tuple(speeds), terminal

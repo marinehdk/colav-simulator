@@ -228,7 +228,7 @@ class MidMpcIpoptSolver:
             # Cold seeds only: a warm-started rolling projection that sits on
             # hard rows mid-encounter carries accepted plan geometry that a
             # uniform offset ramp would discard.
-            repaired = _repair_infeasible_seed(graph, prepared, problem, self._config)
+            repaired = _repair_infeasible_seed(graph, prepared, problem, self._config, iterate_filter=iterate_filter)
             if repaired is not None:
                 prepared = repaired
         seed_components = _flat(graph.objective_components(prepared.x0, prepared.p))
@@ -328,7 +328,11 @@ class MidMpcIpoptSolver:
                 # must not replace a safe returning plan with a worse
                 # wandering iterate (crossing-E0 shipped candidates up to
                 # 1297 objective-worse than the returning seed).
-                if seed_primal_feasible and seed_objective_total < raw_f:
+                if (
+                    seed_primal_feasible
+                    and seed_objective_total < raw_f
+                    and (iterate_filter is None or iterate_filter(prepared.x0))
+                ):
                     raw_x = prepared.x0
                     raw_f = seed_objective_total
                     raw_g = seed_g
@@ -594,10 +598,10 @@ def _build_graph(  # noqa: C901, PLR0912, PLR0915
     route_objective_start = parameter_dim
     staged_route_objective = problem.route_objective is not None
     if staged_route_objective:
-        # 6n + 5: heading/lateral/continuity/arrival references plus the
+        # 6n + 8: heading/lateral/continuity/arrival references plus the
         # avoidance phase knot, terminal pose/weight, and the recovery
-        # cross-track envelope bound.
-        parameter_dim += 6 * n + 5
+        # cross-track envelope bound, recovery lookahead and native turning limits.
+        parameter_dim += 6 * n + 8
     rule_parameters_start: int | None = None
     if config.strict_slack_bounds:
         rule_parameters_start = parameter_dim
@@ -634,10 +638,10 @@ def _build_graph(  # noqa: C901, PLR0912, PLR0915
     continuity_weight = p[continuity_start + 2 * n : continuity_start + 3 * n] if staged_route_objective else ca.DM.zeros(n)
     planned_speed = p[_P.PLANNED_SPEED]
     distance_error = psi - route_reference
-    if staged_route_objective and problem.route_constraint_limit_m is not None:
+    if staged_route_objective:
         distance_error = _navigation_recovery_errors(
             psi, speed, p, config.dt_s, route_reference, avoidance_active_until,
-            p[route_constraint_start + 8 * n + 2],
+            p[route_objective_start + 6 * n + 5],
         )
     arrival_start = route_objective_start + 5 * n + 1
     speed_reference = p[arrival_start : arrival_start + n] if staged_route_objective else ca.repmat(planned_speed, n, 1)
@@ -725,11 +729,19 @@ def _build_graph(  # noqa: C901, PLR0912, PLR0915
         objective += direction_slack_term
 
     rows: list[ca.MX] = []
-    rot_step = p[_P.ROT_MAX] * dt
-    rows.extend([rot_step - (psi[0] - p[_P.OWN_PSI])])
-    rows.append(rot_step - (psi[1:] - psi[:-1]))
-    rows.extend([rot_step + (psi[0] - p[_P.OWN_PSI])])
-    rows.append(rot_step + (psi[1:] - psi[:-1]))
+    rot_step = ca.repmat(p[_P.ROT_MAX] * dt, n, 1)
+    if staged_route_objective:
+        radius = p[route_objective_start + 6 * n + 6]
+        lateral_acceleration = p[route_objective_start + 6 * n + 7]
+        rot_step = ca.if_else(radius > 0.0, ca.fmin(rot_step, speed * dt / ca.fmax(radius, 1e-9)), rot_step)
+        rot_step = ca.if_else(
+            lateral_acceleration > 0.0,
+            ca.fmin(rot_step, lateral_acceleration * dt / ca.fmax(speed, 1e-9)),
+            rot_step,
+        )
+    course_delta = psi - ca.vertcat(p[_P.OWN_PSI], psi[:-1])
+    rows.append(rot_step - course_delta)
+    rows.append(rot_step + course_delta)
     decel_step = p[_P.DECEL_MAX] * dt
     speed_delta = speed - ca.vertcat(p[_P.U0], speed[:-1])
     if config.strict_slack_bounds:
@@ -1211,8 +1223,10 @@ def _repair_infeasible_seed(
     prepared: MidMpcPreparedProblem,
     problem: MidMpcProblem,
     config: MidMpcConfig,
+    *,
+    iterate_filter: Callable[[np.ndarray], bool] | None = None,
 ) -> MidMpcPreparedProblem | None:
-    """Bend a row-infeasible cold seed clear of every hard row.
+    """Repair a cold seed against every hard row and candidate admission filter.
 
     A cold seed cruising straight down the route can sit on a far-horizon
     rendezvous with a slow target; IPOPT then spends dozens of iterations
@@ -1227,11 +1241,11 @@ def _repair_infeasible_seed(
     otherwise return None and leave the original seed untouched.
     """
     baseline = _max_row_violation(graph, prepared.x0, prepared)
-    if baseline <= 1.0e-9:
+    if baseline <= 1.0e-9 and (iterate_filter is None or iterate_filter(prepared.x0)):
         return None
     best_x0: np.ndarray | None = None
     best_violation = baseline
-    if problem.route_constraint_limit_m is not None:
+    if problem.route_constraint_limit_m is not None or problem.timed_execution:
         # A retained route can leave insufficient lateral room to pass yet.
         # Seed braking as well as turning; this only initializes IPOPT and
         # must satisfy the same prefix, rate, clearance and corridor rows.
@@ -1246,7 +1260,7 @@ def _repair_infeasible_seed(
                 candidate[n + k] = previous
             candidate = np.clip(candidate, prepared.lbx, prepared.ubx)
             violation = _max_row_violation(graph, candidate, prepared)
-            if violation <= 1.0e-9:
+            if violation <= 1.0e-9 and (iterate_filter is None or iterate_filter(candidate)):
                 return _reseeded(prepared, candidate)
             if violation < best_violation:
                 best_violation = violation
@@ -1267,10 +1281,14 @@ def _repair_infeasible_seed(
         magnitude = _SEED_REPAIR_STEP_RAD * step_index
         for sign in (-1.0, 1.0):
             heading_seed = _ramped_offset_seed(prepared.x0, problem, config, sign * magnitude)
-            speed_fractions = (1.0, 0.75, 0.5, 0.25, 0.0) if problem.route_constraint_limit_m is not None else (1.0,)
+            speed_fractions = (
+                (1.0, 0.75, 0.5, 0.25, 0.0)
+                if problem.route_constraint_limit_m is not None or problem.timed_execution
+                else (1.0,)
+            )
             for fraction in speed_fractions:
                 candidate = heading_seed.copy()
-                if problem.route_constraint_limit_m is not None:
+                if problem.route_constraint_limit_m is not None or problem.timed_execution:
                     start_k = min(problem.prefix_active_k, config.horizon_steps)
                     previous = (
                         problem.prefix_u_mps[start_k - 1]
@@ -1283,7 +1301,7 @@ def _repair_infeasible_seed(
                         candidate[config.horizon_steps + k] = previous
                 candidate = np.clip(candidate, prepared.lbx, prepared.ubx)
                 violation = _max_row_violation(graph, candidate, prepared)
-                if violation <= 1.0e-9:
+                if violation <= 1.0e-9 and (iterate_filter is None or iterate_filter(candidate)):
                     return _reseeded(prepared, candidate)
                 if violation < best_violation:
                     best_violation = violation
@@ -1377,6 +1395,12 @@ def _stage_speed_bounds(problem: MidMpcProblem, config: MidMpcConfig, lbx: np.nd
         # staged, while a floor is reachable immediately (acceleration is
         # unconstrained there).
         ubx[n : 2 * n] = np.maximum(ubx[n : 2 * n], reachable_upper)
+    objective = problem.route_objective
+    if problem.timed_execution and objective is not None and objective.terminal_position_m is not None:
+        # The full timed horizon must stop at the finite mission endpoint.
+        # Cruise/steerage floors apply before its rate-limited braking tail;
+        # the same physical rate rows and all-track safety still bind after it.
+        lbx[n : 2 * n] = np.minimum(lbx[n : 2 * n], objective.speed_reference_mps)
     # Slot-critical braking authority: inside the hard CPA windows the
     # keep-way floor yields to full braking. Rule 16 makes speed reduction the
     # correct give-way action at slot entry, and a floor that forbids slowing
@@ -1617,7 +1641,7 @@ def _pack_parameters(config: MidMpcConfig, problem: MidMpcProblem) -> np.ndarray
         parameter_dim += 1
     route_objective_start = parameter_dim
     if problem.route_objective is not None:
-        parameter_dim += 6 * config.horizon_steps + 5
+        parameter_dim += 6 * config.horizon_steps + 8
     rule_parameters_start: int | None = None
     if config.strict_slack_bounds:
         rule_parameters_start = parameter_dim
@@ -1757,6 +1781,9 @@ def _pack_parameters(config: MidMpcConfig, problem: MidMpcProblem) -> np.ndarray
             default=0.0,
         )
         p[route_objective_start + 6 * config.horizon_steps + 4] = max(implied_envelope, reference_envelope)
+        p[route_objective_start + 6 * config.horizon_steps + 5] = problem.navigation_recovery_lookahead_m
+        p[route_objective_start + 6 * config.horizon_steps + 6] = problem.minimum_turn_radius_m
+        p[route_objective_start + 6 * config.horizon_steps + 7] = problem.maximum_lateral_acceleration_mps2
     return p
 
 

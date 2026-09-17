@@ -307,6 +307,7 @@ class PlannerInput:
     ownship_course_time_constant_s: float | None = None
     ownship_speed_time_constant_s: float | None = None
     ownship_max_turn_rate_rad_s: float | None = None
+    ownship_max_speed_rate_mps2: float | None = None
     ownship_avoidance_speed_cap_mps: float | None = None
     ownship_min_steerage_speed_mps: float | None = None
     ownship_max_speed_mps: float | None = None
@@ -350,6 +351,7 @@ class PlannerInput:
             self.ownship_course_time_constant_s,
             self.ownship_speed_time_constant_s,
             self.ownship_max_turn_rate_rad_s,
+            self.ownship_max_speed_rate_mps2,
         )
         if any(value is not None and (not np.isfinite(value) or value <= 0.0) for value in dynamics):
             raise ValueError("ownship dynamics metadata must be finite and positive when present")
@@ -778,6 +780,7 @@ class CustomMPCAdapter(ICOLAV):
                 ownship_course_time_constant_s=_optional_positive(kwargs.get("os_course_time_constant_s")),
                 ownship_speed_time_constant_s=_optional_positive(kwargs.get("os_speed_time_constant_s")),
                 ownship_max_turn_rate_rad_s=_optional_positive(kwargs.get("os_max_turn_rate_radps")),
+                ownship_max_speed_rate_mps2=_optional_positive(kwargs.get("os_max_speed_rate_mps2")),
                 ownship_avoidance_speed_cap_mps=_optional_positive(kwargs.get("os_avoidance_speed_cap_mps")),
                 ownship_min_steerage_speed_mps=_optional_positive(kwargs.get("os_min_steerage_speed_mps")),
                 ownship_max_speed_mps=_optional_positive(kwargs.get("os_max_speed_mps")),

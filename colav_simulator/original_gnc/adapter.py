@@ -152,6 +152,8 @@ class OriginalGncShipAdapter(IShip):
         )
         self._requested_plans.append({"kind": "nominal", "time_ns": self._stack.time_ns, "message": copy.deepcopy(route)})
         self._stack.publish("/route_planning/route_plan", "ship_interfaces/msg/RoutePlan", route)
+        if self._stack.elapsed_s == 0.0:
+            self._stack.publish_initial_state()
         self._sync_state()
 
     def __deepcopy__(self, memo: dict) -> OriginalGncShipAdapter:
@@ -180,6 +182,7 @@ class OriginalGncShipAdapter(IShip):
                 clone.close()
                 raise OriginalGncError("Only initial nominal-route templates can be cloned")
             clone.stack.publish("/route_planning/route_plan", "ship_interfaces/msg/RoutePlan", request["message"])
+            clone.stack.publish_initial_state()
         clone._requested_plans = copy.deepcopy(self._requested_plans, memo)
         clone._sync_state()
         return clone
@@ -229,6 +232,7 @@ class OriginalGncShipAdapter(IShip):
                 os_course_time_constant_s=self._response_approximation["course"]["time_constant_s"],
                 os_speed_time_constant_s=self._response_approximation["speed"]["time_constant_s"],
                 os_max_turn_rate_radps=self.max_turn_rate,
+                os_max_speed_rate_mps2=float(self._parameters["active_route_manager_node"]["max_decel_mps2"]["value"]),
                 os_avoidance_speed_cap_mps=self.planner_avoidance_speed_cap,
                 os_execution_speed_policy=self.execution_speed_policy,
                 os_min_steerage_speed_mps=self.min_steerage_speed,

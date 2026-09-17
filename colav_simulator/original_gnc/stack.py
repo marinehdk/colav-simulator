@@ -191,6 +191,14 @@ class NativeStack:
             self.close()
             raise
 
+    def publish_initial_state(self) -> None:
+        """Publish the native initial state without integrating or moving clocks."""
+        self._ensure_open()
+        if self.time_ns != self.epoch_ns:
+            raise OriginalGncError("Initial state publication requires the initial epoch")
+        self._invoke("ship_dynamics_node", "publish_odometry", None)
+        self._drain()
+
     def advance(self, duration_s: float) -> None:
         """Run every due source timer, preserving fractional outer-step remainder."""
         self._ensure_open()

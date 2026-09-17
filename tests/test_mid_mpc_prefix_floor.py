@@ -177,6 +177,11 @@ def test_assembler_discards_retained_prefix_when_pinned_geometry_violates_cpa():
     # A safety discard leaves the row schedule untouched: the immediate
     # locked-side recovery staging is reserved for contract discards.
     assert assembled.problem.row_schedule.course_bounds_rad == ()
+    # Discarding unsafe geometry preserves the confirmed alteration duty.
+    window = assembled.problem.row_schedule.min_alt_hard_window
+    assert window is not None
+    assert window.start_k == assembled.problem.row_schedule.min_alt_hard_from_k
+    assert window.stop_k > window.start_k
 
 
 def test_assembler_degrades_unreachable_retained_compile_to_stub():
@@ -251,7 +256,13 @@ def test_assembler_keeps_cpa_safe_retained_prefix_before_commitment():
     assert assembled.execution_prefix is not None
     assert assembled.problem.prefix_active_k > 0
     assert assembled.problem.route_constraint_limit_m == 480.0
-    assert assembled.problem.row_schedule.course_bounds_rad == ()
+    # Preserve the acknowledged prefix; the free suffix may hold or follow
+    # the observed starboard side without a committed minimum alteration.
+    bounds = assembled.problem.row_schedule.course_bounds_rad
+    prefix_count = assembled.problem.prefix_active_k
+    assert bounds[:prefix_count] == ((None, None),) * prefix_count
+    assert bounds[prefix_count:] == ((assembled.problem.own_ship.psi_rad, None),) * (80 - prefix_count)
+    assert assembled.problem.row_schedule.min_alt_hard_window is None
 
 
 def test_assembler_keeps_compliant_retained_prefix_under_commitment():

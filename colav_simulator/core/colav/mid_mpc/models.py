@@ -336,6 +336,9 @@ class MidMpcProblem:
     route_constraint_limit_m: float | None = None
     route_suffix_min_extent_m: float = 0.0
     navigation_recovery_lookahead_m: float = 0.0
+    timed_execution: bool = False
+    minimum_turn_radius_m: float = 0.0
+    maximum_lateral_acceleration_mps2: float = 0.0
     cpa_braking_floor_mps: float = 0.0
 
     def __post_init__(self) -> None:
@@ -350,8 +353,13 @@ class MidMpcProblem:
             raise TypeError("row_schedule must be MidMpcRowSchedule")
         if self.static_field is not None and not isinstance(self.static_field, MidMpcStaticField):
             raise TypeError("static_field must be MidMpcStaticField or None")
-        if not math.isfinite(self.navigation_recovery_lookahead_m) or self.navigation_recovery_lookahead_m < 0:
-            raise ValueError("navigation recovery lookahead must be finite and nonnegative")
+        navigation_limits = (
+            self.navigation_recovery_lookahead_m,
+            self.minimum_turn_radius_m,
+            self.maximum_lateral_acceleration_mps2,
+        )
+        if not np.isfinite(navigation_limits).all() or min(navigation_limits) < 0:
+            raise ValueError("navigation recovery lookahead and turning limits must be finite and nonnegative")
         if not math.isfinite(self.cpa_braking_floor_mps) or not 0 <= self.cpa_braking_floor_mps <= self.speed_bounds_mps[1]:
             raise ValueError("CPA braking floor must lie within the available speed range")
         if self.route_constraint_limit_m is not None:

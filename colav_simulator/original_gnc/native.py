@@ -13,7 +13,7 @@ import threading
 from pathlib import Path
 from typing import Any
 
-APPROVED_SOURCE_MANIFEST_SHA256 = "60777ce5da80df0913a636e90a3796d6f8fc4e83ebb1ea4fab0604bdcd11cce2"
+APPROVED_SOURCE_MANIFEST_SHA256 = "8590d52f4b3ee551ae390bb019ffca2a6ad434bd5659a6c92d8f54c870ff9e62"
 
 
 class OriginalGncError(RuntimeError):

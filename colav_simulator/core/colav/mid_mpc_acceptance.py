@@ -13,8 +13,11 @@ import numpy as np
 import shapely
 from shapely.geometry import LineString
 
-from colav_simulator.core.colav.mid_mpc_arrival import ROUTE_RECOVERY_TOLERANCE_M, navigation_capture_error
-
+from colav_simulator.core.colav.mid_mpc_arrival import (
+    ROUTE_RECOVERY_TOLERANCE_M,
+    navigation_arrival_reached,
+    navigation_capture_error,
+)
 from colav_simulator.core.colav.prediction_evidence import PredictionPhaseEvidence
 from colav_simulator.core.tracking.trackers import TrackKey
 
@@ -229,6 +232,7 @@ class ExecutionEvidence:
     static_layer_status: tuple[tuple[str, str], ...] = ()
     mission_waypoints_ne_m: tuple[tuple[float, float], ...] = ()
     navigation_route_points_ne_m: tuple[tuple[float, float], ...] = ()
+    navigation_arrival_expected: bool = False
 
     def __post_init__(self) -> None:
         """Freeze execution targets."""
@@ -1104,6 +1108,15 @@ class MidMpcPlanAcceptance:
                 north, east,
                 request.execution.mission_waypoints_ne_m, 7.0 * request.execution.ownship_length_m,
             )
+            if request.execution.navigation_arrival_expected and not navigation_arrival_reached(
+                north, east, request.execution.mission_waypoints_ne_m, 7.0 * request.execution.ownship_length_m
+            ):
+                _fail(
+                    findings,
+                    AcceptanceLayer.QUALITY,
+                    "QUALITY_NAVIGATION_ARRIVAL_MISSING",
+                    "declared native terminal arrival does not reach the shared goal region",
+                )
             if capture_error > ROUTE_RECOVERY_TOLERANCE_M:
                 _fail(
                     findings, AcceptanceLayer.QUALITY, "QUALITY_NAVIGATION_CAPTURE",

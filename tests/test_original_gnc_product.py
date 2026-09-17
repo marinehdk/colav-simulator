@@ -151,6 +151,7 @@ def test_adapter_matches_direct_core_and_reset_at_each_shared_time(original_ship
     ) as direct:
         for request in ship.requested_plans:
             direct.publish("/route_planning/route_plan", "ship_interfaces/msg/RoutePlan", request["message"])
+            direct.publish_initial_state()
         for index in range(200):
             # Exercise different external partitions without changing source periods.
             direct.advance(0.5)

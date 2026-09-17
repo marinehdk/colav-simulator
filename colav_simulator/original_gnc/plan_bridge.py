@@ -540,6 +540,8 @@ class OriginalPlanBridge:
         reference = self._mirror.frozen_path
         if reference is None:
             raise OriginalGncError("GNC has no accepted reference for constrained Mid planning")
+        if self.ship.stack.states["active_route_manager_node"].get("planner_trajectory_contract_version") != 1:
+            raise OriginalGncError("GNC does not advertise the required planner trajectory contract v1")
         return RetainedRouteConstraint(
             reference_id=str(self._mirror.route_id),
             points_ne_m=tuple(map(tuple, reference.points.T)),
@@ -549,11 +551,16 @@ class OriginalPlanBridge:
             minimum_segment_m=SEGMENT_FLOOR_M,
             lateral_limit_m=LATERAL_ENVELOPE_M,
             execution_speed_mps=self._mirror.execution_speeds,
+            trajectory_updates=True,
+            minimum_turn_radius_m=float(self.ship._parameters["active_route_manager_node"]["min_turn_radius_m"]["value"]),
+            maximum_lateral_acceleration_mps2=float(
+                self.ship._parameters["active_route_manager_node"]["max_lateral_accel_mps2"]["value"]
+            ),
         )
 
     def _submit_mid_route(self, t: float, data: dict, details: dict) -> None:
         packet = details.get("execution_route")
-        if not isinstance(packet, dict) or packet.get("schema_version") != "colav.mid-mpc.execution-route@1":
+        if not isinstance(packet, dict) or packet.get("schema_version") != "colav.mid-mpc.execution-route@2":
             raise OriginalGncError("Mid must supply a planner-compiled GNC execution route")
         payload = {key: value for key, value in packet.items() if key != "geometry_hash"}
         digest = hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
@@ -591,20 +598,31 @@ class OriginalPlanBridge:
             longitude=longitudes,
             command_speed_mps=list(packet["speed_mps"]),
             navigation_mode=list(packet["navigation_modes"]),
+            behavior_mode="planner_trajectory_v1",
+            trajectory_dt_s=float(packet["trajectory_dt_s"]),
+            trajectory_reference_id=packet["reference_id"],
+            command_heading_deg=np.degrees(packet["course_rad"]).tolist(),
+            require_exact_speed=True,
+            allow_degraded_execution=False,
+        )
+        request["header"]["stamp"] = stamp(
+            self.ship.stack.epoch_ns + round((packet["generated_at_s"] - self.ship._planner_time_origin) * 1e9)
         )
         identity = {
             "algorithm": "mid_mpc_ipopt",
-            "authority": "planner_compiled_retained_route",
+            "authority": "validated_planner_trajectory",
             "receipt_hash": receipt["receipt_hash"],
             "geometry_hash": packet["geometry_hash"],
             "reference_hash": packet["reference_hash"],
             "retained_point_count": packet["retained_point_count"],
             "prefix_intervals": packet["prefix_intervals"],
             "geometry_modified_by_adapter": False,
-            "planner_speed_semantics": "accepted_waypoint_speed_profile",
-            "source_speed_semantics": "original_route_speed_limit",
+            "planner_speed_semantics": "timed_ground_speed_trajectory",
+            "source_speed_semantics": "body_surge_reference_from_ground_speed",
         }
         self._deliver(request, identity)
+        if self.last_outcome and self.last_outcome["outcome"] not in {"ADMITTED", "ADMITTED_DUPLICATE"}:
+            raise OriginalGncError(f"GNC rejected the validated planner trajectory: {self.last_outcome}")
         if self.last_outcome and self.last_outcome["outcome"] in {
             "ADMITTED",
             "ADMITTED_DUPLICATE",

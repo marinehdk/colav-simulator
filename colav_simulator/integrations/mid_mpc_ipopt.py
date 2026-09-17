@@ -68,6 +68,7 @@ from colav_simulator.core.colav.mid_mpc_acceptance import (
 from colav_simulator.core.colav.mid_mpc_arrival import (
     ROUTE_RECOVERY_TOLERANCE_M,
     goal_reached,
+    navigation_arrival_reached,
     navigation_capture_error,
     on_final_leg,
 )
@@ -100,6 +101,7 @@ from colav_simulator.core.colav.retained_route import (
     RetainedRouteConstraint,
     _segment_enters_arrival_region,
     compile_execution_route,
+    compile_planner_trajectory,
     compile_spliced_execution_route,
     course_speed_state,
 )
@@ -455,6 +457,7 @@ class _MidMpcFacade:
             continuation_allowed = (
                 prior_plan_safe and rolling_reference.revision_reason in {
                     PlanRevisionReason.CONTINUITY_PRESERVED, PlanRevisionReason.NATIVE_RETAINED_ROUTE,
+                    PlanRevisionReason.NATIVE_TIMED_TRAJECTORY,
                 }
             )
             assembly = self._assembler.assemble(
@@ -513,7 +516,7 @@ class _MidMpcFacade:
         warm_semantic_token = _warm_semantic_token(snapshot, assembly)
         warm_start = self._primal_warm_start(planner_input, capability, warm_semantic_token)
         arrival_boundary = _arrival_route_boundary(planner_input, snapshot)
-        iterate_filter = _recovery_iterate_filter(planner_input, assembly, arrival_boundary)
+        iterate_filter = _recovery_iterate_filter(planner_input, assembly, arrival_boundary, decisions=snapshot.targets)
         try:
             cycle_budget_s = 2.0 if self._unresolved_streak >= 1 else self._config.total_deadline_s
             # R8: the solver slice is floored so a downgraded retry cannot be
@@ -537,6 +540,7 @@ class _MidMpcFacade:
             ownship,
             self._config.assembly.horizon_dt_s,
         )
+        status, feasible = _plan_status(result.status, result.max_constraint_violation)
         execution_route = (
             _published_execution_route(
                 assembly.execution_prefix,
@@ -551,12 +555,13 @@ class _MidMpcFacade:
                 mission_waypoints=_mission_waypoints(planner_input),
                 ownship_position=(float(ownship[0]), float(ownship[1])),
                 decisions=snapshot.targets,
+                horizon_dt_s=self._config.assembly.horizon_dt_s,
+                generated_at_s=planner_input.sim_time_s,
             )
             if assembly.execution_prefix is not None
-            and result.status in {MidMpcStatus.CONVERGED, MidMpcStatus.FEASIBLE_NONOPTIMAL}
+            and status in {PlanStatus.SUCCESS, PlanStatus.TIMEOUT_FEASIBLE}
             else None
         )
-        status, feasible = _plan_status(result.status, result.max_constraint_violation)
         if status not in {PlanStatus.SUCCESS, PlanStatus.TIMEOUT_FEASIBLE}:
             if warm_semantic_token == self._unresolved_streak_token:
                 self._unresolved_streak += 1
@@ -1127,12 +1132,17 @@ class _MidMpcFacade:
             and all(d.route_recovery_allowed or d.risk in {RiskPhase.CLEAR, RiskPhase.RELEASED} for d in snapshot.targets),
         )
         if planner_input.execution_route_constraint is not None:
-            # GNC's acknowledged spatial prefix is compiled into the NLP and
-            # transported verbatim. A second, time-aligned point-mass gate
-            # would reject valid route revisions solely because the real
-            # vessel traverses that same geometry at a different speed.
+            # Native continuity is checked from the current measured state
+            # and source motion bounds. Do not pin a stale point-mass rollout
+            # when the real plant's qualified response traverses it differently.
             reference = replace(
-                reference, active=False, revision_reason=PlanRevisionReason.NATIVE_RETAINED_ROUTE,
+                reference,
+                active=False,
+                revision_reason=(
+                    PlanRevisionReason.NATIVE_TIMED_TRAJECTORY
+                    if planner_input.execution_route_constraint.trajectory_updates
+                    else PlanRevisionReason.NATIVE_RETAINED_ROUTE
+                ),
                 objective_weight=(0.0,) * self._config.assembly.horizon_steps,
             )
         return identity, reference, prior_plan_safe, failure_codes
@@ -1168,8 +1178,14 @@ class _MidMpcFacade:
                 length_m=planner_input.ownship_length_m,
                 width_m=planner_input.ownship_width_m,
                 maneuverability=Maneuverability(
-                    turn_rate_rad_s=self._config.assembly.rot_max_rad_s,
-                    deceleration_mps2=self._config.assembly.decel_max_mps2,
+                    turn_rate_rad_s=min(
+                        planner_input.ownship_max_turn_rate_rad_s or self._config.assembly.rot_max_rad_s,
+                        self._config.assembly.rot_max_rad_s,
+                    ),
+                    deceleration_mps2=min(
+                        planner_input.ownship_max_speed_rate_mps2 or self._config.assembly.decel_max_mps2,
+                        self._config.assembly.decel_max_mps2,
+                    ),
                     speed_bounds_mps=self._config.assembly.speed_bounds_mps,
                     course_time_constant_s=planner_input.ownship_course_time_constant_s,
                 ),
@@ -1759,7 +1775,10 @@ def _handback_mission_document(
     normal = np.array([-unit[1], unit[0]])
     position = np.asarray(ownship_position, dtype=float)
     relative = position - route[-2]
-    if abs(float(relative @ normal)) > constraint.lateral_limit_m:
+    # The update envelope permits an avoidance excursion; it is not evidence
+    # that the vessel has rejoined. Handing back from hundreds of metres off
+    # the leg replaces the optimized recovery with an unplanned GNC intercept.
+    if abs(float(relative @ normal)) > ROUTE_RECOVERY_TOLERANCE_M:
         return None
     if leg_length - float(relative @ unit) < constraint.minimum_update_distance_m:
         return None
@@ -1794,6 +1813,8 @@ def _published_execution_route(
     mission_waypoints: tuple[tuple[float, float], ...],
     ownship_position: tuple[float, float],
     decisions: tuple,
+    horizon_dt_s: float = 5.0,
+    generated_at_s: float = 0.0,
 ) -> dict:
     """Dispatch the published route on the execution prefix state.
 
@@ -1810,6 +1831,8 @@ def _published_execution_route(
     arrival (H-B). A retained prefix with pinned beats keeps the pinned-head
     plus optimized-suffix compilation bit for bit.
     """
+    if prefix.constraint.trajectory_updates:
+        return compile_planner_trajectory(prefix, predicted, dt_s=horizon_dt_s, generated_at_s=generated_at_s)
     handback = _handback_mission_document(
         prefix.constraint,
         mission_waypoints,
@@ -1857,10 +1880,24 @@ def _arrival_route_boundary(
     return ((float(goal[0]), float(goal[1])), 7.0 * planner_input.ownship_length_m)
 
 
+def _native_arrival_expected(planner_input: PlannerInput, assembly: AssemblySuccess) -> bool:
+    constraint = planner_input.execution_route_constraint
+    objective = assembly.problem.route_objective
+    if constraint is None or not constraint.trajectory_updates or objective is None or objective.terminal_position_m is None:
+        return False
+    mission = planner_input.waypoints_enu_m.T
+    if len(mission) < 2:
+        return False
+    endpoint = np.asarray(planner_input.ownship_state[:2]) + objective.terminal_position_m
+    return bool(np.linalg.norm(endpoint - mission[-1]) <= 7.0 * planner_input.ownship_length_m)
+
+
 def _recovery_iterate_filter(
     planner_input: PlannerInput,
     assembly: AssemblySuccess,
     arrival_boundary: tuple[tuple[float, float], float] | None = None,
+    *,
+    decisions: tuple = (),
 ) -> Callable[[np.ndarray], bool] | None:
     """Do not stop at first numerical feasibility while a declared recovery fails.
 
@@ -1887,12 +1924,16 @@ def _recovery_iterate_filter(
         or not assembly.horizon_encounter_plan.target_windows
     )
     native_capture = planner_input.execution_route_constraint is not None
+    arrival_expected = _native_arrival_expected(planner_input, assembly)
     if not recovery_required and not native_capture:
         return None
     staged_keys = {window.key for window in assembly.horizon_encounter_plan.target_windows}
     origin = np.asarray(planner_input.ownship_state[:2])
     mission = tuple(map(tuple, planner_input.waypoints_enu_m.T))
     initial_course = float(planner_input.ownship_state[2])
+    turning = planner_input.execution_route_constraint
+    minimum_radius = turning.minimum_turn_radius_m if turning is not None else 0.0
+    maximum_lateral_acceleration = turning.maximum_lateral_acceleration_mps2 if turning is not None else 0.0
     goal = np.asarray(arrival_boundary[0], dtype=float) if arrival_boundary is not None else None
     arrival_radius = float(arrival_boundary[1]) if arrival_boundary is not None else None
     target_tracks = tuple(
@@ -1903,14 +1944,28 @@ def _recovery_iterate_filter(
         for track in planner_input.tracks
         if TrackKey(track.target_id, track.generation or 1) in staged_keys
     )
+    prefix = getattr(assembly, "execution_prefix", None)
+    handback = (
+        _handback_mission_document(prefix.constraint, mission, tuple(origin), assembly.problem.planned_speed_mps, decisions)
+        if native_capture and prefix is not None and decisions and not prefix.constraint.trajectory_updates
+        else None
+    )
 
     def acceptable(values: np.ndarray) -> bool:
         course, speed = values[:n], values[n : 2 * n]
+        steps = np.abs(np.diff(np.unwrap(np.r_[initial_course, course])))
+        if minimum_radius > 0.0 and np.any((speed > 1e-3) & (steps > 1e-3) & (speed * dt + 1e-9 < minimum_radius * steps)):
+            return False
+        if maximum_lateral_acceleration > 0.0 and np.any(speed * steps > maximum_lateral_acceleration * dt + 1e-9):
+            return False
         north = np.r_[origin[0], origin[0] + np.cumsum(speed * np.cos(course) * dt)]
         east = np.r_[origin[1], origin[1] + np.cumsum(speed * np.sin(course) * dt)]
         native_north, native_east = north, east
-        prefix = getattr(assembly, "execution_prefix", None)
-        if native_capture and prefix is not None:
+        if handback is not None:
+            # L4 validates the published mission handback, not an unused
+            # optimized tail. The iterate filter must test the same geometry.
+            native_north, native_east = np.asarray(handback["points_ne_m"]).T
+        elif native_capture and prefix is not None and not prefix.constraint.trajectory_updates:
             points = list(prefix.points_ne_m)
             for point in np.column_stack((north, east))[len(prefix.course_rad) + 1:]:
                 if np.linalg.norm(point - np.asarray(points[-1])) >= prefix.constraint.minimum_segment_m:
@@ -1923,6 +1978,10 @@ def _recovery_iterate_filter(
         if native_capture and navigation_capture_error(
             native_north, native_east, mission, 7.0 * planner_input.ownship_length_m
         ) > ROUTE_RECOVERY_TOLERANCE_M:
+            return False
+        if arrival_expected and not navigation_arrival_reached(
+            native_north, native_east, mission, 7.0 * planner_input.ownship_length_m
+        ):
             return False
         if not recovery_required:
             return True
@@ -1983,8 +2042,8 @@ def _active_capability(
         heading_window_rad=config.heading_window_rad,
         speed_bounds_mps=config.speed_bounds_mps,
         rot_max_rad_s=min(planner_input.ownship_max_turn_rate_rad_s or config.rot_max_rad_s, config.rot_max_rad_s),
-        accel_max_mps2=config.decel_max_mps2,
-        decel_max_mps2=config.decel_max_mps2,
+        accel_max_mps2=min(planner_input.ownship_max_speed_rate_mps2 or config.decel_max_mps2, config.decel_max_mps2),
+        decel_max_mps2=min(planner_input.ownship_max_speed_rate_mps2 or config.decel_max_mps2, config.decel_max_mps2),
         exact_tuple=exact_tuple,
         limitations=limitations,
     )
@@ -2089,6 +2148,7 @@ def _acceptance_request(  # noqa: PLR0913
             capability=capability,
             tracker_id=tracker_id,
             mission_waypoints_ne_m=tuple(map(tuple, planner_input.waypoints_enu_m.T)),
+            navigation_arrival_expected=_native_arrival_expected(planner_input, assembly),
             navigation_route_points_ne_m=(
                 tuple(
                     _published_execution_route(
@@ -2104,6 +2164,8 @@ def _acceptance_request(  # noqa: PLR0913
                         mission_waypoints=_mission_waypoints(planner_input),
                         ownship_position=(float(planner_input.ownship_state[0]), float(planner_input.ownship_state[1])),
                         decisions=snapshot.targets,
+                        horizon_dt_s=grid.dt_s,
+                        generated_at_s=planner_input.sim_time_s,
                     )["points_ne_m"]
                 )
                 if assembly.execution_prefix is not None else ()

@@ -11,8 +11,8 @@ from colav_simulator.core.colav.custom_mpc_adapter import CustomMPCAdapter
 from colav_simulator.core.colav.diagnostics import PlanStatus
 from colav_simulator.core.colav.retained_route import (
     RetainedRouteConstraint,
-    compile_execution_route,
-    compile_retained_prefix,
+    compile_planner_trajectory,
+    degraded_stub_prefix,
 )
 from colav_simulator.original_gnc.geometry import RouteFrame
 from colav_simulator.original_gnc.native import OriginalGncError
@@ -31,20 +31,19 @@ def test_mid_transport_never_reshapes_a_planner_compiled_route():
         160.0,
         32.0,
         480.0,
+        trajectory_updates=True,
     )
     state = np.array(case["state"])
-    prefix = compile_retained_prefix(
-        constraint, state, horizon_steps=80, dt_s=5.0, max_speed_mps=8.0, rot_max_rad_s=np.radians(1.2), accel_max_mps2=0.3
-    )
-    course = np.r_[prefix.course_rad, prefix.incoming_course_rad, prefix.incoming_course_rad]
-    speed = np.r_[prefix.speed_mps, 7.9, 7.8]
+    prefix = degraded_stub_prefix(constraint, state)
+    course = np.full(20, state[2])
+    speed = np.full(20, np.hypot(state[3], state[4]))
     predicted = np.zeros((9, len(course) + 1))
     predicted[:6, 0] = state
     predicted[0, 1:] = state[0] + np.cumsum(speed * np.cos(course) * 5)
     predicted[1, 1:] = state[1] + np.cumsum(speed * np.sin(course) * 5)
     predicted[2, 1:] = course
     predicted[3, 1:] = speed
-    packet = compile_execution_route(prefix, predicted)
+    packet = compile_planner_trajectory(prefix, predicted, dt_s=5.0, generated_at_s=5.0)
     epoch = 2_000_000_000_000_000_000
     ship = SimpleNamespace(
         _legacy=SimpleNamespace(_colav=SimpleNamespace(get_route_authority=lambda: case["planner_data"])),

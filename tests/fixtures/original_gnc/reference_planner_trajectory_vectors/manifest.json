@@ -1,0 +1,15 @@
+{
+  "native_run": "/home/marine.huang/colav-gnc-oracle/mid-trajectory-20260917-v7/route-reference",
+  "modules": {
+    "coordinate_transform_node": {
+      "calls": 1941,
+      "sha256": "304678fc61cdb1e4be44e103c2af32c5bff14971c643fb3e3cd84400d65a759a"
+    },
+    "active_route_manager_node": {
+      "calls": 1874,
+      "sha256": "208536bcef80e3ee77551fa1c1a4a2ab68af6a171a3144233f5925284c817e8d"
+    }
+  },
+  "source_manifest_sha256": "8590d52f4b3ee551ae390bb019ffca2a6ad434bd5659a6c92d8f54c870ff9e62",
+  "provenance": "Independent ROS Humble source build and public route contract sequence on A4000, 2026-09-17; original callback outputs, no native-derived expected values."
+}

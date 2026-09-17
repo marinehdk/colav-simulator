@@ -268,13 +268,13 @@ def test_colav_strict_staged_route_objective_alters_then_returns_to_mission(
     headings = result.raw_x[: config.horizon_steps]
     assert result.prepared.p.size == (
         # Fixture parameter block plus the staged route objective block
-        # (6n + 5: heading/lateral/continuity/arrival references, the
+        # (6n + 8: heading/lateral/continuity/arrival references, the
         # avoidance phase knot, terminal pose/weight, and the recovery
-        # cross-track envelope bound) plus the strict CPA bound slot and the
+        # cross-track envelope bound and navigation lookahead) plus the strict CPA bound slot and the
         # frozen target stride capacity.
         len(fixture.output["prepared"]["p"])
         + 6 * config.horizon_steps
-        + 6
+        + 9
         + 2 * config.max_targets
     )
     assert np.mean(headings[:avoidance_until_k]) > np.mean(headings[avoidance_until_k:]) + 0.05
@@ -1372,7 +1372,8 @@ def test_recovery_envelope_bound_is_packed_from_the_avoidance_references(
         + 1
     )
     bound_index = route_start + 6 * n + 4
-    assert prepared.p.size == bound_index + 1 + 2 * config.max_targets
+    assert prepared.p.size == bound_index + 4 + 2 * config.max_targets
+    assert prepared.p[bound_index + 1] == problem.navigation_recovery_lookahead_m
     # The envelope covers both the staged lateral references and the
     # excursion the corridor heading reference implies at the planned speed.
     speeds = problem.route_objective.speed_reference_mps or (problem.planned_speed_mps,) * n

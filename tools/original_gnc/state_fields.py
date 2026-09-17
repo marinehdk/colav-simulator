@@ -13,7 +13,8 @@ return {{"origin_locked",node.origin_locked_}, {"origin_lat",node.origin_lat_}, 
         {"has_odom",node.has_odom_}, {"north_m",node.current_x_}, {"east_m",node.current_y_}};
 """,
     "active_route_manager_node": """
-return {{"has_nominal_route",node.has_nominal_route_}, {"active_avoidance",node.has_active_avoidance_},
+return {{"planner_trajectory_contract_version",node.planner_trajectory_contract_version_},
+        {"has_nominal_route",node.has_nominal_route_}, {"active_avoidance",node.has_active_avoidance_},
         {"active_avoidance_plan_id",node.active_avoidance_plan_id_}, {"active_route_id",node.active_route_id_},
         {"active_command_source",node.active_command_source_}, {"generated_route_sequence",node.generated_route_sequence_},
         {"active_avoidance_until_ns",node.active_avoidance_until_.nanoseconds()},
@@ -44,6 +45,8 @@ return {{"integrals", {node.integral_surge_,node.integral_sway_,node.integral_ya
 """,
     "ship_guidance_node": """
 return {{"integral_e",node.integral_e_}, {"previous_e",node.prev_e_}, {"previous_heading",node.psi_cmd_prev_},
+        {"cruise_speed_cap_mps",node.cruise_speed_cap_mps_},
+        {"cruise_recovery_gate_cleared",node.cruise_recovery_gate_cleared_},
         {"segment_index",node.current_wp_idx_}, {"dp_mode",node.dp_mode_active_},
         {"final_dp_latched",node.final_dp_latched_}, {"last_time_ns",node.last_time_.nanoseconds()},
         {"velocity_active",node.velocity_intent_active_},

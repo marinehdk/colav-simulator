@@ -21,7 +21,7 @@ def stream_case(tmp_path) -> Any:
     config = OriginalGncConfig.from_dict({})
     if not (config.build_directory / "build-manifest.json").exists():
         pytest.skip("Optional original GNC native build unavailable")
-    source = Path(__file__).parent / "fixtures/original_gnc/reference_route_contract_vectors"
+    source = Path(__file__).parent / "fixtures/original_gnc/reference_planner_trajectory_vectors"
     manifest = json.loads((source / "manifest.json").read_text())
     name = "coordinate_transform_node"
     entry = manifest["modules"][name]

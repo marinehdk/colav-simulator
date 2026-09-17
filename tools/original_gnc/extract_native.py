@@ -14,6 +14,7 @@ import hashlib
 import json
 import re
 import shutil
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -21,7 +22,9 @@ from extract_observers import extract as extract_observers
 from extract_policy import extract_policy
 from instrument_reference import closing, code_mask
 from native_messages import generate as generate_messages
-from prepare_reference import SOURCE_MANIFEST_SHA256
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from colav_simulator.original_gnc.native import APPROVED_SOURCE_MANIFEST_SHA256 as SOURCE_MANIFEST_SHA256  # noqa: E402
 
 MODULES = {
     "ship_dynamics_node": ("simulation/ship_dynamics", "ship_dynamics::ShipDynamicsNode", "ShipDynamicsNode"),
@@ -148,6 +151,10 @@ def source_edits(text: str, name: str, class_name: str | None) -> tuple[str, dic
     # Remember the exact callbacks registered by the original constructor.
     mask = code_mask(text)
     bindings = set(re.findall(r"std::bind\s*\(\s*&([\w:]+)::(\w+)", mask))
+    if name == "ship_dynamics_node.cpp":
+        # Expose the unchanged source publisher for epoch-zero admission.
+        # Calling update_dynamics here would advance the physical state.
+        bindings.add(("ShipDynamicsNode", "publish_odometry"))
     for klass, callback in sorted(bindings):
         for match in re.finditer(rf"\bvoid\s+(?:{re.escape(klass)}::)?{re.escape(callback)}\s*\(", mask):
             opening = mask.index("(", match.start())

@@ -3,9 +3,11 @@ from dataclasses import replace
 from types import SimpleNamespace
 
 import numpy as np
+from test_mid_mpc_plan_acceptance import _request
 from test_mid_mpc_static_hazards import _enc, _input
 from shapely.geometry import GeometryCollection
 
+from colav_simulator.core.colav.mid_mpc_acceptance import MidMpcPlanAcceptance
 from colav_simulator.core.colav.retained_route import RetainedRouteConstraint
 from colav_simulator.integrations.mid_mpc_ipopt import _recovery_iterate_filter
 
@@ -136,3 +138,48 @@ def test_execution_route_stops_at_arrival_boundary_while_encounter_uncleared():
 
     full = compile_execution_route(plan, predicted)
     assert len(full["points_ne_m"]) > len(truncated["points_ne_m"])
+
+
+def test_declared_native_arrival_cannot_pass_by_missing_the_goal_disk():
+    data = replace(
+        _input(_enc(GeometryCollection())),
+        ownship_state=np.array([600.0, 400.0, 0.0, 4.0, 0.0, 0.0]),
+        waypoints_enu_m=np.array([[0.0, 1000.0], [0.0, 0.0]]),
+        ownship_length_m=44.1,
+        execution_route_constraint=RetainedRouteConstraint(
+            "mission",
+            ((0.0, 0.0), (1000.0, 0.0)),
+            (4.0, 4.0),
+            ("cruise", "cruise"),
+            160.0,
+            32.0,
+            480.0,
+            trajectory_updates=True,
+        ),
+    )
+    assembly = SimpleNamespace(
+        problem=SimpleNamespace(route_objective=SimpleNamespace(terminal_position_m=(400.0, -400.0))),
+        horizon_encounter_plan=SimpleNamespace(recovery_from_k=0, target_windows=()),
+        grid=SimpleNamespace(control_intervals=20, dt_s=5.0),
+    )
+    candidate = np.r_[np.zeros(20), np.full(20, 4.0), 0.0, 0.0]
+    assert _recovery_iterate_filter(data, assembly)(candidate) is False
+
+
+def test_l4_requires_goal_entry_when_native_reference_declares_arrival():
+
+    request = _request()
+    request = replace(
+        request,
+        execution=replace(
+            request.execution,
+            capability=replace(request.execution.capability, plant="original_gnc_20260824_v2"),
+            ownship_length_m=44.1,
+            mission_waypoints_ne_m=((0.0, 0.0), (1000.0, 0.0)),
+            navigation_route_points_ne_m=((600.0, 400.0), (1000.0, 400.0)),
+            navigation_arrival_expected=True,
+        ),
+    )
+    findings = []
+    MidMpcPlanAcceptance._quality(request, findings, ())
+    assert "QUALITY_NAVIGATION_ARRIVAL_MISSING" in {finding.code for finding in findings}

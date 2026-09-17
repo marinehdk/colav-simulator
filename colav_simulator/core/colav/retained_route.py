@@ -25,9 +25,17 @@ class RetainedRouteConstraint:
     minimum_segment_m: float
     lateral_limit_m: float
     execution_speed_mps: tuple[float, ...] | None = None
+    trajectory_updates: bool = False
+    minimum_turn_radius_m: float = 0.0
+    maximum_lateral_acceleration_mps2: float = 0.0
 
     def __post_init__(self) -> None:
         """Freeze and validate the execution authority supplied by GNC."""
+        if not isinstance(self.trajectory_updates, bool):
+            raise TypeError("trajectory_updates must identify an advertised GNC contract")
+        motion_limits = (self.minimum_turn_radius_m, self.maximum_lateral_acceleration_mps2)
+        if not np.isfinite(motion_limits).all() or min(motion_limits) < 0.0:
+            raise ValueError("Native turning limits must be finite and non-negative")
         points = tuple(tuple(map(float, p)) for p in self.points_ne_m)
         speeds = tuple(map(float, self.speed_mps))
         modes = tuple(self.navigation_modes)
@@ -67,6 +75,38 @@ class RetainedPrefixPlan:
     corridor_points_m: tuple[tuple[float, float], ...]
     pinned_beats: int | None = None
     knot_trim_reason: str | None = None
+
+
+def compile_planner_trajectory(
+    plan: RetainedPrefixPlan, predicted: np.ndarray, *, dt_s: float, generated_at_s: float
+) -> dict:
+    """Copy the optimized state grid without replacing, thinning or splicing it."""
+    if predicted.ndim != 2 or predicted.shape[0] < 5 or predicted.shape[1] < 2:
+        raise ValueError("Planner trajectory requires aligned position/course/speed samples")
+    if not np.isfinite(predicted).all() or not math.isfinite(dt_s) or dt_s <= 0.0:
+        raise ValueError("Planner trajectory and sample interval must be finite")
+    if not math.isfinite(generated_at_s) or generated_at_s < 0.0:
+        raise ValueError("Planner trajectory requires a finite issue time")
+    if np.linalg.norm(predicted[:2, 0] - np.asarray(plan.points_ne_m[0])) > 1e-3:
+        raise ValueError("Planner trajectory changed its measured initial position")
+    document = {
+        "schema_version": "colav.mid-mpc.execution-route@2",
+        "reference_hash": plan.constraint.semantic_hash,
+        "reference_id": plan.constraint.reference_id,
+        "points_ne_m": predicted[:2].T.tolist(),
+        "course_rad": predicted[2].tolist(),
+        "speed_mps": np.hypot(predicted[3], predicted[4]).tolist(),
+        "navigation_modes": ["avoidance"] * predicted.shape[1],
+        "retained_point_count": 0,
+        "prefix_intervals": 0,
+        "trajectory_dt_s": float(dt_s),
+        "generated_at_s": float(generated_at_s),
+        "prediction_basis": "optimized trajectory, unmodified",
+    }
+    document["geometry_hash"] = hashlib.sha256(
+        json.dumps(document, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
+    return document
 
 
 def _projection(points: np.ndarray, position: np.ndarray) -> tuple[float, np.ndarray]:
@@ -710,7 +750,9 @@ def _bend_and_rejoin(
     separation_along = _projection(reference, predicted[:2, separation_k])[0]
     last_bend = max(0, int(np.searchsorted(progress, terminus_along + 1e-9, side="right")) - 1)
     last_bend = min(last_bend, len(reference) - 2)
-    bend_k = max(0, int(np.searchsorted(progress, separation_along, side="right")) - 1)
+    # A free prediction can first separate beyond the mirrored endpoint.
+    # The bend names a segment, so it cannot name the terminal vertex.
+    bend_k = min(last_bend, max(0, int(np.searchsorted(progress, separation_along, side="right")) - 1))
     while bend_k < last_bend and progress[bend_k] - along < SPLICE_AVOIDANCE_LOOKAHEAD_M:
         bend_k += 1
     if progress[bend_k] - along < SPLICE_AVOIDANCE_LOOKAHEAD_M:

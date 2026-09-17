@@ -8,7 +8,7 @@ import numpy as np
 import pytest
 
 from colav_simulator.core.colav.diagnostics import ColavExecutionError
-from colav_simulator.core.colav.retained_route import compile_execution_route, compile_retained_prefix
+from colav_simulator.core.colav.retained_route import compile_planner_trajectory, degraded_stub_prefix
 from colav_simulator.core.ship import Config, build_ship
 from colav_simulator.modular_gnc.contracts import ControlTask, TrackedRoute
 from colav_simulator.modular_gnc.route_bridge import RouteDecision
@@ -182,24 +182,18 @@ def _mid_decision(tick: int, waypoints: np.ndarray, speeds: np.ndarray, until_ti
 def _compiled_mid_packet(bridge, ship) -> dict:
     constraint = bridge.planning_constraint()
     state = ship.state
-    prefix = compile_retained_prefix(
-        constraint,
-        state,
-        horizon_steps=80,
-        dt_s=5.0,
-        max_speed_mps=8.0,
-        rot_max_rad_s=np.radians(1.2),
-        accel_max_mps2=0.3,
-    )
-    course = np.r_[prefix.course_rad, np.full(30, prefix.incoming_course_rad)]
-    speed = np.r_[prefix.speed_mps, np.linspace(6.0, 7.0, 30)]
+    prefix = degraded_stub_prefix(constraint, state)
+    course = np.full(30, state[2])
+    speed = np.full(30, np.hypot(state[3], state[4]))
     predicted = np.zeros((9, len(course) + 1))
     predicted[:6, 0] = state
     predicted[0, 1:] = state[0] + np.cumsum(speed * np.cos(course) * 5.0)
     predicted[1, 1:] = state[1] + np.cumsum(speed * np.sin(course) * 5.0)
     predicted[2, 1:] = course
     predicted[3, 1:] = speed
-    return compile_execution_route(prefix, predicted)
+    return compile_planner_trajectory(
+        prefix, predicted, dt_s=5.0, generated_at_s=(ship.stack.time_ns - ship.stack.epoch_ns) / 1e9
+    )
 
 
 def test_mid_receipt_becomes_route_contract_with_segments_and_speeds(original_ship):
@@ -225,12 +219,12 @@ def test_mid_receipt_becomes_route_contract_with_segments_and_speeds(original_sh
     new = points[:, 1:]
     gaps = np.linalg.norm(np.diff(new, axis=1), axis=0)
     assert gaps.min() >= 30.0
-    assert request["require_exact_speed"] is False
-    assert request["allow_degraded_execution"] is True
-    assert request["command_heading_deg"] == []
+    assert request["require_exact_speed"] is True
+    assert request["allow_degraded_execution"] is False
+    np.testing.assert_allclose(request["command_heading_deg"], np.degrees(packet["course_rad"]))
     assert request["valid_until"] == {"sec": 2_000_000_040, "nanosec": 0}  # valid_until_tick * dt, never extended
     assert "avoidance" in request["navigation_mode"]
-    assert request["navigation_mode"][0] == "cruise"
+    assert request["navigation_mode"][0] == "avoidance"
     coordinate = _coordinate_feedback(bridge)
     assert coordinate["accepted"] is True
     # CONTINUITY_PRESERVED receipts keep identity; discontinuities start a new generation.

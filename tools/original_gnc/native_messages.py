@@ -57,6 +57,7 @@ def generate(source: Path, dependencies: Path, output: Path) -> dict:
         package, name = identity.split("/")
         path = roots[package] / f"{name}.msg"
         fields, constants = [], []
+        defaulted_fields = set()
         for raw_line in path.read_text().splitlines():
             line = raw_line.partition("#")[0].strip()
             if not line:
@@ -65,6 +66,10 @@ def generate(source: Path, dependencies: Path, output: Path) -> dict:
             if match is None:
                 raise ValueError(f"Unsupported message field in {path}: {line}")
             token, field, constant, default = match.groups()
+            # This added optional field uses ROS's implicit empty sequence:
+            # Humble generates invalid Python for an explicit [] default.
+            if identity == "ship_interfaces/RoutePlan" and field == "trajectory_course_deg":
+                default = "[]"
             array = re.fullmatch(r"(.+)\[(\d*)\]", token)
             base = array[1] if array else token
             if base in PRIMITIVES:
@@ -81,7 +86,10 @@ def generate(source: Path, dependencies: Path, output: Path) -> dict:
             else:
                 initial = "{}"
                 if default is not None:
-                    initial = "{" + (default.lower() if base == "bool" else default) + "}"
+                    defaulted_fields.add(field)
+                    initial = (
+                        "{}" if array and default == "[]" else "{" + (default.lower() if base == "bool" else default) + "}"
+                    )
                 fields.append((field, f"    {cpp} {field}{initial};"))
         declarations.append(
             f"namespace original_gnc::messages::{package} {{\nstruct {name} {{\n"
@@ -95,7 +103,8 @@ def generate(source: Path, dependencies: Path, output: Path) -> dict:
             + "\n}\n"
             + f"inline void from_json(const nlohmann::json& j, {name}& value) {{\n"
             + "\n".join(
-                f'    value.{field} = original_gnc::decode_value<decltype(value.{field})>(j.at("{field}"));'
+                (f'    if (j.contains("{field}")) ' if field in defaulted_fields else "    ")
+                + f'value.{field} = original_gnc::decode_value<decltype(value.{field})>(j.at("{field}"));'
                 for field, _ in fields
             )
             + "\n}\n}\n"

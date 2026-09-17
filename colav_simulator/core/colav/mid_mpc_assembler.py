@@ -366,10 +366,16 @@ def _assemble_problem(
         consider_terminal_stop=profile is AssemblyProfile.COLAV_STRICT,
         include_reachable_targets=profile is AssemblyProfile.COLAV_STRICT,
     )
-    policy = _resolve_policy(planner_input, snapshot, route, capability, binding)
+    policy = _resolve_policy(planner_input, snapshot, route, capability, binding, config)
     execution_prefix = None
     retained_degraded = None
-    if profile is AssemblyProfile.COLAV_STRICT and planner_input.execution_route_constraint is not None:
+    if (
+        profile is AssemblyProfile.COLAV_STRICT
+        and planner_input.execution_route_constraint is not None
+        and planner_input.execution_route_constraint.trajectory_updates
+    ):
+        execution_prefix = degraded_stub_prefix(planner_input.execution_route_constraint, planner_input.ownship_state)
+    elif profile is AssemblyProfile.COLAV_STRICT and planner_input.execution_route_constraint is not None:
         try:
             execution_prefix = compile_retained_prefix(
                 planner_input.execution_route_constraint,
@@ -566,6 +572,7 @@ def _resolve_policy(
     route: RouteReference,
     capability: CapabilitySnapshot,
     binding: _TargetBinding,
+    config: MidMpcAssemblyConfig,
 ) -> _PolicyResolution:
     required_sides = {
         decision.passing_side for decision in binding.required_decisions if decision.passing_side is not PassingSide.NONE
@@ -609,8 +616,25 @@ def _resolve_policy(
         if corridor.baseline_course_rad is None:
             raise ValueError(f"committed target {corridor.key} has no baseline course")
         committed_route_bearing = _guidance_course_target(planner_input, route, corridor, preferred_side)
+        if _parallel_pass_clear(planner_input, route, binding, preferred_side, config):
+            committed_route_bearing = route.mission_leg_bearing_rad
     elif binding.required_decisions:
         committed_route_bearing = float(planner_input.ownship_state[2])
+    elif planner_input.execution_route_constraint is not None:
+        candidates = tuple(
+            decision
+            for decision in binding.selected_decisions
+            if decision.risk is RiskPhase.CANDIDATE
+            and decision.role is OwnshipRole.GIVE_WAY
+            and decision.passing_side is not PassingSide.NONE
+        )
+        if candidates:
+            # Preview the observed maneuver behind GNC's protected near leg.
+            # A mission-only preview can pin another full confirmation cycle
+            # of straight travel, leaving too little response time on commit.
+            candidate = max(candidates, key=lambda decision: decision.required_course_change_rad)
+            side = -1 if candidate.passing_side is PassingSide.PORT else 1
+            committed_route_bearing = _guidance_course_target(planner_input, route, candidate, side)
 
     return _PolicyResolution(
         speed_bounds_mps=speed_bounds,
@@ -618,6 +642,43 @@ def _resolve_policy(
         lateral_active=lateral_active,
         committed_route_bearing_rad=committed_route_bearing,
     )
+
+
+def _parallel_pass_clear(
+    planner_input: PlannerInput,
+    route: RouteReference,
+    binding: _TargetBinding,
+    side: int,
+    config: MidMpcAssemblyConfig,
+) -> bool:
+    """Stop pressing outward once the achieved maneuver admits a clear pass.
+
+    This changes the reference only: the encounter remains committed and all
+    physical clearance rows stay active. Both the locked passing side and
+    every tracked vessel must permit the parallel course before it is used.
+    """
+    if planner_input.execution_route_constraint is None or not side or not binding.required_decisions:
+        return False
+    if any(not decision.action_achieved for decision in binding.required_decisions):
+        return False
+    tangent = np.array([math.cos(route.mission_leg_bearing_rad), math.sin(route.mission_leg_bearing_rad)])
+    normal = np.array([-tangent[1], tangent[0]])
+    clearance = _effective_node_clearance(planner_input, binding.selected_tracks, config)
+    position = planner_input.ownship_state[:2]
+    for decision in binding.required_decisions:
+        relative = position - binding.track_by_key[decision.key].state_enu[:2]
+        if side * float(relative @ normal) < clearance:
+            return False
+    for track in binding.selected_tracks:
+        relative = track.state_enu[:2] - position
+        velocity = track.state_enu[2:4] - route.planned_speed_mps * tangent
+        speed2 = float(velocity @ velocity)
+        tcpa = float(
+            np.clip(-float(relative @ velocity) / max(speed2, 1e-12), 0.0, config.horizon_steps * config.horizon_dt_s)
+        )
+        if float(np.linalg.norm(relative + tcpa * velocity)) < clearance:
+            return False
+    return True
 
 
 def _guidance_course_target(
@@ -636,7 +697,11 @@ def _guidance_course_target(
         # Invert the measured route response over the committed action budget,
         # excluding the protected near leg. This changes the guidance target;
         # Lifecycle's minimum alteration and deadline remain unchanged.
-        delay = planner_input.execution_route_constraint.minimum_update_distance_m / max(route.planned_speed_mps, 1e-6)
+        delay = (
+            0.0
+            if planner_input.execution_route_constraint.trajectory_updates
+            else planner_input.execution_route_constraint.minimum_update_distance_m / max(route.planned_speed_mps, 1e-6)
+        )
         response_time = decision.action_achievement_deadline_s - decision.committed_at_s - delay
         if response_time <= 0:
             raise _AssemblyInputError(
@@ -688,19 +753,38 @@ def _candidate_course_schedule(
     binding: _TargetBinding,
     horizon_steps: int,
 ) -> MidMpcRowSchedule:
-    if execution_prefix is None or _is_discard_stub(execution_prefix) or not candidate_hold or binding.required_keys:
-        return schedule
-    if not any(
-        decision.role is OwnshipRole.OVERTAKING and decision.risk is RiskPhase.CANDIDATE
-        for decision in binding.selected_decisions
+    if (
+        execution_prefix is None
+        or (_is_discard_stub(execution_prefix) and not execution_prefix.constraint.trajectory_updates)
+        or not candidate_hold
+        or binding.required_keys
     ):
         return schedule
-    # During side confirmation, publish a neutral follow/braking route. An
-    # arbitrary lateral branch can make GNC turn opposite to the side that
-    # Lifecycle subsequently commits. All physical safety rows still bind.
+    overtaking = any(
+        decision.role is OwnshipRole.OVERTAKING and decision.risk is RiskPhase.CANDIDATE
+        for decision in binding.selected_decisions
+    )
+    sides = {
+        decision.passing_side
+        for decision in binding.selected_decisions
+        if decision.role is OwnshipRole.GIVE_WAY and decision.risk is RiskPhase.CANDIDATE
+    }
+    if not overtaking and sides not in ({PassingSide.STARBOARD}, {PassingSide.PORT}):
+        return schedule
+    # Overtaking still awaits side selection and keeps a neutral follow/brake
+    # route. An observed give-way side may hold or alter on that side, but
+    # must not load the opposite turn into GNC's protected near leg before
+    # confirmation. No minimum alteration is imposed before commitment.
     hold_course = execution_prefix.incoming_course_rad
+    candidate_bounds = (
+        (hold_course, hold_course)
+        if overtaking
+        else (hold_course, None)
+        if sides == {PassingSide.STARBOARD}
+        else (None, hold_course)
+    )
     bounds = tuple(
-        (None, None) if k < len(execution_prefix.course_rad) else (hold_course, hold_course) for k in range(horizon_steps)
+        (None, None) if k < len(execution_prefix.course_rad) else candidate_bounds for k in range(horizon_steps)
     )
     return replace(schedule, course_bounds_rad=bounds)
 
@@ -885,6 +969,16 @@ def _compile_semantic_problem(  # noqa: PLR0912, PLR0915 - compile lifecycle and
                 AssemblyFailureCode.CORE_CAPABILITY_MISMATCH,
                 "stand-on course authorities have no common feasible heading corridor",
             )
+    recovery_lookahead_m = (
+        max(own_speed, route.planned_speed_mps)
+        * max(
+            1.0 / capability.rot_max_rad_s,
+            2.0 * config.horizon_dt_s,
+            float(planner_input.ownship_course_time_constant_s or 0.0),
+        )
+        if execution_prefix is not None
+        else 0.0
+    )
     route_objective = _route_objective(
         profile,
         horizon_encounter_plan,
@@ -896,6 +990,8 @@ def _compile_semantic_problem(  # noqa: PLR0912, PLR0915 - compile lifecycle and
         rot_max_rad_s=capability.rot_max_rad_s,
         heading_window_rad=capability.heading_window_rad,
         rolling_plan=rolling_plan,
+        recovery_lookahead_m=recovery_lookahead_m,
+        timed_execution=execution_prefix is not None and execution_prefix.constraint.trajectory_updates,
     )
     if route_objective is not None and not stand_on_hold:
         if all(d.route_recovery_allowed or d.risk in {RiskPhase.CLEAR, RiskPhase.RELEASED} for d in snapshot.targets):
@@ -914,7 +1010,7 @@ def _compile_semantic_problem(  # noqa: PLR0912, PLR0915 - compile lifecycle and
                 arrival_cruise,
                 config.horizon_dt_s,
                 config.horizon_steps,
-                config.decel_max_mps2,
+                capability.decel_max_mps2,
                 capability.rot_max_rad_s,
                 max(
                     3.0 * config.decision_period_s + config.horizon_dt_s,
@@ -930,6 +1026,13 @@ def _compile_semantic_problem(  # noqa: PLR0912, PLR0915 - compile lifecycle and
                 float(planner_input.ownship_speed_time_constant_s or 0.0),
                 arrival_radius_m=(
                     7.0 * planner_input.ownship_length_m if planner_input.execution_route_constraint is not None else None
+                ),
+                finite_navigation_tail=(execution_prefix is not None and execution_prefix.constraint.trajectory_updates),
+                navigation_lookahead_m=recovery_lookahead_m or None,
+                approach_heading_reference_rad=(
+                    route_objective.heading_reference_rad
+                    if execution_prefix is not None and execution_prefix.constraint.trajectory_updates
+                    else None
                 ),
             )
             if arrival is not None:
@@ -1040,8 +1143,9 @@ def _compile_semantic_problem(  # noqa: PLR0912, PLR0915 - compile lifecycle and
         route.mission_leg_bearing_rad if route_objective is not None else policy.committed_route_bearing_rad
     )
     prefix_count = len(execution_prefix.course_rad) if execution_prefix is not None else (1 if hold_first_interval else 0)
-    corridor_points = () if execution_prefix is None else execution_prefix.corridor_points_m
-    route_update_limit = None if execution_prefix is None else execution_prefix.constraint.lateral_limit_m
+    retained_corridor = execution_prefix is not None and not execution_prefix.constraint.trajectory_updates
+    corridor_points = execution_prefix.corridor_points_m if retained_corridor else ()
+    route_update_limit = execution_prefix.constraint.lateral_limit_m if retained_corridor else None
     row_schedule = _candidate_course_schedule(row_schedule, execution_prefix, candidate_hold, binding, config.horizon_steps)
     row_schedule = _contract_recovery_schedule(
         row_schedule,
@@ -1075,10 +1179,23 @@ def _compile_semantic_problem(  # noqa: PLR0912, PLR0915 - compile lifecycle and
         else ((own_speed,) if hold_first_interval else ()),
         route_constraint_points_m=corridor_points,
         route_constraint_limit_m=route_update_limit,
+        timed_execution=execution_prefix is not None and execution_prefix.constraint.trajectory_updates,
+        minimum_turn_radius_m=(execution_prefix.constraint.minimum_turn_radius_m if execution_prefix is not None else 0.0),
+        maximum_lateral_acceleration_mps2=(
+            execution_prefix.constraint.maximum_lateral_acceleration_mps2 if execution_prefix is not None else 0.0
+        ),
         navigation_recovery_lookahead_m=(
-            max(own_speed / capability.rot_max_rad_s, 2.0 * own_speed * config.horizon_dt_s)
+            # A finite native arrival already has one capture-and-braking
+            # reference. Recomputing a second, constant-lead LOS objective
+            # here would reward entering the goal disk before rejoining.
+            recovery_lookahead_m
             if execution_prefix is not None
             and on_final_leg(np.asarray(route.mission_waypoints_ne_m), ownship[:2])
+            and not (
+                execution_prefix.constraint.trajectory_updates
+                and route_objective is not None
+                and route_objective.terminal_position_m is not None
+            )
             else 0.0
         ),
         cpa_braking_floor_mps=(
@@ -1234,6 +1351,8 @@ def _route_objective(
     rot_max_rad_s: float,
     heading_window_rad: float,
     rolling_plan: RollingPlanReference | None,
+    recovery_lookahead_m: float = 0.0,
+    timed_execution: bool = False,
 ) -> MidMpcRouteObjective | None:
     if profile is AssemblyProfile.MASS_PARITY:
         return None
@@ -1246,6 +1365,8 @@ def _route_objective(
         dt_s=dt_s,
         rot_max_rad_s=rot_max_rad_s,
         heading_window_rad=heading_window_rad,
+        recovery_lookahead_m=recovery_lookahead_m,
+        timed_execution=timed_execution,
     )
     avoidance_active_until_k = next(
         (
@@ -1277,6 +1398,8 @@ def _staged_route_references(
     dt_s: float,
     rot_max_rad_s: float,
     heading_window_rad: float,
+    recovery_lookahead_m: float = 0.0,
+    timed_execution: bool = False,
 ) -> tuple[tuple[float, ...], tuple[float, ...]]:
     """Compile one reachable avoid-pass-rejoin reference on the mission frame."""
     mission = plan.mission_route_bearing_rad
@@ -1312,7 +1435,11 @@ def _staged_route_references(
             else:
                 mission_cross_track = cross_track
             requested_lateral_velocity = float(np.clip(-mission_cross_track / dt_s, -speed, speed))
-            recovery_delta = math.asin(requested_lateral_velocity / speed)
+            recovery_delta = (
+                -math.atan2(mission_cross_track, recovery_lookahead_m)
+                if recovery_lookahead_m > 0.0
+                else math.asin(requested_lateral_velocity / speed)
+            )
             recovery_delta = float(np.clip(recovery_delta, -maximum_recovery_delta, maximum_recovery_delta))
             desired_heading = mission + recovery_delta
         else:
@@ -1322,11 +1449,13 @@ def _staged_route_references(
         heading = previous_heading + float(
             np.clip(desired_heading - previous_heading, -maximum_heading_step, maximum_heading_step)
         )
-        if not headings and recovery_first_step:
+        if not timed_execution and not headings and recovery_first_step:
             # Corridor release: a first reference sitting exactly on the rot bound
             # makes the interior-point seed start on the active constraint and
             # IPOPT crawls the barrier for dozens of iterations; anchor the first
             # step on the current heading and let the ramp pull from step one.
+            # A timed route already carries the measured state at sample zero;
+            # repeating it at sample one would postpone recovery on every replan.
             heading = ownship_heading_rad
         headings.append(heading)
         position += speed * dt_s * np.array((math.cos(heading), math.sin(heading)), dtype=float)
@@ -1458,6 +1587,12 @@ def _compile_horizon_encounter_plan(
         if decision.key in binding.required_keys
         or (decision.commitment is CommitmentPhase.COMMITTED and decision.risk in {RiskPhase.ACTIVE, RiskPhase.PAST_CLEAR})
         or (decision.planned_action_at_s is not None and decision.risk is RiskPhase.CANDIDATE)
+        or (
+            planner_input.execution_route_constraint is not None
+            and decision.risk is RiskPhase.CANDIDATE
+            and decision.role is OwnshipRole.GIVE_WAY
+            and decision.passing_side is not PassingSide.NONE
+        )
     )
     scheduled = any(decision.planned_action_at_s is not None for decision in horizon_decisions)
     nominal_headings: tuple[float, ...] = ()
@@ -1548,7 +1683,9 @@ def _compile_horizon_encounter_plan(
                     if decision.risk is RiskPhase.CANDIDATE
                     else 0.0,
                     corridor_bearing_rad=corridor_for(decision),
-                    passing_side=-1
+                    passing_side=0
+                    if decision.risk is RiskPhase.CANDIDATE and decision.planned_action_at_s is None
+                    else -1
                     if decision.passing_side is PassingSide.PORT
                     else 1
                     if decision.passing_side is PassingSide.STARBOARD
