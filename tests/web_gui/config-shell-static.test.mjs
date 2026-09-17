@@ -5,6 +5,7 @@ import { runInNewContext } from 'node:vm';
 
 const html = await readFile(new URL('../../web_gui/index.html', import.meta.url), 'utf8');
 const shell = await readFile(new URL('../../web_gui/modules/config-shell.js', import.meta.url), 'utf8');
+const labels = await readFile(new URL('../../web_gui/modules/config-labels.js', import.meta.url), 'utf8');
 const styles = await readFile(new URL('../../web_gui/style.css', import.meta.url), 'utf8');
 const configCss = styles.slice(styles.indexOf('.workface {'), styles.indexOf('.roadmap-workface {'));
 const legacy = await readFile(new URL('../../web_gui/app.js', import.meta.url), 'utf8');
@@ -18,8 +19,12 @@ const ruleGuides = await Promise.all([
   'Multiship-guide.svg',
 ].map((name) => readFile(new URL(`../../web_gui/assets/openbridge/${name}`, import.meta.url), 'utf8')));
 
+test('Config imports the display labels shared with Replay', () => {
+  assert.match(shell, /import \{ SCENARIO_LABELS, ALGORITHM_LABELS \} from '.\/config-labels.js'/);
+});
+
 test('AIS historical scenario label avoids repeating its Romsdal ENC region', () => {
-  assert.match(shell, /hais_romsdal_20260701_120007_121007: 'AIS Historical'/);
+  assert.match(labels, /hais_romsdal_20260701_120007_121007: 'AIS Historical'/);
   assert.doesNotMatch(shell, /AIS Romsdal \(Historical\)/);
 });
 
@@ -81,7 +86,7 @@ test('composition root wires the runtime into the projection singleton and expor
 });
 
 test('Config assets retain GNC tags and load the updated runtime shell', () => {
-  const tag = '20260916-replay-layout-v4';
+  const tag = '20260917-replay-ui-v5';
   assert.match(html, new RegExp(`/static/style\\.css\\?v=${tag}`));
   assert.match(html, /\/static\/modules\/config-shell\.js\?v=20260916-replay-layout-v4/);
   assert.match(shell, /validation-assembly\.js\?v=20260914-gnc-replay-v3/);
@@ -213,14 +218,14 @@ test('Stepper and Config Summary render tuple business labels instead of raw ids
     ['crossing_give_way', 'Give-way'],
     ['crossing_stand_on', 'Stand-on'],
   ]) {
-    assert.match(shell, new RegExp(`${id}: '${label}'`));
+    assert.match(labels, new RegExp(`${id}: '${label}'`));
   }
   for (const helper of ['ruleDisplayLabel', 'scenarioDisplayLabel', 'algorithmDisplayLabel', 'trackerDisplayLabel']) {
     assert.match(shell, new RegExp(`function ${helper}\\(snapshot\\)`));
   }
   assert.match(shell, /rule13: 'Rule 13 Overtaking'/);
   assert.match(shell, /rule14: 'Rule 14 Head-on'/);
-  assert.match(shell, /mid_mpc_ipopt: 'Mid-MPC'/);
+  assert.match(labels, /mid_mpc_ipopt: 'Mid-MPC'/);
   assert.match(shell, /god: 'Truth'/);
   const stepper = shell.slice(shell.indexOf('function renderStepper('), shell.indexOf('function renderSummary('));
   const summary = shell.slice(shell.indexOf('function renderSummary('), shell.indexOf('function createStatusText('));
@@ -239,9 +244,9 @@ test('Rule 15 keeps the Give-way scenario visible when the current tuple disable
 });
 
 test('Algorithm choices expose only the three product algorithms', () => {
-  assert.match(shell, /mid_mpc_ipopt: 'Mid-MPC'/);
-  assert.match(shell, /vo: 'VO'/);
-  assert.match(shell, /potocnik_colreg_fan_mpc: 'Fan-MPC'/);
+  assert.match(labels, /mid_mpc_ipopt: 'Mid-MPC'/);
+  assert.match(labels, /vo: 'VO'/);
+  assert.match(labels, /potocnik_colreg_fan_mpc: 'Fan-MPC'/);
   assert.doesNotMatch(shell, /sbmpc:|potocnik_simplified_mpc:|ALGORITHM_ORDER/);
 });
 
@@ -374,7 +379,7 @@ test('production Config takes ordered algorithm and tracker choices only from pr
   assert.match(shell, /snapshot\.options\.algorithm_id/);
   assert.match(shell, /snapshot\.options\.tracker_id/);
   assert.match(shell, /snapshot\.productCapabilityPolicy/);
-  assert.match(shell, /potocnik_colreg_fan_mpc: 'Fan-MPC'/);
+  assert.match(labels, /potocnik_colreg_fan_mpc: 'Fan-MPC'/);
   assert.match(shell, /god: 'Truth'/);
   assert.doesNotMatch(shell, /potocnik_simplified_mpc/);
   assert.doesNotMatch(shell, /\bnominal\b/);

@@ -3762,3 +3762,19 @@ canvas#simCanvas.route-pick-mode { cursor: crosshair; }
   .replay-runs-pagination { align-items: flex-start; flex-direction: column; padding-top: var(--s-2); padding-bottom: var(--s-2); }
   .replay-runs-pagination-controls { width: 100%; justify-content: space-between; }
 }
+
+.replay-delete-dialog {
+  max-width: 440px;
+  padding: 24px;
+  border: 1px solid #c9cdd2;
+  border-radius: 8px;
+  color: #303438;
+  background: #fff;
+  box-shadow: 0 8px 32px #0003;
+}
+.replay-delete-dialog::backdrop { background: #0006; }
+.replay-delete-dialog h2 { margin: 0 0 16px; font-size: 20px; }
+.replay-delete-dialog p { line-height: 1.5; }
+.replay-delete-dialog form { display: flex; justify-content: flex-end; gap: 12px; margin-top: 24px; }
+.replay-delete-dialog button { padding: 8px 24px; border: 1px solid #c9cdd2; border-radius: 4px; background: #fff; cursor: pointer; font: inherit; }
+.replay-delete-dialog button[value="delete"] { background: #b3261e; color: #fff; border-color: #b3261e; }

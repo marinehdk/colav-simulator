@@ -5,7 +5,7 @@ the standard library and :mod:`colav_simulator.decision_replay.bundle` (which
 itself is stdlib-only): the replay reader must never import the simulator,
 planner, tracker, or evaluator runtime, so "no re-execution" is structural.
 
-Everything here is read-only: Run identity addressing, path confinement under
+Evidence reads never execute simulation. Run identity addressing, path confinement under
 the configured runs root, truthful evidence classification
 (CAPTURING/READY/REDUCED/INCOMPLETE/UNAVAILABLE with typed reasons), run
 discovery over ``runs/*/manifest.json``, and LRU retention pruning of
@@ -21,6 +21,7 @@ import logging
 import math
 import os
 import shutil
+import threading
 import uuid
 import zlib
 from collections.abc import Callable
@@ -250,10 +251,11 @@ def _iter_frames(path: Path) -> list[dict[str, Any]]:
 
 
 class RunReplayStore:
-    """Read-only classification and description of recorded Run evidence."""
+    """Recorded Run evidence discovery, inspection and explicit deletion."""
 
     def __init__(self, root: Path) -> None:
         self.root = Path(root).resolve()
+        self._classification_lock = threading.RLock()
         self._integrity_cache: dict[tuple[str, int, int], dict[str, Any]] = {}
         # Derived, stat-keyed reader cache: keeps TraceBundle instances (and
         # their decoded buffers) alive across requests so random seeks do not
@@ -282,6 +284,22 @@ class RunReplayStore:
         if not (candidate / "manifest.json").is_file():
             raise RunReplayError(404, ReplayEvidenceReason.RUN_NOT_FOUND, f"run {normalized} not found")
         return candidate
+
+    def delete_run(self, run_id: str, *, active_run_id: str | None = None, capture_active: bool = False) -> None:
+        """Remove one confined recorded run and invalidate derived reader caches."""
+        run_dir = self.run_dir(run_id)
+        if active_run_id == run_dir.name:
+            raise RunReplayError(409, "RUN_ACTIVE", "Cannot delete the current session's run")
+        if capture_active:
+            raise RunReplayError(409, "TRACE_CAPTURING", "Cannot delete a run while capture is active")
+        if (self.root / self.validate_run_id(run_id)).is_symlink():
+            raise RunReplayError(404, "RUN_ID_INVALID", "Cannot delete a symlinked run")
+        try:
+            shutil.rmtree(run_dir)
+        except OSError as exc:
+            raise RunReplayError(500, "RUN_DELETE_FAILED", "Could not delete recorded run files") from exc
+        self._bundles.pop(run_dir.name, None)
+        self._integrity_cache = {key: value for key, value in self._integrity_cache.items() if key[0] != run_dir.name}
 
     # -- seekable evidence (ticket #71) --------------------------------------
 
@@ -406,6 +424,7 @@ class RunReplayStore:
         if after is not None and float(after.get("sim_time", 0.0)) <= to_s:
             after = None
         return {
+            "history": bundle.position_history(int((before or (frames[0] if frames else after) or {}).get("sequence", 1))),
             "schema_version": WINDOW_SCHEMA,
             "run_id": run_dir.name,
             "requested": {"from_s": from_s, "to_s": to_s},
@@ -622,6 +641,11 @@ class RunReplayStore:
     # -- classification -----------------------------------------------------
 
     def classify(self, run_dir: Path, *, verify_integrity: bool = True) -> dict[str, Any]:
+        """Serialize validation so concurrent open requests reuse the validated bundle."""
+        with self._classification_lock:
+            return self._classify(run_dir, verify_integrity=verify_integrity)
+
+    def _classify(self, run_dir: Path, *, verify_integrity: bool) -> dict[str, Any]:
         """Truthful replay evidence state for one run directory."""
         decision = run_dir / "decision"
         gz = decision / "frames.jsonl.gz"
@@ -765,7 +789,11 @@ class RunReplayStore:
         cached = self._integrity_cache.get(cache_key)
         if cached is None:
             try:
-                digest = hashlib.sha256(gzip.decompress(gz.read_bytes())).hexdigest()
+                hasher = hashlib.sha256()
+                with gzip.open(gz, "rb") as stream:
+                    for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+                        hasher.update(chunk)
+                digest = hasher.hexdigest()
             except (OSError, EOFError, zlib.error):
                 return False
             cached = {"digest": digest}
@@ -870,11 +898,48 @@ class RunReplayStore:
 
     # -- discovery -----------------------------------------------------------
 
-    def list_runs(self, *, replayable: bool | None = None, limit: int = 50) -> list[dict[str, Any]]:
+    def _evaluation_outcome(self, run_dir: Path) -> str | None:
+        """Read the persisted evaluator verdict without running an evaluator."""
+        evaluation = self._read_json(run_dir / "evaluation.json")
+        if not isinstance(evaluation, dict) or evaluation.get("evaluation_status") != "COMPLETE":
+            return None
+        gate = evaluation.get("hard_gate")
+        outcome = gate.get("outcome") if isinstance(gate, dict) else None
+        return outcome if outcome in ("PASS", "FAIL") else None
+
+    def _catalog_summary(self, run_dir: Path) -> dict[str, Any]:
+        """Metadata only: never claim validated evidence or decompress a trace."""
+        decision = run_dir / "decision"
+        index = self._read_json(decision / "index.json") or {}
+        if not isinstance(index, dict):
+            index = {}
+        has_frames = any(
+            path.is_file() and path.stat().st_size > 0
+            for path in (decision / "frames.jsonl", decision / "frames.jsonl.gz")
+        )
+        count = index.get("tick_count")
+        count = count if isinstance(count, int) and not isinstance(count, bool) and count >= 0 else None
+        # Empty finalized gzip files still have a nonzero byte size.
+        if count == 0:
+            has_frames = False
+        return {
+            "state": "INCOMPLETE" if not index or index.get("truncated") is True else "UNVERIFIED",
+            "evidence_level": "full" if has_frames else None,
+            "reason": "VERIFICATION_ON_OPEN",
+            "frame_count": count,
+            "has_frames": has_frames,
+            "trusted_frame_count": 0,
+            "t_start": index.get("t_start"),
+            "t_end": index.get("t_end"),
+            "trusted_t_end": None,
+        }
+
+    def list_runs(self, *, replayable: bool | None = None, limit: int = 50, summary: bool = False) -> list[dict[str, Any]]:
         limit = max(1, min(int(limit), MAX_LIST_RUNS))
         entries: list[dict[str, Any]] = []
         if not self.root.is_dir():
             return []
+        candidates = []
         scanned = 0
         for child in self.root.iterdir():
             scanned += 1
@@ -884,16 +949,23 @@ class RunReplayStore:
             if not child.is_dir() or not manifest_path.is_file():
                 continue
             manifest = self._read_json(manifest_path) or {}
+            candidates.append((child, manifest))
+        candidates.sort(key=lambda item: item[1].get("created_at_utc") or "", reverse=True)
+        if not replayable:
+            candidates = candidates[:limit]
+        for child, manifest in candidates:
             spec = manifest.get("spec") or {}
             # Run discovery is itself a user-visible trust claim: never show a
             # stale digest-backed READY row that the descriptor would reject.
-            facts = self.classify(child, verify_integrity=True)
+            facts = self._catalog_summary(child) if summary else self.classify(child, verify_integrity=True)
             trusted_prefix = self._trusted_prefix_is_seekable(facts)
             entries.append(
                 {
                     "run_id": child.name,
                     "created_at_utc": manifest.get("created_at_utc"),
                     "scenario_id": spec.get("scenario_id"),
+                    "ownship_gnc_stack_id": spec.get("ownship_gnc_stack_id"),
+                    "evaluation_outcome": self._evaluation_outcome(child),
                     "requested_algorithm": manifest.get("requested_algorithm"),
                     "executed_algorithm": manifest.get("executed_algorithm"),
                     "executed_tracker": manifest.get("executed_tracker"),
@@ -903,6 +975,7 @@ class RunReplayStore:
                         "evidence_level": facts["evidence_level"],
                         "reason": facts["reason"],
                         "frame_count": facts["frame_count"],
+                        **({"has_frames": facts["has_frames"]} if summary else {}),
                         "trusted_frame_count": facts.get("trusted_frame_count", 0),
                         "t_start": facts["t_start"],
                         "t_end": facts["t_end"],
@@ -1004,13 +1077,14 @@ def project_window_threat_documents(document: dict[str, Any]) -> dict[str, Any]:
     return document
 
 
-def build_replay_router(
+def build_replay_router(  # noqa: C901 - register the bounded replay read and deletion routes
     store: RunReplayStore,
     *,
     active_replay_status: Callable[[str], dict[str, Any] | None] | None = None,
+    active_run_id: Callable[[], str | None] = lambda: None,
     default_limit: int = 50,
 ) -> APIRouter:
-    """Read-only Run Replay routes; replay state is never mutated over HTTP."""
+    """Recorded replay reads and explicit deletion, with active-run protection."""
 
     @contextmanager
     def typed_errors():
@@ -1040,9 +1114,24 @@ def build_replay_router(
     @router.get("/runs")
     def list_runs(
         replayable: bool | None = Query(default=None),
+        summary: bool = Query(default=False),
         limit: int = Query(default=max(1, min(default_limit, MAX_LIST_RUNS)), ge=1, le=MAX_LIST_RUNS),
     ) -> list[dict[str, Any]]:
-        return store.list_runs(replayable=replayable, limit=limit)
+        return store.list_runs(replayable=replayable, limit=limit, summary=summary and not replayable)
+
+    @router.delete("/runs/{run_id}")
+    def delete_run(run_id: str) -> dict[str, str]:
+        with typed_errors():
+            normalized = store.validate_run_id(run_id)
+            # Fail closed if the live-state hook fails; read-only routes may
+            # tolerate that failure, but destructive operations must not.
+            active = active_replay_status(normalized) if active_replay_status is not None else None
+            store.delete_run(
+                normalized,
+                active_run_id=active_run_id(),
+                capture_active=(active or {}).get("state") == ReplayEvidenceState.CAPTURING.value,
+            )
+            return {"run_id": normalized, "status": "deleted"}
 
     @router.get("/runs/{run_id}/replay")
     def descriptor(run_id: str) -> dict[str, Any]:

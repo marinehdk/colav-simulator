@@ -11,6 +11,8 @@ import gzip
 import hashlib
 import json
 import logging
+import time
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -726,3 +728,119 @@ def test_api_rejects_traversal_and_unknown_ids(api_client: TestClient) -> None:
     malformed = api_client.get("/api/runs/not-a-uuid/replay")
     assert malformed.status_code == 404
     assert malformed.json()["detail"]["reason"] == "RUN_ID_INVALID"
+
+
+def test_delete_run_removes_artifacts_and_catalog_entry(store):
+    run = make_run(store.root, RUN_READY, created_at="2026-09-17T00:00:00Z")
+    app = FastAPI()
+    app.include_router(build_replay_router(store))
+    client = TestClient(app)
+    assert client.delete(f"/api/runs/{RUN_READY}").status_code == 200
+    assert not run.exists()
+    assert client.get("/api/runs").json() == []
+    assert client.get(f"/api/runs/{RUN_READY}/replay").status_code == 404
+    assert client.delete(f"/api/runs/{RUN_READY}").status_code == 404
+
+
+def test_delete_refuses_active_run_and_invalid_identity(store):
+    run = make_run(store.root, RUN_READY, created_at="2026-09-17T00:00:00Z")
+    app = FastAPI()
+    app.include_router(build_replay_router(store, active_run_id=lambda: RUN_READY))
+    client = TestClient(app)
+    assert client.delete(f"/api/runs/{RUN_READY}").status_code == 409
+    assert client.delete("/api/runs/not-a-uuid").status_code == 404
+    assert run.exists()
+
+
+def test_catalog_exposes_recorded_gnc_identity(store):
+    run = make_run(store.root, RUN_READY, created_at="2026-09-17T00:00:00Z")
+    manifest = json.loads((run / "manifest.json").read_text())
+    manifest["spec"]["ownship_gnc_stack_id"] = "recorded-stack"
+    (run / "manifest.json").write_text(json.dumps(manifest))
+    assert store.list_runs()[0]["ownship_gnc_stack_id"] == "recorded-stack"
+
+
+def test_delete_refuses_capture_and_symlink(store, tmp_path):
+    run = make_run(store.root, RUN_READY, created_at="2026-09-17T00:00:00Z")
+    app = FastAPI()
+    app.include_router(build_replay_router(store, active_replay_status=lambda _: {"state": "CAPTURING"}))
+    assert TestClient(app).delete(f"/api/runs/{RUN_READY}").status_code == 409
+    assert run.exists()
+    (store.root / RUN_TAMPER).symlink_to(run, target_is_directory=True)
+    with pytest.raises(RunReplayError):
+        store.delete_run(RUN_TAMPER)
+    outside = make_run(tmp_path / "outside", RUN_UNKNOWN, created_at="2026-09-17T00:00:00Z")
+    (store.root / RUN_UNKNOWN).symlink_to(outside, target_is_directory=True)
+    with pytest.raises(RunReplayError):
+        store.delete_run(RUN_UNKNOWN)
+    assert outside.exists()
+
+
+def test_summary_catalog_never_opens_frame_payloads(store, monkeypatch):
+    run = make_run(store.root, RUN_READY, created_at="2026-09-17T00:00:00Z")
+    def unexpected(*args, **kwargs):
+        raise AssertionError("catalog must not decompress or validate full traces")
+    monkeypatch.setattr(store, "classify", unexpected)
+    app = FastAPI()
+    app.include_router(build_replay_router(store))
+    response = TestClient(app).get('/api/runs?summary=true')
+    assert response.status_code == 200
+    entry = response.json()[0]
+    assert entry['replay']['state'] == 'UNVERIFIED'
+    assert entry['replay']['frame_count'] == 3
+    assert entry['capabilities']['seekable'] is False
+    assert run.exists()
+
+
+def test_summary_still_requires_strict_verification_on_open(store):
+    run = make_run(store.root, RUN_READY, created_at="2026-09-17T00:00:00Z")
+    (run / 'decision' / 'frames.jsonl.gz').write_bytes(gzip.compress(b'{}\n'))
+    app = FastAPI()
+    app.include_router(build_replay_router(store))
+    client = TestClient(app)
+    assert client.get('/api/runs?summary=true').json()[0]['replay']['state'] == 'UNVERIFIED'
+    evidence = client.get(f'/api/runs/{RUN_READY}/replay').json()
+    assert evidence['replay']['reason'] == 'TRACE_DIGEST_MISMATCH'
+    assert client.get(f'/api/runs/{RUN_READY}/replay/window?from=0&to=1').status_code == 409
+
+
+def test_summary_preserves_unfinalized_runs_without_scanning(store, monkeypatch):
+    run = make_run(store.root, RUN_READY, created_at="2026-09-17T00:00:00Z", finalized=False)
+    monkeypatch.setattr(store, '_bundle', lambda _: pytest.fail('must not parse frames'))
+    entry = store.list_runs(summary=True)[0]
+    assert entry['replay']['has_frames'] is True
+    assert entry['replay']['frame_count'] is None
+    assert run.exists()
+
+
+def test_concurrent_open_requests_share_frame_validation(store, monkeypatch):
+    make_run(store.root, RUN_READY, created_at="2026-09-17T00:00:00Z")
+    original = bundle_module.TraceBundle.validate
+    scans = []
+
+    def counted(bundle, **kwargs) -> dict[str, Any]:
+        if bundle._validation is None:
+            scans.append(1)
+            time.sleep(0.02)
+        return original(bundle, **kwargs)
+
+    monkeypatch.setattr(bundle_module.TraceBundle, "validate", counted)
+    with ThreadPoolExecutor(max_workers=3) as pool:
+        results = list(pool.map(lambda _: store.descriptor(RUN_READY), range(3)))
+    assert len(scans) == 1
+    assert all(result['replay']['state'] == 'READY' for result in results)
+
+
+@pytest.mark.parametrize('outcome', ['PASS', 'FAIL'])
+def test_catalog_projects_saved_evaluator_gate(store, outcome):
+    run = make_run(store.root, RUN_READY, created_at="2026-09-17T00:00:00Z")
+    evaluation = {'evaluation_status': 'COMPLETE', 'hard_gate': {'outcome': outcome}}
+    (run / 'evaluation.json').write_text(json.dumps(evaluation))
+    assert store.list_runs(summary=True)[0]['evaluation_outcome'] == outcome
+
+
+def test_catalog_does_not_invent_verdict_from_finished_run_or_partial_evaluation(store):
+    run = make_run(store.root, RUN_READY, created_at="2026-09-17T00:00:00Z")
+    assert store.list_runs(summary=True)[0]['evaluation_outcome'] is None
+    (run / 'evaluation.json').write_text(json.dumps({'evaluation_status': 'PARTIAL', 'hard_gate': {'outcome': 'PASS'}}))
+    assert store.list_runs(summary=True)[0]['evaluation_outcome'] is None

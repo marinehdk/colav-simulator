@@ -1649,11 +1649,15 @@ async def lifespan(_: FastAPI):
 manager = WebSessionManager()
 app = FastAPI(title="COLAV Simulator Research Control", version="1.0", lifespan=lifespan)
 app.include_router(historical_api_router)
-# Read-only Sealed Run Replay discovery + descriptor (ticket #70). The store
+# Sealed Run Replay discovery, inspection and deletion. The store
 # root resolves exactly like the writer (project-root anchored runs/), so
 # discovery can never diverge from where runs are written.
 replay_store = RunReplayStore(runs_root())
-app.include_router(build_replay_router(replay_store, active_replay_status=manager.replay_status_for))
+app.include_router(
+    build_replay_router(
+        replay_store, active_replay_status=manager.replay_status_for, active_run_id=lambda: manager.session_id
+    )
+)
 if GUI_DIR.exists():
     app.mount("/static", StaticFiles(directory=str(GUI_DIR)), name="static")
 
