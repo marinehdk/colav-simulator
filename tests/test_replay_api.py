@@ -726,3 +726,49 @@ def test_api_rejects_traversal_and_unknown_ids(api_client: TestClient) -> None:
     malformed = api_client.get("/api/runs/not-a-uuid/replay")
     assert malformed.status_code == 404
     assert malformed.json()["detail"]["reason"] == "RUN_ID_INVALID"
+
+
+def test_delete_run_removes_artifacts_and_catalog_entry(store):
+    run = make_run(store.root, RUN_READY, created_at="2026-09-17T00:00:00Z")
+    app = FastAPI()
+    app.include_router(build_replay_router(store))
+    client = TestClient(app)
+    assert client.delete(f"/api/runs/{RUN_READY}").status_code == 200
+    assert not run.exists()
+    assert client.get("/api/runs").json() == []
+    assert client.get(f"/api/runs/{RUN_READY}/replay").status_code == 404
+    assert client.delete(f"/api/runs/{RUN_READY}").status_code == 404
+
+
+def test_delete_refuses_active_run_and_invalid_identity(store):
+    run = make_run(store.root, RUN_READY, created_at="2026-09-17T00:00:00Z")
+    app = FastAPI()
+    app.include_router(build_replay_router(store, active_run_id=lambda: RUN_READY))
+    client = TestClient(app)
+    assert client.delete(f"/api/runs/{RUN_READY}").status_code == 409
+    assert client.delete("/api/runs/not-a-uuid").status_code == 404
+    assert run.exists()
+
+
+def test_catalog_exposes_recorded_gnc_identity(store):
+    run = make_run(store.root, RUN_READY, created_at="2026-09-17T00:00:00Z")
+    manifest = json.loads((run / "manifest.json").read_text())
+    manifest["spec"]["ownship_gnc_stack_id"] = "recorded-stack"
+    (run / "manifest.json").write_text(json.dumps(manifest))
+    assert store.list_runs()[0]["ownship_gnc_stack_id"] == "recorded-stack"
+
+
+def test_delete_refuses_capture_and_symlink(store, tmp_path):
+    run = make_run(store.root, RUN_READY, created_at="2026-09-17T00:00:00Z")
+    app = FastAPI()
+    app.include_router(build_replay_router(store, active_replay_status=lambda _: {"state": "CAPTURING"}))
+    assert TestClient(app).delete(f"/api/runs/{RUN_READY}").status_code == 409
+    assert run.exists()
+    (store.root / RUN_TAMPER).symlink_to(run, target_is_directory=True)
+    with pytest.raises(RunReplayError):
+        store.delete_run(RUN_TAMPER)
+    outside = make_run(tmp_path / "outside", RUN_UNKNOWN, created_at="2026-09-17T00:00:00Z")
+    (store.root / RUN_UNKNOWN).symlink_to(outside, target_is_directory=True)
+    with pytest.raises(RunReplayError):
+        store.delete_run(RUN_UNKNOWN)
+    assert outside.exists()

@@ -1,3 +1,4 @@
+import { SCENARIO_LABELS, ALGORITHM_LABELS } from './config-labels.js';
 import { presetBinding, presetStackId } from './gnc-presets.js?v=20260914-gnc-replay-v3';
 import { createValidationAssembly } from './validation-assembly.js?v=20260914-gnc-replay-v3';
 import { activeSessionRuntime, telemetryProjection } from './session-runtime-instance.js?v=20260908-buffered-motion-v2';
@@ -105,17 +106,6 @@ function restorePersistedWorkface() {
   switchWorkface(workface);
 }
 
-const SCENARIO_LABELS = {
-  head_on: 'Head-on',
-  overtaking: 'Overtaking',
-  overtaken: 'Overtaken',
-  crossing_give_way: 'Give-way',
-  crossing_stand_on: 'Stand-on',
-  paper_ccta2023_multiship: 'Three-Ship',
-  romsdal_busy_water_16: 'Multiship-10 Fixed',
-  paper_ccta2023_head_on: 'Head-on (Paper)',
-  hais_romsdal_20260701_120007_121007: 'AIS Historical',
-};
 
 const RULE_LABELS = {
   rule13: 'Rule 13 Overtaking',
@@ -124,11 +114,6 @@ const RULE_LABELS = {
   multiship: 'Multiship',
 };
 
-const ALGORITHM_LABELS = {
-  mid_mpc_ipopt: 'Mid-MPC',
-  vo: 'VO',
-  potocnik_colreg_fan_mpc: 'Fan-MPC',
-};
 const TRACKER_LABELS = {
   god: 'Truth',
 };

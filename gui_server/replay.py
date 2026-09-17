@@ -5,7 +5,7 @@ the standard library and :mod:`colav_simulator.decision_replay.bundle` (which
 itself is stdlib-only): the replay reader must never import the simulator,
 planner, tracker, or evaluator runtime, so "no re-execution" is structural.
 
-Everything here is read-only: Run identity addressing, path confinement under
+Evidence reads never execute simulation. Run identity addressing, path confinement under
 the configured runs root, truthful evidence classification
 (CAPTURING/READY/REDUCED/INCOMPLETE/UNAVAILABLE with typed reasons), run
 discovery over ``runs/*/manifest.json``, and LRU retention pruning of
@@ -250,7 +250,7 @@ def _iter_frames(path: Path) -> list[dict[str, Any]]:
 
 
 class RunReplayStore:
-    """Read-only classification and description of recorded Run evidence."""
+    """Recorded Run evidence discovery, inspection and explicit deletion."""
 
     def __init__(self, root: Path) -> None:
         self.root = Path(root).resolve()
@@ -282,6 +282,22 @@ class RunReplayStore:
         if not (candidate / "manifest.json").is_file():
             raise RunReplayError(404, ReplayEvidenceReason.RUN_NOT_FOUND, f"run {normalized} not found")
         return candidate
+
+    def delete_run(self, run_id: str, *, active_run_id: str | None = None, capture_active: bool = False) -> None:
+        """Remove one confined recorded run and invalidate derived reader caches."""
+        run_dir = self.run_dir(run_id)
+        if active_run_id == run_dir.name:
+            raise RunReplayError(409, "RUN_ACTIVE", "Cannot delete the current session's run")
+        if capture_active:
+            raise RunReplayError(409, "TRACE_CAPTURING", "Cannot delete a run while capture is active")
+        if (self.root / self.validate_run_id(run_id)).is_symlink():
+            raise RunReplayError(404, "RUN_ID_INVALID", "Cannot delete a symlinked run")
+        try:
+            shutil.rmtree(run_dir)
+        except OSError as exc:
+            raise RunReplayError(500, "RUN_DELETE_FAILED", "Could not delete recorded run files") from exc
+        self._bundles.pop(run_dir.name, None)
+        self._integrity_cache = {key: value for key, value in self._integrity_cache.items() if key[0] != run_dir.name}
 
     # -- seekable evidence (ticket #71) --------------------------------------
 
@@ -894,6 +910,7 @@ class RunReplayStore:
                     "run_id": child.name,
                     "created_at_utc": manifest.get("created_at_utc"),
                     "scenario_id": spec.get("scenario_id"),
+                    "ownship_gnc_stack_id": spec.get("ownship_gnc_stack_id"),
                     "requested_algorithm": manifest.get("requested_algorithm"),
                     "executed_algorithm": manifest.get("executed_algorithm"),
                     "executed_tracker": manifest.get("executed_tracker"),
@@ -1004,13 +1021,14 @@ def project_window_threat_documents(document: dict[str, Any]) -> dict[str, Any]:
     return document
 
 
-def build_replay_router(
+def build_replay_router(  # noqa: C901 - register the bounded replay read and deletion routes
     store: RunReplayStore,
     *,
     active_replay_status: Callable[[str], dict[str, Any] | None] | None = None,
+    active_run_id: Callable[[], str | None] = lambda: None,
     default_limit: int = 50,
 ) -> APIRouter:
-    """Read-only Run Replay routes; replay state is never mutated over HTTP."""
+    """Recorded replay reads and explicit deletion, with active-run protection."""
 
     @contextmanager
     def typed_errors():
@@ -1043,6 +1061,20 @@ def build_replay_router(
         limit: int = Query(default=max(1, min(default_limit, MAX_LIST_RUNS)), ge=1, le=MAX_LIST_RUNS),
     ) -> list[dict[str, Any]]:
         return store.list_runs(replayable=replayable, limit=limit)
+
+    @router.delete("/runs/{run_id}")
+    def delete_run(run_id: str) -> dict[str, str]:
+        with typed_errors():
+            normalized = store.validate_run_id(run_id)
+            # Fail closed if the live-state hook fails; read-only routes may
+            # tolerate that failure, but destructive operations must not.
+            active = active_replay_status(normalized) if active_replay_status is not None else None
+            store.delete_run(
+                normalized,
+                active_run_id=active_run_id(),
+                capture_active=(active or {}).get("state") == ReplayEvidenceState.CAPTURING.value,
+            )
+            return {"run_id": normalized, "status": "deleted"}
 
     @router.get("/runs/{run_id}/replay")
     def descriptor(run_id: str) -> dict[str, Any]:

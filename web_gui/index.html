@@ -6,7 +6,7 @@
   <title>综合避碰仿真器</title>
   <meta name="description" content="NTNU autonomous ship COLAV & MPC route planning algorithm verification console with real-time COLREGs risk assessment." />
   <link id="openbridgeStyles" rel="stylesheet" href="/static/vendor/openbridge/openbridge.css?v=20260827-vessel-placard-v1" onerror="this.dataset.failed='true'" />
-  <link rel="stylesheet" href="/static/style.css?v=20260916-replay-layout-v4" />
+  <link rel="stylesheet" href="/static/style.css?v=20260917-replay-ui-v5" />
 </head>
 <body>
   <div class="app-container">
@@ -778,6 +778,14 @@
           </div>
         </footer>
       </div>
+      <dialog id="replayDeleteDialog" class="replay-delete-dialog" aria-labelledby="replayDeleteTitle" aria-describedby="replayDeleteMessage">
+        <h2 id="replayDeleteTitle">Delete replay?</h2>
+        <p id="replayDeleteMessage"></p>
+        <form method="dialog">
+          <button value="cancel" autofocus>Cancel</button>
+          <button value="delete">Delete</button>
+        </form>
+      </dialog>
       <section class="replay-viewer" id="evaluationReplayPanel" aria-label="Sealed Run Replay viewer" hidden>
         <div class="replay-viewer-main">
           <div class="replay-canvas-wrapper" id="replayCanvasWrapper">

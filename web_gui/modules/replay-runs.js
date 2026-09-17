@@ -1,12 +1,18 @@
-/**
- * Evaluation > Replay run catalog (ticket #70).
- *
- * Minimal historical-inspection state panel: lists recorded Runs with their
- * backend-owned replay evidence state. No chart rendering, no seek/play —
- * those arrive with the replay timeline tickets. This module is read-only:
- * it only issues GET requests against /api/runs and never touches the
- * Active Session.
- */
+/** Replay catalog and recorded-run deletion; never changes the Active Session. */
+import { SCENARIO_LABELS, ALGORITHM_LABELS } from './config-labels.js';
+import { presetBinding } from './gnc-presets.js?v=20260914-gnc-replay-v3';
+
+const GNC_LABELS = {
+  original_gnc: 'Authoritative GNC', full: 'Full Stack',
+  without_guidance: 'Without Guidance', ideal: 'Ideal Actuation', legacy: 'Legacy',
+};
+const replayClients = new WeakMap();
+
+function gncLabel(stackId, catalog) {
+  if (!stackId || stackId === 'legacy_without_modules') return 'Legacy';
+  const binding = presetBinding(catalog, stackId);
+  return GNC_LABELS[binding?.preset.id] ?? 'Unknown GNC';
+}
 
 const REPLAY_STATE_LABELS = {
   READY: 'COMPLETE',
@@ -96,7 +102,7 @@ export function replayStateLabel(entry) {
   return REPLAY_STATE_LABELS[state] ?? 'INCOMPLETE';
 }
 
-export function projectReplayRunRows(entries) {
+export function projectReplayRunRows(entries, gncCatalog = null) {
   if (!Array.isArray(entries)) return [];
   return entries
     .filter(entry => entry && typeof entry === 'object' && typeof entry.run_id === 'string' && entry.run_id)
@@ -105,9 +111,9 @@ export function projectReplayRunRows(entries) {
       const frameCount = Number(replay.frame_count);
       return {
         runId: entry.run_id,
-        scenario: entry.scenario_id ?? '—',
-        algorithm: entry.executed_algorithm ?? '—',
-        tracker: entry.executed_tracker ?? '—',
+        scenario: SCENARIO_LABELS[entry.scenario_id] ?? entry.scenario_name ?? 'Unknown scenario',
+        algorithm: ALGORITHM_LABELS[entry.executed_algorithm] ?? (entry.executed_algorithm === 'historical_replay' ? 'Historical Replay' : 'Unknown algorithm'),
+        gnc: gncLabel(entry.ownship_gnc_stack_id, gncCatalog),
         createdAt: formatCreatedAt(entry.created_at_utc),
         executionState: entry.execution_state ?? '—',
         replayState: String(replay.state ?? 'UNAVAILABLE').toUpperCase(),
@@ -135,7 +141,7 @@ function projectTableRows(rows) {
     run: regularCell(row.runId.slice(0, 8)),
     scenario: regularCell(row.scenario),
     algorithm: regularCell(row.algorithm),
-    tracker: regularCell(row.tracker),
+    gnc: regularCell(row.gnc),
     frames: regularCell(row.frameCount === null ? '—' : row.frameCount),
     simTime: regularCell(
       row.tEnd === null ? '—' : Number(row.tEnd).toFixed(1),
@@ -156,10 +162,15 @@ function createReplayActionCell(documentRef, rowId) {
     button.setAttribute('aria-label', `${label} replay ${rowId.slice(0, 8)}`);
     button.style.cssText = 'flex:1 1 0;min-width:0;width:100%;';
     button.textContent = label;
-    button.addEventListener('click', event => {
+    button.addEventListener('click', async event => {
       event.preventDefault();
       event.stopPropagation();
       if (action === 'open' && replayRunOpener !== null) replayRunOpener(rowId);
+      if (action === 'delete') {
+        button.disabled = true;
+        try { await replayClients.get(documentRef)?.remove(rowId); }
+        finally { button.disabled = false; }
+      }
     });
     container.append(button);
   }
@@ -171,7 +182,7 @@ function createReplayTableColumns(documentRef) {
     { key: 'run', label: 'Run' },
     { key: 'scenario', label: 'Scenario' },
     { key: 'algorithm', label: 'Algorithm' },
-    { key: 'tracker', label: 'Tracker' },
+    { key: 'gnc', label: 'GNC' },
     { key: 'frames', label: 'Frames' },
     { key: 'simTime', label: 'Sim time (s)' },
     { key: 'replayEvidence', label: 'Replay Status' },
@@ -203,23 +214,62 @@ export function renderReplayRuns(documentRef, rows) {
   renderPagination(documentRef, state);
 }
 
-export function createReplayRunsClient({ documentRef = globalThis.document, fetchRef = globalThis.fetch } = {}) {
+function confirmReplayDeletion(documentRef, message) {
+  const dialog = documentRef.getElementById('replayDeleteDialog');
+  if (!dialog || dialog.open) return Promise.resolve(false);
+  documentRef.getElementById('replayDeleteMessage').textContent = message;
+  return new Promise(resolve => {
+    dialog.returnValue = 'cancel';
+    dialog.addEventListener('close', () => resolve(dialog.returnValue === 'delete'), { once: true });
+    dialog.showModal();
+  });
+}
+
+export function createReplayRunsClient({ documentRef = globalThis.document, fetchRef = globalThis.fetch, confirmRef = message => confirmReplayDeletion(documentRef, message) } = {}) {
+  const deleting = new Set();
+  let gncCatalog = null;
   async function refresh() {
     const status = documentRef.getElementById('replayRunsStatus');
     try {
       const response = await fetchRef('/api/runs?limit=50');
       if (!response.ok) throw new Error(`status ${response.status}`);
       const entries = await response.json();
-      renderReplayRuns(documentRef, projectReplayRunRows(entries));
+      if (!gncCatalog && entries.some(entry => entry.ownship_gnc_stack_id)) {
+        try {
+          const catalogResponse = await fetchRef('/api/gnc/stacks');
+          if (catalogResponse.ok) gncCatalog = await catalogResponse.json();
+        } catch { /* Keep recorded rows visible even when labels are unavailable. */ }
+      }
+      renderReplayRuns(documentRef, projectReplayRunRows(entries, gncCatalog));
     } catch {
       renderReplayRuns(documentRef, []);
       if (status) status.textContent = 'UNAVAILABLE';
     }
   }
 
+  async function remove(runId) {
+    if (deleting.has(runId)) return;
+    deleting.add(runId);
+    try {
+      if (!await confirmRef(`Delete replay ${runId.slice(0, 8)} and its recorded run files? This cannot be undone.`)) return;
+      const response = await fetchRef(`/api/runs/${encodeURIComponent(runId)}`, { method: 'DELETE' });
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body.detail?.message || `status ${response.status}`);
+      }
+      await refresh();
+    } catch (error) {
+      const status = documentRef.getElementById('replayRunsStatus');
+      if (status) status.textContent = `DELETE FAILED: ${error.message}`;
+    } finally {
+      deleting.delete(runId);
+    }
+  }
+
+  replayClients.set(documentRef, { remove });
   bindPaginationControls(documentRef);
   documentRef.getElementById('replayRunsRefreshBtn')?.addEventListener('click', refresh);
-  return { refresh };
+  return { refresh, remove };
 }
 
 if (typeof document !== 'undefined') {

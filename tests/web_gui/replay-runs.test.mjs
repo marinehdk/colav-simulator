@@ -88,9 +88,9 @@ test('run rows carry only backend facts and reject malformed payloads', () => {
   assert.equal(rows.length, 1);
   assert.deepEqual(rows[0], {
     runId: '11111111-1111-4111-8111-111111111111',
-    scenario: 'head_on',
-    algorithm: 'mid_mpc_ipopt',
-    tracker: 'god',
+    scenario: 'Head-on',
+    algorithm: 'Mid-MPC',
+    gnc: 'Legacy',
     createdAt: '2026-09-11 10:00:00',
     executionState: 'FINISHED',
     replayState: 'READY',
@@ -123,8 +123,8 @@ test('render writes OpenBridge table rows with textual state and action cells', 
   assert.equal(table.columns.length, 9);
   const row = table.data[0];
   const text = Object.values(row).map(value => typeof value === 'object' ? value.text ?? value.type : value).join('|');
-  assert.match(text, /head_on/);
-  assert.match(text, /mid_mpc_ipopt/);
+  assert.match(text, /Head-on/);
+  assert.match(text, /Mid-MPC/);
   assert.match(text, /601/);
   assert.match(text, /COMPLETE/);
   assert.equal(row.action.type, 'regular');
@@ -149,8 +149,8 @@ test('run rows offer an Open replay inspection action wired to the registered op
   setReplayRunOpener(null);
 });
 
-test('replay client reads the backend catalog with GET only and never touches session endpoints', () => {
-  assert.doesNotMatch(moduleSource, /method\s*:\s*['"](POST|PUT|PATCH|DELETE)['"]/);
+test('replay client never touches session endpoints', () => {
+  assert.doesNotMatch(moduleSource, /method\s*:\s*['"](POST|PUT|PATCH)['"]/);
   assert.doesNotMatch(moduleSource, /\/api\/sessions/);
   assert.match(moduleSource, /\/api\/runs/);
 });
@@ -219,4 +219,102 @@ test('replay pagination renders 10 rows by default and supports 20 and 50 row pa
   assert.equal(indicator.textContent, '1 / 1');
   assert.equal(previous.disabled, true);
   assert.equal(next.disabled, true);
+});
+
+test('Delete action calls DELETE then refreshes the catalog', async () => {
+  const documentRef = makeDocumentRef();
+  const requests = [];
+  let entries = [sampleEntry];
+  const client = createReplayRunsClient({ documentRef, confirmRef: () => true,
+    fetchRef: async (url, options = {}) => {
+      requests.push([url, options.method || 'GET']);
+      if (options.method === 'DELETE') entries = [];
+      return { ok: true, json: async () => entries };
+    },
+  });
+  await client.refresh();
+  const table = documentRef.getElementById('replayRunsTable');
+  const actions = table.columns.find(c => c.key === 'action').renderCell(null, null, sampleEntry.run_id);
+  await actions.children[1].listeners.click({ preventDefault() {}, stopPropagation() {} });
+  assert.deepEqual(requests.map(r => r[1]), ['GET', 'DELETE', 'GET']);
+  assert.equal(table.data.length, 0);
+});
+
+test('Replay uses Config scenario/algorithm names and all five GNC presets', () => {
+  const presets = [['original_gnc', 'Authoritative GNC'], ['full', 'Full Stack'], ['without_guidance', 'Without Guidance'], ['ideal', 'Ideal Actuation'], ['legacy', 'Legacy']];
+  const catalog = { product_presets: presets.map(([id]) => ({ id, variants: { off: `${id}-off`, on: `${id}-on` } })) };
+  for (const [id, label] of presets) {
+    for (const environment of ['off', 'on']) {
+      assert.equal(projectReplayRunRows([{ ...sampleEntry, ownship_gnc_stack_id: `${id}-${environment}` }], catalog)[0].gnc, label);
+    }
+  }
+  for (const [id, label] of [['vo', 'VO'], ['potocnik_colreg_fan_mpc', 'Fan-MPC'], ['mid_mpc_ipopt', 'Mid-MPC']]) {
+    assert.equal(projectReplayRunRows([{ ...sampleEntry, executed_algorithm: id }])[0].algorithm, label);
+  }
+  assert.equal(projectReplayRunRows([{ ...sampleEntry, scenario_id: 'paper_ccta2023_multiship' }])[0].scenario, 'Three-Ship');
+  assert.equal(projectReplayRunRows([{ ...sampleEntry, scenario_id: 'hais_romsdal_20260701_120007_121007' }])[0].scenario, 'AIS Historical');
+  assert.equal(projectReplayRunRows([{ ...sampleEntry, ownship_gnc_stack_id: 'unknown' }])[0].gnc, 'Unknown GNC');
+});
+
+test('Delete cancellation and API failure preserve rows and report the error', async () => {
+  for (const confirm of [false, true]) {
+    const documentRef = makeDocumentRef();
+    const requests = [];
+    const client = createReplayRunsClient({ documentRef, confirmRef: () => confirm,
+      fetchRef: async (url, options = {}) => {
+        requests.push(options.method || 'GET');
+        return options.method === 'DELETE'
+          ? { ok: false, status: 409, json: async () => ({ detail: { message: 'Cannot delete the current session' } }) }
+          : { ok: true, json: async () => [sampleEntry] };
+      },
+    });
+    await client.refresh();
+    await client.remove(sampleEntry.run_id);
+    assert.equal(documentRef.getElementById('replayRunsTable').data.length, 1);
+    assert.deepEqual(requests, confirm ? ['GET', 'DELETE'] : ['GET']);
+    if (confirm) assert.match(documentRef.getElementById('replayRunsStatus').textContent, /DELETE FAILED: Cannot delete/);
+  }
+});
+
+test('Delete ignores repeated clicks while a request is pending', async () => {
+  const documentRef = makeDocumentRef();
+  let resolveDelete;
+  let deletes = 0;
+  const client = createReplayRunsClient({ documentRef, confirmRef: () => true,
+    fetchRef: async (url, options = {}) => {
+      if (options.method === 'DELETE') {
+        deletes++;
+        await new Promise(resolve => { resolveDelete = resolve; });
+      }
+      return { ok: true, json: async () => [] };
+    },
+  });
+  const first = client.remove(sampleEntry.run_id);
+  await Promise.resolve();
+  await client.remove(sampleEntry.run_id);
+  assert.equal(deletes, 1);
+  resolveDelete();
+  await first;
+});
+
+test('Delete uses the page dialog and waits for its explicit result', async () => {
+  const documentRef = makeDocumentRef();
+  const dialog = documentRef.getElementById('replayDeleteDialog');
+  dialog.showModal = () => { dialog.open = true; };
+  const requests = [];
+  const client = createReplayRunsClient({ documentRef, fetchRef: async (url, options = {}) => {
+    requests.push(options.method || 'GET');
+    return { ok: true, json: async () => [] };
+  } });
+  for (const choice of ['cancel', 'delete']) {
+    const pending = client.remove(sampleEntry.run_id);
+    assert.equal(dialog.open, true);
+    assert.match(documentRef.getElementById('replayDeleteMessage').textContent, /11111111/);
+    assert.equal(requests.length, 0);
+    dialog.returnValue = choice;
+    dialog.open = false;
+    dialog.listeners.close();
+    await pending;
+  }
+  assert.deepEqual(requests, ['DELETE', 'GET']);
 });
