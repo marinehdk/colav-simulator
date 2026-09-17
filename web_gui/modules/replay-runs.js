@@ -10,6 +10,10 @@ const replayClients = new WeakMap();
 
 function gncLabel(stackId, catalog) {
   if (!stackId || stackId === 'legacy_without_modules') return 'Legacy';
+  // Recorded 2026-08-24 stacks predate the current 2026-09-14 catalog.
+  if (['original-gnc-20260824-v2-env-off', 'original-gnc-20260824-v2-env-on'].includes(stackId)) {
+    return 'Authoritative GNC';
+  }
   const binding = presetBinding(catalog, stackId);
   return GNC_LABELS[binding?.preset.id] ?? 'Unknown GNC';
 }
@@ -116,6 +120,7 @@ export function projectReplayRunRows(entries, gncCatalog = null) {
         scenario: SCENARIO_LABELS[entry.scenario_id] ?? entry.scenario_name ?? 'Unknown scenario',
         algorithm: ALGORITHM_LABELS[entry.executed_algorithm] ?? (entry.executed_algorithm === 'historical_replay' ? 'Historical Replay' : 'Unknown algorithm'),
         gnc: gncLabel(entry.ownship_gnc_stack_id, gncCatalog),
+        evaluation: ['PASS', 'FAIL'].includes(entry.evaluation_outcome) ? entry.evaluation_outcome : 'NOT EVALUATED',
         createdAt: formatCreatedAt(entry.created_at_utc),
         executionState: entry.execution_state ?? '—',
         replayState: String(replay.state ?? 'UNAVAILABLE').toUpperCase(),
@@ -143,6 +148,7 @@ function projectTableRows(rows) {
     scenario: regularCell(row.scenario),
     algorithm: regularCell(row.algorithm),
     gnc: regularCell(row.gnc),
+    evaluation: regularCell(row.evaluation),
     frames: regularCell(row.frameCount === null ? '—' : row.frameCount),
     simTime: regularCell(
       row.tEnd === null ? '—' : Number(row.tEnd).toFixed(1),
@@ -188,6 +194,13 @@ function createReplayTableColumns(documentRef) {
     { key: 'frames', label: 'Frames' },
     { key: 'simTime', label: 'Sim time (s)' },
     { key: 'replayEvidence', label: 'Replay Status' },
+    { key: 'evaluation', label: 'Evaluation', renderCell: value => {
+      const label = documentRef.createElement('span');
+      label.textContent = value.text;
+      label.style.cssText = 'display:block;width:100%;text-align:center;';
+      label.title = 'Recorded evaluator hard gate: ownship safety, no fallback and run completion. Not an all-vessel or full COLREG qualification.';
+      return label;
+    } },
     { key: 'created', label: 'Created' },
     { key: 'action', label: 'Action', headerType: 'Narrow', renderCell: (_value, _row, rowId) => createReplayActionCell(documentRef, rowId) },
   ];

@@ -898,6 +898,15 @@ class RunReplayStore:
 
     # -- discovery -----------------------------------------------------------
 
+    def _evaluation_outcome(self, run_dir: Path) -> str | None:
+        """Read the persisted evaluator verdict without running an evaluator."""
+        evaluation = self._read_json(run_dir / "evaluation.json")
+        if not isinstance(evaluation, dict) or evaluation.get("evaluation_status") != "COMPLETE":
+            return None
+        gate = evaluation.get("hard_gate")
+        outcome = gate.get("outcome") if isinstance(gate, dict) else None
+        return outcome if outcome in ("PASS", "FAIL") else None
+
     def _catalog_summary(self, run_dir: Path) -> dict[str, Any]:
         """Metadata only: never claim validated evidence or decompress a trace."""
         decision = run_dir / "decision"
@@ -956,6 +965,7 @@ class RunReplayStore:
                     "created_at_utc": manifest.get("created_at_utc"),
                     "scenario_id": spec.get("scenario_id"),
                     "ownship_gnc_stack_id": spec.get("ownship_gnc_stack_id"),
+                    "evaluation_outcome": self._evaluation_outcome(child),
                     "requested_algorithm": manifest.get("requested_algorithm"),
                     "executed_algorithm": manifest.get("executed_algorithm"),
                     "executed_tracker": manifest.get("executed_tracker"),

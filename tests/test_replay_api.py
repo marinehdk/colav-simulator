@@ -829,3 +829,18 @@ def test_concurrent_open_requests_share_frame_validation(store, monkeypatch):
         results = list(pool.map(lambda _: store.descriptor(RUN_READY), range(3)))
     assert len(scans) == 1
     assert all(result['replay']['state'] == 'READY' for result in results)
+
+
+@pytest.mark.parametrize('outcome', ['PASS', 'FAIL'])
+def test_catalog_projects_saved_evaluator_gate(store, outcome):
+    run = make_run(store.root, RUN_READY, created_at="2026-09-17T00:00:00Z")
+    evaluation = {'evaluation_status': 'COMPLETE', 'hard_gate': {'outcome': outcome}}
+    (run / 'evaluation.json').write_text(json.dumps(evaluation))
+    assert store.list_runs(summary=True)[0]['evaluation_outcome'] == outcome
+
+
+def test_catalog_does_not_invent_verdict_from_finished_run_or_partial_evaluation(store):
+    run = make_run(store.root, RUN_READY, created_at="2026-09-17T00:00:00Z")
+    assert store.list_runs(summary=True)[0]['evaluation_outcome'] is None
+    (run / 'evaluation.json').write_text(json.dumps({'evaluation_status': 'PARTIAL', 'hard_gate': {'outcome': 'PASS'}}))
+    assert store.list_runs(summary=True)[0]['evaluation_outcome'] is None

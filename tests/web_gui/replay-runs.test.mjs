@@ -91,6 +91,7 @@ test('run rows carry only backend facts and reject malformed payloads', () => {
     scenario: 'Head-on',
     algorithm: 'Mid-MPC',
     gnc: 'Legacy',
+    evaluation: 'NOT EVALUATED',
     createdAt: '2026-09-11 10:00:00',
     executionState: 'FINISHED',
     replayState: 'READY',
@@ -120,7 +121,7 @@ test('render writes OpenBridge table rows with textual state and action cells', 
 
   const table = documentRef.getElementById('replayRunsTable');
   assert.equal(table.data.length, 1);
-  assert.equal(table.columns.length, 9);
+  assert.equal(table.columns.length, 10);
   const row = table.data[0];
   const text = Object.values(row).map(value => typeof value === 'object' ? value.text ?? value.type : value).join('|');
   assert.match(text, /Head-on/);
@@ -346,4 +347,25 @@ test('refresh is single-flight and a stale catalog cannot resurrect a deleted ru
   await pending;
   assert.equal(reads, 2);
   assert.equal(documentRef.getElementById('replayRunsTable').data.length, 0);
+});
+
+test('historical authoritative GNC ids retain their product name', () => {
+  for (const environment of ['off', 'on']) {
+    const [row] = projectReplayRunRows([{ ...sampleEntry, ownship_gnc_stack_id: `original-gnc-20260824-v2-env-${environment}` }]);
+    assert.equal(row.gnc, 'Authoritative GNC');
+  }
+});
+
+test('evaluation column uses only recorded verdicts, independently of replay completeness', () => {
+  for (const outcome of ['PASS', 'FAIL', null, 'UNKNOWN']) {
+    const [row] = projectReplayRunRows([{ ...sampleEntry, evaluation_outcome: outcome }]);
+    assert.equal(row.evaluation, ['PASS', 'FAIL'].includes(outcome) ? outcome : 'NOT EVALUATED');
+  }
+  const documentRef = makeDocumentRef();
+  renderReplayRuns(documentRef, projectReplayRunRows([{ ...sampleEntry, evaluation_outcome: 'PASS' }]));
+  const table = documentRef.getElementById('replayRunsTable');
+  const column = table.columns.find(c => c.key === 'evaluation');
+  const cell = column.renderCell(table.data[0].evaluation);
+  assert.equal(cell.textContent, 'PASS');
+  assert.match(cell.title, /ownship safety/);
 });
