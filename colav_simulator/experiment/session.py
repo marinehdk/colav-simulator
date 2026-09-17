@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pickle
 import time
+from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any
 
@@ -21,6 +22,21 @@ from colav_simulator.simulator import Simulator
 
 OPERATIONAL_EVENT_CAP = 1000
 _OPERATIONAL_HIDDEN_EVENT_TYPES = frozenset({"planner_solved", "threat_lifecycle_active"})
+
+
+class _PickledFrameView(Sequence):
+    """Reiterable evidence access without retaining every decoded planner trace."""
+
+    def __init__(self, blobs: list[bytes]) -> None:
+        self._blobs = blobs
+
+    def __len__(self) -> int:
+        return len(self._blobs)
+
+    def __getitem__(self, index: int | slice) -> dict[str, Any] | list[dict[str, Any]]:
+        if isinstance(index, slice):
+            return [pickle.loads(blob) for blob in self._blobs[index]]
+        return pickle.loads(self._blobs[index])
 
 
 def _enum_text(value: Any) -> str | None:
@@ -157,6 +173,15 @@ class SimulationSession:
         if self._frames_decoded is None:
             self._frames_decoded = [pickle.loads(blob) for blob in self._frame_blobs]
         return self._frames_decoded
+
+    @property
+    def frame_view(self) -> Sequence[dict[str, Any]]:
+        """Read all evidence samples while decoding at most one frame at a time."""
+        if self._frame_blobs is None:
+            return self._frames_live
+        if self._frames_decoded is not None:
+            return self._frames_decoded
+        return _PickledFrameView(self._frame_blobs)
 
     @property
     def operational_events(self) -> list[dict[str, Any]]:
@@ -614,8 +639,19 @@ class SimulationSession:
         return pd.DataFrame(self.frames)
 
     def vessel_data(self) -> list:
+        # The evaluator consumes these trajectory fields only. Keeping full
+        # planner diagnostics in its DataFrame defeats packed-frame retention.
+        fields = ("state", "input", "references", "timestamp", "date_time_utc")
+        frames = [
+            {
+                name: {key: ship[key] for key in fields} if isinstance(ship, dict) and ship else ship
+                for name, ship in frame.items()
+                if name in self.ship_info
+            }
+            for frame in self.frame_view
+        ]
         return mhm.convert_simulation_data_to_vessel_data(
-            self.simulation_dataframe(),
+            pd.DataFrame(frames),
             self.ship_info,
             self.config.utm_zone,
         )

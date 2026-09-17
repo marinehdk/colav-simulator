@@ -7,7 +7,7 @@ import hashlib
 import json
 import math
 import os
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
 from functools import lru_cache
 from pathlib import Path
@@ -838,7 +838,7 @@ class ExperimentRunner:
                 "executed_algorithm": prepared.manifest.executed_algorithm,
                 "fallback_used": prepared.manifest.fallback_used,
                 "run_completed": True,
-                "solver": _solver_diagnostics(prepared.session.frames),
+                "solver": _solver_diagnostics(prepared.session.frame_view),
                 "stress_only": prepared.session.config.name.startswith("romsdal_busy_water_80_stress"),
                 "ownship_route_waypoints_ne": _ownship_route_rows(prepared.session.config),
             },
@@ -854,9 +854,9 @@ class ExperimentRunner:
         prepared.manifest.evaluation_schema_version = evaluation.schema_version
         prepared.manifest.evaluation_gate = evaluation.hard_gate.outcome.value
         prepared.manifest.reproduction_status = evaluation.reproduction_status
-        trajectory_path = prepared.writer.write_trajectory(prepared.session.frames)
+        trajectory_path = prepared.writer.write_trajectory(prepared.session.frame_view)
         prepared.manifest.trajectory_artifact_hash = _file_hash(trajectory_path)
-        prepared.manifest.trajectory_semantic_hash = trajectory_semantic_hash(prepared.session.frames)
+        prepared.manifest.trajectory_semantic_hash = trajectory_semantic_hash(prepared.session.frame_view)
         prepared.manifest.trajectory_hash = prepared.manifest.trajectory_semantic_hash
         prepared.writer.write_events(prepared.session.events)
         prepared.writer.write_evaluation(evaluation)
@@ -889,7 +889,7 @@ class ExperimentRunner:
                 prepared.manifest,
                 prepared.writer,
                 exc,
-                prepared.session.frames,
+                prepared.session.frame_view,
                 prepared.session.events,
             )
             raise ExperimentRunError(prepared.manifest, prepared.run_dir) from exc
@@ -941,7 +941,7 @@ class ExperimentRunner:
         manifest: RunManifest,
         writer: EvidenceWriter,
         exc: Exception,
-        frames: list[dict[str, Any]],
+        frames: Sequence[dict[str, Any]],
         events: list[dict[str, Any]] | None = None,
     ) -> None:
         status = exc.status if isinstance(exc, ColavExecutionError) else PlanStatus.NUMERICAL_FAILURE
@@ -975,7 +975,7 @@ class ExperimentRunner:
     @staticmethod
     def _enforce_no_fallback(prepared: PreparedRun) -> None:
         fallback = False
-        for frame in prepared.session.frames:
+        for frame in prepared.session.frame_view:
             for key, ship in frame.items():
                 if not key.startswith("Ship") or not ship:
                     continue
@@ -1293,7 +1293,7 @@ def _file_hash(path: Path) -> str:
     return digest.hexdigest()
 
 
-def _solver_diagnostics(frames: list[dict[str, Any]]) -> dict[str, Any]:
+def _solver_diagnostics(frames: Sequence[dict[str, Any]]) -> dict[str, Any]:
     records: list[dict[str, Any]] = []
     for frame in frames:
         for key, ship in frame.items():
@@ -1301,7 +1301,9 @@ def _solver_diagnostics(frames: list[dict[str, Any]]) -> dict[str, Any]:
                 continue
             planner = ship.get("colav", {}).get("planner", {})
             if isinstance(planner, dict) and planner.get("solver_executed"):
-                records.append(planner)
+                records.append(
+                    {key: planner[key] for key in ("elapsed_ms", "iterations", "objective", "status") if key in planner}
+                )
     if not records:
         return {"status": "NOT_AVAILABLE", "solve_count": 0}
     elapsed = np.array(
@@ -1362,7 +1364,7 @@ def _run_metrics(evaluation: Any, session: SimulationSession, fallback_used: boo
             for key, ship in frame.items()
             if key.startswith("Ship") and isinstance(ship, dict) and ship and ship.get("active", True)
         )
-        for frame in session.frames
+        for frame in session.frame_view
     ]
     risk_counts = [
         len(
@@ -1378,14 +1380,14 @@ def _run_metrics(evaluation: Any, session: SimulationSession, fallback_used: boo
                 if str(item.get("encounter", "clear")).lower() != "clear"
             ]
         )
-        for frame in session.frames
+        for frame in session.frame_view
         if frame.get("Ship0")
     ]
     step_times = np.asarray(session.step_times_ms, dtype=float)
     maneuver_samples = []
     phase_transitions = []
     last_phase = None
-    for frame in session.frames:
+    for frame in session.frame_view:
         ship0 = frame.get("Ship0", {})
         planner = ship0.get("colav", {}).get("planner", {})
         if not planner.get("solver_executed"):
@@ -1436,11 +1438,11 @@ def _run_metrics(evaluation: Any, session: SimulationSession, fallback_used: boo
             "configured_ship_count": len(session.ship_list),
             "maximum_active_ship_count": max(active_counts, default=0),
             "maximum_risk_target_count": max(risk_counts, default=0),
-            "step_count": len(session.frames),
+            "step_count": len(session.frame_view),
             "step_time_ms_p50": float(np.percentile(step_times, 50)) if step_times.size else None,
             "step_time_ms_p95": float(np.percentile(step_times, 95)) if step_times.size else None,
             "step_time_ms_max": float(np.max(step_times)) if step_times.size else None,
-            "solver": _solver_diagnostics(session.frames),
+            "solver": _solver_diagnostics(session.frame_view),
         },
         "maneuver_quality_observations": {
             "phase_transitions": phase_transitions,

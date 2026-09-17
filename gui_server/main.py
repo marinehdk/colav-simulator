@@ -1048,7 +1048,7 @@ class WebSessionManager:
                 prepared.manifest,
                 prepared.writer,
                 exc,
-                prepared.session.frames,
+                prepared.session.frame_view,
                 prepared.session.events,
             )
         except Exception:

@@ -13,6 +13,7 @@ import sys
 import threading
 import time
 import uuid
+from collections.abc import Sequence
 from dataclasses import asdict, is_dataclass
 from enum import Enum
 from pathlib import Path
@@ -138,7 +139,7 @@ class EvidenceWriter:
             "compressed_bytes": path.stat().st_size,
         }
 
-    def write_trajectory(self, frames: list[dict[str, Any]]) -> Path:
+    def write_trajectory(self, frames: Sequence[dict[str, Any]]) -> Path:
         rows = _trajectory_rows(frames)
         path = self.run_dir / "trajectory.parquet"
         staging = self.run_dir / ".trajectory.rows.jsonl"
@@ -434,7 +435,7 @@ class BoundedArtifactSink:
 _VOLATILE_TRAJECTORY_KEY_PARTS = ("elapsed", "wall_time", "walltime")
 
 
-def _trajectory_rows(frames: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def _trajectory_rows(frames: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     for frame in frames:
         ship_keys = sorted(key for key in frame if key.startswith("Ship"))
@@ -506,7 +507,7 @@ def _semantic_trajectory_value(value: Any, key: str | None = None) -> Any:
     return jsonable(value)
 
 
-def trajectory_semantic_hash(frames: list[dict[str, Any]]) -> str:
+def trajectory_semantic_hash(frames: Sequence[dict[str, Any]]) -> str:
     """Hash trajectory facts while excluding run identity and wall-clock timing."""
     return _trajectory_rows_semantic_hash(_trajectory_rows(frames))
 
@@ -533,12 +534,14 @@ def _trajectory_rows_semantic_hash(rows: list[dict[str, Any]]) -> str:
 
 
 def _trajectory_colav_summary(value: Any) -> dict[str, Any]:
-    document = jsonable(value) or {}
+    document = dict(value) if isinstance(value, dict) else jsonable(value) or {}
     if not isinstance(document, dict):
         return {}
     planner = document.get("planner")
     if not isinstance(planner, dict):
-        return document
+        planner = jsonable(planner)
+    if not isinstance(planner, dict):
+        return jsonable(document)
     document["planner"] = {
         key: planner.get(key)
         for key in (
@@ -557,4 +560,4 @@ def _trajectory_colav_summary(value: Any) -> dict[str, Any]:
             "selected_command",
         )
     }
-    return document
+    return jsonable(document)

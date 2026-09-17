@@ -36,7 +36,7 @@ def test_run_metrics_separate_ship0_and_global_world_events() -> None:
             "Ship2": {"id": 2, "length": 12.0, "width": 4.0},
         },
         ship_list=[object(), object(), object()],
-        frames=[
+        frame_view=[
             {
                 "Ship0": {
                     "active": True,
