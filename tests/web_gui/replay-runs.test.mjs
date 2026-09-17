@@ -172,8 +172,8 @@ test('client refresh projects the catalog into the panel and reports failures tr
   assert.equal(documentRef.getElementById('replayRunsStatus').textContent, '1 RUNS');
 
   await client.refresh();
-  assert.equal(documentRef.getElementById('replayRunsStatus').textContent, 'UNAVAILABLE');
-  assert.equal(documentRef.getElementById('replayRunsTable').data.length, 0);
+  assert.equal(documentRef.getElementById('replayRunsStatus').textContent, 'UNAVAILABLE · RETRY');
+  assert.equal(documentRef.getElementById('replayRunsTable').data.length, 1);
   assert.deepEqual(requests.map(request => request.method), ['GET', 'GET']);
 });
 
@@ -221,7 +221,7 @@ test('replay pagination renders 10 rows by default and supports 20 and 50 row pa
   assert.equal(next.disabled, true);
 });
 
-test('Delete action calls DELETE then refreshes the catalog', async () => {
+test('Delete action removes the row without rescanning the catalog', async () => {
   const documentRef = makeDocumentRef();
   const requests = [];
   let entries = [sampleEntry];
@@ -236,7 +236,7 @@ test('Delete action calls DELETE then refreshes the catalog', async () => {
   const table = documentRef.getElementById('replayRunsTable');
   const actions = table.columns.find(c => c.key === 'action').renderCell(null, null, sampleEntry.run_id);
   await actions.children[1].listeners.click({ preventDefault() {}, stopPropagation() {} });
-  assert.deepEqual(requests.map(r => r[1]), ['GET', 'DELETE', 'GET']);
+  assert.deepEqual(requests.map(r => r[1]), ['GET', 'DELETE']);
   assert.equal(table.data.length, 0);
 });
 
@@ -316,5 +316,34 @@ test('Delete uses the page dialog and waits for its explicit result', async () =
     dialog.listeners.close();
     await pending;
   }
-  assert.deepEqual(requests, ['DELETE', 'GET']);
+  assert.deepEqual(requests, ['DELETE']);
+});
+
+test('summary rows stay visible without a frame count and never claim verified completeness', () => {
+  const rows = projectReplayRunRows([{ ...sampleEntry, replay: { state: 'UNVERIFIED', has_frames: true, frame_count: null } }]);
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].label, 'RECORDED');
+  assert.equal(rows[0].frameCount, null);
+});
+
+test('refresh is single-flight and a stale catalog cannot resurrect a deleted run', async () => {
+  const documentRef = makeDocumentRef();
+  let resolveRefresh;
+  let reads = 0;
+  const client = createReplayRunsClient({ documentRef, confirmRef: () => true, fetchRef: async (url, options = {}) => {
+    if (options.method === 'DELETE') return { ok: true };
+    assert.match(url, /summary=true/);
+    reads++;
+    if (reads === 2) await new Promise(resolve => { resolveRefresh = resolve; });
+    return { ok: true, json: async () => [sampleEntry] };
+  } });
+  await client.refresh();
+  const pending = client.refresh();
+  assert.equal(client.refresh(), pending);
+  await client.remove(sampleEntry.run_id);
+  assert.equal(documentRef.getElementById('replayRunsTable').data.length, 0);
+  resolveRefresh();
+  await pending;
+  assert.equal(reads, 2);
+  assert.equal(documentRef.getElementById('replayRunsTable').data.length, 0);
 });

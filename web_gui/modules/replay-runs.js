@@ -16,6 +16,7 @@ function gncLabel(stackId, catalog) {
 
 const REPLAY_STATE_LABELS = {
   READY: 'COMPLETE',
+  UNVERIFIED: 'RECORDED',
   CAPTURING: 'INCOMPLETE',
   REDUCED: 'INCOMPLETE',
   INCOMPLETE: 'INCOMPLETE',
@@ -106,9 +107,10 @@ export function projectReplayRunRows(entries, gncCatalog = null) {
   if (!Array.isArray(entries)) return [];
   return entries
     .filter(entry => entry && typeof entry === 'object' && typeof entry.run_id === 'string' && entry.run_id)
+    .filter(entry => Number(entry.replay?.frame_count) > 0 || entry.replay?.has_frames === true)
     .map(entry => {
       const replay = entry.replay ?? {};
-      const frameCount = Number(replay.frame_count);
+      const frameCount = replay.frame_count == null ? NaN : Number(replay.frame_count);
       return {
         runId: entry.run_id,
         scenario: SCENARIO_LABELS[entry.scenario_id] ?? entry.scenario_name ?? 'Unknown scenario',
@@ -122,8 +124,7 @@ export function projectReplayRunRows(entries, gncCatalog = null) {
         tStart: replay.t_start ?? null,
         tEnd: replay.t_end ?? null,
       };
-    })
-    .filter(row => row.frameCount !== null && row.frameCount > 0);
+    });
 }
 
 function formatCreatedAt(value) {
@@ -168,8 +169,9 @@ function createReplayActionCell(documentRef, rowId) {
       if (action === 'open' && replayRunOpener !== null) replayRunOpener(rowId);
       if (action === 'delete') {
         button.disabled = true;
+        button.textContent = 'Deleting…';
         try { await replayClients.get(documentRef)?.remove(rowId); }
-        finally { button.disabled = false; }
+        finally { button.disabled = false; button.textContent = 'Delete'; }
       }
     });
     container.append(button);
@@ -228,10 +230,20 @@ function confirmReplayDeletion(documentRef, message) {
 export function createReplayRunsClient({ documentRef = globalThis.document, fetchRef = globalThis.fetch, confirmRef = message => confirmReplayDeletion(documentRef, message) } = {}) {
   const deleting = new Set();
   let gncCatalog = null;
-  async function refresh() {
+  let refreshing = null;
+  const deleted = new Set();
+  function refresh() {
+    if (refreshing) return refreshing;
+    refreshing = loadCatalog().finally(() => { refreshing = null; });
+    return refreshing;
+  }
+  async function loadCatalog() {
     const status = documentRef.getElementById('replayRunsStatus');
+    const refreshButton = documentRef.getElementById('replayRunsRefreshBtn');
+    if (refreshButton) refreshButton.disabled = true;
+    if (status) status.textContent = paginationStateFor(documentRef).rows.length ? 'REFRESHING…' : 'LOADING…';
     try {
-      const response = await fetchRef('/api/runs?limit=50');
+      const response = await fetchRef('/api/runs?limit=50&summary=true');
       if (!response.ok) throw new Error(`status ${response.status}`);
       const entries = await response.json();
       if (!gncCatalog && entries.some(entry => entry.ownship_gnc_stack_id)) {
@@ -240,10 +252,11 @@ export function createReplayRunsClient({ documentRef = globalThis.document, fetc
           if (catalogResponse.ok) gncCatalog = await catalogResponse.json();
         } catch { /* Keep recorded rows visible even when labels are unavailable. */ }
       }
-      renderReplayRuns(documentRef, projectReplayRunRows(entries, gncCatalog));
+      renderReplayRuns(documentRef, projectReplayRunRows(entries.filter(entry => !deleted.has(entry.run_id)), gncCatalog));
     } catch {
-      renderReplayRuns(documentRef, []);
-      if (status) status.textContent = 'UNAVAILABLE';
+      if (status) status.textContent = 'UNAVAILABLE · RETRY';
+    } finally {
+      if (refreshButton) refreshButton.disabled = false;
     }
   }
 
@@ -257,7 +270,10 @@ export function createReplayRunsClient({ documentRef = globalThis.document, fetc
         const body = await response.json().catch(() => ({}));
         throw new Error(body.detail?.message || `status ${response.status}`);
       }
-      await refresh();
+      deleted.add(runId);
+      const state = paginationStateFor(documentRef);
+      state.rows = state.rows.filter(row => row.runId !== runId);
+      renderReplayRuns(documentRef, state.rows);
     } catch (error) {
       const status = documentRef.getElementById('replayRunsStatus');
       if (status) status.textContent = `DELETE FAILED: ${error.message}`;
