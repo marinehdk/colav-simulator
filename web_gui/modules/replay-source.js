@@ -132,7 +132,8 @@ function trailsToPlayhead(orderedUpTo, playhead, interpolatedPosition, sourceInd
   const originE = origin.originE;
   const trail = [];
   for (const frame of orderedUpTo) {
-    const raw = frame.payload?.[sourceIndex];
+    if (Number(frame.sim_time) > playhead) continue;
+    const raw = Object.values(frame.payload ?? {}).find(ship => String(ship?.id) === String(sourceIndex));
     const state = Array.isArray(raw?.state) ? raw.state : null;
     if (!state) continue;
     const north = Number(state[0]);
@@ -140,7 +141,9 @@ function trailsToPlayhead(orderedUpTo, playhead, interpolatedPosition, sourceInd
     if (Number.isFinite(north) && Number.isFinite(east)) trail.push([north - originN, east - originE]);
   }
   if (interpolatedPosition) {
-    trail.push([interpolatedPosition.x, interpolatedPosition.y]);
+    const point = [interpolatedPosition.x, interpolatedPosition.y];
+    const last = trail.at(-1);
+    if (!last || last[0] !== point[0] || last[1] !== point[1]) trail.push(point);
   }
   return trail.length > MAX_TRAIL_POINTS ? trail.slice(trail.length - MAX_TRAIL_POINTS) : trail;
 }
@@ -201,24 +204,25 @@ export function projectReplayFrame({ descriptor, context, windowDoc, playhead })
     interpolated,
     playhead: time,
     priorFrames: bracket.slice(0, sourceIndex + 1),
+    history: Array.isArray(windowDoc.history) ? windowDoc.history : [],
   });
   return { ok: true, envelope, sourceFrame, upperFrame, interpolated };
 }
 
-function buildEnvelope({ descriptor, context, sourceFrame, upperFrame, alpha, interpolated, playhead, priorFrames }) {
+function buildEnvelope({ descriptor, context, sourceFrame, upperFrame, alpha, interpolated, playhead, priorFrames, history }) {
   const payload = sourceFrame.payload ?? {};
   const { ships, originN, originE } = localShips(payload, context);
   const upperPayload = upperFrame?.payload ?? {};
 
   const upperShips = localShips(upperPayload, context).ships;
   const upperById = new Map(upperShips.map(ship => [String(ship.id), ship]));
-  ships.forEach((ship, index) => {
+  ships.forEach((ship) => {
     const upper = upperById.get(String(ship.id));
     if (interpolated && upper) {
       const kinematics = interpolateVesselKinematics(ship, upper, alpha);
       Object.assign(ship, kinematics);
     }
-    ship.trajectory = trailsToPlayhead(priorFrames, playhead, ship, `Ship${index}`, { originN, originE });
+    ship.trajectory = trailsToPlayhead([...history, ...priorFrames], playhead, ship, ship.id, { originN, originE });
   });
 
   const own = ships[0] ?? null;
@@ -274,10 +278,10 @@ function buildEnvelope({ descriptor, context, sourceFrame, upperFrame, alpha, in
     tracks: ships.map(ship => ship.tracks),
     plans: {
       waypoints: localWaypoints(ownRaw.waypoints, originN, originE),
-      prediction_horizon: prediction.current,
-      previous_prediction_horizon: [],
+      prediction_horizon: typedRender && !executable ? [] : prediction.current,
+      previous_prediction_horizon: typedRender ? prediction.history : [],
       rejected_prediction_horizon: typedRender && render.style === 'REJECTED' ? prediction.current : [],
-      target_prediction_horizons: typedRender ? prediction.targets : [],
+      target_prediction_horizons: !typedRender || render.style === 'ACTIVE' ? prediction.targets : [],
       rejected_target_prediction_horizons: typedRender && render.style === 'REJECTED' ? prediction.targets : [],
       target_routes: targetRoutes,
       prediction_render: typedRender ? render : null,
@@ -302,7 +306,7 @@ function buildEnvelope({ descriptor, context, sourceFrame, upperFrame, alpha, in
     os: own,
     obstacles,
     waypoints: localWaypoints(ownRaw.waypoints, originN, originE),
-    prediction_horizon: prediction.current,
+    prediction_horizon: typedRender && !executable ? [] : prediction.current,
     target_routes: targetRoutes,
     selected_algorithm: run.executed_algorithm ?? null,
     requested_algorithm: run.requested_algorithm ?? null,
@@ -328,32 +332,32 @@ function buildEnvelope({ descriptor, context, sourceFrame, upperFrame, alpha, in
   return envelope;
 }
 
+function localHorizon(north, east, originN, originE) {
+  if (!Array.isArray(north) || !Array.isArray(east) || north.length !== east.length) return [];
+  if (!north.every(Number.isFinite) || !east.every(Number.isFinite)) return [];
+  return north.map((value, index) => [value - originN, east[index] - originE]);
+}
+
 function horizonFromPlanner(planner, originN, originE) {
-  const predicted = Array.isArray(planner?.predicted_trajectory) ? planner.predicted_trajectory : [];
-  if (predicted.length === 0 || predicted.every(row => !Array.isArray(row))) return { current: [], targets: [] };
-  return {
-    current: [
-      (predicted[0] ?? []).map(value => (Number.isFinite(value) ? value - originN : value)),
-      (predicted[1] ?? []).map(value => (Number.isFinite(value) ? value - originE : value)),
-    ],
-    targets: [],
-  };
+  const projected = planner?.algorithm_details?.render_projection;
+  const predicted = planner?.predicted_trajectory ?? [];
+  const current = projected?.frame === 'ENU'
+    ? localHorizon(projected.ownship?.north_m, projected.ownship?.east_m, originN, originE)
+    : localHorizon(predicted[0], predicted[1], originN, originE);
+  const targets = (planner?.target_predictions ?? []).map(target =>
+    localHorizon(target.north_m ?? target.x, target.east_m ?? target.y, originN, originE)
+  ).filter(points => points.length > 0);
+  return { current, targets };
 }
 
 function horizonFromRender(render, originN, originE) {
-  const horizon = (points) => {
-    const north = Array.isArray(points?.north_m) ? points.north_m : null;
-    const east = Array.isArray(points?.east_m) ? points.east_m : null;
-    if (!north || !east || north.length !== east.length || north.length === 0) return [];
-    return [
-      north.map(value => (Number.isFinite(value) ? value - originN : value)),
-      east.map(value => (Number.isFinite(value) ? value - originE : value)),
-    ];
-  };
-  const current = render.frame === 'ENU' ? horizon(render.ownship) : [];
+  if (render.frame !== 'ENU') return { current: [], targets: [], history: [] };
+  const horizon = points => localHorizon(points?.north_m, points?.east_m, originN, originE);
+  const current = horizon(render.ownship);
   const targets = (Array.isArray(render.targets) ? render.targets : [])
-    .filter(target => target?.purpose !== 'L4_SAFETY')
+    .filter(target => target?.purpose === 'L4_SAFETY')
     .map(horizon)
-    .filter(horizonPoints => horizonPoints.length > 0);
-  return { current, targets };
+    .filter(points => points.length > 0);
+  const previous = horizon(render.history?.ownship);
+  return { current, targets, history: previous.length ? previous : render.style === 'INVALID_HISTORY' ? current : [] };
 }

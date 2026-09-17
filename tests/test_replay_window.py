@@ -479,3 +479,15 @@ def test_replay_read_path_never_imports_simulator_runtime(runs_root: Path) -> No
     )
     result = subprocess.run([sys.executable, "-c", probe], capture_output=True, text=True, check=False)
     assert result.returncode == 0, f"read path imported simulator runtime: {result.stdout}{result.stderr}"
+
+
+def test_window_includes_bounded_trusted_position_history(api_client):
+    document = api_client.get(f"/api/runs/{RUN_WINDOW}/replay/window", params={"from": 30, "to": 30.5}).json()
+    history = document["history"]
+    assert len(history) == 120
+    assert history[-1]["sequence"] == document["before"]["sequence"] - 1
+    assert all(item["sim_time"] < document["before"]["sim_time"] for item in history)
+    assert all(
+        set(ship) == {"id", "state"} and len(ship["state"]) == 2 for item in history for ship in item["payload"].values()
+    )
+    assert api_client.get(f"/api/runs/{RUN_WINDOW}/replay/window", params={"from": 0, "to": 0.2}).json()["history"] == []

@@ -422,6 +422,7 @@ class RunReplayStore:
         if after is not None and float(after.get("sim_time", 0.0)) <= to_s:
             after = None
         return {
+            "history": bundle.position_history(int((before or (frames[0] if frames else after) or {}).get("sequence", 1))),
             "schema_version": WINDOW_SCHEMA,
             "run_id": run_dir.name,
             "requested": {"from_s": from_s, "to_s": to_s},

@@ -70,7 +70,7 @@ function framePayload({ north0, east0, psi0, north1, east1, psi1 }, { solve } = 
         feasible: true,
         elapsed_ms: 12,
         selected_command: { course_rad: 0.19, speed_mps: 2.1 },
-        predicted_trajectory: [[2050, 2010], [2100, 2060]],
+        predicted_trajectory: [[2050, 2100], [2010, 2060]],
         threat_management: {
           status: 'AVAILABLE',
           vectors: [{ key: { target_id: 1, generation: 2 }, display_class: 'HIGH', dcpa_m: 150, tcpa_forward_s: 30 }],
@@ -181,6 +181,7 @@ test('at an exact stored frame the replay projection equals the live projection 
   assert.equal(result.interpolated, false);
   assert.equal(result.sourceFrame.sequence, 100);
 
+  assert.deepEqual(result.envelope.plans.prediction_horizon, [[50, 1010], [100, 1060]]);
   const replayProjection = projectEnvelope(result.envelope);
 
   /* Canonical live Telemetry Envelope for the SAME captured frame, written
@@ -366,4 +367,63 @@ test('legacy windows without backend threat documents degrade without invention'
   const projection = projectEnvelope(result.envelope);
   assert.equal(projection.risk.status, 'UNAVAILABLE');
   assert.equal(projection.risk.unavailableReason, 'THREAT_SNAPSHOT_UNAVAILABLE');
+});
+
+test('typed Replay horizons use point pairs and only the moving L4 safety target prediction', () => {
+  const frame = structuredClone(FRAME_A);
+  frame.payload.Ship0.colav.planner.prediction_render = {
+    schema_version: 'colav.mid_mpc.prediction-render@1', frame: 'ENU', style: 'ACTIVE', executable: true,
+    ownship: { north_m: [2050, 2100, 2150], east_m: [2010, 2060, 2110] },
+    targets: [
+      { purpose: 'L4_SAFETY', north_m: [2060, 2070, 2080], east_m: [1120, 1130, 1140] },
+      { purpose: 'OPTIMIZATION', north_m: [9000, 9100], east_m: [8000, 8100] },
+    ],
+  };
+  const result = projectReplayFrame({ descriptor: DESCRIPTOR, context: CONTEXT, windowDoc: { frames: [frame] }, playhead: frame.sim_time });
+  assert.deepEqual(result.envelope.plans.prediction_horizon, [[50, 1010], [100, 1060], [150, 1110]]);
+  assert.deepEqual(result.envelope.plans.target_prediction_horizons, [[[60, 120], [70, 130], [80, 140]]]);
+});
+
+test('history preceding the loaded window survives a seek without including future positions', () => {
+  const history = [{ sim_time: 9, payload: { Ship0: { id: 0, state: [2040, 2000] }, Ship1: { id: 1, state: [2050, 1110] } } }];
+  const result = projectReplayFrame({ descriptor: DESCRIPTOR, context: CONTEXT, windowDoc: { frames: [FRAME_A], history }, playhead: 10 });
+  assert.deepEqual(result.envelope.os.trajectory[0], [40, 1000]);
+  assert.deepEqual(result.envelope.obstacles[0].trajectory[0], [50, 110]);
+});
+
+test('prediction evidence advances with the recorded frame and remains frozen between frames', () => {
+  const frames = [structuredClone(FRAME_A), structuredClone(FRAME_B)];
+  frames.forEach((frame, index) => {
+    const n = frame.payload.Ship0.state[0], e = frame.payload.Ship0.state[1];
+    const tn = frame.payload.Ship1.state[0], te = frame.payload.Ship1.state[1];
+    frame.payload.Ship0.colav.planner.prediction_render = {
+      schema_version: 'colav.mid_mpc.prediction-render@1', frame: 'ENU', style: 'ACTIVE', executable: true,
+      ownship: { north_m: [n, n + 50, n + 100], east_m: [e, e + 20, e + 40] },
+      targets: [{ purpose: 'L4_SAFETY', north_m: [tn, tn + 10], east_m: [te, te + 20] }],
+    };
+  });
+  const project = playhead => projectReplayFrame({ descriptor: DESCRIPTOR, context: CONTEXT, windowDoc: { frames }, playhead }).envelope;
+  const start = project(FRAME_A.sim_time), end = project(FRAME_B.sim_time);
+  for (const envelope of [start, end]) {
+    assert.deepEqual(envelope.plans.prediction_horizon[0], [envelope.os.x, envelope.os.y]);
+    assert.deepEqual(envelope.plans.target_prediction_horizons[0][0], [envelope.obstacles[0].x, envelope.obstacles[0].y]);
+  }
+  assert.notDeepEqual(start.plans.target_prediction_horizons, end.plans.target_prediction_horizons);
+  assert.deepEqual(project(10.25).plans.prediction_horizon, start.plans.prediction_horizon);
+});
+
+test('rejected and historical predictions never masquerade as executable current plans', () => {
+  for (const style of ['REJECTED', 'INVALID_HISTORY']) {
+    const frame = structuredClone(FRAME_A);
+    frame.payload.Ship0.colav.planner.prediction_render = {
+      schema_version: 'colav.mid_mpc.prediction-render@1', frame: 'ENU', style, executable: false,
+      ownship: { north_m: [2050, 2100], east_m: [2010, 2060] },
+      targets: [{ purpose: 'L4_SAFETY', north_m: [2060, 2070], east_m: [1120, 1130] }],
+    };
+    const { envelope } = projectReplayFrame({ descriptor: DESCRIPTOR, context: CONTEXT, windowDoc: { frames: [frame] }, playhead: frame.sim_time });
+    assert.deepEqual(envelope.plans.prediction_horizon, []);
+    assert.deepEqual(envelope.plans.target_prediction_horizons, []);
+    assert.equal(envelope.plans.previous_prediction_horizon.length, style === 'INVALID_HISTORY' ? 2 : 0);
+    assert.equal(envelope.plans.rejected_prediction_horizon.length, style === 'REJECTED' ? 2 : 0);
+  }
 });

@@ -44,6 +44,7 @@ class TraceBundle:
             self._frames_path = self.trace_dir / "frames.jsonl"
         self._offsets: list[int] = []
         self._times: list[float] = []
+        self._positions: list[dict[str, Any]] = []
         self._scanned = False
         self._events_cache: list[dict[str, Any]] | None = None
         self._decoded: bytes | None = None
@@ -170,6 +171,7 @@ class TraceBundle:
         if self._validation is not None and self._validation[0] == validation_key:
             return self._validation[1]
 
+        self._positions = []
         parsed_count = 0
         trusted_count = 0
         first_time: float | None = None
@@ -221,6 +223,17 @@ class TraceBundle:
                     if frame_reason is not None:
                         reason = frame_reason
                         continue
+                    self._positions.append(
+                        {
+                            "sequence": record["sequence"],
+                            "sim_time": sim_time,
+                            "payload": {
+                                key: {"id": ship.get("id"), "state": ship["state"][:2]}
+                                for key, ship in (record.get("payload") or {}).items()
+                                if isinstance(ship, dict) and isinstance(ship.get("state"), list) and len(ship["state"]) >= 2
+                            },
+                        }
+                    )
                     trusted_count += 1
                     expected_sequence += 1
                     trusted_end = validated_time
@@ -316,6 +329,11 @@ class TraceBundle:
         if expected_t_end is not None and (t_end is None or expected_t_end != t_end):
             return "TRACE_INDEX_MISMATCH"
         return None
+
+    def position_history(self, before_sequence: int, *, limit: int = 120) -> list[dict[str, Any]]:
+        """Compact trusted positions preceding a window; populated during validation."""
+        end = max(0, min(before_sequence - 1, len(self._positions)))
+        return self._positions[max(0, end - limit) : end]
 
     def frame(self, sequence: int) -> dict[str, Any]:
         """One tick record by 1-based frame sequence (the recorder's first tick is 1)."""
