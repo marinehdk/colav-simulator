@@ -852,6 +852,12 @@ class CustomMPCAdapter(ICOLAV):
                     "solver_attempt_elapsed_ms": elapsed_ms,
                     "revision_reason": exc.details.get("revision_reason"),
                     "rolling_plan": exc.details.get("rolling_plan"),
+                    # The preserved plan re-submits the frozen execution-route
+                    # packet: the original-GNC bridge demands a submission
+                    # document every tick, and a hold beat must not sever the
+                    # admission chain the bridge already reconciles by hash.
+                    "execution_route": exc.details.get("execution_route"),
+                    "accepted_plan_receipt": exc.details.get("accepted_plan_receipt"),
                 }
                 self._diagnostics.elapsed_ms = elapsed_ms
                 self._diagnostics.details.update(continuation)

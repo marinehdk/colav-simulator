@@ -1788,6 +1788,32 @@ def _row_layout(config: MidMpcConfig, target_capacity: int, audit_capacity: int,
     )
 
 
+def _direction_floor(config: MidMpcConfig, problem: MidMpcProblem) -> float:
+    """Ratchet the direction floor to the deepest committed prefix excursion.
+
+    A retained prefix pins its rows to a lateral profile that can already sit
+    deeper on the disfavored side than the current offset; anchored only to
+    the current offset those rows are constant-violated with no freedom to
+    climb back. The floor stays a hard ratchet: it forgives lateral depth the
+    committed geometry already reached, nothing deeper. Mirrors
+    `_cross_track_all`: each prefix lateral evaluates before stepping.
+    """
+    frame = problem.route_frame
+    initial_lateral = (problem.own_ship.x_m - frame.origin_m[0]) * frame.normal[0] + (
+        problem.own_ship.y_m - frame.origin_m[1]
+    ) * frame.normal[1]
+    side = problem.preferred_side
+    floor = min(0.0, side * initial_lateral)
+    cx = problem.own_ship.x_m
+    cy = problem.own_ship.y_m
+    for k in range(min(problem.prefix_active_k, config.horizon_steps, len(problem.prefix_psi_rad))):
+        lateral = (cx - frame.origin_m[0]) * frame.normal[0] + (cy - frame.origin_m[1]) * frame.normal[1]
+        floor = min(floor, side * lateral)
+        cx += problem.prefix_u_mps[k] * config.dt_s * math.cos(problem.prefix_psi_rad[k])
+        cy += problem.prefix_u_mps[k] * config.dt_s * math.sin(problem.prefix_psi_rad[k])
+    return floor
+
+
 def _row_bounds(
     config: MidMpcConfig,
     problem: MidMpcProblem,
@@ -1818,11 +1844,7 @@ def _row_bounds(
         # A recovery can leave ownship on either side of the mission line.
         # Direction means improving toward the locked side, not requiring an
         # instantaneous lateral teleport before the first optimized interval.
-        frame = problem.route_frame
-        initial_lateral = (problem.own_ship.x_m - frame.origin_m[0]) * frame.normal[0] + (
-            problem.own_ship.y_m - frame.origin_m[1]
-        ) * frame.normal[1]
-        floor = min(0.0, problem.preferred_side * initial_lateral)
+        floor = _direction_floor(config, problem)
         direction_bounds = lbg[layout.direction.start : layout.direction.start + layout.direction.count]
         direction_bounds[np.isfinite(direction_bounds)] = floor
     _apply_rule_bounds(

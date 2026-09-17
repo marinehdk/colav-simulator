@@ -69,8 +69,10 @@ def test_assembler_and_ipopt_consume_gnc_prefix_and_corridor():
     )
     own = replace(original, execution_route_constraint=route)
     lifecycle = EncounterLifecycle()
-    lifecycle.step(_cycle(own, sequence=0, sim_time_s=0.0))
-    snapshot = lifecycle.step(_cycle(own, sequence=1, sim_time_s=5.0))
+    # Pre-commitment cycle: a COMMITTED obligation with a straight retained
+    # prefix pinned through the achievement window is contract-discarded now
+    # (see test_mid_mpc_prefix_floor), so consume the prefix before t+5s.
+    snapshot = lifecycle.step(_cycle(own, sequence=0, sim_time_s=5.0))
     request = _request(own, snapshot)
     assembled = MidMpcProblemAssembler().assemble(request)
     assert isinstance(assembled, AssemblySuccess)
@@ -317,6 +319,96 @@ def test_retained_prefix_does_not_invent_a_uniform_speed_feasibility_gap():
     )
     np.testing.assert_allclose(end, prefix.points_ne_m[-1], atol=1e-7)
     assert np.linalg.norm(end - state[:2]) == pytest.approx(161.0)
+
+
+def test_retained_forecast_band_keeps_steerage_under_decaying_mirror_limits():
+    # F postmortem T1050.5: GNC's terminal schedule drives the mirrored
+    # execution limit (3.11→≤3.0) below the steerage floor (3.0) while the
+    # measured vessel is still faster; the raw forecast band
+    # [min(own, steerage), cap] collapses and every shape dies as
+    # INVALID_INPUT. The compile consumes the mirrored limit with the
+    # steerage floor clamped back on, so the band never inverts.
+    constraint = RetainedRouteConstraint(
+        "mission",
+        ((0.0, 0.0), (5000.0, 0.0)),
+        (8.0, 8.0),
+        ("cruise", "dp_hold"),
+        160.0,
+        32.0,
+        480.0,
+        execution_speed_mps=(2.5, 2.5),
+    )
+    state = np.array([35.0, 2.0, 0.0, 3.2, 0.0, 0.0])
+    prefix = compile_retained_prefix(
+        constraint,
+        state,
+        horizon_steps=80,
+        dt_s=5.0,
+        max_speed_mps=8.0,
+        rot_max_rad_s=math.radians(1.2),
+        accel_max_mps2=0.3,
+        min_speed_mps=3.0,
+    )
+    assert prefix.course_rad
+    assert max(prefix.speed_mps) <= 8.0 + 1e-9
+
+
+def test_retained_forecast_cap_keeps_slack_over_a_pinned_floor_mirror():
+    # G v9 T240.5: the R1 bend limits write exactly-steerage speeds into the
+    # mirror; the forecast clamp then reproduces the floor and the speed band
+    # degenerates to zero width — every beat-quantized count dies on the
+    # break/sum guards. The clamp keeps a slack above the floor (the
+    # acceptance floor itself is untouched), so the forecast can plan past
+    # the pinned mirror schedule.
+    points = ((0.0, 0.0), (199.0, 0.0), (231.0, 0.0), (263.0, 0.0), (295.0, 0.0), (327.0, 0.0), (5000.0, 0.0))
+    constraint = RetainedRouteConstraint(
+        "mission",
+        points,
+        (3.0,) * len(points),
+        ("cruise",) * len(points),
+        160.0,
+        32.0,
+        480.0,
+        execution_speed_mps=(3.0,) * len(points),
+    )
+    state = np.array([35.0, 2.0, 0.0, 3.2, 0.0, 0.0])
+    prefix = compile_retained_prefix(
+        constraint,
+        state,
+        horizon_steps=80,
+        dt_s=5.0,
+        max_speed_mps=8.0,
+        rot_max_rad_s=math.radians(1.2),
+        accel_max_mps2=0.3,
+        min_speed_mps=3.0,
+    )
+    assert min(prefix.speed_mps) >= 3.0 - 1e-6
+    assert max(prefix.speed_mps) > 3.0 + 1e-6
+
+
+def test_retained_straight_seam_keeps_the_full_pin():
+    constraint = RetainedRouteConstraint(
+        "mission",
+        ((0.0, 0.0), (230.0, 0.0), (4000.0, 0.0)),
+        (7.0,) * 3,
+        ("cruise",) * 3,
+        160.0,
+        32.0,
+        480.0,
+    )
+    state = np.array([0.0, 0.0, 0.0, 7.0, 0.0, 0.0])
+    prefix = compile_retained_prefix(
+        constraint,
+        state,
+        horizon_steps=80,
+        dt_s=5.0,
+        max_speed_mps=8.0,
+        rot_max_rad_s=math.radians(1.2),
+        accel_max_mps2=0.3,
+        min_speed_mps=3.0,
+    )
+    assert prefix.knot_trim_reason is None
+    assert prefix.pinned_beats is None
 
 
 def test_recorded_near_shore_recovery_keeps_only_the_required_prefix():

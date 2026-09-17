@@ -1126,6 +1126,12 @@ def test_optimizer_unresolved_preserves_held_plan_for_one_period(monkeypatch) ->
     assert details["candidate_rejected"] is True
     assert details["revision_reason"] == "OPTIMIZER_UNRESOLVED"
     assert details["trajectory_source"] == "held_plan"
+    # The hold beat must keep the bridge's per-tick submission contract: the
+    # frozen execution-route packet and its receipt ride the continuation
+    # details whenever a prior accepted beat produced them (None here only
+    # because this harness plans without a GNC retained constraint).
+    assert "execution_route" in details
+    assert "accepted_plan_receipt" in details
 
 
 def test_sway_speed_is_included_in_first_deceleration_constraint() -> None:

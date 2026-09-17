@@ -46,7 +46,12 @@ from colav_simulator.core.colav.mid_mpc_static import (
     held_course_clears_static_hazards,
     static_execution_context,
 )
-from colav_simulator.core.colav.retained_route import RetainedPrefixPlan, compile_retained_prefix
+from colav_simulator.core.colav.retained_route import (
+    RetainedPrefixPlan,
+    _UnreachablePrefix,
+    compile_retained_prefix,
+    degraded_stub_prefix,
+)
 from colav_simulator.core.colav.rolling_plan import RollingPlanReference
 from colav_simulator.core.tracking.trackers import TrackKey
 
@@ -250,6 +255,7 @@ class AssemblySuccess:
     grid: GridSpec
     preparation: NumericalPreparationPlan
     execution_prefix: RetainedPrefixPlan | None = None
+    retained_degraded: str | None = None
 
 
 class _AssemblyInputError(ValueError):
@@ -362,35 +368,52 @@ def _assemble_problem(
     )
     policy = _resolve_policy(planner_input, snapshot, route, capability, binding)
     execution_prefix = None
+    retained_degraded = None
     if profile is AssemblyProfile.COLAV_STRICT and planner_input.execution_route_constraint is not None:
-        execution_prefix = compile_retained_prefix(
-            planner_input.execution_route_constraint,
-            planner_input.ownship_state,
-            horizon_steps=config.horizon_steps,
-            dt_s=config.horizon_dt_s,
-            max_speed_mps=capability.speed_bounds_mps[1],
-            rot_max_rad_s=capability.rot_max_rad_s,
-            accel_max_mps2=capability.decel_max_mps2,
-            min_speed_mps=float(planner_input.ownship_min_steerage_speed_mps or 0.0),
-            navigation_mode=(
-                "cruise"
-                if all(
-                    decision.route_recovery_allowed or decision.risk in {RiskPhase.CLEAR, RiskPhase.RELEASED}
-                    for decision in snapshot.targets
-                )
-                else "avoidance"
-            ),
-            target_course_rad=(
-                policy.committed_route_bearing_rad
-                if any(
-                    decision.role in {OwnshipRole.GIVE_WAY, OwnshipRole.OVERTAKING}
-                    and decision.risk in {RiskPhase.ACTIVE, RiskPhase.PAST_CLEAR}
-                    and not decision.route_recovery_allowed
-                    for decision in snapshot.targets
-                )
-                else None
-            ),
-        )
+        try:
+            execution_prefix = compile_retained_prefix(
+                planner_input.execution_route_constraint,
+                planner_input.ownship_state,
+                horizon_steps=config.horizon_steps,
+                dt_s=config.horizon_dt_s,
+                max_speed_mps=capability.speed_bounds_mps[1],
+                rot_max_rad_s=capability.rot_max_rad_s,
+                accel_max_mps2=capability.decel_max_mps2,
+                min_speed_mps=float(planner_input.ownship_min_steerage_speed_mps or 0.0),
+                navigation_mode=(
+                    "cruise"
+                    if all(
+                        decision.route_recovery_allowed or decision.risk in {RiskPhase.CLEAR, RiskPhase.RELEASED}
+                        for decision in snapshot.targets
+                    )
+                    else "avoidance"
+                ),
+                target_course_rad=(
+                    policy.committed_route_bearing_rad
+                    if any(
+                        decision.role in {OwnshipRole.GIVE_WAY, OwnshipRole.OVERTAKING}
+                        and decision.risk in {RiskPhase.ACTIVE, RiskPhase.PAST_CLEAR}
+                        and not decision.route_recovery_allowed
+                        for decision in snapshot.targets
+                    )
+                    else None
+                ),
+            )
+        except _UnreachablePrefix as exc:
+            # The mirror's execution schedule is GNC-owned (terminal
+            # slowdown, turn pre-brake, stop window) and pins the retained
+            # forecast at or past the motion envelope in unknown phases
+            # (T1050/T240/T1620). That is a schedule effect, not a contract
+            # error: degrade to the discard-stub exit — free re-solve plus
+            # spliced publication — instead of failing the session. The
+            # witness rides the replay artifact; contract/data errors still
+            # raise.
+            retained_degraded = f"retained compile unreachable: {exc}"
+            execution_prefix = degraded_stub_prefix(
+                planner_input.execution_route_constraint,
+                planner_input.ownship_state,
+                knot_trim_reason=str(exc) if str(exc).startswith("knot_trim") else None,
+            )
     target_predictions = _target_predictions(
         tuple(sorted(binding.track_by_key, key=lambda key: (key.target_id, key.generation))),
         binding.track_by_key,
@@ -398,6 +421,17 @@ def _assemble_problem(
         config,
     )
     effective_cpa_hard_m = _effective_node_clearance(planner_input, binding.selected_tracks, config)
+    execution_prefix = _discard_cpa_conflicting_prefix(
+        execution_prefix, target_predictions, effective_cpa_hard_m, planner_input, config, capability
+    )
+    contract_recovery = None
+    if execution_prefix is not None:
+        execution_prefix, contract_recovery = _discard_contract_conflicting_prefix(
+            execution_prefix, snapshot, planner_input, capability, config
+        )
+    # A discard stub only strips the pinned beats: the semantic problem keeps
+    # the retained corridor (limit and points) so the optimized recovery arc
+    # stays inside the same GNC admission envelope as a normal route update.
     horizon_encounter_plan = _compile_horizon_encounter_plan(
         planner_input,
         snapshot,
@@ -423,6 +457,7 @@ def _assemble_problem(
         horizon_encounter_plan,
         rolling_plan,
         execution_prefix,
+        contract_recovery,
     )
     grid, preparation = _compile_numerical_preparation(
         config,
@@ -466,6 +501,7 @@ def _assemble_problem(
         grid=grid,
         preparation=preparation,
         execution_prefix=execution_prefix,
+        retained_degraded=retained_degraded,
     )
 
 
@@ -652,7 +688,7 @@ def _candidate_course_schedule(
     binding: _TargetBinding,
     horizon_steps: int,
 ) -> MidMpcRowSchedule:
-    if execution_prefix is None or not candidate_hold or binding.required_keys:
+    if execution_prefix is None or _is_discard_stub(execution_prefix) or not candidate_hold or binding.required_keys:
         return schedule
     if not any(
         decision.role is OwnshipRole.OVERTAKING and decision.risk is RiskPhase.CANDIDATE
@@ -710,15 +746,23 @@ def _compile_semantic_problem(  # noqa: PLR0912, PLR0915 - compile lifecycle and
     horizon_encounter_plan: HorizonEncounterPlan,
     rolling_plan: RollingPlanReference | None,
     execution_prefix: RetainedPrefixPlan | None = None,
+    contract_recovery: _ContractRecovery | None = None,
 ) -> _SemanticAssembly:
     ownship = planner_input.ownship_state
     own_speed = float(np.hypot(ownship[3], ownship[4])) if profile is AssemblyProfile.COLAV_STRICT else float(ownship[3])
     minimum_change = snapshot.directive.minimum_course_change_rad if policy.lateral_active else 0.0
     reachable_per_step = capability.rot_max_rad_s * config.horizon_dt_s
+    # A discard stub carries no pinned tail; the remaining alteration then
+    # reads from the measured heading like a prefix-free beat.
+    prefix_tail_rad = (
+        float(execution_prefix.course_rad[-1])
+        if execution_prefix is not None and execution_prefix.course_rad
+        else float(ownship[2])
+    )
     remaining_change = (
         minimum_change
         if execution_prefix is None
-        else max(0.0, minimum_change - policy.preferred_side * _wrap(execution_prefix.course_rad[-1] - float(ownship[2])))
+        else max(0.0, minimum_change - policy.preferred_side * _wrap(prefix_tail_rad - float(ownship[2])))
     )
     min_alt_hard_from_k = (
         (0 if execution_prefix is None else len(execution_prefix.course_rad))
@@ -999,6 +1043,15 @@ def _compile_semantic_problem(  # noqa: PLR0912, PLR0915 - compile lifecycle and
     corridor_points = () if execution_prefix is None else execution_prefix.corridor_points_m
     route_update_limit = None if execution_prefix is None else execution_prefix.constraint.lateral_limit_m
     row_schedule = _candidate_course_schedule(row_schedule, execution_prefix, candidate_hold, binding, config.horizon_steps)
+    row_schedule = _contract_recovery_schedule(
+        row_schedule,
+        recovery=contract_recovery,
+        own_psi_rad=float(ownship[2]),
+        rot_step_rad=reachable_per_step,
+        min_alteration_rad=minimum_change,
+        horizon_steps=config.horizon_steps,
+        scheduled=scheduled,
+    )
     problem = MidMpcProblem(
         own_ship=MidMpcOwnShip(psi_rad=float(ownship[2]), u_mps=own_speed),
         route_bearing_rad=policy.committed_route_bearing_rad,
@@ -1162,6 +1215,7 @@ def _compile_row_schedule(
         min_alt_window = MidMpcHardWindow(min_alt_start, max(min_alt_start, min_alt_stop_k))
     return replace(
         legacy,
+        prefix_softening=True,
         cpa_hard_windows=tuple(cpa_windows),
         direction_hard_window=direction_window,
         min_alt_hard_window=min_alt_window,
@@ -1629,6 +1683,280 @@ def _track_document(track: TrackedObstacle) -> dict[str, Any]:
         "status": track.status,
         "source": track.source,
     }
+
+
+def _discard_cpa_conflicting_prefix(
+    execution_prefix: RetainedPrefixPlan | None,
+    target_predictions: tuple[TargetPrediction, ...],
+    effective_cpa_hard_m: float,
+    planner_input: PlannerInput,
+    config: MidMpcAssemblyConfig,
+    capability: CapabilitySnapshot,
+) -> RetainedPrefixPlan | None:
+    """Drop a retained prefix whose pinned geometry already violates CPA clearance.
+
+    Pinning strips the optimizer of every degree of freedom inside the prefix,
+    so a window that comes inside the hard clearance under the current
+    predictions cannot be repaired by the free suffix; committing it would
+    freeze an unsafe geometry as a promise. The prefix is discarded whole
+    instead of truncated: a shortened head still hands the free beats the
+    pinned corridor's deepest excursion and couples the corridor rows with a
+    cut-off head. Mirrors the solver CPA rows: own steps first, targets
+    advance linearly across the same interval.
+
+    Beyond the pinned window the prefix hands the free suffix a straight
+    continuation, so the release point is also certified: if the closest
+    approach under that continuation sits inside the hard clearance and an
+    immediate optimal-side rate turn cannot rebuild the missing margin
+    before the meet, the promise is discarded whole as well. A discard
+    returns the transport stub instead of ``None`` so the planner can still
+    publish a GNC execution route.
+    """
+    if execution_prefix is None:
+        return None
+    north_m = float(planner_input.ownship_state[0])
+    east_m = float(planner_input.ownship_state[1])
+    for k, (course_rad, speed_mps) in enumerate(zip(execution_prefix.course_rad, execution_prefix.speed_mps, strict=True)):
+        north_m += speed_mps * config.horizon_dt_s * math.cos(course_rad)
+        east_m += speed_mps * config.horizon_dt_s * math.sin(course_rad)
+        for prediction in target_predictions:
+            distance_m = math.hypot(north_m - float(prediction.north_m[k]), east_m - float(prediction.east_m[k]))
+            if distance_m < effective_cpa_hard_m:
+                return _discard_stub_prefix(execution_prefix, planner_input)
+    if not _release_point_margin_ok(
+        execution_prefix,
+        north_m,
+        east_m,
+        target_predictions,
+        effective_cpa_hard_m,
+        planner_input,
+        config,
+        capability,
+    ):
+        return _discard_stub_prefix(execution_prefix, planner_input)
+    return execution_prefix
+
+
+def _release_point_margin_ok(
+    execution_prefix: RetainedPrefixPlan,
+    end_north_m: float,
+    end_east_m: float,
+    target_predictions: tuple[TargetPrediction, ...],
+    effective_cpa_hard_m: float,
+    planner_input: PlannerInput,
+    config: MidMpcAssemblyConfig,
+    capability: CapabilitySnapshot,
+) -> bool:
+    """Certify that a rate turn after release can rebuild the CPA shortfall.
+
+    The straight continuation along the prefix end course meets each linear
+    prediction at its closest approach; the missing margin there must be
+    covered by the lateral offset an optimal-side turn integrates at the
+    full rate envelope, using max(prefix end speed, speed cap) as the
+    conservative travel rate. Mirrors the offline release-margin certificate:
+    turn away from the meet bearing, one rot step per beat, offset capped by
+    the distance actually sailed. A discard/degraded stub pins nothing and
+    promises no continuation, so it passes without a certificate.
+    """
+    if not execution_prefix.course_rad:
+        return True
+    dt_s = config.horizon_dt_s
+    rot_step_rad = capability.rot_max_rad_s * dt_s
+    u_last_mps = float(execution_prefix.speed_mps[-1])
+    u_eff_mps = max(u_last_mps, capability.speed_bounds_mps[1])
+    end_course_rad = float(execution_prefix.course_rad[-1])
+    own_vn_mps = u_last_mps * math.cos(end_course_rad)
+    own_ve_mps = u_last_mps * math.sin(end_course_rad)
+    heading_hi_rad = float(planner_input.ownship_state[2]) + capability.heading_window_rad
+    heading_lo_rad = float(planner_input.ownship_state[2]) - capability.heading_window_rad
+    prefix_time_s = len(execution_prefix.course_rad) * dt_s
+    for prediction in target_predictions:
+        target_vn_mps, target_ve_mps = prediction.velocity_ne_mps
+        rel_n_m = end_north_m - (float(prediction.north_m[0]) + target_vn_mps * prefix_time_s)
+        rel_e_m = end_east_m - (float(prediction.east_m[0]) + target_ve_mps * prefix_time_s)
+        rel_vn_mps = own_vn_mps - target_vn_mps
+        rel_ve_mps = own_ve_mps - target_ve_mps
+        speed_sq = rel_vn_mps * rel_vn_mps + rel_ve_mps * rel_ve_mps
+        meet_offset_s = max(0.0, -(rel_n_m * rel_vn_mps + rel_e_m * rel_ve_mps) / speed_sq) if speed_sq > 1.0e-12 else 0.0
+        meet_n_m = rel_n_m + rel_vn_mps * meet_offset_s
+        meet_e_m = rel_e_m + rel_ve_mps * meet_offset_s
+        required_m = effective_cpa_hard_m - math.hypot(meet_n_m, meet_e_m)
+        if required_m <= 0.0:
+            continue
+        # The optimal side turns away from the meet bearing; integrate the
+        # rate-ramped lateral offset against the prefix end course baseline.
+        bearing_rad = math.atan2(-meet_e_m, -meet_n_m)
+        turn = -1.0 if _wrap(bearing_rad - end_course_rad) > 0.0 else 1.0
+        course_rad = end_course_rad
+        best_m = 0.0
+        for _ in range(int(meet_offset_s / dt_s)):
+            target_course_rad = heading_hi_rad if turn > 0.0 else heading_lo_rad
+            course_rad += min(max(target_course_rad - course_rad, -rot_step_rad), rot_step_rad)
+            best_m += u_eff_mps * dt_s * abs(math.sin(course_rad - end_course_rad))
+        if min(best_m, u_eff_mps * meet_offset_s) < required_m:
+            return False
+    return True
+
+
+@dataclass(frozen=True)
+class _ContractRecovery:
+    """Locked-side shaping evidence carried by a contract-driven prefix discard."""
+
+    side: int
+    baseline_course_rad: float
+
+
+def _is_discard_stub(execution_prefix: RetainedPrefixPlan | None) -> bool:
+    """True when the prefix is the transport stub of a discarded route.
+
+    ``compile_retained_prefix`` always pins two or more beats and a discard
+    removes every one of them, so the empty-course stub is unambiguous.
+    """
+    return execution_prefix is not None and not execution_prefix.course_rad
+
+
+def _discard_stub_prefix(
+    execution_prefix: RetainedPrefixPlan,
+    planner_input: PlannerInput,
+) -> RetainedPrefixPlan:
+    """Transport stub replacing a discarded retained prefix.
+
+    The discard strips every pinned beat, but the planner must still publish
+    a GNC-executable route on the same admission envelope: the retained
+    corridor (constraint identity, ``lateral_limit_m`` and the corridor
+    points) is what keeps the committed geometry inside the GNC lateral
+    update guard — a discard is exactly the largest lateral rewrite, so the
+    avoidance-coded stub re-anchors the route at the measured position (the
+    anchor ``compile_execution_route`` validates against ``predicted[:, 0]``)
+    and lets the optimized suffix own the geometry from beat one while the
+    corridor bound still caps it.
+    """
+    return RetainedPrefixPlan(
+        constraint=execution_prefix.constraint,
+        points_ne_m=(tuple(map(float, planner_input.ownship_state[:2])),),
+        route_speed_mps=execution_prefix.route_speed_mps[:1],
+        # GNC admission protocol: a plain route update may only deviate
+        # 100 m from the last feedback path (max_dynamic_lateral_delta_m),
+        # while route points carrying the avoidance code relax the guard to
+        # the 500 m avoidance envelope. The mode code is the planner's
+        # semantic declaration of the maneuver class, and a contract/CPA
+        # discard beat is an avoidance maneuver: the reversal away from the
+        # discarded route is far larger than the cruise guard allows.
+        navigation_modes=("avoidance",),
+        course_rad=(),
+        speed_mps=(),
+        incoming_course_rad=float(planner_input.ownship_state[2]),
+        retained_point_count=1,
+        corridor_points_m=execution_prefix.corridor_points_m,
+        knot_trim_reason=execution_prefix.knot_trim_reason,
+    )
+
+
+def _discard_contract_conflicting_prefix(
+    execution_prefix: RetainedPrefixPlan,
+    snapshot: DecisionSnapshot,
+    planner_input: PlannerInput,
+    capability: CapabilitySnapshot,
+    config: MidMpcAssemblyConfig,
+) -> tuple[RetainedPrefixPlan | None, _ContractRecovery | None]:
+    """Drop a retained prefix that cannot honor a committed COLREG obligation.
+
+    While Lifecycle holds an unmet COMMITTED obligation, a retained prefix
+    that turns against the locked passing side — the same predicate and
+    observed-state floor the L4 COLREG_LOCKED_SIDE check applies — or whose
+    released geometry cannot reach the required alteration by the achievement
+    deadline even with a full rate ramp, dead-ends every candidate exactly
+    like the pinned CPA violation: the acceptance layer would reject any plan
+    built on it. The discard is whole, on the same exit as the safety guard,
+    and reports the locked side so the beat can stage the immediate recovery.
+    No commitment, an achieved action, or a side-less obligation leaves the
+    prefix untouched. A discard returns the transport stub (the caller reads
+    the recovery evidence separately), never a bare ``None``. A prefix the
+    safety guard already stubbed is left as-is: its recovery shaping stays
+    reserved for contract discards.
+    """
+    if _is_discard_stub(execution_prefix):
+        return execution_prefix, None
+    dt_s = config.horizon_dt_s
+    prefix_k = len(execution_prefix.course_rad)
+    own_psi_rad = float(planner_input.ownship_state[2])
+    for decision in snapshot.targets:
+        side = {PassingSide.STARBOARD: 1, PassingSide.PORT: -1}.get(decision.passing_side, 0)
+        if (
+            side == 0
+            or decision.action_achieved
+            or decision.commitment is not CommitmentPhase.COMMITTED
+            or decision.risk not in {RiskPhase.ACTIVE, RiskPhase.PAST_CLEAR}
+            or decision.baseline_course_rad is None
+            or not math.isfinite(decision.baseline_course_rad)
+        ):
+            continue
+        baseline_rad = float(decision.baseline_course_rad)
+        # The L4 deadline check reads the first executable beat once the
+        # absolute deadline has passed; a prefix releases at its own end.
+        if decision.action_achievement_deadline_s is not None:
+            deadline_offset_s = max(0.0, float(decision.action_achievement_deadline_s) - planner_input.sim_time_s)
+        else:
+            deadline_offset_s = 2.0 * dt_s
+        floor = min(0.0, side * _wrap(own_psi_rad - baseline_rad))
+        span_k = min(prefix_k, max(1, math.ceil(deadline_offset_s / dt_s)))
+        locked_side_violated = any(
+            side * _wrap(float(course_rad) - baseline_rad) < floor - 1.0e-3
+            for course_rad in execution_prefix.course_rad[:span_k]
+        )
+        ramp_s = max(0.0, deadline_offset_s - prefix_k * dt_s)
+        reachable_rad = (
+            side * _wrap(float(execution_prefix.course_rad[-1]) - baseline_rad) + capability.rot_max_rad_s * ramp_s
+        )
+        if not locked_side_violated and reachable_rad + 1.0e-6 >= decision.required_course_change_rad:
+            continue
+        return _discard_stub_prefix(execution_prefix, planner_input), _ContractRecovery(
+            side=side, baseline_course_rad=baseline_rad
+        )
+    return execution_prefix, None
+
+
+def _contract_recovery_schedule(
+    schedule: MidMpcRowSchedule,
+    *,
+    recovery: _ContractRecovery | None,
+    own_psi_rad: float,
+    rot_step_rad: float,
+    min_alteration_rad: float,
+    horizon_steps: int,
+    scheduled: bool,
+) -> MidMpcRowSchedule:
+    """Stage the immediate locked-side recovery on a contract-discard beat.
+
+    k=1 is pressed to the committed baseline side (the heading must not cross
+    to the disfavored side of the baseline), relaxed only by the rotation
+    beats the free knot owns — the same rate-aware staging the scheduled
+    corridor uses. From k=2 the substantial-alteration window is advanced to
+    its rot-feasible beat so the freed horizon plans the committed maneuver
+    immediately instead of behind the released prefix tail; the solver clips
+    its interior-point seed into the same course box, which anchors the seed
+    on the locked side too. A scheduled corridor already owns the alteration
+    staging, so there only the course bounds are combined.
+    """
+    if recovery is None:
+        return schedule
+    side = recovery.side
+    bounds = list(schedule.course_bounds_rad) or [(None, None)] * horizon_steps
+    lower_rad, upper_rad = bounds[1]
+    if side > 0:
+        bound_rad = min(recovery.baseline_course_rad, own_psi_rad + 2.0 * rot_step_rad)
+        bounds[1] = (bound_rad if lower_rad is None else max(lower_rad, bound_rad), upper_rad)
+    else:
+        bound_rad = max(recovery.baseline_course_rad, own_psi_rad - 2.0 * rot_step_rad)
+        bounds[1] = (lower_rad, bound_rad if upper_rad is None else min(upper_rad, bound_rad))
+    if not scheduled:
+        start_k = max(2, math.ceil(min_alteration_rad / rot_step_rad) - 1)
+        stop_k = max(
+            start_k,
+            schedule.min_alt_hard_window.stop_k if schedule.min_alt_hard_window is not None else horizon_steps,
+        )
+        schedule = replace(schedule, min_alt_hard_window=MidMpcHardWindow(start_k, stop_k))
+    return replace(schedule, course_bounds_rad=tuple(bounds))
 
 
 def _target_predictions(

@@ -96,8 +96,11 @@ from colav_simulator.core.colav.prediction_evidence import (
     TargetPredictionEvidence,
 )
 from colav_simulator.core.colav.retained_route import (
+    RetainedPrefixPlan,
+    RetainedRouteConstraint,
     _segment_enters_arrival_region,
     compile_execution_route,
+    compile_spliced_execution_route,
     course_speed_state,
 )
 from colav_simulator.core.colav.rolling_plan import (
@@ -205,6 +208,12 @@ class _MidMpcFacade:
         self._accepted_request: AcceptanceRequest | None = None
         self._accepted_trajectory: np.ndarray | None = None
         self._accepted_acceptance_hash: str | None = None
+        # The last admission-accepted execution-route document. An unresolved
+        # solve that preserves the accepted plan re-submits this frozen packet
+        # so the GNC bridge's per-tick submission contract holds without a
+        # fresh compile (same geometry hash, same reference, no route change).
+        self._last_execution_route: dict | None = None
+        self._last_plan_receipt: dict | None = None
         self._rolling_plan = RollingPlan()
         self._unresolved_streak = 0
         self._unresolved_streak_token: str | None = None
@@ -529,7 +538,20 @@ class _MidMpcFacade:
             self._config.assembly.horizon_dt_s,
         )
         execution_route = (
-            compile_execution_route(assembly.execution_prefix, predicted, arrival_boundary=arrival_boundary)
+            _published_execution_route(
+                assembly.execution_prefix,
+                predicted,
+                arrival_boundary=arrival_boundary,
+                planned_speed_mps=assembly.problem.planned_speed_mps,
+                accel_max_mps2=capability.accel_max_mps2,
+                decel_max_mps2=capability.decel_max_mps2,
+                rot_max_rad_s=capability.rot_max_rad_s,
+                steerage_speed_mps=planner_input.ownship_min_steerage_speed_mps,
+                mission_arrival=_mission_arrival(planner_input),
+                mission_waypoints=_mission_waypoints(planner_input),
+                ownship_position=(float(ownship[0]), float(ownship[1])),
+                decisions=snapshot.targets,
+            )
             if assembly.execution_prefix is not None
             and result.status in {MidMpcStatus.CONVERGED, MidMpcStatus.FEASIBLE_NONOPTIMAL}
             else None
@@ -566,6 +588,13 @@ class _MidMpcFacade:
                     "preserve_accepted_plan": continuation_allowed,
                     "revision_reason": "OPTIMIZER_UNRESOLVED",
                     "artifact": artifact_reference,
+                    "accepted_plan_receipt": self._last_plan_receipt,
+                    # A preserved plan must keep feeding the GNC bridge's
+                    # per-tick submission contract: re-submit the last
+                    # admission-accepted packet verbatim (frozen route, no
+                    # reference change) so the adapter's hold path carries a
+                    # submission document without a fresh compile.
+                    "execution_route": self._last_execution_route,
                 },
             )
         continuous_cpa = result.continuous_cpa_min_m if math.isfinite(result.continuous_cpa_min_m) else None
@@ -676,6 +705,8 @@ class _MidMpcFacade:
                     "plan_acceptance": acceptance_inline,
                     "artifact": artifact_reference,
                     "preserve_accepted_plan": continuation_allowed,
+                    "execution_route": self._last_execution_route,
+                    "accepted_plan_receipt": self._last_plan_receipt,
                     "revision_reason": "L4_PLAN_REJECTED",
                 },
                 evidence=EvidenceEnvelope(prediction_evidence),
@@ -705,6 +736,8 @@ class _MidMpcFacade:
                     "revision_reason": rolling_assessment.revision_reason.value,
                     "preserve_accepted_plan": continuation_allowed,
                     "rolling_plan": replay_artifact["rolling_plan"],
+                    "execution_route": self._last_execution_route,
+                    "accepted_plan_receipt": self._last_plan_receipt,
                 },
                 evidence=EvidenceEnvelope(prediction_evidence),
             )
@@ -755,6 +788,9 @@ class _MidMpcFacade:
         receipt_hash = issued_receipt.receipt_hash
         receipt_stage = issued_receipt.canonical_payload
         accepted_plan_receipt = {**receipt, "receipt_hash": receipt_hash}
+        if execution_route is not None:
+            self._last_execution_route = execution_route
+            self._last_plan_receipt = accepted_plan_receipt
         n = self._config.assembly.horizon_steps
         next_accepted_primal = (
             (
@@ -1620,6 +1656,7 @@ def _replay_artifact_document(
                 "activation_plan": assembly.activation_plan,
                 "grid": assembly.grid,
                 "preparation": assembly.preparation,
+                "retained_degraded": assembly.retained_degraded,
             },
             "solver": {
                 "prepared": result.prepared,
@@ -1666,6 +1703,134 @@ def _replay_artifact_document(
                 "status": "NOT_EVALUATED_BY_ASSEMBLER",
             },
         }
+    )
+
+
+def _mission_arrival(planner_input: PlannerInput) -> tuple[tuple[float, float], tuple[float, float], float]:
+    """Mission final leg start, goal, and arrival radius for the splice.
+
+    Unlike the encounter-gated ``_arrival_route_boundary`` this is always
+    available on native beats: the capture check guards the published route
+    cleared or not (the mirror deadlock forms exactly on recovered beats).
+    """
+    waypoints = planner_input.waypoints_enu_m.T
+    return (
+        (float(waypoints[-2][0]), float(waypoints[-2][1])),
+        (float(waypoints[-1][0]), float(waypoints[-1][1])),
+        7.0 * planner_input.ownship_length_m,
+    )
+
+
+def _mission_waypoints(planner_input: PlannerInput) -> tuple[tuple[float, float], ...]:
+    waypoints = planner_input.waypoints_enu_m.T
+    return tuple((float(point[0]), float(point[1])) for point in waypoints)
+
+
+def _handback_mission_document(
+    constraint: RetainedRouteConstraint,
+    mission_waypoints: tuple[tuple[float, float], ...],
+    ownship_position: tuple[float, float],
+    planned_speed_mps: float,
+    decisions: tuple,
+) -> dict | None:
+    """Publish the mission route itself past encounter release (v13 I §2).
+
+    Near arrival the mirror-splice chain had been a compounding battlefield
+    (pinned S-folds, splice termination, capture, approach speeds — one
+    family). Once tracked targets are all released/cleared and the vessel is
+    back inside the mission corridor, the only remaining duty is following
+    the mission line to the goal: GNC natively tracks the active route and
+    owns the internal-return bypass if the vessel drifts. The published
+    modes carry the avoidance code so the stale S-shaped mirror still clears
+    the 500 m avoidance tier of the dynamic gate; the mission-line entry
+    keeps the capture metric at zero. Returns None when any predicate fails.
+    """
+    if len(mission_waypoints) < 2 or not constraint or not decisions:
+        return None
+    for decision in decisions:
+        if decision.risk.value not in {"CLEAR", "RELEASED"}:
+            return None
+    route = np.asarray(mission_waypoints, dtype=float)
+    leg = route[-1] - route[-2]
+    leg_length = float(np.linalg.norm(leg))
+    if leg_length <= 1e-9:
+        return None
+    unit = leg / leg_length
+    normal = np.array([-unit[1], unit[0]])
+    position = np.asarray(ownship_position, dtype=float)
+    relative = position - route[-2]
+    if abs(float(relative @ normal)) > constraint.lateral_limit_m:
+        return None
+    if leg_length - float(relative @ unit) < constraint.minimum_update_distance_m:
+        return None
+    document = {
+        "schema_version": "colav.mid-mpc.execution-route@1",
+        "reference_hash": constraint.semantic_hash,
+        "reference_id": constraint.reference_id,
+        "points_ne_m": [(float(point[0]), float(point[1])) for point in mission_waypoints],
+        "speed_mps": [float(planned_speed_mps)] * len(mission_waypoints),
+        "navigation_modes": ["avoidance"] * len(mission_waypoints),
+        "retained_point_count": 0,
+        "prefix_intervals": 0,
+        "prediction_basis": "mission handback after encounter release",
+    }
+    document["geometry_hash"] = hashlib.sha256(
+        json.dumps(document, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
+    return document
+
+
+def _published_execution_route(
+    prefix: RetainedPrefixPlan,
+    predicted: np.ndarray,
+    *,
+    arrival_boundary: tuple[tuple[float, float], float] | None,
+    planned_speed_mps: float,
+    accel_max_mps2: float,
+    decel_max_mps2: float,
+    rot_max_rad_s: float,
+    steerage_speed_mps: float | None,
+    mission_arrival: tuple[tuple[float, float], tuple[float, float], float],
+    mission_waypoints: tuple[tuple[float, float], ...],
+    ownship_position: tuple[float, float],
+    decisions: tuple,
+) -> dict:
+    """Dispatch the published route on the execution prefix state.
+
+    The handback is the highest-priority branch (v13): with the encounter
+    released and the vessel back inside the mission corridor, the mission
+    route itself is published. A discard stub owns no pinned beats: its
+    publication is the splice of the retained reference itself (replayed
+    head, predicted-depth avoidance bulge, re-profiled tail) so the GNC
+    index-wise update gate replays the candidate from the reference origin —
+    a measured-position anchor would report a first change at index 0 with
+    zero lookahead and be rejected outright. The capability evidence
+    re-profiles the splice tail onto the planned cruise with a steerage-
+    floored final approach (R1); the capture self-check rides the mission
+    arrival (H-B). A retained prefix with pinned beats keeps the pinned-head
+    plus optimized-suffix compilation bit for bit.
+    """
+    handback = _handback_mission_document(
+        prefix.constraint,
+        mission_waypoints,
+        ownship_position,
+        planned_speed_mps,
+        decisions,
+    )
+    if handback is not None:
+        return handback
+    if prefix.course_rad and (prefix.pinned_beats is None or prefix.pinned_beats >= len(prefix.course_rad)):
+        return compile_execution_route(prefix, predicted, arrival_boundary=arrival_boundary)
+    return compile_spliced_execution_route(
+        prefix,
+        predicted,
+        arrival_boundary=arrival_boundary,
+        planned_speed_mps=planned_speed_mps,
+        accel_max_mps2=accel_max_mps2,
+        decel_max_mps2=decel_max_mps2,
+        rot_max_rad_s=rot_max_rad_s,
+        steerage_speed_mps=steerage_speed_mps,
+        mission_arrival=mission_arrival,
     )
 
 
@@ -1926,10 +2091,19 @@ def _acceptance_request(  # noqa: PLR0913
             mission_waypoints_ne_m=tuple(map(tuple, planner_input.waypoints_enu_m.T)),
             navigation_route_points_ne_m=(
                 tuple(
-                    compile_execution_route(
+                    _published_execution_route(
                         assembly.execution_prefix,
                         predicted,
                         arrival_boundary=_arrival_route_boundary(planner_input, snapshot),
+                        planned_speed_mps=assembly.problem.planned_speed_mps,
+                        accel_max_mps2=capability.accel_max_mps2,
+                        decel_max_mps2=capability.decel_max_mps2,
+                        rot_max_rad_s=capability.rot_max_rad_s,
+                        steerage_speed_mps=planner_input.ownship_min_steerage_speed_mps,
+                        mission_arrival=_mission_arrival(planner_input),
+                        mission_waypoints=_mission_waypoints(planner_input),
+                        ownship_position=(float(planner_input.ownship_state[0]), float(planner_input.ownship_state[1])),
+                        decisions=snapshot.targets,
                     )["points_ne_m"]
                 )
                 if assembly.execution_prefix is not None else ()
