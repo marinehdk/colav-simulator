@@ -1,0 +1,149 @@
+{
+  "runtime": "Unity standalone macOS Intel, on Apple M3 / Rosetta",
+  "original_gemini_service": true,
+  "checkpoints": [
+    {
+      "time": 0,
+      "max_source_error_m": 0.0,
+      "receipt": {
+        "service": "Gemini original SimulationServiceImpl",
+        "time": 0.0,
+        "max_position_error_m": 0.0,
+        "max_heading_error_deg": 0.0,
+        "count": 90,
+        "poses": [
+          {
+            "north": 0.0,
+            "east": 0.0,
+            "heading": 45.000003814697266
+          },
+          {
+            "north": 1000.0,
+            "east": 1000.0,
+            "heading": 45.000003814697266
+          }
+        ]
+      }
+    },
+    {
+      "time": 32,
+      "max_source_error_m": 1.395382423652336e-05,
+      "receipt": {
+        "service": "Gemini original SimulationServiceImpl",
+        "time": 32.0,
+        "max_position_error_m": 0.0,
+        "max_heading_error_deg": 0.0,
+        "count": 91,
+        "poses": [
+          {
+            "north": 182.40127563476562,
+            "east": 169.50970458984375,
+            "heading": 47.52647399902344
+          },
+          {
+            "north": 1058.2027587890625,
+            "east": 1058.2027587890625,
+            "heading": 45.000003814697266
+          }
+        ]
+      }
+    },
+    {
+      "time": 270.5,
+      "max_source_error_m": 5.369927384890616e-05,
+      "receipt": {
+        "service": "Gemini original SimulationServiceImpl",
+        "time": 270.5,
+        "max_position_error_m": 0.0,
+        "max_heading_error_deg": 0.0,
+        "count": 92,
+        "poses": [
+          {
+            "north": 1171.0770263671875,
+            "east": 1654.1287841796875,
+            "heading": 58.4077262878418
+          },
+          {
+            "north": 1491.9951171875,
+            "east": 1491.9951171875,
+            "heading": 45.000003814697266
+          }
+        ]
+      }
+    },
+    {
+      "time": 360,
+      "max_source_error_m": 7.138189539546147e-05,
+      "receipt": {
+        "service": "Gemini original SimulationServiceImpl",
+        "time": 360.0,
+        "max_position_error_m": 0.0,
+        "max_heading_error_deg": 3.814697265625e-06,
+        "count": 93,
+        "poses": [
+          {
+            "north": 1535.5888671875,
+            "east": 2216.486572265625,
+            "heading": 59.072303771972656
+          },
+          {
+            "north": 1654.7808837890625,
+            "east": 1654.7808837890625,
+            "heading": 45.000003814697266
+          }
+        ]
+      }
+    },
+    {
+      "time": 785,
+      "max_source_error_m": 0.00012125540524721146,
+      "receipt": {
+        "service": "Gemini original SimulationServiceImpl",
+        "time": 785.0,
+        "max_position_error_m": 0.0,
+        "max_heading_error_deg": 0.0,
+        "count": 94,
+        "poses": [
+          {
+            "north": 3614.1796875,
+            "east": 3782.255859375,
+            "heading": 62.36662292480469
+          },
+          {
+            "north": 2427.7861328125,
+            "east": 2427.7861328125,
+            "heading": 45.000003814697266
+          }
+        ]
+      }
+    },
+    {
+      "time": 0,
+      "max_source_error_m": 0.0,
+      "receipt": {
+        "service": "Gemini original SimulationServiceImpl",
+        "time": 0.0,
+        "max_position_error_m": 0.0,
+        "max_heading_error_deg": 0.0,
+        "count": 95,
+        "poses": [
+          {
+            "north": 0.0,
+            "east": 0.0,
+            "heading": 45.000003814697266
+          },
+          {
+            "north": 1000.0,
+            "east": 1000.0,
+            "heading": 45.000003814697266
+          }
+        ]
+      }
+    }
+  ],
+  "play_pause": {
+    "rate": 16,
+    "advanced_to": 16.0,
+    "pause_positions_unchanged": true
+  }
+}

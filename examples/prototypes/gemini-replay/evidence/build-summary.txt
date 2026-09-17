@@ -1,0 +1,1 @@
+COLAV_PLAYER_BUILD_SUCCESS /Users/marine/Code/.worktrees/Colav-Simulator/digital-twin-replay-prototype/examples/prototypes/gemini-replay/outputs/Gemini-Colav-Replay.app

@@ -1,0 +1,12 @@
+{
+  "source_run": "/Users/marine/Code/Colav-Simulator/runs/3f99134e-070a-4389-adee-03b91979c8df",
+  "files": {
+    "manifest.json": "8fddf5dbce236c3f5d6e0100559760b8694b11bda45d533b1ae85c7789aaa71b",
+    "episode.json": "dc6db0f688af1a17df344b64f09b503c77cfcd7ee58bfe37b9385794660e68f4",
+    "static_context.json": "a25421406669e963defe22d52bf0297841971880a195762a64cea16aa6162b42",
+    "trajectory.parquet": "1e499bb7e48d90f5970702127bd38804d7dc384988553fd9ecb48ab10ad102f1",
+    "decision/frames.jsonl.gz": "eaebb68579dec79917c6ed702c9c310cb4d327639235a626ef38bb6f1c592831",
+    "enc.png": "26365c0103023fc6819ab50ab36b1f85423659535bbc735d0d901d8d3dc02982",
+    "evaluation.json": "f2e7e7e924b69e63876a071f6b7bc28438ece78342c61f4528bb89ecb545b971"
+  }
+}

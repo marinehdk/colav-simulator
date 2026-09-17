@@ -1,0 +1,19 @@
+{
+  "repository": "https://github.com/Gemini-team/Gemini",
+  "commit": "ce538dff7e1a8d1f1a249d7eeed2f5349fdf1b33",
+  "editor": "2019.4.20f1",
+  "unchanged_source_sha256": {
+    "Core/ThreadManager.cs": "8d9eea8e3f76693f95b191168a459a2bbd6c58f551887dfa3e08a690d4d791c4",
+    "EMRSensors/Core/Sensor.cs": "d12307d60a49e700948200e7bb9fa34c8fcee192c0e135e4ca2848e3c9d54358",
+    "Networking/Services/Simulation/Pose.cs": "aa0c614106738f61fd6f3a2c42e3b5127966e2873a8697197aaf3201ac41d87c",
+    "Networking/Services/Simulation/SimulationController.cs": "11eedaad8952220cf2b5ad1495adda4bfb5e60770b463d0bdb46bd4967b745ac",
+    "Networking/Services/Simulation/SimulationServiceImpl.cs": "2465792ad014b85f0adb50e8dd1e0044c5512d669c4fa2f7fee376ca30352bc6",
+    "Networking/ProtobufFiles/simulation/Simulation.cs": "514739e53cad99170a05689c2b8d232ee905ba615c8784c37bdc10cf11c5ea19",
+    "Networking/ProtobufFiles/simulation/SimulationGrpc.cs": "9a60d0fa225f97692089c0bde084047c600e9efbcf9e0eb5436cf1ad1da8e85c",
+    "Networking/ProtobufFiles/sensor_streaming/SensorStreaming.cs": "098f6ace6028b3ac222d50f55d6de92b8f1c52e9d07b471cf34bf28325aa25f9",
+    "Networking/ProtobufFiles/sensor_streaming/SensorStreamingGrpc.cs": "e96208b01bd1de4d326cc95be14d7edb80003d144a1b0fe5a5c4346b5c2a7e1b"
+  },
+  "grpc_url": "https://packages.grpc.io/archive/2019/12/a02d6b9be81cbadb60eed88b3b44498ba27bcba9-edd81ac6-e3d1-461a-a263-2b06ae913c3f/csharp/grpc_unity_package.2.26.0-dev.zip",
+  "grpc_sha256": "509af7278e725cc6a291d354365db930ea1bc96fe53bd96dc88cb33ed1c3e797",
+  "scope": "Original SimulationServiceImpl/ThreadManager and protocol dependencies. No EMR sensor models or restricted Trondheim assets included."
+}

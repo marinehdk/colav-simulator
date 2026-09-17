@@ -1,0 +1,35 @@
+{
+  "status": {
+    "playing": false,
+    "rate": 16.0,
+    "time": 270.5,
+    "revision": 29,
+    "ack_time": 270.5,
+    "connected": true,
+    "error": "",
+    "sent": 451,
+    "capture": 3,
+    "duration": 785.0,
+    "run_id": "3f99134e-070a-4389-adee-03b91979c8df",
+    "algorithm": "vo"
+  },
+  "readback": {
+    "service": "Gemini original SimulationServiceImpl",
+    "time": 270.5,
+    "max_position_error_m": 0.0,
+    "max_heading_error_deg": 0.0,
+    "count": 1,
+    "poses": [
+      {
+        "north": 1171.0770263671875,
+        "east": 1654.1287841796875,
+        "heading": 58.4077262878418
+      },
+      {
+        "north": 1491.9951171875,
+        "east": 1491.9951171875,
+        "heading": 45.000003814697266
+      }
+    ]
+  }
+}

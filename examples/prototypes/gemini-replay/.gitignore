@@ -1,0 +1,11 @@
+.build/
+unity/Library/
+unity/Logs/
+unity/Temp/
+unity/Obj/
+unity/UserSettings/
+unity/Assets/Plugins/
+unity/Assets/Plugins.meta
+client/generated/
+__pycache__/
+outputs/
