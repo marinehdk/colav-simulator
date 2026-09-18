@@ -13,6 +13,8 @@ import threading
 from pathlib import Path
 from typing import Any
 
+import orjson
+
 APPROVED_SOURCE_MANIFEST_SHA256 = "8590d52f4b3ee551ae390bb019ffca2a6ad434bd5659a6c92d8f54c870ff9e62"
 
 
@@ -85,7 +87,7 @@ class NativeModule:
             result = self._library.original_gnc_describe(self._handle)
             if result is None:
                 raise self._error()
-            return json.loads(result)
+            return orjson.loads(result)
 
     def invoke(self, callback: str, message: dict | None, time_ns: int) -> dict[str, Any]:
         """Execute one original input callback or scheduled update, synchronously."""
@@ -99,7 +101,7 @@ class NativeModule:
             )
             if result is None:
                 raise self._error()
-            return json.loads(result)
+            return orjson.loads(result)
 
     def close(self) -> None:
         """Destroy only this instance; no process-global simulation state reset."""

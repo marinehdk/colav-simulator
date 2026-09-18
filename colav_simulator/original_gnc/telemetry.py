@@ -19,7 +19,7 @@ def speed_contract(ship: Any) -> dict:
     manager = stack.latest.get("/gnc/route_execution_status") or {}
     velocity_active = bool(stack.states["active_route_manager_node"].get("active_velocity_intent"))
     velocity = (stack.latest.get("/gnc/velocity_execution_status") or {}) if velocity_active else {}
-    planner = (ship._legacy.get_colav_data().get("planner") or {}) if ship._legacy._colav is not None else {}
+    planner = (ship._legacy._colav.get_colav_data().get("planner") or {}) if ship._legacy._colav is not None else {}
     plant = stack.states["ship_dynamics_node"]
 
     def finite(value: Any) -> float | None:

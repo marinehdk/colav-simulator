@@ -826,10 +826,10 @@ def _build_graph(  # noqa: C901, PLR0912, PLR0915
     options["iteration_callback_step"] = 1
     options["iteration_callback_ignore_errors"] = True
     if config.strict_slack_bounds:
-        # Chart restoration uses a short history. Charted multi-target seeds
-        # benefit from a small monotone barrier near hard rows; single-target
-        # restoration uses adaptive updates. Uncharted single-target calibration
-        # and all numerical acceptance gates remain unchanged.
+        # Chart restoration uses a short history and adaptive barrier updates.
+        # A fixed monotone barrier stalls on native multi-target recovery (260
+        # iterations in the captured T224.2 problem, versus 24 adaptive).
+        # Uncharted single-target calibration and admission gates are unchanged.
         charted_multi_target = problem.static_field is not None and target_capacity > 1
         options.update(
             {
@@ -841,7 +841,7 @@ def _build_graph(  # noqa: C901, PLR0912, PLR0915
                 "ipopt.honor_original_bounds": "yes",
                 "ipopt.mu_strategy": (
                     "adaptive"
-                    if (target_capacity > 1 or problem.static_field is not None) and not charted_multi_target
+                    if target_capacity > 1 or problem.static_field is not None
                     else "monotone"
                 ),
                 "ipopt.limited_memory_max_history": 6 if target_capacity > 1 or problem.static_field is not None else 50,

@@ -26,6 +26,7 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
+import orjson
 import yaml
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
@@ -862,10 +863,11 @@ class WebSessionManager:
             if shared_planner:
                 documents = self._latest_shared_stream_documents
                 if include_static not in documents:
-                    documents[include_static] = json.dumps(
-                        jsonable(_shared_planner_stream_payload(self.latest, include_static=include_static)),
-                        ensure_ascii=False, separators=(",", ":"),
-                    )
+                    documents[include_static] = orjson.dumps(
+                        _shared_planner_stream_payload(self.latest, include_static=include_static),
+                        default=jsonable,
+                        option=orjson.OPT_SERIALIZE_NUMPY | orjson.OPT_PASSTHROUGH_DATETIME,
+                    ).decode("utf-8")
                 return documents[include_static]
             if static_once:
                 attribute = (

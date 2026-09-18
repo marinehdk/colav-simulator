@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass, field
+from copy import deepcopy
+from dataclasses import dataclass, field, fields, is_dataclass
 from enum import StrEnum
 from typing import Any
 
@@ -45,9 +46,23 @@ class PlanDiagnostics:
     details: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
-        output = asdict(self)
+        output = _snapshot_value(self)
         output["status"] = self.status.value
         return output
+
+
+def _snapshot_value(value: Any) -> Any:
+    """Keep detached diagnostic snapshots without deepcopy dispatch per scalar."""
+    if type(value) in (str, int, float, bool, type(None)):
+        return value
+    if isinstance(value, dict):
+        return type(value)((_snapshot_value(key), _snapshot_value(item)) for key, item in value.items())
+    if isinstance(value, (list, tuple)):
+        items = (_snapshot_value(item) for item in value)
+        return type(value)(*items) if hasattr(value, "_fields") else type(value)(items)
+    if is_dataclass(value):
+        return {item.name: _snapshot_value(getattr(value, item.name)) for item in fields(value)}
+    return deepcopy(value)
 
 
 @dataclass

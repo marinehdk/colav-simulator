@@ -7,9 +7,11 @@ import ctypes
 import hashlib
 import json
 from collections import Counter
+from types import SimpleNamespace
 
 import pytest
 
+from colav_simulator.original_gnc import native
 from colav_simulator.original_gnc.configuration import OriginalGncConfig
 from colav_simulator.original_gnc.native import APPROVED_SOURCE_MANIFEST_SHA256, OriginalGncError, verify_build
 from colav_simulator.original_gnc.stack import NativeStack
@@ -165,3 +167,20 @@ def test_native_gil_binding_preserves_callback_outputs(original_config):
             released.advance(dt)
             assert retained.states == released.states
             assert retained.latest == released.latest
+
+
+def test_fast_native_decoder_preserves_every_environment_callback(original_config, monkeypatch):
+    optimized = native.orjson
+    events = []
+    monkeypatch.setattr(native, "orjson", SimpleNamespace(loads=json.loads))
+    with stack_for(original_config, trace=events.append, enabled_environment=("wind", "current", "wave")) as baseline:
+        baseline.advance(2.0)
+        expected_states = copy.deepcopy(baseline.states)
+        expected_messages = copy.deepcopy(baseline.latest)
+    actual_events = []
+    monkeypatch.setattr(native, "orjson", optimized)
+    with stack_for(original_config, trace=actual_events.append, enabled_environment=("wind", "current", "wave")) as actual:
+        actual.advance(2.0)
+        assert actual.states == expected_states
+        assert actual.latest == expected_messages
+        assert actual_events == events

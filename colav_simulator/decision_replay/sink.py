@@ -6,8 +6,8 @@ ONE producer-facing writer. The on-disk artifact contract is unchanged: the
 ``colav.decision-replay.v1`` schema, ``decision/frames.jsonl.gz``,
 ``decision/events.jsonl[.gz]`` and ``decision/index.json``.
 
-Capture is asynchronous with a bounded queue: the simulation thread pays one
-``jsonable`` + ``json.dumps`` per tick and a background worker owns file I/O.
+Capture is asynchronous with a bounded queue: the simulation thread serializes
+each immutable frame once and a background worker owns file I/O.
 No frame is ever silently discarded — queue backpressure, byte-budget
 exhaustion and persistence failures all switch the sink to a typed
 ``INCOMPLETE`` state, stop admission, and keep the durable prefix truthful.
@@ -25,6 +25,8 @@ import threading
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+
+import orjson
 
 from colav_simulator.decision_replay.bundle import TRACE_SCHEMA
 from colav_simulator.experiment.persistence import jsonable
@@ -154,16 +156,23 @@ class TraceSink:
 
     def _serialize(self, snapshot: Any) -> bytes | None:
         try:
-            payload = jsonable(snapshot.payload)
             record = {
                 "sequence": snapshot.sequence,
                 "sim_time": snapshot.sim_time,
                 "step_time_ms": snapshot.step_time_ms,
                 "state": snapshot.state.value if hasattr(snapshot.state, "value") else str(snapshot.state),
-                "payload": payload,
-                "events": jsonable(snapshot.events),
+                "payload": snapshot.payload,
+                "events": snapshot.events,
             }
-            return json.dumps(record, allow_nan=False).encode("utf-8")
+            try:
+                return orjson.dumps(
+                    record,
+                    default=jsonable,
+                    option=orjson.OPT_SERIALIZE_NUMPY | orjson.OPT_PASSTHROUGH_DATETIME,
+                )
+            except TypeError:
+                # Preserve the existing conversion for uncommon key/scalar types.
+                return json.dumps(jsonable(record), allow_nan=False).encode("utf-8")
         except (TypeError, ValueError):
             return None
 

@@ -186,7 +186,12 @@ class _MidMpcFacade:
             self._solver.prewarm_capacity(
                 config.prewarm_targets or 1,
                 static_field=compile_static_field(preparation_input),
-                retained_route=preparation_input.ownship_model.startswith("original_gnc_"),
+                # Only spatial retention adds corridor rows. Native identity
+                # alone does not: timed trajectories replace the plan.
+                retained_route=(
+                    preparation_input.execution_route_constraint is not None
+                    and not preparation_input.execution_route_constraint.trajectory_updates
+                ),
             )
         elif config.prewarm_targets and config.prewarm_targets > 1:
             # One graph at the scenario's full capacity serves the first

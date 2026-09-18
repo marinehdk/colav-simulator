@@ -17,6 +17,7 @@ from colav_simulator.original_gnc.configuration import ORIGINAL_OFF, ORIGINAL_ON
 from colav_simulator.original_gnc.native import OriginalGncError
 from colav_simulator.original_gnc.plan_bridge import OriginalPlanBridge
 from colav_simulator.original_gnc.stack import NativeStack
+from colav_simulator.original_gnc.telemetry import speed_contract
 from gui_server.gnc_balance import balance_telemetry
 
 
@@ -230,3 +231,16 @@ def test_cleared_constraints_keep_the_planner_velocity_owner(original_ship):
     bridge.submit(11.1)
     assert ship.stack.states["active_route_manager_node"]["active_velocity_intent"]
     assert ship.requested_plans[-1]["message"]["behavior_mode"] == "cruise"
+
+
+def test_speed_projection_does_not_materialize_full_diagnostics(original_ship, monkeypatch):
+    planner = {"selected_command": {"speed_mps": 4.25}, "sim_time": 12.0}
+    original_ship._legacy._colav = SimpleNamespace(get_colav_data=lambda: {"planner": planner})
+
+    def expensive_snapshot():
+        raise AssertionError("Speed projection must not copy complete planner diagnostics")
+
+    monkeypatch.setattr(original_ship._legacy, "get_colav_data", expensive_snapshot)
+    result = speed_contract(original_ship)
+    assert result["planner_speed_mps"] == 4.25
+    assert result["planner_sample_time_s"] == 12.0

@@ -337,3 +337,23 @@ def test_chart_prewarm_serves_first_real_solve_without_advancing_authority() -> 
     assert result.feasible
     assert result.algorithm_details["graph_cache_hit"]
     assert result.algorithm_details["graph_build_elapsed_ms"] == 0.0
+
+
+def test_native_timed_trajectory_prewarm_matches_unretained_graph():
+    data = replace(
+        _input(_enc(box(-40, 500, 40, 650))),
+        ownship_model="original_gnc_20260824_v2",
+        ownship_controller="original_ship_control_20260824_v2",
+        ownship_course_time_constant_s=87.0,
+        ownship_speed_time_constant_s=24.0,
+        ownship_max_turn_rate_rad_s=0.02,
+        ownship_max_speed_rate_mps2=0.3,
+        ownship_max_speed_mps=8.0,
+    )
+    adapter = create(context=FactoryContext(
+        requested_algorithm="mid_mpc_ipopt", algorithm_seed=0, preparation_input=data,
+    ))
+    result = adapter._solve.__self__.solve(data)
+    assert result.feasible
+    assert result.algorithm_details["graph_cache_hit"]
+    assert result.algorithm_details["graph_build_elapsed_ms"] == 0.0
