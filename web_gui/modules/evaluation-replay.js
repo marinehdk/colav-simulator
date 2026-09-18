@@ -9,7 +9,7 @@
  * only and never mutates an Active Session.
  */
 
-import { createSituationDisplay } from './situation-display.js';
+import { createSituationDisplay } from './situation-display.js?v=20260918-replay-placard';
 import { createTelemetryProjection } from './telemetry-projection.js';
 import { projectReplayFrame, REPLAY_PRESENTATION_MODE } from './replay-source.js';
 import { createReplayClock, ReplayPlayState } from './replay-clock.js?v=20260918-buffering';
@@ -58,6 +58,7 @@ export function createEvaluationReplayController({
   let windowDoc = null;
   let playhead = null;
   let selectedTargetId = null;
+  let vesselPositions = null;
   let generation = 0;
   let status = 'EMPTY';
   let replayControlsEnabled = false;
@@ -582,6 +583,8 @@ export function createEvaluationReplayController({
     lastSourceSequence = null;
     lastSourceSimTime = null;
     selectedTargetId = null;
+    vesselPositions = null;
+    renderVesselPlacard();
     replayScaleValue = 0.5;
     const replayScaleInput = el('replayChartScaleInput');
     if (replayScaleInput) replayScaleInput.value = '0.50';
@@ -703,6 +706,11 @@ export function createEvaluationReplayController({
       },
       fetchTile: () => context?.enc?.image_url ?? '',
       onLayerStateChange: state => syncReplayLayerControls(state),
+      onSelectionChange: target => selectTarget(target?.id ?? null),
+      onVesselPositionsChange: positions => {
+        vesselPositions = positions;
+        renderVesselPlacard();
+      },
     };
     if (displayFactory) {
       display = displayFactory(displayOptions);
@@ -735,6 +743,7 @@ export function createEvaluationReplayController({
     buffering = false;
     const gen = generation;
     setStatus('LOADING');
+    if (el('replayVesselDetailPlacard')) el('replayVesselDetailPlacard').hidden = true;
     el('replayStatusLine').textContent = 'LOADING RECORDED EVIDENCE';
     readouts();
     if (wasPlaying) clock.hold(); // stop progression while the target window loads
@@ -763,11 +772,66 @@ export function createEvaluationReplayController({
     });
   }
 
+  function renderVesselPlacard() {
+    const placard = el('replayVesselDetailPlacard');
+    const wrapper = el('replayCanvasWrapper');
+    if (!placard || !wrapper) return;
+    const own = vesselPositions?.ownship;
+    const selected = selectedTargetId === '0' ? own
+      : vesselPositions?.targets?.find(item => String(item.vessel.id) === selectedTargetId);
+    const target = selected?.vessel;
+    const anchor = selected?.anchor;
+    if (status === 'LOADING' || selectedTargetId === null || !target || !anchor || target.active === false
+      || anchor.x < 0 || anchor.y < 0 || anchor.x > wrapper.clientWidth || anchor.y > wrapper.clientHeight) {
+      placard.hidden = true;
+      return;
+    }
+    const risk = projection.snapshot()?.risk?.targets?.find(item => String(item.targetId) === selectedTargetId);
+    const deltaN = Number.isFinite(target.x) && Number.isFinite(own?.vessel?.x) ? target.x - own.vessel.x : NaN;
+    const deltaE = Number.isFinite(target.y) && Number.isFinite(own?.vessel?.y) ? target.y - own.vessel.y : NaN;
+    const isOwnship = selectedTargetId === '0';
+    const bearing = isOwnship ? NaN : (Math.atan2(deltaE, deltaN) * 180 / Math.PI + 360) % 360;
+    const range = isOwnship ? NaN : (Number.isFinite(risk?.distanceM) ? risk.distanceM : Math.hypot(deltaN, deltaE)) / 1852;
+    const heading = Number.isFinite(target.psi) ? (target.psi * 180 / Math.PI + 360) % 360 : NaN;
+    const speed = Number.isFinite(target.sog) ? target.sog / 0.514444 : NaN;
+    const cpa = Number.isFinite(risk?.dcpaM) ? Math.abs(risk.dcpaM) / 1852 : NaN;
+    const tcpa = Number.isFinite(risk?.tcpaS) ? risk.tcpaS / 60 : NaN;
+    const metric = (name, value, digits) => {
+      const node = el(`replayVesselPlacard${name}`);
+      if (node) node.textContent = Number.isFinite(value) ? value.toFixed(digits) : '—';
+    };
+    metric('Bearing', bearing, 0);
+    metric('Range', range, 1);
+    metric('Heading', heading, 0);
+    metric('Speed', speed, 1);
+    metric('Dcpa', cpa, cpa < 0.1 ? 3 : 2);
+    metric('Tcpa', tcpa, 1);
+    Object.assign(placard, {
+      headerVariant: 'condensed', index: isOwnship ? 'OS' : selectedTargetId,
+      cardTitle: isOwnship ? 'OWN SHIP' : target.name || `TS${selectedTargetId}`,
+      description: `Recorded frame #${lastSourceSequence} @ ${formatTime(lastSourceSimTime)} s`,
+      source: 'REPLAY', interactive: false,
+    });
+    placard.setAttribute('aria-label', `${isOwnship ? 'OWN SHIP' : `TS${selectedTargetId}`} recorded vessel details`);
+    const above = anchor.y > 220;
+    const halfWidth = Math.min(165, Math.max(80, wrapper.clientWidth / 2 - 8));
+    const left = Math.min(wrapper.clientWidth - halfWidth, Math.max(halfWidth, anchor.x));
+    placard.dataset.placement = above ? 'above' : 'below';
+    placard.pointerDirection = above ? 'bottom' : 'top';
+    placard.style.transform = `translate3d(${left}px, ${anchor.y + (above ? -38 : 38)}px, 0) translate(-50%, ${above ? '-100%' : '0'})`;
+    const symbol = el('replayVesselPlacardSymbol');
+    if (symbol) Object.assign(symbol, { type: 'flat-large', heading: Number.isFinite(heading) ? heading : 0,
+      course: Number.isFinite(heading) ? heading : 0, state: 'enabled', vesselImage: 'cargo-top', vesselImageSize: 28 });
+    placard.hidden = false;
+  }
+
   function selectTarget(targetId) {
     selectedTargetId = targetId === null || targetId === undefined ? null : String(targetId);
+    renderVesselPlacard();
   }
 
   function close() {
+    selectTarget(null);
     generation += 1;
     stopPlaybackTimer();
     clock?.pause();

@@ -795,6 +795,24 @@
               <obc-icon-button id="replayCloseBtn" variant="flat" aria-label="Back to Replay" title="Back to Replay"><obi-chevron-left-google></obi-chevron-left-google></obc-icon-button>
             </div>
             <canvas id="replayCanvas" aria-label="Historical situation chart"></canvas>
+                <obc-poi-card class="vessel-detail-placard" id="replayVesselDetailPlacard" aria-live="polite" hidden>
+                  <div class="vessel-placard-body">
+                    <div class="vessel-placard-primary">
+                      <div class="vessel-placard-dial" aria-hidden="true">
+                        <span>N</span>
+                        <obc-chart-object-vessel-button id="replayVesselPlacardSymbol" type="flat" state="active"></obc-chart-object-vessel-button>
+                      </div>
+                      <div class="vessel-placard-feature"><strong id="replayVesselPlacardBearing">---</strong><span>BRG<small>DEG</small></span></div>
+                      <div class="vessel-placard-feature"><strong id="replayVesselPlacardRange">---</strong><span>RNG<small>NM</small></span></div>
+                    </div>
+                    <div class="vessel-placard-secondary">
+                      <span>CPA</span><strong id="replayVesselPlacardDcpa">---</strong><small>NM</small>
+                      <span>HDG</span><strong id="replayVesselPlacardHeading">---</strong><small>DEG</small>
+                      <span>TCPA</span><strong id="replayVesselPlacardTcpa">---</strong><small>min</small>
+                      <span>SPD</span><strong id="replayVesselPlacardSpeed">---</strong><small>kn</small>
+                    </div>
+                  </div>
+                </obc-poi-card>
           </div>
         </div>
         <footer class="replay-timeline-bar">
@@ -978,6 +996,6 @@
   <script type="module" src="/static/modules/config-shell.js?v=20260916-replay-layout-v4"></script>
   <script type="module" src="/static/modules/historical-ais-workbench.js?v=20260916-replay-layout-v4"></script>
   <script type="module" src="/static/modules/replay-runs.js?v=20260916-replay-layout-v4"></script>
-  <script type="module" src="/static/modules/evaluation-replay.js?v=20260918-replay-prefetch-v3"></script>
+  <script type="module" src="/static/modules/evaluation-replay.js?v=20260918-replay-placard-v2"></script>
 </body>
 </html>

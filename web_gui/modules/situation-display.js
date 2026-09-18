@@ -454,6 +454,7 @@ export function createSituationDisplay(options) {
     onLayerStateChange = () => {},
     onSelectionChange = () => {},
     onTargetMarkersChange = null,
+    onVesselPositionsChange = null,
   } = options;
   if (!canvas || !wrapper) throw new Error('situation-display requires canvas and wrapper');
 
@@ -1355,6 +1356,13 @@ export function createSituationDisplay(options) {
       ownshipMarker = { vessel: data.os, anchor: drawnToScreen(point.x, point.y) };
     }
     markerSink?.(markers, { ownship: ownshipMarker });
+    onVesselPositionsChange?.({
+      ownship: ownshipMarker,
+      targets: targets.map(vessel => {
+        const point = worldToCanvas(vessel.x, vessel.y);
+        return { vessel, anchor: drawnToScreen(point.x, point.y) };
+      }),
+    });
     drawAvoidingLabels(labels);
     drawSequence.push('ships');
   }
