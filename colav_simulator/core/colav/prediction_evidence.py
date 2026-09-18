@@ -484,23 +484,25 @@ class EvidenceEnvelope:
             "artifact_reference": artifact,
             "authority": authority_document,
         }
-        inline_capacity = capacity_bytes - len(canonical_bytes(fixed)) - 32
-        if inline_capacity < 256:
-            authority_document = _externalize_inline_accepted_prediction(
-                authority_document,
+        for _ in range(2):
+            inline_capacity = capacity_bytes - len(canonical_bytes(fixed)) - 32
+            if inline_capacity >= 256:
+                try:
+                    summary = inline_projection(self.semantic_record, capacity_bytes=inline_capacity)
+                except ValueError as exc:
+                    if not str(exc).startswith("INLINE_CAPACITY_EXCEEDED"):
+                        raise
+                else:
+                    value = {**fixed, "inline": summary}
+                    if len(canonical_bytes(value)) <= capacity_bytes:
+                        return value
+            # Reserve the actual mandatory verdict, not just the minimum
+            # envelope size: hashes/failures can exceed the 256-byte floor.
+            fixed["authority"] = _externalize_inline_accepted_prediction(
+                fixed["authority"],
                 artifact_reference=artifact,
             )
-            fixed["authority"] = authority_document
-            inline_capacity = capacity_bytes - len(canonical_bytes(fixed)) - 32
-        if inline_capacity < 256:
-            raise ValueError("INLINE_CAPACITY_EXCEEDED: accepted prediction requires external artifact capacity")
-        value = {
-            **fixed,
-            "inline": inline_projection(self.semantic_record, capacity_bytes=inline_capacity),
-        }
-        if len(canonical_bytes(value)) > capacity_bytes:
-            raise ValueError("INLINE_CAPACITY_EXCEEDED: envelope exceeds capacity")
-        return value
+        raise ValueError("INLINE_CAPACITY_EXCEEDED: mandatory envelope exceeds capacity")
 
 
 @dataclass(frozen=True)

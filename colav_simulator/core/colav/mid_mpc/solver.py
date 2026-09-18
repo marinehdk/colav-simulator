@@ -963,7 +963,7 @@ def _cross_track_all(psi: ca.MX, speed: ca.MX, p: ca.MX, dt_s: float) -> list[ca
     return values
 
 
-def _crossing_astern_rows(
+def _crossing_astern_rows(  # noqa: PLR0915 - keep continuous CPA and L4 horizon gating together
     psi: ca.MX,
     speed: ca.MX,
     p: ca.MX,
@@ -994,6 +994,7 @@ def _crossing_astern_rows(
         target_east_speed = p[base + _T.SOG] * ca.sin(p[base + _T.COG])
         best_distance_squared: ca.MX | None = None
         best_projection = ca.MX(0.0)
+        best_knot_distance_squared: ca.MX | None = None
         for k in range(config.horizon_steps):
             start_time_s = ca.DM(k * config.dt_s)
             end_time_s = ca.DM((k + 1) * config.dt_s)
@@ -1003,6 +1004,11 @@ def _crossing_astern_rows(
             target_end_y = p[base + _T.Y] + target_east_speed * end_time_s
             relative_start_x = target_start_x - positions[k][0]
             relative_start_y = target_start_y - positions[k][1]
+            knot_distance_squared = relative_start_x * relative_start_x + relative_start_y * relative_start_y
+            best_knot_distance_squared = (
+                knot_distance_squared if best_knot_distance_squared is None
+                else ca.fmin(best_knot_distance_squared, knot_distance_squared)
+            )
             relative_delta_x = (target_end_x - positions[k + 1][0]) - relative_start_x
             relative_delta_y = (target_end_y - positions[k + 1][1]) - relative_start_y
             denominator = relative_delta_x * relative_delta_x + relative_delta_y * relative_delta_y
@@ -1028,7 +1034,16 @@ def _crossing_astern_rows(
                 closer = distance_squared < best_distance_squared
                 best_distance_squared = ca.if_else(closer, distance_squared, best_distance_squared)
                 best_projection = ca.if_else(closer, projection, best_projection)
-        rows.append(active * (best_projection - margin_m))
+        passing_row = best_projection - margin_m
+        if config.strict_slack_bounds:
+            # Match L4: an approach still closing at the horizon boundary has
+            # no observed passing event yet. Keep its CPA safety rows active,
+            # but do not force it to finish passing within this finite horizon.
+            final_dx = target_end_x - positions[-1][0]
+            final_dy = target_end_y - positions[-1][1]
+            cpa_inside_horizon = best_knot_distance_squared <= final_dx * final_dx + final_dy * final_dy
+            passing_row = ca.if_else(cpa_inside_horizon, passing_row, ca.DM(1.0))
+        rows.append(active * passing_row)
     return rows
 
 
@@ -1218,7 +1233,7 @@ _SEED_REPAIR_STEP_RAD = math.radians(2.5)
 _SEED_REPAIR_MAX_STEPS = 18
 
 
-def _repair_infeasible_seed(
+def _repair_infeasible_seed(  # noqa: C901, PLR0912 - ordered bounded heading/braking search
     graph: _Graph,
     prepared: MidMpcPreparedProblem,
     problem: MidMpcProblem,
@@ -1243,10 +1258,18 @@ def _repair_infeasible_seed(
     baseline = _max_row_violation(graph, prepared.x0, prepared)
     if baseline <= 1.0e-9 and (iterate_filter is None or iterate_filter(prepared.x0)):
         return None
+    committed_course = any(
+        lower is not None or upper is not None for lower, upper in problem.row_schedule.course_bounds_rad
+    )
+    braking_seed = (
+        problem.route_constraint_limit_m is not None or problem.timed_execution
+        or (problem.static_field is not None and committed_course)
+    )
     best_x0: np.ndarray | None = None
     best_violation = baseline
-    if problem.route_constraint_limit_m is not None or problem.timed_execution:
-        # A retained route can leave insufficient lateral room to pass yet.
+    if braking_seed:
+        # Retained routes and COLREG course commitments can leave insufficient
+        # lateral room around chart hazards; braking respects that authority.
         # Seed braking as well as turning; this only initializes IPOPT and
         # must satisfy the same prefix, rate, clearance and corridor rows.
         n = config.horizon_steps
@@ -1277,35 +1300,40 @@ def _repair_infeasible_seed(
         72,
         max(_SEED_REPAIR_MAX_STEPS, int(math.ceil(maximum_delta / _SEED_REPAIR_STEP_RAD))),
     )
-    for step_index in range(1, repair_steps + 1):
-        magnitude = _SEED_REPAIR_STEP_RAD * step_index
-        for sign in (-1.0, 1.0):
-            heading_seed = _ramped_offset_seed(prepared.x0, problem, config, sign * magnitude)
-            speed_fractions = (
-                (1.0, 0.75, 0.5, 0.25, 0.0)
-                if problem.route_constraint_limit_m is not None or problem.timed_execution
-                else (1.0,)
-            )
-            for fraction in speed_fractions:
-                candidate = heading_seed.copy()
-                if problem.route_constraint_limit_m is not None or problem.timed_execution:
-                    start_k = min(problem.prefix_active_k, config.horizon_steps)
-                    previous = (
-                        problem.prefix_u_mps[start_k - 1]
-                        if start_k
-                        else problem.own_ship.u_mps
-                    )
-                    target_speed = fraction * problem.speed_bounds_mps[1]
-                    for k in range(start_k, config.horizon_steps):
-                        previous = max(target_speed, previous - problem.decel_max_mps2 * config.dt_s)
-                        candidate[config.horizon_steps + k] = previous
-                candidate = np.clip(candidate, prepared.lbx, prepared.ubx)
-                violation = _max_row_violation(graph, candidate, prepared)
-                if violation <= 1.0e-9 and (iterate_filter is None or iterate_filter(candidate)):
-                    return _reseeded(prepared, candidate)
-                if violation < best_violation:
-                    best_violation = violation
-                    best_x0 = candidate
+    # Unretained chart routes first keep the established turning-only search.
+    # Add braking only after those seeds fail, avoiding needless stops where
+    # a normal passing route already satisfies every row.
+    repair_modes = (False, True) if problem.static_field is not None and not braking_seed else (braking_seed,)
+    for allow_braking in repair_modes:
+        for step_index in range(0 if allow_braking and not braking_seed else 1, repair_steps + 1):
+            magnitude = _SEED_REPAIR_STEP_RAD * step_index
+            for sign in (-1.0, 1.0):
+                heading_seed = _ramped_offset_seed(prepared.x0, problem, config, sign * magnitude)
+                speed_fractions = (
+                    (1.0, 0.75, 0.5, 0.25, 0.0)
+                    if allow_braking
+                    else (1.0,)
+                )
+                for fraction in speed_fractions:
+                    candidate = heading_seed.copy()
+                    if allow_braking:
+                        start_k = min(problem.prefix_active_k, config.horizon_steps)
+                        previous = (
+                            problem.prefix_u_mps[start_k - 1]
+                            if start_k
+                            else problem.own_ship.u_mps
+                        )
+                        target_speed = fraction * problem.speed_bounds_mps[1]
+                        for k in range(start_k, config.horizon_steps):
+                            previous = max(target_speed, previous - problem.decel_max_mps2 * config.dt_s)
+                            candidate[config.horizon_steps + k] = previous
+                    candidate = np.clip(candidate, prepared.lbx, prepared.ubx)
+                    violation = _max_row_violation(graph, candidate, prepared)
+                    if violation <= 1.0e-9 and (iterate_filter is None or iterate_filter(candidate)):
+                        return _reseeded(prepared, candidate)
+                    if violation < best_violation:
+                        best_violation = violation
+                        best_x0 = candidate
     if best_x0 is not None and best_violation < 0.5 * baseline:
         return _reseeded(prepared, best_x0)
     return None

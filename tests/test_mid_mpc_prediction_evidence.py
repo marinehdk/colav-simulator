@@ -449,3 +449,34 @@ def test_public_verifier_rejects_l4_verdict_that_hides_mandatory_failure() -> No
     assert result.valid is False
     assert result.highest_verified_level is EvidenceVerificationLevel.NUMERICAL
     assert result.failures == ("L4_VERDICT_INCONSISTENT",)
+
+
+@pytest.mark.parametrize("mandatory_failures", [[], [{"code": "SAFETY_SWEPT_CLEARANCE", "target_key": [7, 2]}]])
+def test_inline_envelope_externalizes_receipt_when_remaining_budget_cannot_fit_verdict(mandatory_failures):
+    record = replace(
+        _record(),
+        candidate_hash="c" * 64,
+        acceptance_hash="a" * 64,
+        acceptance={"accepted": not mandatory_failures, "mandatory_failures": mandatory_failures},
+    )
+    envelope = EvidenceEnvelope(record)
+    authority = {
+        "receipt": {
+            "receipt_hash": "r" * 64,
+            "accepted_prediction": {
+                "states_enu": [[1.0, 2.0, 3.0, 4.0]] * 100,
+                "prediction_hash": "p" * 64,
+                "evidence_semantic_hash": record.semantic_hash,
+            },
+        }
+    }
+    artifact = {"sha256": "f" * 64, "relative_path": "artifacts/evidence.json.gz"}
+    fixed = {"schema_version": envelope.schema_version, "artifact_reference": artifact, "authority": authority}
+    capacity = len(canonical_bytes(fixed)) + 32 + 300
+    result = envelope.to_inline_dict(capacity_bytes=capacity, authority=authority, artifact_reference=artifact)
+    assert len(canonical_bytes(result)) <= capacity
+    assert result["inline"]["accepted"] == (not mandatory_failures)
+    assert result["inline"]["mandatory_failures"] == mandatory_failures
+    assert result["authority"]["receipt"]["accepted_prediction"] is None
+    assert result["authority"]["receipt"]["accepted_prediction_reference"]["artifact_reference"] == artifact
+    assert len(authority["receipt"]["accepted_prediction"]["states_enu"]) == 100

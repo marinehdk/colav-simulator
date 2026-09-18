@@ -1470,3 +1470,16 @@ def test_speed_floor_yields_inside_hard_cpa_windows() -> None:
     assert np.all(prepared.lbx[n : n + 7] <= 0.0), "window knots must open to full braking"
     outside = prepared.lbx[n + 7 : 2 * n]
     np.testing.assert_allclose(outside, np.minimum(2.1, reachable_lower[7:]))
+
+
+def test_strict_crossing_row_defers_passing_when_cpa_is_beyond_horizon(parity_corpus):
+    fixture = parity_corpus["route_speed_cold"]
+    config = replace(_config(fixture), strict_slack_bounds=True)
+    problem = replace(_problem(fixture), audit_row_count=1,
+                      targets=(MidMpcTarget(x_m=60000.0, y_m=100000.0, cog_rad=-math.pi/2,
+                                            sog_mps=4.0, crossing_astern_required=True),))
+    graph = solver_module._build_graph(config, problem)
+    prepared = solver_module._prepare(config, problem, graph.row_layout)
+    constraints = np.asarray(graph.constraints(prepared.x0, prepared.p)).reshape(-1)
+    assert constraints[graph.row_layout.rule.start] > 0
+    assert np.isfinite(prepared.lbg[graph.row_layout.cpa.start:graph.row_layout.cpa.start+config.horizon_steps]).any()
