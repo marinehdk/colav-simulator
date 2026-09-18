@@ -1,9 +1,8 @@
 """Read-only Run Replay evidence store, descriptor and discovery (ticket #70).
 
-This module is the Sealed Run Replay read path. It deliberately imports ONLY
-the standard library and :mod:`colav_simulator.decision_replay.bundle` (which
-itself is stdlib-only): the replay reader must never import the simulator,
-planner, tracker, or evaluator runtime, so "no re-execution" is structural.
+This module is the Sealed Run Replay read path. Its storage, JSON transport,
+and canonical display projection never import the simulator, planner, tracker,
+or evaluator runtime, so "no re-execution" is structural.
 
 Evidence reads never execute simulation. Run identity addressing, path confinement under
 the configured runs root, truthful evidence classification
@@ -30,8 +29,9 @@ from enum import StrEnum
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from fastapi import APIRouter, HTTPException, Query
-from fastapi.responses import FileResponse
+import orjson
+from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi.responses import FileResponse, Response
 
 from colav_simulator.decision_replay.bundle import TRACE_SCHEMA, TraceBundle
 
@@ -1141,12 +1141,20 @@ def build_replay_router(  # noqa: C901 - register the bounded replay read and de
     @router.get("/runs/{run_id}/replay/window")
     def window(
         run_id: str,
+        request: Request,
         from_s: float = Query(..., alias="from"),
         to_s: float = Query(..., alias="to"),
-    ) -> dict[str, Any]:
+    ) -> Response:
         with typed_errors():
             require_sealed_capture(run_id)
-            return project_window_threat_documents(store.window(run_id, from_s, to_s))
+            document = project_window_threat_documents(store.window(run_id, from_s, to_s))
+            body = orjson.dumps(document)
+            headers = {"Vary": "Accept-Encoding"}
+            encodings = request.headers.get("accept-encoding", "").lower().split(",")
+            if any(value.strip() == "gzip" for value in encodings):
+                body = gzip.compress(body, compresslevel=1, mtime=0)
+                headers["Content-Encoding"] = "gzip"
+            return Response(body, media_type="application/json", headers=headers)
 
     @router.get("/runs/{run_id}/replay/events")
     def replay_events(

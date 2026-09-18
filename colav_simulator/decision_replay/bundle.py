@@ -6,7 +6,10 @@ import bisect
 import gzip
 import json
 import math
+import mmap
 import re
+import tempfile
+import threading
 import zlib
 from bisect import bisect_right
 from collections.abc import Iterator
@@ -19,11 +22,11 @@ TRACE_SCHEMA = "colav.decision-replay.v1"
 # in-memory decoded buffer so frequent UI scrubbing does not re-decompress the
 # gzip from the start for every random frame seek. It is a cache only — the
 # v1 artifacts remain the sole evidence and every code path falls back to the
-# streaming reader when the buffer is unavailable or the trace is huge.
+# streaming reader when the cache is unavailable.
 # #75 measured the real full Mid-MPC trace at 309 MB raw (83 MB gz): a 256 MiB
 # cap silently disabled the buffer and degraded warm random seeks to ~650 ms
 # median (full re-decompression per seek). 512 MiB holds the representative
-# full trace; larger traces still fall back to streaming.
+# full trace; larger traces spill to an anonymous disk-backed mapping.
 MAX_DECODED_TRACE_BYTES = 512 * 1024 * 1024
 _SIM_TIME_PATTERN = re.compile(rb'"sim_time":\s*(-?[0-9][0-9.eE+-]*)')
 
@@ -47,7 +50,9 @@ class TraceBundle:
         self._positions: list[dict[str, Any]] = []
         self._scanned = False
         self._events_cache: list[dict[str, Any]] | None = None
-        self._decoded: bytes | None = None
+        self._decoded: bytes | mmap.mmap | None = None
+        self._decoded_file = None
+        self._decode_lock = threading.Lock()
         self._decoded_unavailable = False
         self._validation: tuple[tuple[Any, ...], dict[str, Any]] | None = None
 
@@ -71,25 +76,35 @@ class TraceBundle:
         path = self.trace_dir / "index.json"
         return json.loads(path.read_text(encoding="utf-8")) if path.is_file() else {}
 
-    def _decoded_bytes(self) -> bytes | None:
-        """One-shot decompression cache; None when unsupported (huge trace)."""
-        if self._decoded is not None or self._decoded_unavailable:
+    def _decoded_bytes(self) -> bytes | mmap.mmap | None:
+        """Decode once, spilling large traces to an anonymous disk seek cache."""
+        with self._decode_lock:
+            if self._decoded is not None or self._decoded_unavailable:
+                return self._decoded
+            if not self._frames_path.is_file():
+                self._decoded_unavailable = True
+                return None
+            opener = gzip.open if self._frames_path.suffix == ".gz" else open
+            cache = None
+            try:
+                with opener(self._frames_path, "rb") as stream:
+                    data = stream.read(MAX_DECODED_TRACE_BYTES + 1)
+                    if len(data) <= MAX_DECODED_TRACE_BYTES:
+                        self._decoded = data
+                    else:
+                        cache = tempfile.TemporaryFile()
+                        cache.write(data)
+                        del data
+                        while chunk := stream.read(1024 * 1024):
+                            cache.write(chunk)
+                        cache.flush()
+                        self._decoded = mmap.mmap(cache.fileno(), 0, access=mmap.ACCESS_READ)
+                        self._decoded_file = cache
+            except (OSError, EOFError, zlib.error):
+                if cache is not None:
+                    cache.close()
+                self._decoded_unavailable = True
             return self._decoded
-        if not self._frames_path.is_file():
-            self._decoded_unavailable = True
-            return None
-        opener = gzip.open if self._frames_path.suffix == ".gz" else open
-        try:
-            with opener(self._frames_path, "rb") as stream:  # type: ignore[operator]
-                data = stream.read()
-        except (OSError, EOFError, zlib.error):
-            self._decoded_unavailable = True
-            return None
-        if len(data) > MAX_DECODED_TRACE_BYTES:
-            self._decoded_unavailable = True
-            return None
-        self._decoded = data
-        return data
 
     def _scan(self) -> None:
         if self._scanned:
@@ -97,10 +112,12 @@ class TraceBundle:
         decoded = self._decoded_bytes()
         if decoded is not None:
             offset = 0
-            for line in decoded.splitlines():
-                if line.strip():
+            while offset < len(decoded):
+                end = decoded.find(b"\n", offset)
+                end = len(decoded) if end == -1 else end
+                if decoded[offset:end].strip():
                     self._offsets.append(offset)
-                offset += len(line) + 1
+                offset = end + 1
             self._scanned = True
             return
         if not self._frames_path.is_file():

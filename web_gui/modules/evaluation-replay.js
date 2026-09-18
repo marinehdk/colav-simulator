@@ -12,7 +12,7 @@
 import { createSituationDisplay } from './situation-display.js';
 import { createTelemetryProjection } from './telemetry-projection.js';
 import { projectReplayFrame, REPLAY_PRESENTATION_MODE } from './replay-source.js';
-import { createReplayClock, ReplayPlayState } from './replay-clock.js';
+import { createReplayClock, ReplayPlayState } from './replay-clock.js?v=20260918-buffering';
 // Keep the URL identical to the shell's standalone module tag. Native ESM
 // treats query-string variants as different module instances; without this
 // pin the catalog and replay host would own different opener registries.
@@ -20,7 +20,7 @@ import { setReplayRunOpener } from './replay-runs.js?v=20260916-replay-layout-v4
 
 // Scrub windows stay small and bounded; the backend enforces the frozen caps.
 const SEEK_WINDOW_HALF_SPAN_S = 0.5;
-const INITIAL_WINDOW_SPAN_S = 8.0;
+const INITIAL_WINDOW_SPAN_S = 24.0;
 
 // Playback prefetch: bounded frame-count windows ahead of the playhead. The
 // span adapts to Replay Speed (so high rates do not refetch every 100 ms) but
@@ -66,7 +66,9 @@ export function createEvaluationReplayController({
   let display = null;
   let clock = null;
   let timerId = null;
-  let prefetchInFlight = false;
+  let prefetchInFlight = null;
+  let nextWindowDoc = null;
+  let buffering = false;
   let replayScaleValue = 0.5;
   // #73 event journal: recorded evidence, loaded once per open. Filtering is
   // presentation state; recorded identity/time/order are never rewritten.
@@ -180,6 +182,9 @@ export function createEvaluationReplayController({
   }
 
   function statusLineFor(clockState) {
+    if (buffering && clockState === ReplayPlayState.PLAYING) {
+      return `BUFFERING · WAITING FOR RECORDED DATA · ${clock.rate}×`;
+    }
     if (clockState === ReplayPlayState.PLAYING) {
       return `PLAYING · HISTORICAL REPLAY · ${clock.rate}×`;
     }
@@ -409,26 +414,32 @@ export function createEvaluationReplayController({
   }
 
   /** Bounded prefetch span: adapts to rate, capped by a frozen frame budget. */
-  function prefetchSpanS() {
+  function prefetchSpanS(minSpan = PREFETCH_MIN_SPAN_S) {
     const start = Number(descriptor?.replay?.t_start) || 0.0;
     const end = trustedEnd();
     const density = (Number(descriptor?.replay?.frame_count) || 0) / Math.max(end - start, 1e-6);
-    const spanByRate = Math.max(PREFETCH_MIN_SPAN_S, PREFETCH_MIN_SPAN_S * (clock?.rate ?? 1));
+    const spanByRate = Math.max(minSpan, minSpan * (clock?.rate ?? 1));
     const spanByFrames = density > 0 ? PREFETCH_FRAME_BUDGET / density : spanByRate;
     return Math.min(spanByRate, spanByFrames);
   }
 
   async function prefetchAhead(fromS, gen) {
-    prefetchInFlight = true;
+    prefetchInFlight = gen;
     const toS = Math.min(trustedEnd(), fromS + prefetchSpanS());
     try {
       const document_ = await fetchJson(
         `/api/runs/${runId}/replay/window?from=${fromS}&to=${toS}`,
       );
       if (gen !== generation) return; // a newer seek/cursor owns the replay cursor
-      windowDoc = document_;
-      clock?.resume();
-      renderCurrent();
+      nextWindowDoc = document_;
+      if (buffering) {
+        windowDoc = nextWindowDoc;
+        nextWindowDoc = null;
+        buffering = false;
+        clock?.resume();
+        syncPlayButton();
+        renderCurrent();
+      }
     } catch {
       if (gen === generation) {
         if (clock?.state === ReplayPlayState.PLAYING) {
@@ -440,7 +451,7 @@ export function createEvaluationReplayController({
         el('replayStatusLine').textContent = 'RECORDED DATA UNAVAILABLE · RETRY FROM THE TIMELINE';
       }
     } finally {
-      prefetchInFlight = false;
+      if (prefetchInFlight === gen) prefetchInFlight = null;
     }
   }
 
@@ -455,30 +466,45 @@ export function createEvaluationReplayController({
    * recorded bracket runs out (holding progression — never extrapolating),
    * otherwise paint the sealed frame at the playhead. */
   function playbackTick() {
-    if (!clock || clock.state !== ReplayPlayState.PLAYING) return;
+    if (!clock || clock.state !== ReplayPlayState.PLAYING || status === 'LOADING') return;
     const ticked = clock.tick();
     playhead = ticked.playhead;
+    const start = Number(descriptor.replay.t_start) || 0.0;
+    const end = trustedEnd();
+    if (nextWindowDoc && playhead >= Number(nextWindowDoc.requested?.from_s)) {
+      windowDoc = nextWindowDoc;
+      nextWindowDoc = null;
+    }
+    const from = windowDoc ? Number(windowDoc.requested?.from_s) : Number.NaN;
+    const to = windowDoc ? Number(windowDoc.requested?.to_s) : Number.NaN;
+    const covered = Number.isFinite(from) && Number.isFinite(to)
+      && playhead >= from - 1e-6 && playhead <= to + 1e-6;
+    if (!covered) {
+      if (!buffering) {
+        clock.hold(); // stop playhead progression until trustworthy data exists
+        buffering = true;
+      }
+      if (prefetchInFlight !== generation) {
+        void prefetchAhead(Math.min(end, Math.max(start, playhead)), generation);
+      }
+      setStatus('BUFFERING');
+      el('replayStatusLine').textContent = `BUFFERING · WAITING FOR RECORDED DATA · ${clock.rate}×`;
+      readouts();
+      return;
+    }
     if (ticked.state === ReplayPlayState.ENDED) {
       stopPlaybackTimer();
       syncPlayButton();
       renderCurrent();
       return;
     }
-    const start = Number(descriptor.replay.t_start) || 0.0;
-    const end = trustedEnd();
-    const from = windowDoc ? Number(windowDoc.requested?.from_s) : Number.NaN;
-    const to = windowDoc ? Number(windowDoc.requested?.to_s) : Number.NaN;
-    const covered = Number.isFinite(from) && Number.isFinite(to)
-      && playhead >= from - 1e-6 && playhead <= to + 1e-6;
-    if (!covered) {
-      if (!prefetchInFlight) {
-        clock.hold(); // stop playhead progression until trustworthy data exists
-        void prefetchAhead(Math.min(end, Math.max(start, playhead)), generation);
-      }
-      readouts();
-      return;
-    }
     renderCurrent();
+    // Retain the current window while the next one loads; never stop the
+    // clock or discard a usable bracket just to fetch ahead.
+    const lead = Math.max(PREFETCH_MIN_SPAN_S, prefetchSpanS());
+    if (to < end && to - playhead <= lead && !nextWindowDoc && prefetchInFlight !== generation) {
+      void prefetchAhead(to, generation);
+    }
   }
 
   function startPlaybackLoop() {
@@ -505,8 +531,11 @@ export function createEvaluationReplayController({
     if (clock.state === ReplayPlayState.ENDED) {
       generation += 1; // obsolete windows/prefetches for the restarted cursor
       windowDoc = null;
+      nextWindowDoc = null;
+      buffering = false;
     }
     clock.play();
+    if (buffering) clock.hold();
     syncPlayButton();
     playbackTick();
     if (clock.state === ReplayPlayState.PLAYING) startPlaybackLoop();
@@ -543,7 +572,9 @@ export function createEvaluationReplayController({
     clock = null;
     syncPlayButton();
     display?.clearSession?.();
-    prefetchInFlight = false;
+    prefetchInFlight = null;
+    nextWindowDoc = null;
+    buffering = false;
     descriptor = null;
     context = null;
     windowDoc = null;
@@ -635,7 +666,7 @@ export function createEvaluationReplayController({
     ensureDisplay();
     await display?.beginSession?.(runId);
     readouts();
-    await loadWindow(start, Math.min(end, start + INITIAL_WINDOW_SPAN_S), gen);
+    await loadWindow(start, Math.min(end, start + prefetchSpanS(INITIAL_WINDOW_SPAN_S)), gen);
     if (gen === generation) {
       display?.fitTraffic?.();
       setReplayControlsEnabled(true);
@@ -700,6 +731,8 @@ export function createEvaluationReplayController({
     clock?.seek(target); // valid from PLAYING/PAUSED/BUFFERING/ENDED
     playhead = target;
     generation += 1;
+    nextWindowDoc = null;
+    buffering = false;
     const gen = generation;
     setStatus('LOADING');
     el('replayStatusLine').textContent = 'LOADING RECORDED EVIDENCE';

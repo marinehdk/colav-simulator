@@ -491,3 +491,15 @@ def test_window_includes_bounded_trusted_position_history(api_client):
         set(ship) == {"id", "state"} and len(ship["state"]) == 2 for item in history for ship in item["payload"].values()
     )
     assert api_client.get(f"/api/runs/{RUN_WINDOW}/replay/window", params={"from": 0, "to": 0.2}).json()["history"] == []
+
+
+def test_window_gzip_transport_is_lossless(api_client):
+    url = f"/api/runs/{RUN_WINDOW}/replay/window?from=1&to=3"
+    plain = api_client.get(url, headers={"Accept-Encoding": "identity"})
+    compressed = api_client.get(url, headers={"Accept-Encoding": "gzip"})
+    assert plain.status_code == compressed.status_code == 200
+    assert "content-encoding" not in plain.headers
+    assert compressed.headers["content-encoding"] == "gzip"
+    assert compressed.headers["vary"] == "Accept-Encoding"
+    assert compressed.json() == plain.json()
+    assert int(compressed.headers["content-length"]) < int(plain.headers["content-length"])

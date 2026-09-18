@@ -246,7 +246,10 @@ test('open loads descriptor, context and initial window; reads are run-scoped GE
   assert.match(network.calls[0].url, /replay$/);
   assert.match(network.calls[1].url, /replay\/context$/);
   assert.match(network.calls[2].url, /replay\/events$/);
-  assert.match(network.calls[3].url, /replay\/window\?from=0\.1&to=8\.1$/);
+  const initial = new URL(`http://x${network.calls[3].url}`);
+  assert.equal(Number(initial.searchParams.get('from')), 0.1);
+  const initialSpan = Number(initial.searchParams.get('to')) - 0.1;
+  assert.ok(initialSpan > 20 && initialSpan <= 24, 'initial buffer must cover 5x fetch latency');
   assert.equal(documentRef.getElementById('replayRunTitle').textContent, 'REPLAY · cdcdcdcd · head_on · vo');
   assert.ok(display.layerVisibility.some(([id, visible]) => id === 'history' && visible === true));
   const timeline = documentRef.getElementById('replayTimeline');
@@ -1013,7 +1016,7 @@ test('Results and Evidence expose Original GNC identity and diagnostic-only scop
 
 test('Rate controls retain accessible terminology without redundant deployment labels', () => {
   assert.doesNotMatch(html, /SIMULATION RATE/);
-  assert.doesNotMatch(html, /id="speedStatus"|class="deployment-rate-label"/);
+  assert.doesNotMatch(html, /class="deployment-rate-label"/);
   assert.match(html, /aria-label="Simulation Rate 仿真倍率"/);
   // The Evaluation rate group keeps the Replay Speed label from #72.
   assert.ok(
@@ -1034,4 +1037,66 @@ test('Historical AIS Open Replay routes through the shared player without a seco
   // Outside the mounted product page the shared opener is a safe no-op.
   const mod = await import('../../web_gui/modules/evaluation-replay.js');
   assert.equal(typeof mod.openReplayForRun, 'function');
+});
+
+test('5x playback fetches before exhaustion and crosses the first boundary without holding', async () => {
+  const parts = await makePlaybackController();
+  await openReadyRun(parts);
+  const { controller, network, wall, scheduler } = parts;
+  controller.setRate(5);
+  controller.playPause();
+  wall.advance(800);
+  await scheduler.fireNext();
+  assert.ok(network.pending.length > 0, 'must prefetch while initial window still covers playhead');
+  const request = new URL(`http://x${network.calls.at(-1).url}`);
+  const from = Number(request.searchParams.get('from'));
+  const to = Number(request.searchParams.get('to'));
+  await network.respondNext(windowDoc(from, to));
+  wall.advance(1000);
+  await scheduler.fireNext();
+  assert.ok(Math.abs(controller.state.playhead - 9.1) < 1e-6);
+  wall.advance(1000);
+  await scheduler.fireNext();
+  assert.ok(Math.abs(controller.state.playhead - 14.1) < 1e-6, 'clock must never hold at a prefetched boundary');
+});
+
+test('slow prefetch explicitly buffers then resumes without inventing elapsed motion', async () => {
+  const parts = await makePlaybackController();
+  await openReadyRun(parts);
+  const { controller, network, documentRef, wall, scheduler } = parts;
+  controller.setRate(5);
+  controller.playPause();
+  wall.advance(1700);
+  await scheduler.fireNext();
+  assert.match(elText(documentRef, 'replayStatusLine'), /BUFFERING/);
+  const held = controller.state.playhead;
+  wall.advance(5000);
+  await scheduler.fireNext();
+  assert.equal(controller.state.playhead, held);
+  const request = new URL(`http://x${network.calls.at(-1).url}`);
+  await network.respondNext(windowDoc(Number(request.searchParams.get('from')), Number(request.searchParams.get('to'))));
+  wall.advance(1000);
+  await scheduler.fireNext();
+  assert.ok(Math.abs(controller.state.playhead - held - 5) < 1e-6);
+  assert.match(elText(documentRef, 'replayStatusLine'), /PLAYING/);
+});
+
+test('changing rate while buffering does not restart the held clock', async () => {
+  const parts = await makePlaybackController();
+  await openReadyRun(parts);
+  const { controller, wall, scheduler } = parts;
+  controller.setRate(5);
+  controller.playPause();
+  wall.advance(1700);
+  await scheduler.fireNext();
+  const held = controller.state.playhead;
+  controller.setRate(20);
+  wall.advance(2000);
+  await scheduler.fireNext();
+  assert.equal(controller.state.playhead, held);
+  controller.playPause();
+  controller.playPause();
+  wall.advance(1000);
+  await scheduler.fireNext();
+  assert.equal(controller.state.playhead, held);
 });

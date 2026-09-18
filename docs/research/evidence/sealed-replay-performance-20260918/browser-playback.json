@@ -1,0 +1,688 @@
+{
+  "runId": "273b0bf2-1f33-42ab-b84d-9e7918b706e6",
+  "requestedRate": 5,
+  "observedWallSeconds": 131.594,
+  "observedAverage": 4.958432755292795,
+  "samples": [
+    {
+      "wallMs": 15589,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "75.8 s"
+    },
+    {
+      "wallMs": 16098,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "78.4 s"
+    },
+    {
+      "wallMs": 16607,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "81.2 s"
+    },
+    {
+      "wallMs": 17117,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "83.7 s"
+    },
+    {
+      "wallMs": 17623,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "86.2 s"
+    },
+    {
+      "wallMs": 18129,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "88.8 s"
+    },
+    {
+      "wallMs": 18641,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "91.3 s"
+    },
+    {
+      "wallMs": 19152,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "93.9 s"
+    },
+    {
+      "wallMs": 19660,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "96.4 s"
+    },
+    {
+      "wallMs": 20172,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "99.0 s"
+    },
+    {
+      "wallMs": 20685,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "101.6 s"
+    },
+    {
+      "wallMs": 21192,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "103.8 s"
+    },
+    {
+      "wallMs": 21703,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "106.3 s"
+    },
+    {
+      "wallMs": 22210,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "108.9 s"
+    },
+    {
+      "wallMs": 22725,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "111.9 s"
+    },
+    {
+      "wallMs": 44025,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "218.0 s"
+    },
+    {
+      "wallMs": 44537,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "220.6 s"
+    },
+    {
+      "wallMs": 45067,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "223.6 s"
+    },
+    {
+      "wallMs": 45573,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "226.1 s"
+    },
+    {
+      "wallMs": 46080,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "228.7 s"
+    },
+    {
+      "wallMs": 46587,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "231.2 s"
+    },
+    {
+      "wallMs": 47093,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "233.7 s"
+    },
+    {
+      "wallMs": 47606,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "236.3 s"
+    },
+    {
+      "wallMs": 48116,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "238.8 s"
+    },
+    {
+      "wallMs": 48628,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "241.4 s"
+    },
+    {
+      "wallMs": 49138,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "243.9 s"
+    },
+    {
+      "wallMs": 49744,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "246.9 s"
+    },
+    {
+      "wallMs": 50257,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "249.5 s"
+    },
+    {
+      "wallMs": 50773,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "252.0 s"
+    },
+    {
+      "wallMs": 51279,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "254.5 s"
+    },
+    {
+      "wallMs": 51786,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "257.1 s"
+    },
+    {
+      "wallMs": 52292,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "259.6 s"
+    },
+    {
+      "wallMs": 52803,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "262.2 s"
+    },
+    {
+      "wallMs": 53311,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "264.7 s"
+    },
+    {
+      "wallMs": 53822,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "267.3 s"
+    },
+    {
+      "wallMs": 54328,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "269.8 s"
+    },
+    {
+      "wallMs": 54837,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "272.4 s"
+    },
+    {
+      "wallMs": 55343,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "274.9 s"
+    },
+    {
+      "wallMs": 55853,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "277.4 s"
+    },
+    {
+      "wallMs": 56359,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "280.0 s"
+    },
+    {
+      "wallMs": 56870,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "282.5 s"
+    },
+    {
+      "wallMs": 57377,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "285.1 s"
+    },
+    {
+      "wallMs": 57892,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "287.6 s"
+    },
+    {
+      "wallMs": 58411,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "290.2 s"
+    },
+    {
+      "wallMs": 58938,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "292.7 s"
+    },
+    {
+      "wallMs": 59478,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "295.4 s"
+    },
+    {
+      "wallMs": 59986,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "297.9 s"
+    },
+    {
+      "wallMs": 60492,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "300.5 s"
+    },
+    {
+      "wallMs": 61002,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "303.0 s"
+    },
+    {
+      "wallMs": 61509,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "305.5 s"
+    },
+    {
+      "wallMs": 62019,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "308.1 s"
+    },
+    {
+      "wallMs": 62528,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "310.6 s"
+    },
+    {
+      "wallMs": 63043,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "313.2 s"
+    },
+    {
+      "wallMs": 63555,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "315.7 s"
+    },
+    {
+      "wallMs": 64077,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "318.6 s"
+    },
+    {
+      "wallMs": 64586,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "321.2 s"
+    },
+    {
+      "wallMs": 65093,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "323.7 s"
+    },
+    {
+      "wallMs": 65604,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "326.3 s"
+    },
+    {
+      "wallMs": 66110,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "328.8 s"
+    },
+    {
+      "wallMs": 66626,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "331.4 s"
+    },
+    {
+      "wallMs": 82774,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "411.7 s"
+    },
+    {
+      "wallMs": 83373,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "415.1 s"
+    },
+    {
+      "wallMs": 83889,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "417.6 s"
+    },
+    {
+      "wallMs": 84402,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "420.2 s"
+    },
+    {
+      "wallMs": 84908,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "422.7 s"
+    },
+    {
+      "wallMs": 85422,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "425.3 s"
+    },
+    {
+      "wallMs": 85930,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "427.8 s"
+    },
+    {
+      "wallMs": 86438,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "430.4 s"
+    },
+    {
+      "wallMs": 86953,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "433.0 s"
+    },
+    {
+      "wallMs": 87464,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "435.5 s"
+    },
+    {
+      "wallMs": 88184,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "439.1 s"
+    },
+    {
+      "wallMs": 88691,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "441.7 s"
+    },
+    {
+      "wallMs": 89202,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "444.2 s"
+    },
+    {
+      "wallMs": 89708,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "446.8 s"
+    },
+    {
+      "wallMs": 90220,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "449.3 s"
+    },
+    {
+      "wallMs": 90725,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "451.4 s"
+    },
+    {
+      "wallMs": 91238,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "454.5 s"
+    },
+    {
+      "wallMs": 91745,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "456.6 s"
+    },
+    {
+      "wallMs": 92260,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "459.1 s"
+    },
+    {
+      "wallMs": 92815,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "462.2 s"
+    },
+    {
+      "wallMs": 93323,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "464.6 s"
+    },
+    {
+      "wallMs": 93829,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "467.1 s"
+    },
+    {
+      "wallMs": 94336,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "469.6 s"
+    },
+    {
+      "wallMs": 94841,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "472.2 s"
+    },
+    {
+      "wallMs": 95351,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "474.7 s"
+    },
+    {
+      "wallMs": 95857,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "477.3 s"
+    },
+    {
+      "wallMs": 96376,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "479.8 s"
+    },
+    {
+      "wallMs": 96893,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "482.4 s"
+    },
+    {
+      "wallMs": 97430,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "484.9 s"
+    },
+    {
+      "wallMs": 97956,
+      "status": "BUFFERING · WAITING FOR RECORDED DATA · 5×",
+      "time": "488.0 s"
+    },
+    {
+      "wallMs": 98472,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "488.5 s"
+    },
+    {
+      "wallMs": 98979,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "491.1 s"
+    },
+    {
+      "wallMs": 99486,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "493.6 s"
+    },
+    {
+      "wallMs": 99993,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "496.1 s"
+    },
+    {
+      "wallMs": 100503,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "498.7 s"
+    },
+    {
+      "wallMs": 101010,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "501.2 s"
+    },
+    {
+      "wallMs": 101521,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "503.8 s"
+    },
+    {
+      "wallMs": 102033,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "506.4 s"
+    },
+    {
+      "wallMs": 102543,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "508.9 s"
+    },
+    {
+      "wallMs": 103147,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "512.3 s"
+    },
+    {
+      "wallMs": 103656,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "514.8 s"
+    },
+    {
+      "wallMs": 104162,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "517.3 s"
+    },
+    {
+      "wallMs": 104670,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "519.9 s"
+    },
+    {
+      "wallMs": 105185,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "522.4 s"
+    },
+    {
+      "wallMs": 105692,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "525.0 s"
+    },
+    {
+      "wallMs": 116128,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "576.9 s"
+    },
+    {
+      "wallMs": 116642,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "579.5 s"
+    },
+    {
+      "wallMs": 117157,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "582.1 s"
+    },
+    {
+      "wallMs": 117669,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "584.6 s"
+    },
+    {
+      "wallMs": 118176,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "587.1 s"
+    },
+    {
+      "wallMs": 118690,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "589.7 s"
+    },
+    {
+      "wallMs": 119196,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "592.2 s"
+    },
+    {
+      "wallMs": 119703,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "594.8 s"
+    },
+    {
+      "wallMs": 120209,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "597.3 s"
+    },
+    {
+      "wallMs": 120728,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "599.9 s"
+    },
+    {
+      "wallMs": 121244,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "602.5 s"
+    },
+    {
+      "wallMs": 121807,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "605.6 s"
+    },
+    {
+      "wallMs": 122452,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "608.9 s"
+    },
+    {
+      "wallMs": 122958,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "611.4 s"
+    },
+    {
+      "wallMs": 123469,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "613.9 s"
+    },
+    {
+      "wallMs": 123977,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "616.5 s"
+    },
+    {
+      "wallMs": 124487,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "619.0 s"
+    },
+    {
+      "wallMs": 124994,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "621.6 s"
+    },
+    {
+      "wallMs": 125507,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "624.1 s"
+    },
+    {
+      "wallMs": 126014,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "626.7 s"
+    },
+    {
+      "wallMs": 126521,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "629.3 s"
+    },
+    {
+      "wallMs": 127027,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "631.3 s"
+    },
+    {
+      "wallMs": 127536,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "633.9 s"
+    },
+    {
+      "wallMs": 128042,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "636.4 s"
+    },
+    {
+      "wallMs": 128547,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "638.9 s"
+    },
+    {
+      "wallMs": 129054,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "641.5 s"
+    },
+    {
+      "wallMs": 129560,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "644.0 s"
+    },
+    {
+      "wallMs": 130070,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "646.6 s"
+    },
+    {
+      "wallMs": 130577,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "649.1 s"
+    },
+    {
+      "wallMs": 131088,
+      "status": "PLAYING · HISTORICAL REPLAY · 5×",
+      "time": "651.7 s"
+    },
+    {
+      "wallMs": 131594,
+      "status": "REPLAY ENDED · SEEK BACKWARD OR PRESS PLAY TO RESTART",
+      "time": "652.5 s"
+    }
+  ]
+}

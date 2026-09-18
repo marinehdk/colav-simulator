@@ -81,7 +81,7 @@ export function createReplayClock({ now, tStart, tEnd, rate: initialRate = DEFAU
       if (!REPLAY_RATES.includes(candidate)) return rate;
       consumeWall(); // continuity: only elapsed time AFTER the change uses the new rate
       rate = candidate;
-      if (state === ReplayPlayState.PLAYING) lastWallMs = now();
+      if (state === ReplayPlayState.PLAYING && lastWallMs !== null) lastWallMs = now();
       return rate;
     },
 
