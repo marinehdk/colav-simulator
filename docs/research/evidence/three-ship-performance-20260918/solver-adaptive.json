@@ -1,0 +1,12 @@
+{
+  "variant": "adaptive",
+  "wall": 1.509277957957238,
+  "ipopt_ms": 1386.2959169782698,
+  "iterations": 24,
+  "status": "FeasibleNonOptimal",
+  "quality": true,
+  "filter": true,
+  "f": 2552.365665082173,
+  "violation": 1.327593590616516e-11,
+  "timing_scope": "Contended diagnostic sample during unrelated Git repack; iteration counts are reproducible, timings are not acceptance measurements."
+}

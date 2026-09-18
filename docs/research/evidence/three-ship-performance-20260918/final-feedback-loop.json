@@ -1,0 +1,16 @@
+{
+  "run_dir": "/Users/marine/Code/Colav-Simulator/tmp/three_ship_perf_20260918/final20/runs/fd7b144d-5f30-4250-9d9a-befd153d293a",
+  "state": "PAUSED",
+  "sim_time_s": 20.000000000000014,
+  "wall_s": 3.0558327920734882,
+  "effective_multiplier": 6.544860717470514,
+  "state_control_sha256": "b1e2c662a9931e55cd74781d084fc13cea44868ba4762e9b7f244143e3e387d4",
+  "goal_distance_m": 4349.494392805953,
+  "final_leg_cross_track_m": 3792.560225648247,
+  "fallback_used": false,
+  "replay": {
+    "state": "READY",
+    "reason": null,
+    "frame_count": 200
+  }
+}
