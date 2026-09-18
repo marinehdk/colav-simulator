@@ -34,6 +34,7 @@ from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import FileResponse, Response
 
 from colav_simulator.decision_replay.bundle import TRACE_SCHEMA, TraceBundle
+from colav_simulator.decision_replay.chart import CHART_PROFILE, CHART_TRACE_SCHEMA
 
 if TYPE_CHECKING:  # annotation-only: keeps the sealed read path import-clean
     from colav_simulator.decision_replay.sink import TraceSinkPolicy
@@ -92,7 +93,7 @@ def replay_capture_budget_policy() -> TraceSinkPolicy:
             )
     # Measured on #70: the raw events.jsonl journal dominates the stored trace
     # for VO runs, so the journal is stored gzipped; readers accept both forms.
-    return TraceSinkPolicy(max_total_bytes=max_bytes, events_gzip=True)
+    return TraceSinkPolicy(max_total_bytes=max_bytes, events_gzip=True, capture_profile="chart")
 
 
 class EventCategories:
@@ -720,7 +721,7 @@ class RunReplayStore:
             return base
         schema = index.get("trace_schema")
         base.update(trace_schema=schema, frames_sha256=index.get("frames_sha256"), evidence_level="full")
-        if schema != TRACE_SCHEMA:
+        if schema not in {TRACE_SCHEMA, CHART_TRACE_SCHEMA}:
             base.update(state=ReplayEvidenceState.UNAVAILABLE, reason=ReplayEvidenceReason.TRACE_SCHEMA_UNSUPPORTED)
             return base
 
@@ -843,6 +844,7 @@ class RunReplayStore:
             all_events = bundle.events()
         except (OSError, EOFError, UnicodeDecodeError, json.JSONDecodeError, zlib.error):
             all_events = []
+        chart_only = facts.get("trace_schema") == CHART_TRACE_SCHEMA
         events = self._trusted_events(all_events, facts)
         categories = sorted({str(event.get("type", "?")) for event in events})
         return {
@@ -865,6 +867,7 @@ class RunReplayStore:
             "replay": {
                 "state": state.value,
                 "evidence_level": facts.get("evidence_level"),
+                "capture_profile": CHART_PROFILE if chart_only else "full",
                 "reason": facts.get("reason"),
                 "trace_schema": facts.get("trace_schema"),
                 "frame_count": facts.get("frame_count", 0),
@@ -885,12 +888,12 @@ class RunReplayStore:
                 # ``full_frame`` remains true for CAPTURING for compatibility
                 # with the live session descriptor. ``seekable`` is the
                 # authoritative read/play capability for the Replay UI.
-                "full_frame": bool(full or capturing),
+                "full_frame": bool((full or capturing) and not chart_only),
                 "trusted_prefix": trusted_prefix,
                 "seekable": seekable,
                 "event_journal": bool(events and seekable),
                 "event_navigation": bool(events and seekable),
-                "planner_detail": bool(full),
+                "planner_detail": bool(full and not chart_only),
                 "risk_detail": bool(full),
                 "continuous_interpolation": bool(seekable),
             },

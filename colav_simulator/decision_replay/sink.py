@@ -2,8 +2,8 @@
 
 Extracted from the debug-only recorder's ``_TraceWriter`` so the normal product
 Active Session path (``gui_server``) and the ``decision_replay record`` CLI share
-ONE producer-facing writer. The on-disk artifact contract is unchanged: the
-``colav.decision-replay.v1`` schema, ``decision/frames.jsonl.gz``,
+ONE producer-facing writer. Full audit uses ``colav.decision-replay.v1``;
+chart capture uses v2 shared display blocks. Both use ``decision/frames.jsonl.gz``,
 ``decision/events.jsonl[.gz]`` and ``decision/index.json``.
 
 Capture is asynchronous with a bounded queue: the simulation thread serializes
@@ -29,6 +29,13 @@ from typing import Any
 import orjson
 
 from colav_simulator.decision_replay.bundle import TRACE_SCHEMA
+from colav_simulator.decision_replay.chart import (
+    CHART_PROFILE,
+    CHART_TRACE_SCHEMA,
+    chart_events,
+    chart_payload,
+    pack_chart_record,
+)
 from colav_simulator.experiment.persistence import jsonable
 
 STATE_CAPTURING = "CAPTURING"
@@ -56,12 +63,15 @@ class TraceSinkPolicy:
     max_total_bytes: int = 512 * 1024 * 1024
     events_gzip: bool = False
     worker: bool = True  # False only exercised by tests to force backpressure
+    capture_profile: str = "full"
 
 
 class TraceSink:
     """Stream one immutable JSONL frame per tick; gzip and index on close."""
 
     def __init__(self, run_dir: Path, policy: TraceSinkPolicy) -> None:
+        if policy.capture_profile not in {"full", "chart"}:
+            raise ValueError("unsupported replay capture profile")
         self._policy = policy
         self._dir = run_dir / "decision"
         self._dir.mkdir(parents=True, exist_ok=True)
@@ -78,6 +88,8 @@ class TraceSink:
         self._t_start: float | None = None
         self._t_end: float | None = None
         self._produced_bytes = 0
+        self._chart_block_ids: set[str] = set()
+        self._pending_block_ids: set[str] = set()
         self._worker = threading.Thread(target=self._write_loop, name="decision-trace", daemon=True)
         if policy.worker:
             self._worker.start()
@@ -132,6 +144,7 @@ class TraceSink:
                 self._enter_failure_locked(REASON_TRACE_GAP)
                 return
             self._produced_bytes += size
+            self._chart_block_ids.update(self._pending_block_ids)
 
     def fail(self, reason: str) -> None:
         """Stop admission and mark the trace typed-INCOMPLETE (prefix survives)."""
@@ -164,6 +177,15 @@ class TraceSink:
                 "payload": snapshot.payload,
                 "events": snapshot.events,
             }
+            if self._policy.capture_profile == "chart":
+                record["payload"] = chart_payload(snapshot.payload)
+                record["events"] = chart_events(snapshot.events)
+                record["capture_profile"] = CHART_PROFILE
+                self._pending_block_ids = pack_chart_record(
+                    record,
+                    self._chart_block_ids,
+                    lambda value: orjson.dumps(value, default=jsonable, option=orjson.OPT_SERIALIZE_NUMPY),
+                )
             try:
                 return orjson.dumps(
                     record,
@@ -247,6 +269,8 @@ class TraceSink:
         events_bytes = 0
         events_persisted = False
         if events is not None:
+            if self._policy.capture_profile == "chart":
+                events = chart_events(events)
             try:
                 encoded_events = b"".join(
                     json.dumps(jsonable(event), allow_nan=False).encode("utf-8") + b"\n" for event in events
@@ -282,7 +306,8 @@ class TraceSink:
         with self._lock:
             truncated = self._state == STATE_INCOMPLETE
             index = {
-                "trace_schema": TRACE_SCHEMA,
+                "trace_schema": CHART_TRACE_SCHEMA if self._policy.capture_profile == "chart" else TRACE_SCHEMA,
+                "capture_profile": CHART_PROFILE if self._policy.capture_profile == "chart" else "full",
                 "tick_count": self._tick_count,
                 "t_start": self._t_start,
                 "t_end": self._t_end,

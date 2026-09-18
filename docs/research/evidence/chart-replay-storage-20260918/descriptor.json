@@ -1,0 +1,78 @@
+{
+  "schema_version": "colav.run-replay.descriptor@1",
+  "run_id": "74e2fa1e-2150-4bc7-b0b8-5137073de0fd",
+  "run": {
+    "execution_state": "FINISHED",
+    "scenario_id": "paper_ccta2023_multiship",
+    "requested_algorithm": "mid_mpc_ipopt",
+    "executed_algorithm": "mid_mpc_ipopt",
+    "requested_tracker": "god",
+    "executed_tracker": "god",
+    "validation_rule_id": "multiship",
+    "created_at_utc": "2026-09-18T02:52:21.621435+00:00",
+    "diagnostic_only": true,
+    "diagnostic_only_reasons": [
+      "original_gnc_response_unqualified"
+    ],
+    "original_gnc": {
+      "acceptance_level": "EXPERIMENTAL_ORIGINAL_SOURCE",
+      "backend_kind": "original_gnc",
+      "environment_enabled": true,
+      "library_sha256": "78997104a85bfc5042698d5d9b702058700e342e6e6a0625669719d7ba652277",
+      "parameter_sha256": "c7e84835dbd254413f2115d7f98e19d3637a5724042d0e5d796ae2a20263d882",
+      "python_runtime_sha256": "8c898f1859f2e81b1702571de5fa57264bd7574da72e2cca3cd50eea678de22a",
+      "response_approximation_sha256": "0431026d5466b4311bda74a6636a5dc88b911af40890254ca45167999aa91ae2",
+      "response_input_kind": "route_plan",
+      "response_qualification": "QUALIFIED_FIRST_ORDER_TRAJECTORY_APPROXIMATION",
+      "scenario_acceptance": "separately_evaluated",
+      "source_manifest_sha256": "8590d52f4b3ee551ae390bb019ffca2a6ad434bd5659a6c92d8f54c870ff9e62",
+      "stack_id": "original-gnc-20260914-v1-env-on"
+    },
+    "result_ready": true
+  },
+  "replay": {
+    "state": "READY",
+    "evidence_level": "full",
+    "capture_profile": "colav.chart-replay.v1",
+    "reason": null,
+    "trace_schema": "colav.decision-replay.v2",
+    "frame_count": 17450,
+    "trusted_frame_count": 17450,
+    "t_start": 0.0,
+    "t_end": 1744.8999999995085,
+    "trusted_t_end": 1744.8999999995085,
+    "frames_sha256": "bb9298de62cd050c6fca6db6ca36e0106bc73d6aaa1b02e5f02a503b689fd552",
+    "truncated": false
+  },
+  "events": {
+    "count": 231,
+    "total_count": 231,
+    "trusted_count": 231,
+    "categories": [
+      "avoidance_action_ended",
+      "avoidance_action_started",
+      "goal_reached",
+      "planner_solved",
+      "primary_challenger",
+      "primary_switched",
+      "risk_level_changed",
+      "schedule_reorder",
+      "session_finished",
+      "session_started",
+      "target_transition",
+      "threat_entered",
+      "threat_escalated",
+      "threat_released"
+    ]
+  },
+  "capabilities": {
+    "full_frame": false,
+    "trusted_prefix": false,
+    "seekable": true,
+    "event_journal": true,
+    "event_navigation": true,
+    "planner_detail": false,
+    "risk_detail": true,
+    "continuous_interpolation": true
+  }
+}

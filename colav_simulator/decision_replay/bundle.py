@@ -16,6 +16,8 @@ from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
+from colav_simulator.decision_replay.chart import ChartBlockDecoder
+
 TRACE_SCHEMA = "colav.decision-replay.v1"
 
 # Derived read index (Technical Design §5.3, ticket #71): a rebuildable,
@@ -54,6 +56,8 @@ class TraceBundle:
         self._decoded_file = None
         self._decode_lock = threading.Lock()
         self._decoded_unavailable = False
+        self._chart_decoder = ChartBlockDecoder()
+        self._chart_blocks_loaded = False
         self._validation: tuple[tuple[Any, ...], dict[str, Any]] | None = None
 
     @property
@@ -163,12 +167,13 @@ class TraceBundle:
         if not self._frames_path.is_file():
             return
         opener = gzip.open if self._frames_path.suffix == ".gz" else open
+        decoder = ChartBlockDecoder()
         with opener(self._frames_path, "rt", encoding="utf-8") as stream:  # type: ignore[operator]
             for line in stream:
                 if line.strip():
-                    yield json.loads(line)
+                    yield decoder.decode(json.loads(line))
 
-    def validate(
+    def validate(  # noqa: PLR0915 - keep prefix trust and chart decoding in one pass
         self,
         *,
         expected_count: int | None = None,
@@ -197,6 +202,7 @@ class TraceBundle:
         reason: str | None = None
         expected_sequence = 1
         populate_times = not self._times
+        self._chart_decoder = ChartBlockDecoder()
 
         if not self._frames_path.is_file():
             result = {
@@ -218,7 +224,7 @@ class TraceBundle:
                     if not line.strip():
                         continue
                     try:
-                        record = json.loads(line)
+                        record = self._chart_decoder.decode(json.loads(line))
                     except (TypeError, ValueError):
                         reason = reason or "TRACE_FRAME_INVALID"
                         break
@@ -280,6 +286,7 @@ class TraceBundle:
             "trusted_t_end": trusted_end,
         }
         self._validation = (validation_key, result)
+        self._chart_blocks_loaded = True
         return result
 
     @staticmethod
@@ -365,11 +372,18 @@ class TraceBundle:
         if decoded is not None:
             end = decoded.find(b"\n", offset)
             line = decoded[offset:] if end == -1 else decoded[offset:end]
-            return json.loads(line)
+            return self._expand_chart_frame(json.loads(line))
         opener = gzip.open if self._frames_path.suffix == ".gz" else open
         with opener(self._frames_path, "rt", encoding="utf-8") as stream:  # type: ignore[operator]
             stream.seek(offset)
-            return json.loads(stream.readline())
+            return self._expand_chart_frame(json.loads(stream.readline()))
+
+    def _expand_chart_frame(self, record: dict[str, Any]) -> dict[str, Any]:
+        if "storage_schema" not in record:
+            return record
+        if not self._chart_blocks_loaded:
+            self.validate()
+        return self._chart_decoder.decode(record)
 
     def seq_at_time(self, sim_time: float, *, max_sequence: int | None = None) -> int:
         """Frame sequence at or before ``sim_time`` (1-based; 0 when before start)."""

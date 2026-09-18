@@ -297,7 +297,8 @@ def test_product_run_records_full_trace_without_any_browser(finished_vo_run: dic
     journal = trace_dir / "events.jsonl.gz"
     assert journal.is_file() and not (trace_dir / "events.jsonl").exists()
     index = read_index(run_dir)
-    assert index["trace_schema"] == "colav.decision-replay.v1"
+    assert index["trace_schema"] == "colav.decision-replay.v2"
+    assert index["capture_profile"] == "colav.chart-replay.v1"
     assert index["tick_count"] > 0
     assert index["truncated"] is False
 
