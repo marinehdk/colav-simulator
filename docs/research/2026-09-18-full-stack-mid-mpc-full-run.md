@@ -42,3 +42,9 @@ The test suites cover bounded evidence transport, strict numerical rows, genuine
 - 8010 restarted with the fixes; original configuration restored as CREATED session `fd6443e8-caa6-401b-ade2-b5437482f226`. No duration, acceptance threshold or safety margin was changed.
 
 Raw run data remain in `tmp/full_stack_270s_20260918/runs/f401ee4b-a27f-4c64-b560-80fe1327c344`. Independent evaluation is preserved in this report's evidence directory. The separate `mempalace mine` process (PID 58547) was not part of simulation verification and was not stopped without user authorization.
+
+## Wrap-up arrival check
+
+A separate low-retention validation extended only its time limit to 3000 s. Product defaults remained unchanged. Run `14aeaa18-2dcc-4209-9d77-142e0ba9f3da` reached **2023.3 s**, then correctly rejected a candidate with **TRACKABILITY_SPEED**: measured surge was **10.02879 m/s**, prediction initial speed **10.02898 m/s**, and the next predicted speed **8.52898 m/s** exceeded the active **8 m/s** bound. Arrival acceptance therefore remains **FAILED**, rather than merely untested. This is beyond the validated original 1800-second interval and needs a separate Full Stack late-leg speed-control investigation. No speed limit or acceptance threshold was widened.
+
+Evidence: `evidence/full-stack-wrapup-20260918/arrival-check.json`. The low-retention harness retains chart replay plus the exact physical fields required by the independent evaluator, instead of accumulating full per-tick diagnostic blobs.

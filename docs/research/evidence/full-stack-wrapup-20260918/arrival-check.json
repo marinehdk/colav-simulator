@@ -1,0 +1,37 @@
+{
+  "run_id": "14aeaa18-2dcc-4209-9d77-142e0ba9f3da",
+  "validation_t_end_s": 3000,
+  "failure_time_s": 2023.2999999992553,
+  "failure": "TRACKABILITY_SPEED",
+  "state": [
+    6960140.901435124,
+    43018.54388093604,
+    6.6359896013182675,
+    10.028791846363104,
+    -0.06215233762548954,
+    -0.051121236994664164
+  ],
+  "speed_bounds_mps": [
+    0.0,
+    8.0
+  ],
+  "candidate_speed_mps_prefix": [
+    10.028984435662037,
+    8.528984397612922,
+    7.029227571062738,
+    5.52935284343772,
+    4.029521694758303
+  ],
+  "failures": [
+    {
+      "code": "TRACKABILITY_SPEED",
+      "layer": "trackability",
+      "mandatory": true,
+      "message": "candidate speed exceeds active bounds",
+      "outcome": "FAIL",
+      "target_key": null,
+      "witness": null
+    }
+  ],
+  "production_duration_changed": false
+}
