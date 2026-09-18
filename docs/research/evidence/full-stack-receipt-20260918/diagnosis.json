@@ -1,0 +1,12 @@
+{
+  "failed_run_id": "1346c34e-c981-4ca5-b208-b2adc5496c11",
+  "scenario": "paper_ccta2023_multiship",
+  "gnc_stack": "fcb45_roll_4dof_plant+integral_line_of_sight+fcb45_marine_pid+analytic_environment_field+fcb45_environmental_load+data_driven_allocator[fcb45_main_rudder_bow_actuator_layout_v2]+resolved_actuator_dynamics[fcb45_main_rudder_bow_actuator_layout_v2]",
+  "failure_time_s": 30.000000000000156,
+  "failure_reason": "REJECTED_ROUTE at route_bridge tick 300: no accepted Mid-MPC plan receipt; unaccepted planner output never becomes a route",
+  "baseline_reproduction": "f74c38db-8251-4abe-8dd8-e570e26a3bbc",
+  "fixed_reproduction": "7f7e5df7-cb54-4fcb-8529-8266ef86d011",
+  "fixed_reproduction_time_s": 60.00000000000058,
+  "unchanged_pre_failure_state_frames": 300,
+  "regression_tests_passed": 62
+}

@@ -671,3 +671,13 @@ def test_only_mid_mpc_output_details_carry_route_lifecycle_fields(registry: Inte
     details = mid_mpc.get_diagnostics().details
     assert "rolling_plan" in details  # the sole accepted-plan lifecycle carrier
     assert "accepted_plan_receipt" in details
+
+
+def test_mid_mpc_retains_receipt_without_native_execution_packet(registry: IntegrationRegistry) -> None:
+    planner = _mid_mpc_adapter(registry)
+    _mid_mpc_plan(planner, 0.0)
+    authority = planner.get_route_authority()["planner"]["algorithm_details"]
+    engine = planner._solve.__self__
+    assert authority.get("execution_route") is None
+    assert authority["accepted_plan_receipt"]["receipt_hash"]
+    assert engine._last_plan_receipt == authority["accepted_plan_receipt"]

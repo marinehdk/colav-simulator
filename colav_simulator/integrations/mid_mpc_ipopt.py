@@ -798,9 +798,11 @@ class _MidMpcFacade:
         receipt_hash = issued_receipt.receipt_hash
         receipt_stage = issued_receipt.canonical_payload
         accepted_plan_receipt = {**receipt, "receipt_hash": receipt_hash}
+        # The canonical receipt also authorizes modular Full Stack routes,
+        # which do not emit an original-GNC execution packet.
+        self._last_plan_receipt = accepted_plan_receipt
         if execution_route is not None:
             self._last_execution_route = execution_route
-            self._last_plan_receipt = accepted_plan_receipt
         n = self._config.assembly.horizon_steps
         next_accepted_primal = (
             (
