@@ -6,6 +6,8 @@ import copy
 import ctypes
 import hashlib
 import json
+import threading
+import timeit
 from collections import Counter
 from types import SimpleNamespace
 
@@ -172,7 +174,9 @@ def test_native_gil_binding_preserves_callback_outputs(original_config):
 def test_fast_native_decoder_preserves_every_environment_callback(original_config, monkeypatch):
     optimized = native.orjson
     events = []
-    monkeypatch.setattr(native, "orjson", SimpleNamespace(loads=json.loads))
+    monkeypatch.setattr(native, "orjson", SimpleNamespace(
+        loads=json.loads, dumps=lambda value: json.dumps(value, allow_nan=False).encode(),
+    ))
     with stack_for(original_config, trace=events.append, enabled_environment=("wind", "current", "wave")) as baseline:
         baseline.advance(2.0)
         expected_states = copy.deepcopy(baseline.states)
@@ -184,3 +188,41 @@ def test_fast_native_decoder_preserves_every_environment_callback(original_confi
         assert actual.states == expected_states
         assert actual.latest == expected_messages
         assert actual_events == events
+
+
+@pytest.mark.parametrize("value", [float("nan"), float("inf"), -float("inf")])
+def test_native_encoder_rejects_nonfinite_input_before_callback(value):
+    calls = []
+    module = SimpleNamespace(
+        _lock=threading.RLock(), _handle=1,
+        _invoke_native=lambda *args: calls.append(args),
+    )
+    with pytest.raises(ValueError):
+        native.NativeModule.invoke(module, "odometry_callback", {"value": value}, 0)
+    assert not calls
+
+
+def test_native_odometry_message_encoding_stays_within_callback_budget(monkeypatch):
+    message = {
+        "header": {"stamp": {"sec": 2000000000, "nanosec": 100000000}, "frame_id": "map"},
+        "pose": {"covariance": [0.0] * 36, "pose": {"position": {"x": 6955700.0, "y": 42950.0, "z": 0.0}}},
+        "twist": {"covariance": [0.0] * 36, "twist": {"linear": {"x": 4.25, "y": 0.0, "z": 0.0}}},
+    }
+    encoded = []
+    module = SimpleNamespace(
+        _lock=threading.RLock(), _handle=1,
+        _invoke_native=lambda handle, callback, payload, stamp: encoded.append(payload) or b"{}",
+    )
+    def run():
+        native.NativeModule.invoke(module, "odometry_callback", message, 0)
+        encoded.clear()
+    optimized = native.orjson
+    monkeypatch.setattr(native, "orjson", SimpleNamespace(
+        loads=json.loads, dumps=lambda value: json.dumps(value, allow_nan=False).encode(),
+    ))
+    old_s = min(timeit.repeat(run, number=1000, repeat=3))
+    monkeypatch.setattr(native, "orjson", optimized)
+    new_s = min(timeit.repeat(run, number=1000, repeat=3))
+    native.NativeModule.invoke(module, "odometry_callback", message, 0)
+    assert json.loads(encoded[-1]) == message
+    assert new_s < old_s * 0.6, (new_s, old_s)

@@ -2,14 +2,16 @@
 
 import copy
 import gzip
+import hashlib
 import json
 import timeit
+import tracemalloc
 from dataclasses import asdict
 from pathlib import Path
 from types import SimpleNamespace
 
 from colav_simulator.core.colav.diagnostics import PlanDiagnostics, PlanStatus
-from colav_simulator.decision_replay.sink import TraceSink
+from colav_simulator.decision_replay.sink import TraceSink, TraceSinkPolicy
 from colav_simulator.experiment.contracts import SessionState
 from colav_simulator.experiment.persistence import jsonable
 
@@ -52,3 +54,36 @@ def test_planner_diagnostic_snapshot_preserves_nested_values_without_asdict_leaf
     assert new_s < old_s * 0.6, (new_s, old_s)
     diagnostics.details.clear()
     assert actual == expected
+
+
+def test_trace_sealing_has_bounded_memory_and_preserves_all_frames(tmp_path):
+    sink = TraceSink.open(tmp_path, policy=TraceSinkPolicy(worker=False, max_total_bytes=32 * 1024**2))
+    for sequence in range(16):
+        sink.append(
+            SimpleNamespace(
+                sequence=sequence,
+                sim_time=float(sequence),
+                step_time_ms=1.0,
+                state=SessionState.RUNNING,
+                payload={"data": "0123456789" * 65536},
+                events=[],
+            )
+        )
+    tracemalloc.start()
+    try:
+        index = sink.close(events=[])
+        _, peak = tracemalloc.get_traced_memory()
+    finally:
+        tracemalloc.stop()
+    assert index["state"] == "READY"
+    assert index["tick_count"] == 16
+    assert peak < 4 * 1024**2, f"Trace sealing allocated {peak} bytes for a 10 MiB file"
+    digest = hashlib.sha256()
+    with gzip.open(tmp_path / "decision/frames.jsonl.gz", "rb") as stream:
+        for sequence, line in enumerate(stream):
+            digest.update(line)
+            record = json.loads(line)
+            assert record["sequence"] == sequence
+            assert record["payload"]["data"] == "0123456789" * 65536
+    assert sequence == 15
+    assert digest.hexdigest() == index["frames_sha256"]

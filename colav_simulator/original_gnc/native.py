@@ -96,9 +96,15 @@ class NativeModule:
         with self._lock:
             if not self._handle:
                 raise OriginalGncError("Original GNC module has been closed")
-            result = self._invoke_native(
-                self._handle, callback.encode(), json.dumps(message, allow_nan=False).encode(), time_ns
-            )
+            try:
+                payload = b"null" if message is None else orjson.dumps(message)
+                if message is not None and b"null" in payload:
+                    # The fast encoder maps NaN/Inf to null. Preserve strict
+                    # rejection before native execution, including nested values.
+                    payload = json.dumps(message, allow_nan=False).encode()
+            except TypeError:
+                payload = json.dumps(message, allow_nan=False).encode()
+            result = self._invoke_native(self._handle, callback.encode(), payload, time_ns)
             if result is None:
                 raise self._error()
             return orjson.loads(result)

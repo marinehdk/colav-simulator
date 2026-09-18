@@ -264,10 +264,14 @@ class TraceSink:
                         events_persisted = True
 
         self._handle.close()
-        data = self._frames_path.read_bytes()
-        digest = hashlib.sha256(data).hexdigest()
-        with gzip.GzipFile(str(self._dir / "frames.jsonl.gz"), "wb", mtime=0) as gz:
-            gz.write(data)
+        digest = hashlib.sha256()
+        with (
+            self._frames_path.open("rb") as source,
+            gzip.GzipFile(str(self._dir / "frames.jsonl.gz"), "wb", mtime=0) as gz,
+        ):
+            for chunk in iter(lambda: source.read(1024 * 1024), b""):
+                digest.update(chunk)
+                gz.write(chunk)
         self._frames_path.unlink()
         if events_persisted and encoded_events is not None:
             if self._policy.events_gzip:
@@ -282,7 +286,7 @@ class TraceSink:
                 "tick_count": self._tick_count,
                 "t_start": self._t_start,
                 "t_end": self._t_end,
-                "frames_sha256": digest,
+                "frames_sha256": digest.hexdigest(),
                 "truncated": truncated,
                 "capture_bytes": self._produced_bytes + (events_bytes if events_persisted else 0),
                 "events_bytes": events_bytes,
