@@ -1689,6 +1689,9 @@ function setHtml(id, val) {
 }
 
 function syncPlaybackStatus(playback) {
+  const effective = playback?.effective_multiplier;
+  setText('speedStatus', typeof effective === 'number' && Number.isFinite(effective) && effective >= 0
+    ? `Actual ${effective.toFixed(2)}×` : 'Actual —');
   if (!playback) return;
   const requested = Number(playback.requested_multiplier);
   document.querySelectorAll('.speed-preset').forEach(button => {

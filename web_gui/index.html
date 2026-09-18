@@ -622,6 +622,7 @@
                   <obc-toggle-button-option value="2">2×</obc-toggle-button-option>
                   <obc-toggle-button-option value="5">5×</obc-toggle-button-option>
                 </obc-toggle-button-group>
+                <span class="speed-status deployment-control-state" id="speedStatus" title="实测仿真时间 / 墙钟时间；暂停或结束时保留最近测量值" aria-live="off">Actual —</span>
                 <span class="speed-status deployment-control-state" id="telemetryDelay" aria-live="off"></span>
               </div>
               <div class="deployment-tool-zone deployment-tool-zone--tools" aria-label="海图操作工具">
@@ -973,7 +974,7 @@
     <obc-brilliance-menu class="brilliance-menu-popover" id="brillianceMenu" variant="compact" aria-label="显示模式" hidden></obc-brilliance-menu>
   </div>
 
-  <script type="module" src="/static/app.js?v=20260916-replay-layout-v4"></script>
+  <script type="module" src="/static/app.js?v=20260918-actual-playback-rate"></script>
   <script type="module" src="/static/modules/config-shell.js?v=20260916-replay-layout-v4"></script>
   <script type="module" src="/static/modules/historical-ais-workbench.js?v=20260916-replay-layout-v4"></script>
   <script type="module" src="/static/modules/replay-runs.js?v=20260916-replay-layout-v4"></script>
