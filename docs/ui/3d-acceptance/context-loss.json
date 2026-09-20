@@ -1,0 +1,6 @@
+{
+  "mode": "2d",
+  "remainingRoots": 0,
+  "expectedError": "WebGL 上下文丢失，已恢复海图",
+  "consoleErrors": []
+}

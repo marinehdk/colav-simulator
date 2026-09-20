@@ -1,0 +1,10 @@
+{
+  "doubleDensity": {"cssWidth":1920,"cssHeight":1080,"drawingBufferWidth":3840,"drawingBufferHeight":2160,"method":"fixture injects the same 2x backing ratio used for devicePixelRatio=2; OS/browser DPR remains 1"},
+  "nightTheme": "data-obc-theme=night verified in browser",
+  "overlapGroups": 3,
+  "groupExpansion": "One official group trigger expands; trigger count changes from 3 to 2",
+  "warmEntryMs":62.1,
+  "keyboard": ["Enter enters 3D", "Space returns/enters 3D"],
+  "realTelemetry": {"runId":"6d8bdcfd-47d1-4d73-8c26-98805b143732","observedRenderTime":263.5,"state":"PAUSED","rate":5,"engine":"vo"},
+  "scope": "Renderer and interaction acceptance, not closed-loop COLREG or safety acceptance"
+}

@@ -2122,6 +2122,7 @@ export function createSituationDisplay(options) {
     getDrawSequence: () => [...drawSequence],
     getEncStatus: () => encStatus,
     getEncInfo: () => encInfo,
+    getMissionRoute: () => updateFrozenRoute(missionRoutes, currentData || {}),
     // exposed for adapter-side click synthesis / tests
     handleClickAt,
     destroy() {

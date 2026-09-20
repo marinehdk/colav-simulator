@@ -12,12 +12,12 @@ const result=document.querySelector('#result'), surface=document.querySelector('
 const enc=await (await fetch('/api/enc_info')).json();
 const chart=createSituationDisplay({canvas:document.querySelector('#chart'),wrapper:surface,fetchInfo:async()=>enc,fetchTile:()=>'/api/enc_tile',loadSprites:false});
 let errors=[],frame=0,view;
-view=createDeploymentView({chart,createScene:options=>createScene3D({...options,host,chart,onSelect:id=>chart.selectTarget(id)}),onError:e=>errors.push(e.message),onState:s=>{host.hidden=s.mode!=='3d'&&!s.loading;}});
+view=createDeploymentView({chart,createScene:options=>createScene3D({...options,pixelRatio:new URLSearchParams(location.search).get('dpr')==='2'?2:null,host,chart,onSelect:id=>chart.selectTarget(id)}),onError:e=>errors.push(e.message),onState:s=>{host.hidden=s.mode!=='3d'&&!s.loading;}});
 view.beginSession(enc.run_id);chart.beginSession(enc.run_id);
 let now=0;
 function sample(time){
  const os={id:0,x:1200+time*0.3,y:3000,psi:0,length:45,width:10,sog:6,trajectory:[[1100,3000],[1200+time*0.3,3000]]};
- const obstacles=Array.from({length:16},(_,i)=>({id:i+1,generation:1,active:true,x:os.x+300+(i%4)*300,y:3000+((i%8)-3.5)*100+Math.sin(time*0.03+i)*80,psi:Math.PI,length:40,width:9,sog:5}));
+ const obstacles=Array.from({length:16},(_,i)=>({id:i+1,generation:1,vessel_type:['cargo','passenger','tug','workboat','fishing','sailing','pleasure','small_craft'][i%8],active:true,x:os.x+300+(i%4)*300,y:3000+((i%8)-3.5)*100+Math.sin(time*0.03+i)*80,psi:Math.PI,length:40,width:9,sog:5}));
  const risk={status:'AVAILABLE',primary:{targetId:1,generation:1},targets:obstacles.map(o=>({targetId:o.id,generation:1,displayClass:o.id===1?'HIGH':'LOW',dcpaM:200,tcpaS:120,rangeM:500,observationHealth:'FRESH',role:'GIVE_WAY',unavailableReasons:[]}))};
  return {risk,raw:{run_id:enc.run_id,seq:++frame,sim_time:time,state:'RUNNING',executed_tracker:'god',scenario_id:'browser-fixture',os,obstacles,waypoints:[[1200,5000],[3000,3000]],plans:{prediction_horizon:[[os.x,os.y],[os.x+800,os.y+200]]},presentation:{render_time_s:time,source_sim_time_s:time,buffered:true}}};
 }
@@ -30,7 +30,7 @@ document.querySelector('#bench').onclick=async()=>{
  function timing(t){if(previous!==undefined)intervals.push(t-previous);previous=t;if(!stopped)raf=requestAnimationFrame(timing);}
  raf=requestAnimationFrame(timing);
  tick=setInterval(()=>{now=(performance.now()-start)/1000;view.render(sample(now));result.textContent=`BENCHMARK RUNNING ${now.toFixed(1)} / 300s`;},25);
- setTimeout(()=>{clearInterval(tick);stopped=true;cancelAnimationFrame(raf);const sorted=intervals.slice(120).sort((a,b)=>a-b);const state=JSON.parse(host.querySelector('.scene3d-root').dataset.sceneState);const canvas=host.querySelector('canvas');const gl=canvas.getContext('webgl2');const debug=gl?.getExtension('WEBGL_debug_renderer_info');result.textContent=JSON.stringify({status:'complete',seconds:now,viewport:[surface.clientWidth,surface.clientHeight],dpr:devicePixelRatio,frames:sorted.length,p95FrameMs:sorted[Math.floor(sorted.length*.95)],medianFrameMs:sorted[Math.floor(sorted.length*.5)],scene:state,renderer:debug?gl.getParameter(debug.UNMASKED_RENDERER_WEBGL):'unavailable',remoteRequests:performance.getEntriesByType('resource').filter(e=>!e.name.startsWith(location.origin)&&!e.name.startsWith('data:')).map(e=>e.name),errors},null,2);},300000);
+ setTimeout(()=>{clearInterval(tick);stopped=true;cancelAnimationFrame(raf);const sorted=intervals.slice(120).sort((a,b)=>a-b);const state=JSON.parse(host.querySelector('.scene3d-root').dataset.sceneState);const canvas=host.querySelector('canvas');const gl=canvas.getContext('webgl2');const debug=gl?.getExtension('WEBGL_debug_renderer_info');result.textContent=JSON.stringify({status:'complete',seconds:now,viewport:[surface.clientWidth,surface.clientHeight],dpr:devicePixelRatio,backingRatio:canvas.width/canvas.clientWidth,frames:sorted.length,p95FrameMs:sorted[Math.floor(sorted.length*.95)],medianFrameMs:sorted[Math.floor(sorted.length*.5)],scene:state,renderer:debug?gl.getParameter(debug.UNMASKED_RENDERER_WEBGL):'unavailable',remoteRequests:performance.getEntriesByType('resource').filter(e=>!e.name.startsWith(location.origin)&&!e.name.startsWith('data:')).map(e=>e.name),errors},null,2);},300000);
 };
 document.querySelector('#lifecycle').onclick=async()=>{
  clearInterval(tick);const samples=[];

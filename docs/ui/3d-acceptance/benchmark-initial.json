@@ -1,0 +1,24 @@
+{
+  "status": "complete",
+  "seconds": 300.04519999980926,
+  "viewport": [
+    1920,
+    1080
+  ],
+  "dpr": 1,
+  "frames": 13739,
+  "p95FrameMs": 33.39999999999418,
+  "medianFrameMs": 16.69999999999709,
+  "scene": {
+    "models": 17,
+    "readyModels": 17,
+    "pois": 14,
+    "primitives": 19,
+    "camera": "bridge",
+    "frames": 12000,
+    "renderP95Ms": 8.199999809265137
+  },
+  "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M3, Unspecified Version)",
+  "remoteRequests": [],
+  "errors": []
+}

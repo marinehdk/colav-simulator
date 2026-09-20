@@ -66,3 +66,10 @@ test('missing current geographic contract keeps 3D unavailable without invoking 
   let calls = 0; const h = harness(async () => { calls++; });
   await h.view.toggle(); assert.equal(calls, 0);
 });
+
+test('H/N aborts the factory before delayed engine assets can construct a viewer', async () => {
+ let signal;
+ const h=harness(options=>{signal=options.signal;return new Promise((_resolve,reject)=>signal.addEventListener('abort',()=>reject(new Error('cancelled'))));});
+ h.push();const pending=h.view.toggle();h.view.orientation('heading');await pending;
+ assert.equal(signal.aborted,true);assert.equal(h.errors.length,0);assert.equal(h.view.state().mode,'2d');
+});

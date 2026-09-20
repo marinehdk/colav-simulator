@@ -9,7 +9,21 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 class Handler(SimpleHTTPRequestHandler):
+    def end_headers(self):
+        self.send_header(
+            "Content-Security-Policy",
+            "default-src 'self' data: blob:; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; "
+            "style-src 'self' 'unsafe-inline'; connect-src 'self'",
+        )
+        super().end_headers()
+
     def do_GET(self):
+        reference = self.headers.get("Referer", "")
+        fail_engine = "failure=engine" in reference and self.path.endswith("/Cesium.js")
+        fail_model = "failure=model" in reference and self.path.endswith(".glb")
+        if fail_engine or fail_model:
+            self.send_error(503, "Intentional browser acceptance failure")
+            return
         if self.path.startswith("/api/"):
             try:
                 with urlopen("http://127.0.0.1:8013" + self.path) as response:

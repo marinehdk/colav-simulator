@@ -16973,6 +16973,7 @@ obc-poi {
       ${this.expand?h`<div @click=${this.onBackdropClick} class="backdrop"></div>`:null}
       <slot></slot>
       ${!this.expand&&this.wrapperVisible?h`<button
+            aria-label="展开重叠目标组"
             @click=${this.onClick}
             class=${J({wrapper:true,"with-values":this.wrapperHasValues})}
             style="left: 0; top: ${this.positionVertical}; width: ${this.wrapperWidth}; height: ${this.wrapperHeight}; --obc-poi-group-wrapper-x: ${this.wrapperOffsetX};"

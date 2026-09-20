@@ -66,6 +66,8 @@
 | C | 当前本船居中行为 | 恢复当前机位默认偏移与本船锁定；保持 3D |
 | 3D | 保存 2D 方向、缩放、平移及选择，进入 3D | 返回保存的 2D 状态 |
 
+选择为跨视图共享状态：无新选择时保留进入前选择；在3D明确选择新目标后，返回2D保留该最近选择，不以旧ID覆盖用户动作。
+
 H/N 为海图方向选项；3D 为显示模式；C 为瞬时动作，不能四个按钮都做同语义 radio。3D 激活时仅 3D 呈按下状态；H/N 返回海图后恢复对应按下状态；C 不保持按下。
 
 首次进入使用驾驶台机位；同一会话内再次进入保留上次机位。Session Replacement 清除目标选择与场景对象，重置机位到驾驶台，方向偏好可保留。无有效本船/地理基准时 3D 禁用并给出原因；加载中重复点击不创建第二个 Viewer，H/N 可取消进入。初始化失败保留或恢复 2D，显示失败原因与重试入口。
@@ -175,3 +177,8 @@ T6/T7 容差为本规格提议的数值配准门槛，不是海图测绘精度�
 阶段建议：A 模式和同帧数据接入 → B 地理/模型/相机 → C 官方AR标牌与真实预测 → D 浏览器、失败恢复与性能验收。每阶段只推进该阶段所需改动，最终交付须全部通过，不能以“按钮可点击”结束。
 
 相关一手来源：[OpenBridge POI Layer](https://openbridge-storybook.web.app/?path=/docs/ar-poi-layer--docs)、[OpenBridge AR Framework](https://www.openbridge.no/cases/ar-framework)、[Cesium Model](https://cesium.com/learn/cesiumjs/ref-doc/Model.html)、[Cesium Transforms](https://cesium.com/learn/cesiumjs/ref-doc/Transforms.html)。工程建议与官方能力事实分开解释于配套调研。
+
+
+### Approved asset addition during implementation
+
+用户于实施中追加 `FCB45_Cesium_LOD0_v0.glb` 与 `target-vessel-model-downloader.zip`，要求集成现成模型。本船使用提供的GLB，目标模型按清单本地化；只选完整船体进入运行目录索引。目标详情增加本地“显示外观”选择，明确不修改船型、尺寸或动力学事实。未知类别使用标明来源的视觉代理，不随机赋予AIS船型。新增资产重新验证坐标轴、尺寸、水线、资源失败与多目标性能。

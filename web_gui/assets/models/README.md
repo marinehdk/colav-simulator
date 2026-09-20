@@ -1,0 +1,15 @@
+# Vessel display assets
+
+Integrated at the user's request on 2026-09-20. These meshes affect presentation only. They do not define COLREG class, dimensions, draft, collision geometry, dynamics, or authority.
+
+- `fcb45/ownship.glb`: user-supplied `FCB45_Cesium_LOD0_v0.glb`; SHA-256 in `catalog.json`. Engineering visualization v0, not shipyard CAD. Source principal hull length 45m, beam 8m; extra fenders/appendages extend beyond that hull. glTF +Y up, bow -Z, origin at midship design waterline. Runtime length/beam remain authoritative; smaller non-FCB test scenarios display a scaled visual proxy.
+- `targets/kenney/`: ten models from Kenney Watercraft Kit, [official CC0 source](https://kenney.nl/assets/watercraft-kit). Downloaded from the URLs supplied in the user's archive, with external `Textures/colormap.png` retained. Bow +Z (narrow bow end checked against stern cross sections); up +Y. Grounded origin; the catalog declares an estimated display waterline.
+- `targets/3dassets/`: [cabin fishing boat](https://3dassets.dev/assets/harbor-and-tackle-cabin-fishing-boat-686960fe), [RIB](https://3dassets.dev/assets/transport-collection-hd-rigid-inflatable-a8316db9), and [Ro-Ro stern section](https://3dassets.dev/assets/ferry-terminal-and-harbour-crossing-ferry-terminal-and-c0fcd3aa). Publisher lists CC0. RIB is explicitly +Z bow and keel-based. **The Ro-Ro is only a stern section**: retained as downloaded source material but excluded from the runtime whole-vessel catalog. No tanker/bulk-carrier identities are invented from a generic merchant mesh.
+
+The supplied ZIP contained a manifest and downloader, not the model binaries. Its script was inspected, not executed. Thirteen GLBs and the shared texture were fetched from the listed public sources and validated as files; twelve complete target models are selectable. `targets/asset-manifest.json` records URLs, file sizes and checksums. `bounds.json` records scene-node-transformed bounds, including quantized accessors. `catalog.json` freezes scale, bow and waterline mappings; `vessel-assets.js` is its generated browser representation.
+
+`tools/web_3d/inspect_models.py` and `build_model_catalog.py` reproduce metadata. `model-acceptance.mjs` verifies local texture resolution, checksums, 000/090/180/270-degree transformations, and 45m × 8m runtime scaling. Cesium is explicitly configured with `upAxis=Y, forwardAxis=X`: the loader applies Y-up conversion only; the catalog performs bow alignment without Cesium's additional default Z-to-X rotation.
+
+Unknown target type uses an explicitly marked visual proxy. The target card's appearance selector is a local, run/generation-scoped visual override; it sends no API mutation and never changes telemetry. Source categories are used only when explicit vessel-type metadata exists. Production uses this library and an explicit point marker on load failure; the superseded generated block hull was removed.
+
+CC0 legal text: <https://creativecommons.org/publicdomain/zero/1.0/>. The user-supplied FCB asset retains its user-provided provenance; this document does not relicense it as third-party CC0.

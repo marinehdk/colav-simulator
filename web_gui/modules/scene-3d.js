@@ -1,4 +1,5 @@
-import { createGeography, NM, targetKey, riskForTarget, poiState, frameIdentity, predictionMarkers } from './scene-geography.js';
+import { chooseVesselAsset, vesselModelMatrix, VESSEL_ASSETS } from './vessel-models.js';
+import { createGeography, NM, targetKey, riskForTarget, poiState, frameIdentity, predictionMarkers, offscreenDirection } from './scene-geography.js';
 import { targetsForDisplay } from './situation-display.js?v=20260920-3d-v1';
 
 let enginePromise;
@@ -13,8 +14,9 @@ export function loadCesium() {
       }
       const script = document.createElement('script');
       script.src = '/static/vendor/cesium/Cesium.js';
-      script.onload = () => resolve(window.Cesium);
-      script.onerror = () => { script.remove(); enginePromise = null; reject(new Error('三维引擎加载失败，可重试')); };
+      const timer = setTimeout(() => { script.remove(); enginePromise = null; reject(new Error('三维引擎加载超时，可重试')); }, 15000);
+      script.onload = () => { clearTimeout(timer); resolve(window.Cesium); };
+      script.onerror = () => { clearTimeout(timer); script.remove(); enginePromise = null; reject(new Error('三维引擎加载失败，可重试')); };
       document.head.append(script);
     });
   }
@@ -24,11 +26,23 @@ export function loadCesium() {
 const metric = (value, digits = 1) => Number.isFinite(value) ? value.toFixed(digits) : '—';
 const degrees = value => Number.isFinite(value) ? (value * 180 / Math.PI + 360) % 360 : null;
 
-export async function createScene3D({ host, info, camera = 'bridge', chart, onSelect, onFailure, onCamera }) {
-  const C = await loadCesium();
+function waitForAsset(promise, signal, label) {
+  return new Promise((resolve, reject) => {
+    const cancel = () => finish(reject, new DOMException('已取消三维加载', 'AbortError'));
+    const timer = setTimeout(() => finish(reject, new Error(`${label} 加载超时，可重试`)), 15000);
+    function finish(action, value) { clearTimeout(timer); signal?.removeEventListener('abort', cancel); action(value); }
+    if (signal?.aborted) { cancel(); return; }
+    signal?.addEventListener('abort', cancel, { once: true });
+    promise.then(value => finish(resolve, value), error => finish(reject, error));
+  });
+}
+
+export async function createScene3D({ host, info, camera = 'bridge', chart, onSelect, onFailure, onCamera, signal, modelOverrides = new Map(), pixelRatio = null }) {
+  const C = await waitForAsset(loadCesium(), signal, 'Cesium');
   const geo = createGeography(info);
   // OpenBridge is loaded by the existing shell; no second registration/bundle.
-  await Promise.all(['obc-poi-layer', 'obc-poi-vessel', 'obc-poi-card'].map(name => customElements.whenDefined(name)));
+  await waitForAsset(Promise.all(['obc-poi-layer', 'obc-poi-vessel', 'obc-poi-card'].map(name => customElements.whenDefined(name))), signal, 'OpenBridge');
+  signal?.throwIfAborted();
   const root = document.createElement('div'); root.className = 'scene3d-root';
   const canvasHost = document.createElement('div'); canvasHost.className = 'scene3d-canvas';
   const toolbar = document.createElement('div'); toolbar.className = 'scene3d-toolbar';
@@ -52,13 +66,17 @@ export async function createScene3D({ host, info, camera = 'bridge', chart, onSe
     });
   } catch (error) { root.remove(); throw error; }
   viewer.clock.shouldAnimate = false;
+  // Camera follows a telemetry-defined eyepoint; scene geometry must not push it away.
+  viewer.scene.screenSpaceCameraController.enableCollisionDetection = false;
+  viewer.scene.screenSpaceCameraController.minimumZoomDistance = 2;
   viewer.scene.globe.baseColor = C.Color.fromCssColorString('#75aab5');
   viewer.scene.globe.enableLighting = false;
   viewer.scene.globe.depthTestAgainstTerrain = false;
-  viewer.resolutionScale = 1;
+  const applyResolution = () => { viewer.resolutionScale = pixelRatio ?? Math.min(window.devicePixelRatio || 1, 2); };
+  applyResolution();
   let disposed = false, projection = null, preset = camera, follow = true, showRings = true;
   let selected = chart.getSelectedTargetId(), selectedKey = null, encPrimitive = null;
-  let lastGeometryKey = null, lastRoute = null, lastRingCenter = null;
+  let lastGeometryKey = null, lastRingCenter = null;
   const vessels = new Map(), pois = new Map(), geometry = new Map();
   const disposers = [];
   function listen(el, event, fn) { el.addEventListener(event, fn); disposers.push(() => el.removeEventListener(event, fn)); }
@@ -77,22 +95,7 @@ export async function createScene3D({ host, info, camera = 'bridge', chart, onSe
   }
   // A sampled UTM mesh, not a four-corner geographic rectangle.
   function addEnc() {
-    const count = 32, vertices = [], normals = [], st = [], indices = [];
-    for (let row = 0; row <= count; row++) for (let col = 0; col <= count; col++) {
-      const p = position(info.height * row / count, info.width * col / count, 0.1);
-      vertices.push(p.x, p.y, p.z);
-      const normal = C.Ellipsoid.WGS84.geodeticSurfaceNormal(p);
-      normals.push(normal.x, normal.y, normal.z); st.push(col / count, row / count);
-      if (row < count && col < count) {
-        const i = row * (count + 1) + col;
-        indices.push(i, i + 1, i + count + 1, i + 1, i + count + 2, i + count + 1);
-      }
-    }
-    const mesh = new C.Geometry({ attributes: {
-      position: new C.GeometryAttribute({ componentDatatype: C.ComponentDatatype.DOUBLE, componentsPerAttribute: 3, values: new Float64Array(vertices) }),
-      normal: new C.GeometryAttribute({ componentDatatype: C.ComponentDatatype.FLOAT, componentsPerAttribute: 3, values: new Float32Array(normals) }),
-      st: new C.GeometryAttribute({ componentDatatype: C.ComponentDatatype.FLOAT, componentsPerAttribute: 2, values: new Float32Array(st) }),
-    }, indices: new Uint16Array(indices), primitiveType: C.PrimitiveType.TRIANGLES, boundingSphere: C.BoundingSphere.fromVertices(vertices) });
+    const mesh = createEncGeometry(C, geo);
     encPrimitive = viewer.scene.primitives.add(new C.Primitive({
       geometryInstances: new C.GeometryInstance({ geometry: mesh }), asynchronous: false,
       appearance: new C.MaterialAppearance({ material: C.Material.fromType('Image', { image: `/api/enc_tile?run_id=${encodeURIComponent(info.run_id)}` }),
@@ -100,34 +103,45 @@ export async function createScene3D({ host, info, camera = 'bridge', chart, onSe
     }));
   }
   try { addEnc(); } catch (error) { viewer.destroy(); root.remove(); throw error; }
-  function vesselMatrix(ship) {
-    const pos = position(ship.x, ship.y, 0.6);
-    const angle = geo.heading(ship.x, ship.y, ship.psi ?? 0);
-    const matrix = C.Transforms.headingPitchRollToFixedFrame(pos, new C.HeadingPitchRoll(angle - Math.PI / 2, 0, 0));
-    const length = Number.isFinite(ship.length) && ship.length > 0 ? ship.length : 20;
-    const width = Number.isFinite(ship.width) && ship.width > 0 ? ship.width : 5;
-    return C.Matrix4.multiplyByScale(matrix, new C.Cartesian3(length, width, Math.max(4, width * 0.8)), matrix);
+  function vesselMatrix(ship, asset) {
+    return vesselModelMatrix(C, position(ship.x, ship.y, 0.1), geo.heading(ship.x, ship.y, ship.psi ?? 0), ship, asset);
   }
   function updateVessels(ships) {
     const wanted = new Set();
     for (const ship of ships) {
       if (ship.active === false || ![ship.x, ship.y].every(Number.isFinite)) continue;
       const key = targetKey(info.run_id, ship); wanted.add(key);
+      const choice = chooseVesselAsset(ship, modelOverrides.get(key));
       let record = vessels.get(key);
+      if (record && record.asset.id !== choice.asset.id) {
+        if (record.model) viewer.scene.primitives.remove(record.model);
+        viewer.entities.remove(record.marker); vessels.delete(key); record = null;
+      }
       if (!record) {
-        record = { ship, model: null }; vessels.set(key, record);
-        C.Model.fromGltfAsync({ url: '/static/assets/3d/vessel.gltf', modelMatrix: vesselMatrix(ship),
-          id: { targetId: ship.id }, color: String(ship.id) === '0' ? C.Color.WHITE : C.Color.LIGHTSTEELBLUE,
+        record = { ship, model: null, asset: choice.asset, assignment: choice.reason }; vessels.set(key, record);
+        C.Model.fromGltfAsync({ upAxis: C.Axis.Y, forwardAxis: C.Axis.X, url: choice.asset.url, modelMatrix: C.Transforms.eastNorthUpToFixedFrame(position(ship.x, ship.y, 0.1)),
+          id: { targetId: ship.id }, color: C.Color.WHITE,
         }).then(model => {
           if (disposed || vessels.get(key) !== record) { model.destroy(); return; }
-          record.model = viewer.scene.primitives.add(model); viewer.scene.requestRender();
-        }).catch(() => { if (!disposed) { record.failed = true; status.textContent = '船模加载失败 · 使用位置标记'; } });
+          // Keep assets hidden until their resources and current telemetry transform are ready.
+          model.show = false;
+          record.model = viewer.scene.primitives.add(model);
+          model.readyEvent.addEventListener(() => {
+            if (disposed || vessels.get(key) !== record) return;
+            model.modelMatrix = vesselMatrix(record.ship, record.asset);
+            model.show = chart.getLayerState().ships?.visible !== false && !(preset === 'bridge' && String(record.ship.id) === '0');
+            viewer.scene.requestRender();
+          });
+          viewer.scene.requestRender();
+        }).catch(() => { if (!disposed && vessels.get(key) === record) { record.failed = true; status.textContent = '船模加载失败 · 使用位置标记'; } });
         record.marker = viewer.entities.add({ position: position(ship.x, ship.y, 1), point: { pixelSize: 7, color: C.Color.WHITE }, id: `fallback:${key}` });
+        record.marker.addProperty('targetId'); record.marker.targetId = ship.id;
       }
       record.ship = ship;
+      record.assignment = choice.reason;
       record.marker.position = position(ship.x, ship.y, 1);
       record.marker.show = !record.model || !record.model.ready;
-      if (record.model) record.model.modelMatrix = vesselMatrix(ship);
+      if (record.model?.ready) record.model.modelMatrix = vesselMatrix(ship, record.asset);
     }
     for (const [key, record] of vessels) if (!wanted.has(key)) {
       if (record.model) viewer.scene.primitives.remove(record.model);
@@ -146,6 +160,19 @@ export async function createScene3D({ host, info, camera = 'bridge', chart, onSe
   }
   const ringsButton = document.createElement('button'); ringsButton.textContent = '距离环'; ringsButton.type = 'button'; ringsButton.setAttribute('aria-pressed', 'true');
   listen(ringsButton, 'click', () => { showRings = !showRings; lastRingCenter = null; ringsButton.setAttribute('aria-pressed', String(showRings)); updateRings(); viewer.scene.requestRender(); }); toolbar.append(ringsButton);
+  const modelLabel = document.createElement('label'); modelLabel.className = 'scene3d-model-choice';
+  modelLabel.textContent = '显示外观（不改船型/动力学）';
+  const modelChoice = document.createElement('select'); modelChoice.setAttribute('aria-label', '目标船显示外观');
+  const automatic = document.createElement('option'); automatic.value = ''; automatic.textContent = '自动 / 通用外观'; modelChoice.append(automatic);
+  for (const asset of Object.values(VESSEL_ASSETS)) if (asset.id !== 'fcb45') {
+    const option = document.createElement('option'); option.value = asset.id; option.textContent = asset.label; modelChoice.append(option);
+  }
+  modelLabel.append(modelChoice); card.append(modelLabel);
+  listen(modelChoice, 'change', () => {
+    if (!selectedKey || !projection) return;
+    if (modelChoice.value) modelOverrides.set(selectedKey, modelChoice.value); else modelOverrides.delete(selectedKey);
+    updateVessels([projection.raw.os, ...targetsForDisplay(projection.raw)]); updateCard(); viewer.scene.requestRender();
+  });
   const close = document.createElement('button'); close.textContent = '关闭详情'; close.type = 'button';
   listen(close, 'click', () => choose(null)); card.append(close);
   function updateCamera() {
@@ -157,7 +184,7 @@ export async function createScene3D({ host, info, camera = 'bridge', chart, onSe
       const eye = position(ship.x - Math.cos(ship.psi) * length * 0.2, ship.y - Math.sin(ship.psi) * length * 0.2, Math.max(9, (ship.width || 10) * 1.1));
       viewer.camera.setView({ destination: eye, orientation: { heading, pitch: -0.025, roll: 0 } });
     } else {
-      const range = preset === 'top' ? 2500 : 700;
+      const range = preset === 'top' ? 2500 : Math.max(120, Math.min(700, length * 12));
       const tilt = preset === 'top' ? -Math.PI / 2 + 0.001 : -0.38;
       viewer.camera.lookAt(position(ship.x, ship.y), new C.HeadingPitchRange(heading, tilt, range));
       viewer.camera.lookAtTransform(C.Matrix4.IDENTITY);
@@ -167,7 +194,10 @@ export async function createScene3D({ host, info, camera = 'bridge', chart, onSe
     if (own?.model) own.model.show = preset !== 'bridge';
   }
   for (const event of ['mousedown', 'pointerdown', 'click', 'wheel']) listen(root, event, event => event.stopPropagation());
-  listen(viewer.canvas, 'pointerdown', () => { follow = false; });
+  let pointerStart = null;
+  listen(viewer.canvas, 'pointerdown', event => { pointerStart = { x: event.clientX, y: event.clientY }; });
+  listen(viewer.canvas, 'pointermove', event => { if (pointerStart && Math.hypot(event.clientX - pointerStart.x, event.clientY - pointerStart.y) > 4) follow = false; });
+  for (const event of ['pointerup', 'pointercancel', 'pointerleave']) listen(viewer.canvas, event, () => { pointerStart = null; });
   listen(viewer.canvas, 'wheel', () => { follow = false; });
   function choose(id) {
     selected = id;
@@ -178,7 +208,8 @@ export async function createScene3D({ host, info, camera = 'bridge', chart, onSe
   const handler = new C.ScreenSpaceEventHandler(viewer.canvas);
   handler.setInputAction(event => {
     const picked = viewer.scene.pick(event.position);
-    const id = picked?.id?.targetId;
+    const value = picked?.id?.targetId;
+    const id = typeof value?.getValue === 'function' ? value.getValue(viewer.clock.currentTime) : value;
     if (id !== undefined) choose(id);
   }, C.ScreenSpaceEventType.LEFT_CLICK);
   function updateCard() {
@@ -191,16 +222,21 @@ export async function createScene3D({ host, info, camera = 'bridge', chart, onSe
     const source = projection.raw.executed_tracker === 'god' ? 'God / 仿真真值' : 'Tracker';
     card.cardTitle = String(ship.id) === '0' ? 'OWN SHIP' : ship.name || `TS${ship.id}`;
     card.index = String(ship.id); card.source = source;
-    card.description = '示意船模 · 无真实视频配准'; card.headerVariant = 'condensed';
+    card.description = record.assignment; card.headerVariant = 'condensed';
+    modelLabel.hidden = String(ship.id) === '0';
+    modelChoice.value = modelOverrides.get(selectedKey) || '';
     const health = risk?.unavailableReasons?.join(' / ') || risk?.observationHealth || '不可用';
     const entries = [
+      ['外观', record.asset.label, ''],
+      ['尺度', `${metric(ship.length)} × ${metric(ship.width)}`, 'm'],
       ['BRG', metric(risk?.bearingDeg, 0), 'DEG'], ['RNG', metric(Number.isFinite(risk?.rangeM) ? risk.rangeM / NM : null, 2), 'NM'],
       ['DCPA', metric(Number.isFinite(risk?.dcpaM) ? risk.dcpaM / NM : null, 2), 'NM'],
       ['TCPA', metric(Number.isFinite(risk?.tcpaS) ? risk.tcpaS / 60 : null), 'min'],
       ['HDG', metric(projection.raw.executed_tracker === 'god' || String(ship.id) === '0' ? degrees(ship.psi) : null, 0), 'DEG'],
       ['SOG', metric(Number.isFinite(ship.sog) ? ship.sog * 3600 / NM : null), 'kn'],
       ['职责', risk?.role || risk?.lifecycleRole || '不可用', ''], ['质量', health, ''],
-      ['证据', metric(projection.raw.presentation?.source_sim_time_s ?? projection.raw.sim_time, 2), 's'],
+      ['威胁证据', metric(projection.risk?.snapshot?.sim_time_s, 2), 's'],
+      ['呈现', metric(projection.raw.presentation?.render_time_s ?? projection.raw.sim_time, 2), 's'],
     ];
     const signature = JSON.stringify(entries);
     if (cardBody.dataset.signature !== signature) {
@@ -214,9 +250,10 @@ export async function createScene3D({ host, info, camera = 'bridge', chart, onSe
   function updateRings() {
     const ship = projection?.raw?.os; if (!ship) return;
     const visible = showRings && preset !== 'bridge';
+    const needsUpdate = !lastRingCenter || Math.hypot(ship.x - lastRingCenter.x, ship.y - lastRingCenter.y) > 0.25;
     for (const radius of [NM / 2, NM]) {
       const id = `ring:${radius}`;
-      if (visible && (!lastRingCenter || Math.hypot(ship.x - lastRingCenter.x, ship.y - lastRingCenter.y) > 0.25)) {
+      if (visible && needsUpdate) {
         line(id, Array.from({ length: 129 }, (_, i) => [ship.x + radius * Math.cos(i * Math.PI / 64), ship.y + radius * Math.sin(i * Math.PI / 64)]), '#b5e3e8', 1);
       }
       if (geometry.get(id)) geometry.get(id).show = visible;
@@ -234,15 +271,16 @@ export async function createScene3D({ host, info, camera = 'bridge', chart, onSe
         if (!entity) { entity = viewer.entities.add({ label: { text, font: '13px sans-serif', fillColor: C.Color.WHITE, showBackground: true } }); geometry.set(id, entity); }
         entity.position = position(ship.x + radius, ship.y, 2); entity.show = true;
       }
-      lastRingCenter = { x: ship.x, y: ship.y };
+      if (needsUpdate) lastRingCenter = { x: ship.x, y: ship.y };
     } else for (const [id, entity] of geometry) if (/^(bearing|range):/.test(id)) entity.show = false;
   }
   function updatePaths() {
     const data = projection.raw, layers = Object.fromEntries(Object.entries(chart.getLayerState()).map(([id, item]) => [id, item.visible]));
     const key = `${data.seq}:${JSON.stringify(layers)}`;
     if (lastGeometryKey === key) return; lastGeometryKey = key;
-    if (!lastRoute && data.waypoints?.length === 2) lastRoute = data.waypoints[0].map((n, i) => [n, data.waypoints[1][i]]);
-    line('route', layers.route !== false ? lastRoute : [], '#137fd1', 3, true);
+    const route = chart.getMissionRoute();
+    const mission = route[0].map((north, i) => [north, route[1][i]]);
+    line('route', layers.route !== false ? mission : [], '#137fd1', 3, true);
     line('history', layers.history !== false ? data.os?.trajectory : [], '#7e8991', 2);
     line('prediction', layers.prediction !== false ? data.plans?.prediction_horizon : [], '#e99819', 3);
     line('previous', layers.previousPrediction ? data.plans?.previous_prediction_horizon : [], '#a7a7a7', 1, true);
@@ -259,12 +297,16 @@ export async function createScene3D({ host, info, camera = 'bridge', chart, onSe
     if (disposed || !projection) return;
     const width = canvasHost.clientWidth, height = canvasHost.clientHeight;
     const wanted = new Set(), edgeLabels = [];
+    const frustum = viewer.camera.frustum.computeCullingVolume(viewer.camera.positionWC, viewer.camera.directionWC, viewer.camera.upWC);
+    const occluder = new C.EllipsoidalOccluder(C.Ellipsoid.WGS84, viewer.camera.positionWC);
     for (const [key, record] of vessels) {
       const ship = record.ship; if (String(ship.id) === '0' || chart.getLayerState().ships?.visible === false) continue;
       const world = position(ship.x, ship.y, 3);
       const delta = C.Cartesian3.subtract(world, viewer.camera.positionWC, new C.Cartesian3());
       const ahead = C.Cartesian3.dot(delta, viewer.camera.directionWC) > viewer.camera.frustum.near;
-      const point = ahead ? C.SceneTransforms.worldToWindowCoordinates(viewer.scene, world) : null;
+      const inFrustum = frustum.computeVisibility(new C.BoundingSphere(world, 0)) !== C.Intersect.OUTSIDE;
+      const projected = ahead ? C.SceneTransforms.worldToWindowCoordinates(viewer.scene, world) : null;
+      const point = ahead && inFrustum && occluder.isPointVisible(world) ? projected : null;
       const visible = point && point.x >= 24 && point.x <= width - 24 && point.y >= 40 && point.y <= height - 16;
       const risk = riskForTarget(projection, ship);
       const primary = projection.risk?.primary;
@@ -273,7 +315,8 @@ export async function createScene3D({ host, info, camera = 'bridge', chart, onSe
       if (!visible) {
         if (focus) {
           const right = C.Cartesian3.dot(delta, viewer.camera.rightWC) >= 0;
-          edgeLabels.push({ key, id: ship.id, text: `${ahead ? right ? '→' : '←' : '↶ 后方'} TS${ship.id}`, right });
+          const direction = offscreenDirection(projected, width, height, ahead, right);
+          edgeLabels.push({ key, id: ship.id, text: `${direction.arrow} TS${ship.id}`, edge: direction.edge });
         }
         continue;
       }
@@ -286,16 +329,23 @@ export async function createScene3D({ host, info, camera = 'bridge', chart, onSe
         layer.append(poi); pois.set(key, poi);
       }
       const top = Math.max(72, Math.min(point.y - 65, height * 0.22));
-      poi.x = point.x; poi.y = Math.max(20, point.y - top); poi.buttonY = top;
+      // Subpixel changes must not continuously retrigger the component's overlap observers.
+      poi.x = Math.round(point.x * 2) / 2;
+      poi.y = Math.round(Math.max(20, point.y - top) * 2) / 2;
+      poi.buttonY = Math.round(top * 2) / 2;
       poi.selected = String(selected) === String(ship.id); poi.vesselState = poiState(risk);
       poi.relativeDirection = degrees(ship.psi - projection.raw.os.psi) ?? 0;
-      poi.title = `TS${ship.id} · ${risk?.displayClass || '不可用'} · DCPA ${metric(risk?.dcpaM)} m / TCPA ${metric(risk?.tcpaS)} s`;
+      const title = `TS${ship.id} · ${risk?.displayClass || '不可用'} · DCPA ${metric(risk?.dcpaM)} m / TCPA ${metric(risk?.tcpaS)} s`;
+      if (poi.title !== title) poi.title = title;
     }
     for (const [key, poi] of pois) if (!wanted.has(key)) { poi.remove(); pois.delete(key); }
     const signature = JSON.stringify(edgeLabels);
     if (edges.dataset.signature !== signature) {
+      const counts = {};
       edges.replaceChildren(...edgeLabels.map(item => {
-        const button = document.createElement('button'); button.textContent = item.text; button.className = item.right ? 'right' : 'left';
+        const button = document.createElement('button'); button.textContent = item.text; button.className = item.edge;
+        const index = counts[item.edge] || 0; counts[item.edge] = index + 1;
+        button.style.setProperty('--edge-index', index);
         button.addEventListener('click', () => choose(item.id)); return button;
       })); edges.dataset.signature = signature;
     }
@@ -303,11 +353,12 @@ export async function createScene3D({ host, info, camera = 'bridge', chart, onSe
   const renderSamples = [];
   let renderStarted = 0, framesTotal = 0, renderP95Ms = 0;
   const removePreRender = viewer.scene.preRender.addEventListener(() => { renderStarted = performance.now(); });
+  listen(layer, 'keydown', event => { if (event.key === 'Escape') layer.querySelectorAll('obc-poi-group').forEach(group => { group.expand = false; }); });
   const removePostRender = viewer.scene.postRender.addEventListener(() => {
     projectPois();
     for (const record of vessels.values()) {
       record.marker.show = chart.getLayerState().ships?.visible !== false && !record.model?.ready;
-      if (record.model) record.model.show = chart.getLayerState().ships?.visible !== false && !(preset === 'bridge' && String(record.ship.id) === '0');
+      if (record.model?.ready) record.model.show = chart.getLayerState().ships?.visible !== false && !(preset === 'bridge' && String(record.ship.id) === '0');
     }
     renderSamples.push(performance.now() - renderStarted);
     if (renderSamples.length > 600) renderSamples.shift();
@@ -315,11 +366,13 @@ export async function createScene3D({ host, info, camera = 'bridge', chart, onSe
     if (framesTotal % 60 === 1) renderP95Ms = [...renderSamples].sort((a,b) => a-b)[Math.floor(renderSamples.length * 0.95)];
     root.dataset.sceneState = JSON.stringify({ models: vessels.size, readyModels: [...vessels.values()].filter(v => v.model?.ready).length,
       pois: pois.size, primitives: viewer.scene.primitives.length, camera: preset, frames: framesTotal,
+      cameraRangeM: projection?.raw?.os ? C.Cartesian3.distance(viewer.camera.positionWC, position(projection.raw.os.x, projection.raw.os.y)) : null,
+      modelDimensions: [...vessels.values()].map(v => ({id: v.ship.id, length:v.ship.length, beam:v.ship.width, asset:v.asset.id, radius:v.model?.ready?v.model.boundingSphere.radius:null})),
       renderP95Ms });
   });
   const removeError = viewer.scene.renderError.addEventListener((_scene, error) => onFailure(error));
   listen(viewer.canvas, 'webglcontextlost', () => onFailure(new Error('WebGL 上下文丢失，已恢复海图')));
-  const resize = new ResizeObserver(() => { if (!disposed) { viewer.resize(); viewer.scene.requestRender(); } }); resize.observe(canvasHost);
+  const resize = new ResizeObserver(() => { if (!disposed) { applyResolution(); viewer.resize(); viewer.scene.requestRender(); } }); resize.observe(canvasHost);
   function refreshTheme() {
     const name = document.documentElement.getAttribute('data-obc-theme');
     const dark = name === 'night' || name === 'dusk';
@@ -355,4 +408,24 @@ export async function createScene3D({ host, info, camera = 'bridge', chart, onSe
       viewer.destroy(); root.remove(); vessels.clear(); geometry.clear();
     },
   };
+}
+
+export function createEncGeometry(C, geo) {
+  const info = geo.info;
+    const count = 32, vertices = [], normals = [], st = [], indices = [];
+    for (let row = 0; row <= count; row++) for (let col = 0; col <= count; col++) {
+      const p = C.Cartesian3.fromDegrees(...geo.lonLat(info.height * row / count, info.width * col / count), 0.1);
+      vertices.push(p.x, p.y, p.z);
+      const normal = C.Ellipsoid.WGS84.geodeticSurfaceNormal(p);
+      normals.push(normal.x, normal.y, normal.z); st.push(col / count, row / count);
+      if (row < count && col < count) {
+        const i = row * (count + 1) + col;
+        indices.push(i, i + 1, i + count + 1, i + 1, i + count + 2, i + count + 1);
+      }
+    }
+    return new C.Geometry({ attributes: {
+      position: new C.GeometryAttribute({ componentDatatype: C.ComponentDatatype.DOUBLE, componentsPerAttribute: 3, values: new Float64Array(vertices) }),
+      normal: new C.GeometryAttribute({ componentDatatype: C.ComponentDatatype.FLOAT, componentsPerAttribute: 3, values: new Float32Array(normals) }),
+      st: new C.GeometryAttribute({ componentDatatype: C.ComponentDatatype.FLOAT, componentsPerAttribute: 2, values: new Float32Array(st) }),
+    }, indices: new Uint16Array(indices), primitiveType: C.PrimitiveType.TRIANGLES, boundingSphere: C.BoundingSphere.fromVertices(vertices) });
 }

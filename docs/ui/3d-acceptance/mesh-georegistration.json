@@ -1,0 +1,12 @@
+[
+  {
+    "zone": 32,
+    "interiorSamples": 3072,
+    "maxEcefInterpolationErrorM": 0.0013727070014037165
+  },
+  {
+    "zone": 33,
+    "interiorSamples": 3072,
+    "maxEcefInterpolationErrorM": 0.0013727065060999304
+  }
+]

@@ -1,0 +1,13 @@
+{
+  "switches": 20,
+  "before_run": "6d8bdcfd-47d1-4d73-8c26-98805b143732",
+  "after_run": "6d8bdcfd-47d1-4d73-8c26-98805b143732",
+  "state_before": "CREATED",
+  "state_after": "CREATED",
+  "mutation_requests": [],
+  "auxiliary_read_only_probe_websockets": [
+    "INFO:     127.0.0.1:49847 - \"WebSocket /ws/sessions/6d8bdcfd-47d1-4d73-8c26-98805b143732\" [accepted]"
+  ],
+  "new_browser_telemetry_websockets": 0,
+  "note": "One short-lived Python read-only telemetry probe ran after the UI switches; no new transport=shared-planner-v1 browser socket."
+}

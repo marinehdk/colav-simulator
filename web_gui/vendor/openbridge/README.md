@@ -38,3 +38,7 @@ remains in `app.js`.
 ## AR integration (2026-09-20)
 
 The selective entry now includes POI Layer and POI Vessel, with their upstream dependencies. Version stays 1.0.1. Rebuild with `tools/web_3d/build-vendor.mjs` and its pinned npm lockfile. That build also preserves the existing table-header alignment token customization. POI Controller is not used: its image/video detection mapping does not implement 3D projection. App code supplies CSS-pixel `x`, pointer line length `y`, and `buttonY`; `y` alone is not an absolute screen ordinate.
+
+The build also gives the upstream POI Group wrapper button an accessible
+Chinese label (`展开重叠目标组`). Grouping/layout remains upstream behavior;
+the scene handles Escape through the component's public `expand` property.

@@ -52,3 +52,21 @@ test('prediction timestamps come from plan evidence, never invented from display
   data.plans.prediction_render.ownship.time_s=[30,60,120,180];
   assert.deepEqual(predictionMarkers(data).map(x=>x.elapsed), [90,150]);
 });
+
+test('offscreen hints use the projected nearest edge, including above and below', async () => {
+ const {offscreenDirection} = await import('../../web_gui/modules/scene-geography.js');
+ for(const [point,edge] of [[{x:500,y:-10},'up'],[{x:500,y:900},'down'],[{x:-30,y:400},'left'],[{x:1200,y:400},'right']])
+  assert.equal(offscreenDirection(point,1000,800,true,true).edge,edge);
+ assert.match(offscreenDirection(null,1000,800,false,true).arrow,/后方/);
+});
+
+test('visual asset choices never infer AIS facts or change authoritative dimensions', async () => {
+ const {chooseVesselAsset,VESSEL_ASSETS}=await import('../../web_gui/modules/vessel-models.js');
+ const ship=Object.freeze({id:1,length:12,width:3});
+ assert.equal(chooseVesselAsset(ship,'tug').asset.id,'tug');
+ assert.match(chooseVesselAsset(ship,'tug').reason,/手动/);
+ assert.equal(chooseVesselAsset(ship).asset.id,'rib');
+ assert.equal(ship.length,12);
+ assert.equal(VESSEL_ASSETS.ferry_roro,undefined);
+ assert.equal(chooseVesselAsset({id:0,length:45,width:8}).asset.id,'fcb45');
+});

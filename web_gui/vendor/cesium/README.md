@@ -9,7 +9,8 @@ Rebuild both runtimes and the extended OpenBridge 1.0.1 bundle:
 ```sh
 npm ci --prefix tools/web_3d --ignore-scripts
 node tools/web_3d/build-vendor.mjs
-python3 tools/web_3d/build_vessel.py
+python3 tools/web_3d/inspect_models.py
+python3 tools/web_3d/build_model_catalog.py
 ```
 
-The lockfile freezes transitive dependencies. The build retains the pre-existing table-header alignment CSS patch and deliberately avoids esbuild syntax minification for the OpenBridge Lit templates. Original low-poly glTF source: `tools/web_3d/build_vessel.py`; no third-party ship asset, physical fidelity or real waterline is implied.
+The lockfile freezes transitive dependencies. The build retains the pre-existing table-header alignment CSS patch and deliberately avoids esbuild syntax minification for the OpenBridge Lit templates. Vessel sources, waterline conventions and source checksums are recorded in `web_gui/assets/models/README.md`; model inspection uses the project Python environment.

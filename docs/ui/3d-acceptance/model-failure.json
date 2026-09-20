@@ -1,0 +1,8 @@
+{
+  "fixture": "all GLB requests deliberately return HTTP503",
+  "models": 17,
+  "readyModels": 0,
+  "fallback": "position markers with official POI",
+  "selection": "TS5 opened card with DCPA0.11NM TCPA2min from canonical fixture",
+  "status": "船模加载失败 · 使用位置标记"
+}

@@ -646,3 +646,13 @@ test('Deployment final samples bypass secondary interpolation and preserve hidde
   display.restoreView(before); assert.deepEqual(display.captureView(), before);
   display.destroy();
 });
+
+
+test('3D reads the chart-owned immutable mission route, including after changed telemetry waypoints', async () => {
+  const { display } = await createDisplay();
+  const first = sampleSnapshot(); display.renderFrame(first);
+  const route = display.getMissionRoute();
+  display.renderFrame({...first,seq:2,waypoints:[[999,1000],[777,888]]},false);
+  assert.deepEqual(display.getMissionRoute(),route);
+  display.destroy();
+});

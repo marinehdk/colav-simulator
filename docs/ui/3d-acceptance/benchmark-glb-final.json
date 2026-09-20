@@ -1,0 +1,147 @@
+{
+  "status": "complete",
+  "seconds": 300.001,
+  "viewport": [
+    1920,
+    1080
+  ],
+  "dpr": 1,
+  "backingRatio": 1,
+  "frames": 17705,
+  "p95FrameMs": 16.800000000017462,
+  "medianFrameMs": 16.699999999982538,
+  "scene": {
+    "models": 17,
+    "readyModels": 17,
+    "pois": 14,
+    "primitives": 19,
+    "camera": "bridge",
+    "frames": 21788,
+    "cameraRangeM": 14.200213683061072,
+    "modelDimensions": [
+      {
+        "id": 0,
+        "length": 45,
+        "beam": 10,
+        "asset": "fcb45",
+        "radius": 37.70839386447171
+      },
+      {
+        "id": 1,
+        "length": 40,
+        "beam": 9,
+        "asset": "cargo_large",
+        "radius": 84.47013135989043
+      },
+      {
+        "id": 2,
+        "length": 40,
+        "beam": 9,
+        "asset": "passenger",
+        "radius": 63.23498687560441
+      },
+      {
+        "id": 3,
+        "length": 40,
+        "beam": 9,
+        "asset": "tug",
+        "radius": 298.8428731050514
+      },
+      {
+        "id": 4,
+        "length": 40,
+        "beam": 9,
+        "asset": "tow_workboat",
+        "radius": 160.9176986144727
+      },
+      {
+        "id": 5,
+        "length": 40,
+        "beam": 9,
+        "asset": "fishing_cabin_realistic",
+        "radius": 190.691758604222
+      },
+      {
+        "id": 6,
+        "length": 40,
+        "beam": 9,
+        "asset": "sailing",
+        "radius": 355.35969214059605
+      },
+      {
+        "id": 7,
+        "length": 40,
+        "beam": 9,
+        "asset": "pleasure_hsc",
+        "radius": 288.6661918192877
+      },
+      {
+        "id": 8,
+        "length": 40,
+        "beam": 9,
+        "asset": "rib",
+        "radius": 119.80849511449912
+      },
+      {
+        "id": 9,
+        "length": 40,
+        "beam": 9,
+        "asset": "cargo_large",
+        "radius": 84.4701313598904
+      },
+      {
+        "id": 10,
+        "length": 40,
+        "beam": 9,
+        "asset": "passenger",
+        "radius": 63.23498687560441
+      },
+      {
+        "id": 11,
+        "length": 40,
+        "beam": 9,
+        "asset": "tug",
+        "radius": 298.8428731050514
+      },
+      {
+        "id": 12,
+        "length": 40,
+        "beam": 9,
+        "asset": "tow_workboat",
+        "radius": 160.91769861447273
+      },
+      {
+        "id": 13,
+        "length": 40,
+        "beam": 9,
+        "asset": "fishing_cabin_realistic",
+        "radius": 190.69175860422197
+      },
+      {
+        "id": 14,
+        "length": 40,
+        "beam": 9,
+        "asset": "sailing",
+        "radius": 355.35969214059605
+      },
+      {
+        "id": 15,
+        "length": 40,
+        "beam": 9,
+        "asset": "pleasure_hsc",
+        "radius": 288.6661918192877
+      },
+      {
+        "id": 16,
+        "length": 40,
+        "beam": 9,
+        "asset": "rib",
+        "radius": 119.80849511449911
+      }
+    ],
+    "renderP95Ms": 1.3000001907348633
+  },
+  "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M3, Unspecified Version)",
+  "remoteRequests": [],
+  "errors": []
+}

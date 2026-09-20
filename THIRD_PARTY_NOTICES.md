@@ -32,3 +32,15 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+## Web 3D visualization assets (2026-09-20)
+
+CesiumJS 1.133.0: Apache-2.0, bundled license and third-party notices under
+`web_gui/vendor/cesium/`. Proj4js 2.19.10: MIT, bundled license under
+`web_gui/vendor/proj4/`. OpenBridge remains pinned to 1.0.1.
+
+Kenney Watercraft Kit and the selected 3DAssets.dev target meshes are published
+as CC0. Exact source pages, download URLs, hashes, geometric qualifications and
+excluded partial models are recorded in `web_gui/assets/models/README.md` and
+`targets/asset-manifest.json`. The FCB45 GLB is user-provided engineering artwork,
+with provenance recorded separately; no CAD/physics fidelity claim is made.

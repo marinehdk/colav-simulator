@@ -144,12 +144,14 @@ deploymentView = createDeploymentView({
   onState: state => {
     const active = state.mode === '3d';
     document.getElementById('canvasWrapper').classList.toggle('view-3d', active);
+    document.getElementById('canvasWrapper').dataset.frame = JSON.stringify(state.frame);
     const button = document.getElementById('scene3dBtn');
     button.disabled = Boolean(state.unavailable) && !active && !state.loading;
     button.title = state.loading ? '加载三维视景，可取消' : state.unavailable || '切换三维视景';
     button.setAttribute('aria-pressed', String(active));
     button.classList.toggle('active', active);
     button.setAttribute('aria-busy', String(state.loading));
+    if (state.lastEntryMs !== null) button.dataset.entryMs = state.lastEntryMs.toFixed(1);
     document.querySelectorAll('[data-map-orientation]').forEach(item => {
       const pressed = !active && item.dataset.mapOrientation === state.orientation;
       item.setAttribute('aria-pressed', String(pressed)); item.classList.toggle('active', pressed);
@@ -164,7 +166,13 @@ deploymentView = createDeploymentView({
     notice.hidden = false;
   },
 });
-window.addEventListener('pagehide', () => deploymentView.destroy(), { once: true });
+const deploymentPanel = document.querySelector('[data-workface-panel="deployment"]');
+const deploymentVisibility = new MutationObserver(() => {
+  const state = deploymentView.state();
+  if (deploymentPanel?.hidden && (state.mode === '3d' || state.loading)) deploymentView.toggle();
+});
+if (deploymentPanel) deploymentVisibility.observe(deploymentPanel, { attributes: true, attributeFilter: ['hidden'] });
+window.addEventListener('pagehide', () => { deploymentVisibility.disconnect(); deploymentView.destroy(); }, { once: true });
 
 
 function vesselMarkerElement(id) {
@@ -2868,6 +2876,7 @@ function renderProjection(proj) {
   if (data.os) {
     if (motionOnly) {
       setText('val-sim-time', `${data.sim_time.toFixed(1)} s`);
+      setText('liveSimulationTime', `${data.sim_time.toFixed(1)} s`);
       deploymentView.render(proj);
       return;
     }

@@ -1081,9 +1081,11 @@ class WebSessionManager:
         return path
 
     def enc_info(self) -> dict[str, Any]:
-        if not self.prepared:
+        prepared = self.prepared
+        if not prepared:
             return {"ready": False}
-        enc = self.prepared.session.enc
+        enc = prepared.session.enc
+        run_id = prepared.manifest.run_id
         return {
             "ready": True,
             "origin_e": float(enc.origin[0]),
@@ -1096,8 +1098,8 @@ class WebSessionManager:
             "hemisphere": "north" if int(enc.utm_zone) in (32, 33) else None,
             "display_height_reference": "ellipsoid-zero-visual-only",
             "tile_url": "/api/enc_tile",
-            "navigation_area_url": f"/api/sessions/{self.session_id}/navigation-area",
-            "run_id": self.session_id,
+            "navigation_area_url": f"/api/sessions/{run_id}/navigation-area",
+            "run_id": run_id,
         }
 
     def navigation_area(self, session_id: str) -> dict[str, Any]:
@@ -1953,11 +1955,12 @@ def api_planner_decision_space(
 
 @app.get("/api/enc_tile", response_model=None)
 def api_enc_tile(run_id: str | None = None) -> FileResponse:
-    if not manager.prepared:
+    prepared = manager.prepared
+    if not prepared:
         raise HTTPException(status_code=503, detail="No active session")
-    if run_id is not None and run_id != manager.session_id:
+    if run_id is not None and run_id != prepared.manifest.run_id:
         raise HTTPException(status_code=409, detail="ENC session changed")
-    return FileResponse(manager.prepared.run_dir / "enc.png", media_type="image/png")
+    return FileResponse(prepared.run_dir / "enc.png", media_type="image/png")
 
 
 @app.get("/api/algo_status")

@@ -24,7 +24,13 @@ def test_enc_metadata_declares_horizontal_crs_and_visual_height():
 
 
 def test_late_enc_image_request_cannot_read_another_sessions_chart(monkeypatch, tmp_path):
-    monkeypatch.setattr(gui, "manager", SimpleNamespace(session_id="new-run", prepared=SimpleNamespace(run_dir=tmp_path)))
+    monkeypatch.setattr(
+        gui,
+        "manager",
+        SimpleNamespace(
+            session_id="new-run", prepared=SimpleNamespace(run_dir=tmp_path, manifest=SimpleNamespace(run_id="new-run"))
+        ),
+    )
     with pytest.raises(HTTPException) as error:
         gui.api_enc_tile("old-run")
     assert error.value.status_code == 409

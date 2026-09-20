@@ -70,3 +70,11 @@ export function predictionMarkers(data) {
     return [{ point, elapsed }];
   });
 }
+
+export function offscreenDirection(point, width, height, ahead, right) {
+  if (!ahead || !point) return { edge: right ? 'right' : 'left', arrow: '↶ 后方' };
+  const x = (point.x - width / 2) / (width / 2);
+  const y = (point.y - height / 2) / (height / 2);
+  if (Math.abs(y) > Math.abs(x)) return y < 0 ? { edge: 'up', arrow: '↑' } : { edge: 'down', arrow: '↓' };
+  return x < 0 ? { edge: 'left', arrow: '←' } : { edge: 'right', arrow: '→' };
+}
