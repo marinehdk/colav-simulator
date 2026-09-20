@@ -31,6 +31,7 @@ from colav_simulator.modular_gnc.contracts import (
 )
 from colav_simulator.modular_gnc.route_bridge import MidMpcRouteBridge, ProductRouteBridge
 from colav_simulator.modular_gnc.stack import ModularShipStack
+from colav_simulator.original_gnc.configuration import OriginalGncConfig
 
 if TYPE_CHECKING:
     from colav_simulator.modular_gnc.configuration import ShipModulesConfig
@@ -81,6 +82,7 @@ class ModularShipAdapter(IShip):
         self._next_tick = 0
         self._seed = 0
         self._last_failure: FacadeFailure | None = None
+        self._transit_parameters = OriginalGncConfig.from_dict({}).parameters()
 
     @classmethod
     def from_legacy_config(
@@ -197,6 +199,8 @@ class ModularShipAdapter(IShip):
             # Its scenario placeholder dimensions/model must not leak into CPA,
             # chart footprint or active-capability evidence.
             parameters = self._stack.config.modules["controller"].parameters
+            route_limits = self._transit_parameters["active_route_manager_node"]
+            guidance_limits = self._transit_parameters["ship_guidance_node"]
             self._legacy._references = validate_plan(
                 self._legacy._colav.plan(
                     t,
@@ -216,7 +220,13 @@ class ModularShipAdapter(IShip):
                     # design (omega_heading=.11, omega_speed=.08), not the old Viknes model.
                     os_course_time_constant_s=1.0 / 0.11,
                     os_speed_time_constant_s=1.0 / 0.08,
-                    os_max_turn_rate_radps=parameters.get("heading_rate_limit_rad_s"),
+                    os_max_turn_rate_radps=min(
+                        float(parameters.get("heading_rate_limit_rad_s", float("inf"))),
+                        np.deg2rad(route_limits["max_yaw_rate_deg_s"]["value"]),
+                    ),
+                    os_max_speed_rate_mps2=route_limits["max_decel_mps2"]["value"],
+                    os_min_steerage_speed_mps=guidance_limits["minimum_steerage_speed"]["value"],
+                    os_max_speed_mps=guidance_limits["max_transit_speed"]["value"],
                     dt=dt,
                 )
             )
@@ -282,6 +292,14 @@ class ModularShipAdapter(IShip):
 
     def set_colav_data(self, colav_data: dict) -> None:
         self._legacy.set_colav_data(colav_data)
+
+    def goal_reached(self) -> None:
+        """Use the shared navigation arrival gate, as the original GNC does.
+
+        A planner's point-mass precision-stop criterion is not the completion
+        policy of the independently executing modular vessel stack.
+        """
+        return None
 
     def get_sim_data(self, t: float, timestamp_0: int) -> dict:
         """Return raw legacy telemetry dictionary without schema translation."""

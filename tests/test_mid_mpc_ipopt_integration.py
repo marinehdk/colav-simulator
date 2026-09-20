@@ -11,9 +11,11 @@ from types import SimpleNamespace
 
 import numpy as np
 from conftest import empty_enc
+from test_mid_mpc_problem_assembler import _cycle, _planner_input
 
 from colav_simulator.core.colav.custom_mpc_adapter import CustomMPCAdapter, DeadlineMode, FactoryContext
 from colav_simulator.core.colav.diagnostics import ColavExecutionError, FailureSource, PlanStatus
+from colav_simulator.core.colav.encounter_lifecycle import EncounterLifecycle
 from colav_simulator.core.tracking.trackers import TrackKey, TrackSnapshot, TrackStatus
 from colav_simulator.experiment.capabilities import ALGORITHMS, VERIFIED_COMBINATIONS
 from colav_simulator.experiment.persistence import BoundedArtifactSink, EvidenceWriter
@@ -1275,3 +1277,34 @@ def test_recovery_filter_uses_only_l4_active_maneuver_targets() -> None:
 
     assert check is not None
     assert check(np.array(case["candidate"])) is False
+
+
+def test_rolling_authority_ignores_target_and_required_key_order() -> None:
+    planner = _planner_input()
+    lifecycle = EncounterLifecycle()
+    snapshot = lifecycle.step(_cycle(planner, sequence=0, sim_time_s=0.0))
+    targets = (snapshot.targets[0], replace(snapshot.targets[0], key=TrackKey(2, 1)))
+    snapshot = replace(
+        snapshot,
+        targets=targets,
+        directive=replace(snapshot.directive, required_targets=tuple(target.key for target in targets)),
+    )
+    capability = mid_mpc_module.PlantCapabilityEvidence(
+        plant="test",
+        controller="test",
+        valid_at_s=0.0,
+        heading_window_rad=0.8,
+        speed_bounds_mps=(0.0, 8.0),
+        rot_max_rad_s=0.05,
+        accel_max_mps2=0.3,
+        decel_max_mps2=0.3,
+        exact_tuple="test",
+    )
+    reordered = replace(
+        snapshot,
+        targets=tuple(reversed(targets)),
+        directive=replace(snapshot.directive, required_targets=tuple(reversed(snapshot.directive.required_targets))),
+    )
+    assert mid_mpc_module._rolling_plan_identity(planner, snapshot, capability) == (
+        mid_mpc_module._rolling_plan_identity(planner, reordered, capability)
+    )

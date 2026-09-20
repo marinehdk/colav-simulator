@@ -2434,7 +2434,7 @@ def _rolling_plan_identity(
 ) -> RollingPlanIdentity:
     authority = {
         "directive": {
-            "required_targets": [[key.target_id, key.generation] for key in snapshot.directive.required_targets],
+            "required_targets": sorted([key.target_id, key.generation] for key in snapshot.directive.required_targets),
             "passing_side": snapshot.directive.passing_side.value,
             "minimum_course_change_rad": snapshot.directive.minimum_course_change_rad,
             "speed_bounds_mps": snapshot.directive.speed_bounds_mps,
@@ -2454,7 +2454,7 @@ def _rolling_plan_identity(
                 "required_course_change_rad": decision.required_course_change_rad,
                 "planned_action_at_s": decision.planned_action_at_s,
             }
-            for decision in snapshot.targets
+            for decision in sorted(snapshot.targets, key=lambda decision: (decision.key.target_id, decision.key.generation))
         ],
     }
     return RollingPlanIdentity(

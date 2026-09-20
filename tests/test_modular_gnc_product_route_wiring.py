@@ -65,7 +65,10 @@ def test_planner_receives_physical_fcb_dimensions_and_controller_identity():
     assert (received["os_length"], received["os_width"], received["os_draft"]) == (44.1, 8.0, 2.0)
     assert received["os_model_name"] == "fcb45_roll_4dof_plant"
     assert received["os_controller_name"] == "fcb45_marine_pid"
-    assert received["os_max_turn_rate_radps"] == 0.05
+    assert received["os_max_turn_rate_radps"] == pytest.approx(np.deg2rad(1.2))
+    assert received["os_max_speed_rate_mps2"] == 0.08
+    assert received["os_min_steerage_speed_mps"] == 3.0
+    assert received["os_max_speed_mps"] == 8.0
 
 
 @pytest.mark.parametrize("algorithm", ["vo", "potocnik_colreg_fan_mpc"])

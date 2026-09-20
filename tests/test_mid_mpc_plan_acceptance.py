@@ -1248,3 +1248,39 @@ def test_observed_action_onset_does_not_replace_course_achievement() -> None:
     wrong_side = replace(request, candidate=replace(request.candidate, course_rad=np.deg2rad([0.0, -2.0, 6.0])))
     result = MidMpcPlanAcceptance().evaluate(wrong_side)
     assert "COLREG_LOCKED_SIDE" in {f.code for f in result.findings}
+
+
+@pytest.mark.parametrize("risk", ["ACTIVE", "PAST_CLEAR", "RELEASED"])
+@pytest.mark.parametrize("action_achieved", [False, True])
+@pytest.mark.parametrize("passes_astern", [False, True])
+def test_crossing_passing_obligation_survives_course_achievement(risk, action_achieved, passes_astern):
+    target = AuthorityTarget(
+        key=TrackKey(3, 1),
+        encounter="CROSSING",
+        role="GIVE_WAY",
+        risk=risk,
+        commitment="COMMITTED",
+        passing_side="STARBOARD",
+        baseline_course_rad=-0.1,
+        required_course_change_rad=0.1,
+        action_achieved=action_achieved,
+        route_recovery_allowed=risk == "RELEASED",
+        reachability_verified=True,
+        committed_at_s=0.0,
+        action_start_deadline_s=15.0,
+        action_achievement_deadline_s=30.0,
+        actual_course_change_rad=0.1,
+    )
+    track = ExecutionTarget(
+        key=target.key,
+        length_m=12.0,
+        width_m=4.0,
+        north_m=np.full(3, 60.0 if passes_astern else -60.0),
+        east_m=np.array([120.0, 0.0, -120.0]),
+        uncertainty_m=np.zeros(3),
+    )
+    request = _request(north=np.array([-120.0, 0.0, 120.0]), targets=(track,), authority_targets=(target,))
+    findings = []
+    MidMpcPlanAcceptance._colreg(request, findings)
+    rejected = "COLREG_CROSSING_BOW" in {finding.code for finding in findings}
+    assert rejected == (not passes_astern and risk != "RELEASED")

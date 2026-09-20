@@ -960,11 +960,11 @@ class MidMpcPlanAcceptance:
                         target_key=target.key,
                     )
             if (
-                not target.action_achieved
-                and cpa_inside_horizon
+                cpa_inside_horizon
                 and target.encounter == "CROSSING"
                 and target.role == "GIVE_WAY"
             ):
+                # Reaching the required turn does not authorize crossing ahead.
                 target_displacement = np.array(
                     [
                         execution_target.north_m[-1] - execution_target.north_m[0],

@@ -1547,3 +1547,34 @@ def test_overdue_scheduled_action_is_not_given_a_new_first_interval(side) -> Non
         assert lower >= target.baseline_course_rad + required - 1e-9
     else:
         assert upper <= target.baseline_course_rad - required + 1e-9
+
+
+@pytest.mark.parametrize("risk", [RiskPhase.CANDIDATE, RiskPhase.ACTIVE, RiskPhase.PAST_CLEAR, RiskPhase.RELEASED])
+@pytest.mark.parametrize("action_achieved", [False, True])
+def test_crossing_astern_rows_follow_encounter_duty_not_course_achievement(risk, action_achieved):
+    own = _planner_input()
+    lifecycle = EncounterLifecycle()
+    lifecycle.step(_cycle(own, sequence=0, sim_time_s=0.0))
+    snapshot = lifecycle.step(_cycle(own, sequence=1, sim_time_s=5.0))
+    target = replace(
+        snapshot.targets[0],
+        encounter=EncounterKind.CROSSING,
+        role=OwnshipRole.GIVE_WAY,
+        risk=risk,
+        action_achieved=action_achieved,
+        planned_action_at_s=5.0,
+        route_recovery_allowed=risk is RiskPhase.RELEASED,
+    )
+    snapshot = replace(snapshot, targets=(target,))
+    result = MidMpcProblemAssembler().assemble(_request(own, snapshot))
+    assert isinstance(result, AssemblySuccess)
+    assert result.problem.targets[0].crossing_astern_required == (risk is not RiskPhase.RELEASED)
+
+
+def test_physical_gnc_steerage_floor_applies_without_a_native_route_prefix() -> None:
+    planner_input = replace(_planner_input(), ownship_min_steerage_speed_mps=3.0, sim_time_s=0.0)
+    snapshot = EncounterLifecycle().step(_cycle(planner_input, sequence=0, sim_time_s=0.0))
+    result = MidMpcProblemAssembler().assemble(_request(planner_input, snapshot))
+    assert isinstance(result, AssemblySuccess)
+    assert result.problem.speed_bounds_mps[0] >= 3.0
+    assert result.problem.cpa_braking_floor_mps == 3.0

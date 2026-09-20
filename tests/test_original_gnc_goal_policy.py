@@ -10,22 +10,33 @@ from colav_simulator.core.colav.custom_mpc_adapter import FactoryContext, Planne
 from colav_simulator.core.colav.mid_mpc_arrival import goal_reached as precise_mid_goal
 from colav_simulator.core.colav.retained_route import RetainedRouteConstraint
 from colav_simulator.integrations.mid_mpc_ipopt import create
+from colav_simulator.modular_gnc.adapter import ModularShipAdapter
 from colav_simulator.original_gnc.adapter import OriginalGncShipAdapter
 from colav_simulator.simulator import Simulator
 
 
+@pytest.mark.parametrize("adapter_type", [OriginalGncShipAdapter, ModularShipAdapter])
 @pytest.mark.parametrize(("distance", "expected"), [(308.69, True), (308.71, False)])
-def test_gnc_arrival_uses_shared_gate_and_reports_precision_separately(distance, expected):
-    ship = object.__new__(OriginalGncShipAdapter)
+def test_gnc_arrival_uses_shared_gate_and_reports_precision_separately(distance, expected, adapter_type):
+    ship = object.__new__(adapter_type)
     state = np.array([1000 - distance, 0.0, 0.0, 8.0, 0.0, 0.0])
     waypoints = np.array([[0.0, 1000.0], [0.0, 0.0]])
     ship._legacy = SimpleNamespace(
         state=state,
+        csog_state=np.array([state[0], state[1], 8.0, 0.0]),
         waypoints=waypoints,
         goal_csog_state=np.array([]),
         goal_reached=lambda: precise_mid_goal(state, waypoints),
     )
     ship._parameters = {"ship_dynamics_node": {"vessel.Lpp": {"value": 44.1}}}
+    if adapter_type is ModularShipAdapter:
+        ship._stack = SimpleNamespace(
+            config=SimpleNamespace(
+                modules={
+                    "plant": SimpleNamespace(identity="fcb45_roll_4dof_plant"),
+                }
+            )
+        )
     simulator = SimpleNamespace(ship_list=[ship], ownship=ship)
     assert bool(Simulator.determine_ship_goal_reached(simulator)) is expected
     assert precise_mid_goal(state, waypoints) is False

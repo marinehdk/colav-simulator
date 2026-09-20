@@ -587,8 +587,7 @@ def _resolve_policy(
         min(snapshot.directive.speed_bounds_mps[1], capability.speed_bounds_mps[1]),
     )
     if (
-        planner_input.execution_route_constraint is not None
-        and planner_input.ownship_min_steerage_speed_mps is not None
+        planner_input.ownship_min_steerage_speed_mps is not None
         and not snapshot.directive.stop_required
     ):
         speed_bounds = (max(speed_bounds[0], planner_input.ownship_min_steerage_speed_mps), speed_bounds[1])
@@ -1210,7 +1209,7 @@ def _compile_semantic_problem(  # noqa: PLR0912, PLR0915 - compile lifecycle and
         ),
         cpa_braking_floor_mps=(
             float(planner_input.ownship_min_steerage_speed_mps or 0.0)
-            if execution_prefix is not None and not snapshot.directive.stop_required
+            if not snapshot.directive.stop_required
             else 0.0
         ),
         route_suffix_min_extent_m=(
@@ -1243,18 +1242,20 @@ def _compile_semantic_problem(  # noqa: PLR0912, PLR0915 - compile lifecycle and
                 cog_rad=float(math.atan2(track.state_enu[3], track.state_enu[2])),
                 sog_mps=float(np.linalg.norm(track.state_enu[2:4])),
                 crossing_astern_required=(
+                    # Course achievement is not completion of the encounter's
+                    # passing obligation; keep it until Lifecycle releases it.
                     decision.encounter is EncounterKind.CROSSING
                     and decision.role is OwnshipRole.GIVE_WAY
                     and (
                         decision.risk in {RiskPhase.ACTIVE, RiskPhase.PAST_CLEAR}
                         or (
-                            decision.planned_action_at_s is not None
+                            decision.risk is RiskPhase.CANDIDATE
+                            and decision.planned_action_at_s is not None
                             and decision.planned_action_at_s
                             < planner_input.sim_time_s + config.horizon_steps * config.horizon_dt_s
                             and 0 < decision.geometry.signed_tcpa_s < config.horizon_steps * config.horizon_dt_s
                         )
                     )
-                    and not decision.action_achieved
                 ),
                 crossing_astern_margin_m=0.0,
             )

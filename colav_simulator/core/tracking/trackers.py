@@ -249,7 +249,9 @@ class TrackerBuilder:
 
 
 class GodTracker(ITracker):
-    """This tracker is used to simulate perfect knowledge of dynamic obstacles."""
+    """Perfect target measurements inside the product's two-kilometre detection range."""
+
+    detection_range_m = 2000.0
 
     def __init__(self, sensor_list: list[sens.ISensor] | None = None) -> None:
         self.sensors: list[sens.ISensor] = sensor_list
@@ -296,6 +298,12 @@ class GodTracker(ITracker):
             return tracks, self._recent_sensor_measurements
 
         self._t_prev = t
+
+        true_do_states = [
+            target
+            for target in true_do_states
+            if np.linalg.norm(np.asarray(target[1])[:2] - ownship_state[:2]) <= self.detection_range_m
+        ]
 
         # Perfect knowledge is a snapshot of the targets active at this time.
         # Rebuilding all parallel arrays together preserves target identity when
