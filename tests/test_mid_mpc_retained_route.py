@@ -104,12 +104,13 @@ def test_released_contact_stays_in_physical_constraints_when_reachable():
     assert result.problem.row_schedule.cpa_hard_windows[0].stop_k == 80
 
 
-def test_native_route_planner_uses_ground_course_without_changing_world_velocity():
+@pytest.mark.parametrize("native_route", [False, True])
+def test_native_route_planner_uses_ground_course_without_changing_world_velocity(native_route):
     route = RetainedRouteConstraint(
         "mission", ((0.0, 0.0), (5000.0, 0.0)), (8.0, 8.0), ("cruise", "cruise"), 160.0, 32.0, 480.0
     )
     raw = np.array([0.0, 0.0, math.radians(33.3), 4.23, -0.24, 0.005])
-    original = replace(_planner_input(), ownship_state=raw, execution_route_constraint=route)
+    original = replace(_planner_input(), ownship_state=raw, execution_route_constraint=route if native_route else None)
     normalized = _gnc_course_input(original)
     expected = raw[2] + math.atan2(raw[4], raw[3])
     assert normalized.ownship_state[2] == expected
@@ -122,7 +123,8 @@ def test_native_route_planner_uses_ground_course_without_changing_world_velocity
     np.testing.assert_array_equal(original.ownship_state, raw)
 
 
-def test_adapter_normalizes_before_strict_initial_state_validation():
+@pytest.mark.parametrize("native_route", [False, True])
+def test_adapter_normalizes_before_strict_initial_state_validation(native_route):
     adapter = create(context=FactoryContext("mid_mpc_ipopt", 0, scenario_target_count=1))
     route = RetainedRouteConstraint(
         "mission", ((0.0, 0.0), (5000.0, 0.0)), (8.0, 8.0), ("cruise", "cruise"), 160.0, 32.0, 480.0
@@ -137,7 +139,7 @@ def test_adapter_normalizes_before_strict_initial_state_validation():
         object(),
         None,
         None,
-        {"dt": 0.5, "os_execution_route_constraint": route},
+        {"dt": 0.5, "os_execution_route_constraint": route if native_route else None},
     )
     expected = raw[2] + math.atan2(raw[4], raw[3])
     assert value.ownship_state[2] == expected
@@ -223,11 +225,13 @@ def test_retained_narrow_corridor_seeds_braking_without_relaxing_safety():
     assert np.min(result.prepared.x0[85:160]) < 6.0
 
 
-def test_native_guidance_target_accounts_for_measured_response_without_changing_lifecycle():
+@pytest.mark.parametrize("native_route", [False, True])
+@pytest.mark.parametrize("scheduled", [False, True])
+def test_native_guidance_target_accounts_for_measured_response_without_changing_lifecycle(native_route, scheduled):
     route = RetainedRouteConstraint(
         "accepted", ((0.0, 0.0), (5000.0, 0.0)), (7.0, 7.0), ("cruise", "cruise"), 160.0, 32.0, 480.0
     )
-    original = replace(_planner_input(), execution_route_constraint=route)
+    original = replace(_planner_input(), execution_route_constraint=route if native_route else None)
     lifecycle = EncounterLifecycle()
     for sequence, time_s in enumerate((0.0, 5.0)):
         cycle = _cycle(original, sequence=sequence, sim_time_s=time_s)
@@ -239,6 +243,8 @@ def test_native_guidance_target_accounts_for_measured_response_without_changing_
             ),
         )
         snapshot = lifecycle.step(cycle)
+    if scheduled:
+        snapshot = replace(snapshot, targets=tuple(replace(t, planned_action_at_s=0.0) for t in snapshot.targets))
     plain = MidMpcProblemAssembler().assemble(_request(original, snapshot))
     modeled = MidMpcProblemAssembler().assemble(
         _request(replace(original, ownship_course_time_constant_s=86.7839162612874), snapshot)
@@ -249,8 +255,13 @@ def test_native_guidance_target_accounts_for_measured_response_without_changing_
     assert abs(modeled.problem.route_bearing_rad - target.baseline_course_rad) > abs(
         plain.problem.route_bearing_rad - target.baseline_course_rad
     )
-    assert modeled.problem.row_schedule.course_bounds_rad == plain.problem.row_schedule.course_bounds_rad
+    if not scheduled:
+        assert modeled.problem.row_schedule.course_bounds_rad == plain.problem.row_schedule.course_bounds_rad
     assert modeled.problem.min_alteration_rad == plain.problem.min_alteration_rad
+    if scheduled:
+        assert max(modeled.horizon_encounter_plan.corridor_reference_rad) > max(
+            plain.horizon_encounter_plan.corridor_reference_rad
+        )
 
 
 def test_native_recovery_waits_for_measured_speed_instead_of_assuming_cruise():

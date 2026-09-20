@@ -1904,7 +1904,7 @@ def _recovery_iterate_filter(
     assembly: AssemblySuccess,
     arrival_boundary: tuple[tuple[float, float], float] | None = None,
     *,
-    decisions: tuple = (),
+    decisions: tuple | None = None,
 ) -> Callable[[np.ndarray], bool] | None:
     """Do not stop at first numerical feasibility while a declared recovery fails.
 
@@ -1930,11 +1930,24 @@ def _recovery_iterate_filter(
         or start >= n
         or not assembly.horizon_encounter_plan.target_windows
     )
+    staged_keys = {window.key for window in assembly.horizon_encounter_plan.target_windows}
+    if decisions is not None:
+        # Match the unchanged L4 quality gate. A future or released encounter
+        # cannot postpone the recovery evidence for an active maneuver.
+        staged_keys &= {
+            TrackKey(target.key.target_id, target.key.generation)
+            for target in decisions
+            if getattr(target.risk, "value", target.risk) in {"ACTIVE", "PAST_CLEAR"}
+            and (
+                target.role in {"GIVE_WAY", "OVERTAKING"}
+                or (target.role in {"STAND_ON", "OVERTAKEN"} and target.rule17 in {"MAY_ACT", "MUST_ACT"})
+            )
+        }
+        recovery_required = recovery_required and bool(staged_keys)
     native_capture = planner_input.execution_route_constraint is not None
     arrival_expected = _native_arrival_expected(planner_input, assembly)
     if not recovery_required and not native_capture:
         return None
-    staged_keys = {window.key for window in assembly.horizon_encounter_plan.target_windows}
     origin = np.asarray(planner_input.ownship_state[:2])
     mission = tuple(map(tuple, planner_input.waypoints_enu_m.T))
     initial_course = float(planner_input.ownship_state[2])
@@ -2005,8 +2018,6 @@ def _recovery_iterate_filter(
 
 def _gnc_course_input(planner_input: PlannerInput) -> PlannerInput:
     """Preserve actual world velocity at the body-state / CSOG model boundary."""
-    if planner_input.execution_route_constraint is None:
-        return planner_input
     return replace(planner_input, ownship_state=course_speed_state(planner_input.ownship_state))
 
 

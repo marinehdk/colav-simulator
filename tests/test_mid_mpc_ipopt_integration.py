@@ -1258,3 +1258,20 @@ def test_default_mid_mpc_period_is_ten_seconds_across_modules() -> None:
     assert adapter.descriptor.execution_profile.solve_period_s == 10.0
     assert adapter._solve.__self__._config.assembly.decision_period_s == 10.0
     assert mid_mpc_module.MidMpcAssemblyConfig().decision_period_s == 10.0
+
+
+def test_recovery_filter_uses_only_l4_active_maneuver_targets() -> None:
+    """A pending next encounter must not hide the current maneuver's bad recovery."""
+    case = json.loads((Path(__file__).parent / "fixtures/mid_mpc/full-stack-ot-recovery-scope.json").read_text())
+    tracks = tuple(SimpleNamespace(**{**track, "state_enu": np.array(track["state_enu"])}) for track in case["tracks"])
+    planner_input, assembly = _filter_stand_in(case["recovery_from_k"], tracks)
+    planner_input.ownship_state = np.array(case["ownship"])
+    planner_input.waypoints_enu_m = np.array(case["mission"]).T
+    assembly.horizon_encounter_plan.target_windows = tuple(
+        SimpleNamespace(key=TrackKey(**key)) for key in case["target_keys"]
+    )
+    decisions = tuple(SimpleNamespace(**{**target, "key": TrackKey(**target["key"])}) for target in case["decisions"])
+    check = mid_mpc_module._recovery_iterate_filter(planner_input, assembly, decisions=decisions)
+
+    assert check is not None
+    assert check(np.array(case["candidate"])) is False

@@ -1522,3 +1522,28 @@ def test_prefix_hold_keeps_first_knot_rotation_budget_at_zero() -> None:
             horizon_dt_s=5.0,
         )
         assert first_free == pytest.approx(own_psi + side * 0.05 * 5.0)
+
+
+@pytest.mark.parametrize("side", [PassingSide.PORT, PassingSide.STARBOARD])
+def test_overdue_scheduled_action_is_not_given_a_new_first_interval(side) -> None:
+    own = _planner_input()
+    lifecycle = EncounterLifecycle()
+    lifecycle.step(_cycle(own, sequence=0, sim_time_s=0.0))
+    snapshot = lifecycle.step(_cycle(own, sequence=1, sim_time_s=5.0))
+    target = replace(
+        snapshot.targets[0],
+        passing_side=side,
+        planned_action_at_s=0.0,
+        action_achievement_deadline_s=0.0,
+        action_achieved=False,
+    )
+    snapshot = replace(snapshot, targets=(target,), directive=replace(snapshot.directive, passing_side=side))
+    result = MidMpcProblemAssembler().assemble(_request(own, snapshot))
+
+    assert isinstance(result, AssemblySuccess)
+    lower, upper = result.problem.row_schedule.course_bounds_rad[0]
+    required = target.required_course_change_rad
+    if side is PassingSide.STARBOARD:
+        assert lower >= target.baseline_course_rad + required - 1e-9
+    else:
+        assert upper <= target.baseline_course_rad - required + 1e-9

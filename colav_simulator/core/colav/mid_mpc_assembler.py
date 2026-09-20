@@ -689,18 +689,18 @@ def _guidance_course_target(
         raise ValueError("committed guidance target requires a baseline course")
     target = baseline + side * decision.required_course_change_rad
     if (
-        planner_input.execution_route_constraint is not None
-        and planner_input.ownship_course_time_constant_s is not None
+        planner_input.ownship_course_time_constant_s is not None
         and decision.committed_at_s is not None
         and decision.action_achievement_deadline_s is not None
     ):
-        # Invert the measured route response over the committed action budget,
+        # Invert the declared course response over the committed action budget,
         # excluding the protected near leg. This changes the guidance target;
         # Lifecycle's minimum alteration and deadline remain unchanged.
+        constraint = planner_input.execution_route_constraint
         delay = (
             0.0
-            if planner_input.execution_route_constraint.trajectory_updates
-            else planner_input.execution_route_constraint.minimum_update_distance_m / max(route.planned_speed_mps, 1e-6)
+            if constraint is None or constraint.trajectory_updates
+            else constraint.minimum_update_distance_m / max(route.planned_speed_mps, 1e-6)
         )
         response_time = decision.action_achievement_deadline_s - decision.committed_at_s - delay
         if response_time <= 0:
@@ -1077,6 +1077,14 @@ def _compile_semantic_problem(  # noqa: PLR0912, PLR0915 - compile lifecycle and
         prefix_hold_k = (
             len(execution_prefix.course_rad) if execution_prefix is not None else (1 if hold_first_interval else 0)
         )
+        overdue_actions = {
+            decision.key
+            for decision in binding.selected_decisions
+            if decision.commitment is CommitmentPhase.COMMITTED
+            and not decision.action_achieved
+            and decision.action_achievement_deadline_s is not None
+            and decision.action_achievement_deadline_s < planner_input.sim_time_s
+        }
         bounds: list[tuple[float | None, float | None]] = []
         for k in range(config.horizon_steps):
             lower, upper = None, None
@@ -1089,7 +1097,9 @@ def _compile_semantic_problem(  # noqa: PLR0912, PLR0915 - compile lifecycle and
                     corridor_bearing_rad=float(window.corridor_bearing_rad),
                     passing_side=int(window.passing_side),
                     required_course_change_rad=float(window.required_course_change_rad),
-                    action_complete_k=window.action_complete_k,
+                    # L4 checks the first executable knot after an absolute
+                    # deadline. Replanning must not grant another ALTER beat.
+                    action_complete_k=0 if window.key in overdue_actions else window.action_complete_k,
                     knot=k,
                     prefix_hold_k=prefix_hold_k,
                     rot_max_rad_s=capability.rot_max_rad_s,
@@ -1637,6 +1647,8 @@ def _compile_horizon_encounter_plan(
                 decision.baseline_course_rad if decision.baseline_course_rad is not None else route.mission_leg_bearing_rad
             )
         sign = -1 if decision.passing_side is PassingSide.PORT else 1
+        if decision.risk is not RiskPhase.CANDIDATE:
+            return _guidance_course_target(planner_input, route, decision, sign)
         return baseline + sign * decision.required_course_change_rad
 
     plan = compile_horizon_encounter_plan(
@@ -1727,7 +1739,7 @@ def request_hash_document(
         "ownship": {
             "state": planner_input.ownship_state.tolist(),
             "state_representation": "ground_course_speed"
-            if planner_input.execution_route_constraint is not None
+            if planner_input.ownship_state[4] == 0.0 and planner_input.ownship_state[3] >= 0.0
             else "heading_body_velocity",
             "length_m": planner_input.ownship_length_m,
             "width_m": planner_input.ownship_width_m,

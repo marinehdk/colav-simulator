@@ -762,9 +762,14 @@ class CustomMPCAdapter(ICOLAV):
                 dt_sim_s=dt_sim_s,
                 waypoints_enu_m=waypoints,
                 speed_plan_mps=speed_plan,
+                # A course/speed predictor needs ground motion with either GNC
+                # backend, not only when a native retained route is attached.
                 ownship_state=(
                     course_speed_state(ownship_state)
-                    if kwargs.get("os_execution_route_constraint") is not None
+                    if (
+                        kwargs.get("os_execution_route_constraint") is not None
+                        or self.descriptor.predictor_model == "heading_speed_point_mass_constant_velocity_targets"
+                    )
                     else ownship_state
                 ),
                 tracks=tuple(tracks),
