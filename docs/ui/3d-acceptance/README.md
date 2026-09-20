@@ -53,3 +53,9 @@ node tools/web_3d/model-acceptance.mjs
 ```
 
 Run an isolated application on8013, then `python3 tools/web_3d/serve_qa.py` and open `http://127.0.0.1:8015/tests/web_gui/scene-browser.html`. The fixture is deterministic renderer evidence, not a simulated solver acceptance run. `?dpr=2`, `?failure=engine`, and `?failure=model` exercise the respective display cases. Do not point the fixture's control tests at the user's active8010 session.
+
+## 8010 deployment
+
+Integrated into main as `5b69ea27` and `599ef071`. Restarted the existing `com.marine.colav-simulator.frontend` LaunchAgent; its historical ENC preparation took about100s. Restored the original CREATED overtaking/Mid-MPC/Original-GNC configuration. Before/after Run Specification objects are exactly equal; the restart generated a new run ID, with no simulation progress discarded. Actual8010 exposes H/N/C/3D and loads FCB45 and target GLBs. See `deployment.json` and `8010-chase.png`. Refresh cached browser documents after updating; the fresh document uses one current OpenBridge bundle.
+
+No unrelated tracked source files were modified. Three earlier task drafts were backed up under the path in `deployment.json` before selective integration. No push or pull request was created.

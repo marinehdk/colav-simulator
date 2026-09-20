@@ -1,0 +1,26 @@
+{
+  "url": "http://127.0.0.1:8010/",
+  "commit": "599ef071",
+  "server_pid": 95144,
+  "cwd": "/Users/marine/Code/Colav-Simulator",
+  "before_run": "a5daf241-110d-4e6a-aa22-1919b41d292b",
+  "after_run": "44281166-1390-4845-8232-cebf6a07c8a4",
+  "before_state": "CREATED",
+  "after_state": "CREATED",
+  "run_specification_equal": true,
+  "restored_scenario": "overtaking",
+  "restored_algorithm": "mid_mpc_ipopt",
+  "gnc_stack": "original-gnc-20260914-v1-env-on",
+  "controls": [
+    "H",
+    "N",
+    "C",
+    "3D"
+  ],
+  "loaded_models": [
+    "fcb45",
+    "rib"
+  ],
+  "draft_backup": "tmp/deployment3d-premerge-20260920-180921",
+  "note": "Service restart necessarily created a new run identity; original CREATED specification and zero simulation progress preserved. Refresh the page after deployment."
+}
