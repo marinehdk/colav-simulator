@@ -1,0 +1,8 @@
+{
+  "dependencies": {
+    "@oicl/openbridge-webcomponents": "^1.0.1",
+    "cesium": "^1.133.0",
+    "esbuild": "^0.25.9",
+    "proj4": "^2.19.10"
+  }
+}

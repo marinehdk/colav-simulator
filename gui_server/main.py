@@ -1091,6 +1091,10 @@ class WebSessionManager:
             "width": float(enc.size[0]),
             "height": float(enc.size[1]),
             "utm_zone": int(enc.utm_zone),
+            # Horizontal part of the existing ETRS89 / UTM + NN54 compound CRS.
+            "horizontal_crs": f"EPSG:{25800 + int(enc.utm_zone)}" if int(enc.utm_zone) in (32, 33) else None,
+            "hemisphere": "north" if int(enc.utm_zone) in (32, 33) else None,
+            "display_height_reference": "ellipsoid-zero-visual-only",
             "tile_url": "/api/enc_tile",
             "navigation_area_url": f"/api/sessions/{self.session_id}/navigation-area",
             "run_id": self.session_id,
@@ -1948,9 +1952,11 @@ def api_planner_decision_space(
 
 
 @app.get("/api/enc_tile", response_model=None)
-def api_enc_tile() -> FileResponse:
+def api_enc_tile(run_id: str | None = None) -> FileResponse:
     if not manager.prepared:
         raise HTTPException(status_code=503, detail="No active session")
+    if run_id is not None and run_id != manager.session_id:
+        raise HTTPException(status_code=409, detail="ENC session changed")
     return FileResponse(manager.prepared.run_dir / "enc.png", media_type="image/png")
 
 

@@ -240,7 +240,7 @@ test('海图显示 restores the pre-OpenBridge legend and layer controls in an O
   assert.match(styles, /grid-template-rows: 16px repeat\(2, minmax\(20px, 1fr\)\)/);
 });
 
-test('chart view control combines heading, north, fit, and ownship-centre actions as H N F C', () => {
+test('chart view control combines heading, north, ownship-centre and 3D actions as H N C 3D', () => {
   const start = html.indexOf('<div class="map-mode-control" aria-label="海图视角">');
   assert.ok(start >= 0, 'chart view control exists');
   const end = html.indexOf('</div>', start);
@@ -248,8 +248,8 @@ test('chart view control combines heading, north, fit, and ownship-centre action
   const controls = [
     'data-map-orientation="heading"',
     'data-map-orientation="north"',
-    'id="fitTrafficBtn"',
     'id="recenterChartBtn"',
+    'id="scene3dBtn"',
   ];
   controls.reduce((previousIndex, token) => {
     const index = control.indexOf(token);
@@ -258,11 +258,11 @@ test('chart view control combines heading, north, fit, and ownship-centre action
   }, -1);
   assert.match(control, /aria-label="Heading Up"[^>]*>H<\/button>/);
   assert.match(control, /aria-label="North Up"[^>]*>N<\/button>/);
-  assert.match(control, /aria-label="Fit View"[^>]*>F<\/button>/);
+  assert.doesNotMatch(control, /fitTrafficBtn/);
   assert.match(control, /aria-label="Centre on Ownship"[^>]*>C<\/button>/);
   assert.doesNotMatch(html, />FIT<\/button>|>OS<\/button>/);
-  assert.match(app, /fitTrafficBtn'\)\?\.addEventListener\('click', \(\) => situationDisplay\.fitTraffic\(\)\)/);
-  assert.match(app, /recenterChartBtn'\)\?\.addEventListener\('click', \(\) => situationDisplay\.recenterOwnship\(\)\)/);
+  assert.match(control, /id="scene3dBtn"/);
+  assert.match(app, /recenterChartBtn'\)\?\.addEventListener\('click', \(\) => deploymentView\.recenter\(\)\)/);
 });
 
 test('situation display uses black target motion vectors and risk-driven ship outlines', () => {
@@ -330,7 +330,7 @@ test('algorithm detail and performance pages use readable typography and full-wi
 });
 
 test('chart selection renders only the anchored OpenBridge vessel placard', () => {
-  assert.match(app, /onSelectionChange: showVesselPlacard/);
+  assert.match(app, /showVesselPlacard\(target, context\)/);
   assert.match(app, /onTargetMarkersChange: renderVesselMarkers/);
   assert.match(app, /id="vesselDetailPlacard"|getElementById\('vesselDetailPlacard'\)/);
   assert.doesNotMatch(app, /updateTargetDetails|busyWaterStatus/);

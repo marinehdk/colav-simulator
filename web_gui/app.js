@@ -1,3 +1,4 @@
+import { createDeploymentView } from './modules/deployment-view.js?v=20260920-3d-v1';
 import { renderBalance, resetBalance } from './modules/gnc-balance.js?v=20260909-balance-v7';
 import { activeSessionRuntime, telemetryProjection } from './modules/session-runtime-instance.js?v=20260908-buffered-motion-v2';
 import './modules/line-graph.js?v=20260826-chart-view-control-v1';
@@ -9,7 +10,7 @@ import {
   voCandidateColor,
   drawVelocityArrow,
   simplifiedMpcFanGeometry,
-} from './modules/situation-display.js?v=20260908-buffered-motion-v2';
+} from './modules/situation-display.js?v=20260920-3d-v1';
 import { buildRadarModel, createRadarMiniMap } from './modules/radar-mini-map.js?v=20260827-instrument-polish-v1';
 import { routeLegs, routeProgress } from './modules/route-progress.js?v=20260901-route-card-v1';
 
@@ -101,6 +102,7 @@ function setEncStatus(state) {
   badge.classList.toggle('error', state === 'error');
 }
 
+let deploymentView = null;
 const situationDisplay = createSituationDisplay({
   canvas: document.getElementById('simCanvas'),
   wrapper: document.getElementById('canvasWrapper'),
@@ -118,17 +120,52 @@ const situationDisplay = createSituationDisplay({
     if (type === 'fan') return { type: 'fan', fan: currentDiagnosticPlanner() };
     return null;
   },
-  onEncStatus: setEncStatus,
+  onEncStatus: state => { setEncStatus(state); deploymentView?.refresh(); },
   onLog: pushLog,
   onScaleLabel: text => {
     const label = document.getElementById('scaleBarLabel');
     if (label) label.textContent = text;
   },
   onLayerStateChange: syncLayerControls,
-  onSelectionChange: showVesselPlacard,
+  onSelectionChange: (target, context) => { if (deploymentView?.state().mode !== '3d') showVesselPlacard(target, context); },
   onTargetMarkersChange: renderVesselMarkers,
 });
 const radarMiniMap = createRadarMiniMap({ canvas: document.getElementById('liveRadarMiniMap') });
+
+deploymentView = createDeploymentView({
+  chart: situationDisplay,
+  createScene: async options => {
+    const { createScene3D } = await import('./modules/scene-3d.js?v=20260920-3d-v1');
+    return createScene3D({ ...options, chart: situationDisplay,
+      host: document.getElementById('scene3dHost'),
+      onSelect: id => situationDisplay.selectTarget(id),
+    });
+  },
+  onState: state => {
+    const active = state.mode === '3d';
+    document.getElementById('canvasWrapper').classList.toggle('view-3d', active);
+    const button = document.getElementById('scene3dBtn');
+    button.disabled = Boolean(state.unavailable) && !active && !state.loading;
+    button.title = state.loading ? '加载三维视景，可取消' : state.unavailable || '切换三维视景';
+    button.setAttribute('aria-pressed', String(active));
+    button.classList.toggle('active', active);
+    button.setAttribute('aria-busy', String(state.loading));
+    document.querySelectorAll('[data-map-orientation]').forEach(item => {
+      const pressed = !active && item.dataset.mapOrientation === state.orientation;
+      item.setAttribute('aria-pressed', String(pressed)); item.classList.toggle('active', pressed);
+    });
+    document.getElementById('chartScaleInput').disabled = active;
+    document.querySelectorAll('[data-chart-only]').forEach(item => { item.disabled = active || (item.dataset.layer && situationDisplay.getLayerState()[item.dataset.layer]?.available === false); });
+    if (active) hideVesselPlacard();
+  },
+  onError: error => {
+    const notice = document.getElementById('scene3dError');
+    notice.textContent = `${error.message || error} · 点击 3D 重试`;
+    notice.hidden = false;
+  },
+});
+window.addEventListener('pagehide', () => deploymentView.destroy(), { once: true });
+
 
 function vesselMarkerElement(id) {
   return document.querySelector(`.vessel-marker[data-target-id="${CSS.escape(String(id))}"]`);
@@ -376,7 +413,7 @@ customElements.whenDefined('obc-top-bar').then(syncDeploymentSidebarControls);
 // Brilliance-menu ships inside the same locally-bundled module config-shell.js
 // loads (vendor/openbridge/entry-source.mjs); re-import is a cache no-op and
 // failure degrades like every other best-effort OpenBridge piece.
-import('/static/vendor/openbridge/openbridge-components.mjs?v=20260916-replay-layout-v4').catch(() => {});
+import('/static/vendor/openbridge/openbridge-components.mjs?v=20260920-3d-v1').catch(() => {});
 
 function applyPalette(palette, persist = true) {
   const nextPalette = PALETTE_NAMES[palette] ? palette : 'day';
@@ -456,8 +493,8 @@ function updateLegendVisibility(state = situationDisplay.getLayerState()) {
 document.getElementById('zoomIn')?.addEventListener('click', () => situationDisplay.zoomIn());
 document.getElementById('zoomOut')?.addEventListener('click', () => situationDisplay.zoomOut());
 document.getElementById('zoomReset')?.addEventListener('click', () => situationDisplay.fitView());
-document.getElementById('zoomInBtn')?.addEventListener('click', () => situationDisplay.zoomIn());
-document.getElementById('zoomOutBtn')?.addEventListener('click', () => situationDisplay.zoomOut());
+document.getElementById('zoomInBtn')?.addEventListener('click', () => deploymentView.zoom(1));
+document.getElementById('zoomOutBtn')?.addEventListener('click', () => deploymentView.zoom(-1));
 function syncChartDisplayPopoverState() {
   const button = document.getElementById('chartLayersBtn');
   const panel = document.getElementById('chartDisplayPopover');
@@ -493,24 +530,19 @@ function setupChartDisplayPopover() {
 }
 
 setupChartDisplayPopover();
-document.getElementById('fitTrafficBtn')?.addEventListener('click', () => situationDisplay.fitTraffic());
-document.getElementById('recenterChartBtn')?.addEventListener('click', () => situationDisplay.recenterOwnship());
+document.getElementById('recenterChartBtn')?.addEventListener('click', () => deploymentView.recenter());
+document.getElementById('scene3dBtn')?.addEventListener('click', () => {
+  document.getElementById('scene3dError').hidden = true;
+  deploymentView.toggle();
+});
 document.querySelectorAll('[data-map-orientation]').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('[data-map-orientation]').forEach(b => {
-      b.classList.remove('active');
-      b.setAttribute('aria-pressed', 'false');
-    });
-    btn.classList.add('active');
-    btn.setAttribute('aria-pressed', 'true');
-    const orientation = btn.dataset.mapOrientation;
-    if (situationDisplay.setOrientation) situationDisplay.setOrientation(orientation);
-  });
+  btn.addEventListener('click', () => deploymentView.orientation(btn.dataset.mapOrientation));
 });
 document.querySelectorAll('[data-layer]').forEach(input => {
   input.addEventListener('change', () => {
     situationDisplay.setLayerVisible(input.dataset.layer, input.checked);
     updateLegendVisibility();
+    deploymentView.layers();
   });
 });
 
@@ -2836,7 +2868,7 @@ function renderProjection(proj) {
   if (data.os) {
     if (motionOnly) {
       setText('val-sim-time', `${data.sim_time.toFixed(1)} s`);
-      situationDisplay.render(data);
+      deploymentView.render(proj);
       return;
     }
     updateUI(proj);
@@ -2848,7 +2880,7 @@ function renderProjection(proj) {
     const radarModel = buildRadarModel(data, RADAR_DETECTION_RANGE_M, targetThreatLevels);
     radarMiniMap.render(radarModel);
     situationDisplay.setTargetThreatLevels(targetThreatLevels);
-    situationDisplay.render(data);
+    deploymentView.render(proj);
     renderTimelineLog(proj);
   }
 }
@@ -2877,6 +2909,7 @@ function setSessionConnectionState(state, logEvent = false) {
 }
 
 function resetDeploymentForSession(data) {
+  deploymentView.beginSession(data.session_id || currentRunId());
   resetBalance();
   situationDisplay.setPlannerSurfaceAttached(false);
   if (voDecisionSpaceController) voDecisionSpaceController.abort();
@@ -2953,6 +2986,7 @@ function syncDeploymentRuntime(snapshot) {
         'log-info',
       );
     } else {
+      deploymentView.beginSession(null);
       situationDisplay.clearSession();
       radarMiniMap.render(buildRadarModel(null, RADAR_DETECTION_RANGE_M, {}));
       currentData = null;

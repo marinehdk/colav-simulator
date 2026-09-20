@@ -86,9 +86,9 @@ test('composition root wires the runtime into the projection singleton and expor
 });
 
 test('Config assets retain GNC tags and load the updated runtime shell', () => {
-  const tag = '20260917-replay-ui-v5';
+  const tag = '20260920-3d-v1';
   assert.match(html, new RegExp(`/static/style\\.css\\?v=${tag}`));
-  assert.match(html, /\/static\/modules\/config-shell\.js\?v=20260916-replay-layout-v4/);
+  assert.match(html, /\/static\/modules\/config-shell\.js\?v=20260920-3d-v1/);
   assert.match(shell, /validation-assembly\.js\?v=20260914-gnc-replay-v3/);
 });
 

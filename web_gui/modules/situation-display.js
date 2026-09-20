@@ -540,6 +540,7 @@ export function createSituationDisplay(options) {
   /* ── interpolation pipeline (moved from app.js per M3) ── */
   let currentData = null;
   let lastRenderedData = null;
+  let displayVisible = true;
   let renderFromData = null;
   let renderToData = null;
   let renderStartedAt = 0;
@@ -864,7 +865,7 @@ export function createSituationDisplay(options) {
   /* ════════════ rendering ════════════ */
 
   function rerender() {
-    if (lastRenderedData) renderCanvas(lastRenderedData);
+    if (displayVisible && lastRenderedData) renderCanvas(lastRenderedData);
   }
 
   function renderCanvas(data) {
@@ -2047,6 +2048,19 @@ export function createSituationDisplay(options) {
       if (!snapshot) return;
       currentData = snapshot;
       queueTelemetryRender(snapshot);
+    },
+    renderFrame(snapshot, visible = true) {
+      if (!snapshot) return;
+      displayVisible = visible;
+      if (renderFrameId !== null) cancelRaf(renderFrameId);
+      renderFrameId = null;
+      renderFromData = renderToData = null;
+      currentData = lastRenderedData = snapshot;
+      if (visible) renderCanvas(snapshot);
+    },
+    captureView: () => ({ viewScale, panX, panY, userAdjusted, mapOrientation }),
+    restoreView(view) {
+      ({ viewScale, panX, panY, userAdjusted, mapOrientation } = view);
     },
     rerender,
     beginSession,

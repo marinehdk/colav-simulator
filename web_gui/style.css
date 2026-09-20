@@ -3778,3 +3778,27 @@ canvas#simCanvas.route-pick-mode { cursor: crosshair; }
 .replay-delete-dialog form { display: flex; justify-content: flex-end; gap: 12px; margin-top: 24px; }
 .replay-delete-dialog button { padding: 8px 24px; border: 1px solid #c9cdd2; border-radius: 4px; background: #fff; cursor: pointer; font: inherit; }
 .replay-delete-dialog button[value="delete"] { background: #b3261e; color: #fff; border-color: #b3261e; }
+
+/* Deployment 3D remains inside the existing chart card. */
+.scene3d-host { position: absolute; inset: 0; visibility: hidden; pointer-events: none; }
+.view-3d > .scene3d-host { visibility: visible; pointer-events: auto; z-index: 4; }
+.view-3d > #simCanvas, .view-3d > .vessel-marker-layer, .view-3d > .vessel-detail-placard { visibility: hidden; pointer-events: none; }
+.scene3d-root, .scene3d-canvas { position: absolute; inset: 0; overflow: hidden; }
+.scene3d-pois { position: absolute; inset: 0; pointer-events: none; --obc-poi-layer-height: 0px; z-index: 3; }
+.scene3d-pois > obc-poi-vessel { pointer-events: auto; }
+.scene3d-toolbar { position: absolute; top: 12px; left: 12px; display: flex; gap: 4px; z-index: 6; }
+.scene3d-toolbar button, .scene3d-card > button, .scene3d-edges button { border: 1px solid var(--border-color, #9aa5af); border-radius: 4px; padding: 7px 10px; background: var(--container-background-color, #eef1f3); color: var(--element-active-color, #283748); cursor: pointer; }
+.scene3d-toolbar button[aria-pressed="true"] { background: #315b91; color: white; }
+.scene3d-toolbar button:focus-visible, .scene3d-card button:focus-visible { outline: 3px solid #5badf3; outline-offset: 2px; }
+.scene3d-status { position: absolute; bottom: 22px; left: 8px; right: 8px; padding: 4px 8px; font-size: 11px; color: white; background: #172736b8; pointer-events: none; z-index: 5; }
+.scene3d-card { position: absolute; right: 12px; top: 62px; width: min(330px, calc(100% - 24px)); z-index: 7; }
+.scene3d-card[hidden] { display: none; }
+.scene3d-card-body { padding: 10px 14px; background: var(--container-background-color, #f0f2f4); color: var(--element-active-color, #283748); }
+.scene3d-card-body > div { display: flex; justify-content: space-between; gap: 8px; padding: 3px 0; font-size: 12px; }
+.scene3d-card-body strong { font-variant-numeric: tabular-nums; text-align: right; }
+.scene3d-credits { position: absolute; bottom: 0; left: 0; z-index: 5; }
+.scene3d-edges { position: absolute; left: 0; right: 0; top: 50%; display: flex; justify-content: space-between; z-index: 5; pointer-events: none; }
+.scene3d-edges button { pointer-events: auto; }
+.scene3d-edges .right { margin-left: auto; }
+.scene3d-error { position: absolute; top: 12px; left: 12px; right: 12px; z-index: 8; padding: 10px; background: #fff2dc; color: #603b00; border: 1px solid #c9830a; }
+.scene3d-error[hidden] { display: none; }

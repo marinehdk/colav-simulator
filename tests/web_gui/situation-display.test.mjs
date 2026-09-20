@@ -630,3 +630,19 @@ for (const multiplier of [1, 5]) {
     display.destroy();
   });
 }
+
+test('Deployment final samples bypass secondary interpolation and preserve hidden chart framing', async () => {
+  let callbacks = 0;
+  const { display } = await createDisplay({ raf: () => { callbacks++; return 1; } });
+  const before = display.captureView();
+  const a = sampleSnapshot({ seq: 1, presentation: { buffered: true, render_time_s: 1 } });
+  display.renderFrame(a);
+  const b = sampleSnapshot({ seq: 1, os: { ...a.os, x: 123 }, presentation: { buffered: true, render_time_s: 1.025 } });
+  display.renderFrame(b, false);
+  assert.equal(callbacks, 0);
+  assert.deepEqual(display.captureView(), before);
+  display.recenterOwnship();
+  assert.equal(display.getPan().y, 123 * display.getViewScale());
+  display.restoreView(before); assert.deepEqual(display.captureView(), before);
+  display.destroy();
+});

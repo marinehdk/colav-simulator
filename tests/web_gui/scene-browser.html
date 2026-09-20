@@ -1,0 +1,43 @@
+<!doctype html><html data-obc-theme="day"><meta charset="utf-8"><title>3D browser acceptance fixture</title>
+<link rel="stylesheet" href="/static/vendor/openbridge/openbridge.css"><link rel="stylesheet" href="/static/style.css">
+<style>body{margin:0;overflow:auto;background:#ddd}#controls{height:44px;display:flex;gap:8px;align-items:center}#surface{position:relative;width:1920px;height:1080px}#chart,#scene{position:absolute;inset:0}#result{white-space:pre-wrap;padding:12px;background:white}#scene{pointer-events:auto}.scene3d-host{visibility:visible}</style>
+<div id="controls"><button id="bench">Run 5-minute benchmark</button><button id="lifecycle">Run lifecycle checks</button><button id="loss">Lose context</button><button id="night">Night</button></div>
+<div id="surface"><canvas id="chart"></canvas><div id="scene" class="scene3d-host"></div></div><pre id="result">Loading</pre>
+<script type="module">
+import '/static/vendor/openbridge/openbridge-components.mjs?v=20260920-3d-v1';
+import {createSituationDisplay} from '/static/modules/situation-display.js?v=20260920-3d-v1';
+import {createDeploymentView} from '/static/modules/deployment-view.js?v=20260920-3d-v1';
+import {createScene3D} from '/static/modules/scene-3d.js?v=20260920-3d-v1';
+const result=document.querySelector('#result'), surface=document.querySelector('#surface'), host=document.querySelector('#scene');
+const enc=await (await fetch('/api/enc_info')).json();
+const chart=createSituationDisplay({canvas:document.querySelector('#chart'),wrapper:surface,fetchInfo:async()=>enc,fetchTile:()=>'/api/enc_tile',loadSprites:false});
+let errors=[],frame=0,view;
+view=createDeploymentView({chart,createScene:options=>createScene3D({...options,host,chart,onSelect:id=>chart.selectTarget(id)}),onError:e=>errors.push(e.message),onState:s=>{host.hidden=s.mode!=='3d'&&!s.loading;}});
+view.beginSession(enc.run_id);chart.beginSession(enc.run_id);
+let now=0;
+function sample(time){
+ const os={id:0,x:1200+time*0.3,y:3000,psi:0,length:45,width:10,sog:6,trajectory:[[1100,3000],[1200+time*0.3,3000]]};
+ const obstacles=Array.from({length:16},(_,i)=>({id:i+1,generation:1,active:true,x:os.x+300+(i%4)*300,y:3000+((i%8)-3.5)*100+Math.sin(time*0.03+i)*80,psi:Math.PI,length:40,width:9,sog:5}));
+ const risk={status:'AVAILABLE',primary:{targetId:1,generation:1},targets:obstacles.map(o=>({targetId:o.id,generation:1,displayClass:o.id===1?'HIGH':'LOW',dcpaM:200,tcpaS:120,rangeM:500,observationHealth:'FRESH',role:'GIVE_WAY',unavailableReasons:[]}))};
+ return {risk,raw:{run_id:enc.run_id,seq:++frame,sim_time:time,state:'RUNNING',executed_tracker:'god',scenario_id:'browser-fixture',os,obstacles,waypoints:[[1200,5000],[3000,3000]],plans:{prediction_horizon:[[os.x,os.y],[os.x+800,os.y+200]]},presentation:{render_time_s:time,source_sim_time_s:time,buffered:true}}};
+}
+let ready=false;
+const initial=setInterval(async()=>{if(ready||chart.getEncStatus()!=='ready')return;ready=true;clearInterval(initial);view.render(sample(0));await view.toggle();result.textContent='Ready · deterministic 16-target renderer fixture, not solver validation';},100);
+let tick=null;
+document.querySelector('#bench').onclick=async()=>{
+ if(view.state().mode!=='3d')await view.toggle();
+ errors=[];const intervals=[];let previous,raf,stopped=false;const start=performance.now();
+ function timing(t){if(previous!==undefined)intervals.push(t-previous);previous=t;if(!stopped)raf=requestAnimationFrame(timing);}
+ raf=requestAnimationFrame(timing);
+ tick=setInterval(()=>{now=(performance.now()-start)/1000;view.render(sample(now));result.textContent=`BENCHMARK RUNNING ${now.toFixed(1)} / 300s`;},25);
+ setTimeout(()=>{clearInterval(tick);stopped=true;cancelAnimationFrame(raf);const sorted=intervals.slice(120).sort((a,b)=>a-b);const state=JSON.parse(host.querySelector('.scene3d-root').dataset.sceneState);const canvas=host.querySelector('canvas');const gl=canvas.getContext('webgl2');const debug=gl?.getExtension('WEBGL_debug_renderer_info');result.textContent=JSON.stringify({status:'complete',seconds:now,viewport:[surface.clientWidth,surface.clientHeight],dpr:devicePixelRatio,frames:sorted.length,p95FrameMs:sorted[Math.floor(sorted.length*.95)],medianFrameMs:sorted[Math.floor(sorted.length*.5)],scene:state,renderer:debug?gl.getParameter(debug.UNMASKED_RENDERER_WEBGL):'unavailable',remoteRequests:performance.getEntriesByType('resource').filter(e=>!e.name.startsWith(location.origin)&&!e.name.startsWith('data:')).map(e=>e.name),errors},null,2);},300000);
+};
+document.querySelector('#lifecycle').onclick=async()=>{
+ clearInterval(tick);const samples=[];
+ for(let i=0;i<20;i++){if(view.state().mode==='3d')view.toggle();view.render(sample(i));await view.toggle();await new Promise(r=>setTimeout(r,100));samples.push({mode:view.state().mode,roots:host.querySelectorAll('.scene3d-root').length,canvases:host.querySelectorAll('canvas').length});}
+ view.toggle();result.textContent=JSON.stringify({status:'lifecycle complete',samples,remainingRoots:host.children.length,errors},null,2);
+};
+document.querySelector('#loss').onclick=()=>{host.querySelector('canvas')?.getContext('webgl2')?.getExtension('WEBGL_lose_context')?.loseContext();setTimeout(()=>{result.textContent=JSON.stringify({mode:view.state().mode,roots:host.children.length,errors});},300);};
+document.querySelector('#night').onclick=()=>document.documentElement.setAttribute('data-obc-theme','night');
+window.addEventListener('pagehide',()=>{clearInterval(tick);view.destroy();chart.destroy();});
+</script></html>

@@ -34,3 +34,7 @@ Then bump the `?v=` cache-bust on the bundle URL in `app.js` /
 `modules/config-shell.js` and the `/static/vendor/openbridge/openbridge.css` href
 in `index.html`. `tests/web_gui/shell-theme.test.mjs` asserts no CDN reference
 remains in `app.js`.
+
+## AR integration (2026-09-20)
+
+The selective entry now includes POI Layer and POI Vessel, with their upstream dependencies. Version stays 1.0.1. Rebuild with `tools/web_3d/build-vendor.mjs` and its pinned npm lockfile. That build also preserves the existing table-header alignment token customization. POI Controller is not used: its image/video detection mapping does not implement 3D projection. App code supplies CSS-pixel `x`, pointer line length `y`, and `buttonY`; `y` alone is not an absolute screen ordinate.

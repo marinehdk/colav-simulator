@@ -50,3 +50,6 @@ import '@oicl/openbridge-webcomponents/dist/navigation-instruments/roll/roll.js'
 import '@oicl/openbridge-webcomponents/dist/navigation-instruments/rudder/rudder.js';
 import '@oicl/openbridge-webcomponents/dist/navigation-instruments/thruster/thruster.js';
 import '@oicl/openbridge-webcomponents/dist/navigation-instruments/graph-mini/graph-mini.js';
+
+import '@oicl/openbridge-webcomponents/dist/ar/poi-layer/poi-layer.js';
+import '@oicl/openbridge-webcomponents/dist/ar/poi-vessel/poi-vessel.js';
