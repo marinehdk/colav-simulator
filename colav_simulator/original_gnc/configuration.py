@@ -15,6 +15,9 @@ import yaml
 from colav_simulator.original_gnc.native import APPROVED_SOURCE_MANIFEST_SHA256, OriginalGncError
 
 SOURCE_MANIFEST_SHA256 = APPROVED_SOURCE_MANIFEST_SHA256
+# GNC main adds 12 frozen MPC files; all 188 PID manifest entries are unchanged.
+# This approves the source container only, not a different PID build or baseline.
+COMPATIBLE_SOURCE_MANIFEST_SHA256 = "f7ee193e04b5165444a680b1e774e8b730639aa13dfd9f013face25ee5cc8a8d"
 ORIGINAL_OFF = "original-gnc-20260914-v1-env-off"
 ORIGINAL_ON = "original-gnc-20260914-v1-env-on"
 BASELINE = Path(__file__).with_name("data") / "baseline.json"
@@ -73,7 +76,10 @@ class OriginalGncConfig:
     def source_assets(self) -> tuple[dict, dict, dict]:
         """Verify all frozen source bytes and map relocated assets by content."""
         manifest = self.source_root / "SOURCE_MANIFEST.csv"
-        if not manifest.is_file() or hashlib.sha256(manifest.read_bytes()).hexdigest() != SOURCE_MANIFEST_SHA256:
+        if not manifest.is_file() or hashlib.sha256(manifest.read_bytes()).hexdigest() not in {
+            SOURCE_MANIFEST_SHA256,
+            COMPATIBLE_SOURCE_MANIFEST_SHA256,
+        }:
             raise OriginalGncError("Approved original GNC source manifest is unavailable or changed")
         local = {}
         with manifest.open(encoding="utf-8-sig") as stream:

@@ -136,3 +136,20 @@ B 的诚实边界（必须向用户明示）：该卡回答"**同一 guidance �
 ```
 
 卡片在 Config 步骤 04（GNC Stack）选择 "Authoritative MPC · 2026-09-21"，环境开关同 PID 卡。8010 服务加载主 checkout 代码，部署本卡需重启该服务（本任务未动生产服务）。
+
+## 8. Main integration follow-up (2026-09-21)
+
+Simulator implementation was already committed on main as `005bc2d7` before
+this follow-up. GNC main was fast-forwarded from `0bbce06` to `9eab996`, retaining
+`feat/mpc-control-lane` and its worktree. All 12 imported package files were
+verified byte-identical to the frozen colleague snapshot. CSV comparison proved
+all 188 existing manifest records unchanged, with exactly 12 added records.
+
+The merge changes the repository manifest hash, which initially made the PID
+card unavailable. `OriginalGncConfig.source_assets` now accepts the exact verified
+superset manifest hash as well as the original hash. Every listed source/asset
+still undergoes byte-hash verification; the PID build, baseline, response evidence
+and execution identity retain their original hash. A regression test checks
+loading the merged source tree, unchanged PID parameters, and rejection of both
+source corruption and unapproved manifest bytes. This is source-container
+compatibility, not new closed-loop qualification.
