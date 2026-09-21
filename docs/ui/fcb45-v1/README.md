@@ -49,3 +49,16 @@ All17 models loaded; p95 frame interval17.5ms, median16.7ms; no external request
 or render errors. This is display performance evidence, not navigation acceptance.
 See `performance.json`. The original desktop GLB is untouched; refreshing8010
 loads the versioned asset without restarting or replacing the backend session.
+
+## Visual comparison
+
+| Original | Refined v1 |
+|---|---|
+| ![Original](original.png) | ![Refined](perspective.png) |
+
+[Normals-only control](normals-only.png) · [Starboard](starboard.png) · [Bow](bow.png) · [Stern](stern.png) · [Top](top.png)
+
+Deployed to8010 as `ff8ae720`; fetched GLB SHA256 matches the tested asset.
+Browser script versions are bumped; refresh the page to replace cached v0.
+The backend was not restarted and Run Specification/run_id were preserved.
+See `deployment.json`.

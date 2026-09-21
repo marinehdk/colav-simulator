@@ -1,0 +1,10 @@
+{
+  "commit": "ff8ae720",
+  "url": "http://127.0.0.1:8010/",
+  "asset": "/static/assets/models/fcb45/ownship-v1.glb",
+  "sha256": "6a518f344344d0c99a1e88dcfe586979bba017803d7c2f665efaa6d616309b16",
+  "same_run_id": true,
+  "same_specification": true,
+  "backend_restarted": false,
+  "note": "Session advanced under operator control during verification; this change only reloads browser assets."
+}
