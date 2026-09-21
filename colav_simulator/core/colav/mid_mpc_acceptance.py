@@ -971,7 +971,25 @@ class MidMpcPlanAcceptance:
                         execution_target.east_m[-1] - execution_target.east_m[0],
                     ]
                 )
-                if float(relative_at_cpa @ target_displacement) <= 0.0:
+                stationary_prediction = np.all(execution_target.north_m == execution_target.north_m[0]) and np.all(
+                    execution_target.east_m == execution_target.east_m[0]
+                )
+                if stationary_prediction:
+                    # A stopped track has no motion-based bow/stern axis. In
+                    # particular, zero displacement dotted with any separation
+                    # is zero, not evidence of crossing ahead. Keep every hull
+                    # safety check and the remaining locked-action obligations.
+                    findings.append(
+                        AcceptanceFinding(
+                            AcceptanceLayer.COLREG,
+                            AcceptanceOutcome.NOT_EVALUATED,
+                            "COLREG_CROSSING_STATIONARY_TARGET",
+                            "stationary prediction has no motion-based astern axis; swept hull safety remains mandatory",
+                            False,
+                            target_key=target.key,
+                        )
+                    )
+                elif float(relative_at_cpa @ target_displacement) <= 0.0:
                     _fail(
                         findings,
                         AcceptanceLayer.COLREG,

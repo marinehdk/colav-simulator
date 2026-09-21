@@ -1,0 +1,64 @@
+FFFF.....                                                                [100%]
+=================================== FAILURES ===================================
+_ test_stationary_crossing_prediction_does_not_invent_bow_passing[None-ACTIVE] _
+
+risk = 'ACTIVE', velocity = None
+
+    @pytest.mark.parametrize("risk", ["ACTIVE", "PAST_CLEAR"])
+    @pytest.mark.parametrize("velocity", [None, (0.0, 0.0)])
+    def test_stationary_crossing_prediction_does_not_invent_bow_passing(risk, velocity):
+        request = _recorded_request(velocity, risk)
+        findings = []
+        MidMpcPlanAcceptance._colreg(request, findings)
+>       assert "COLREG_CROSSING_BOW" not in {finding.code for finding in findings}
+E       AssertionError: assert 'COLREG_CROSSING_BOW' not in {'COLREG_CROSSING_BOW'}
+
+tests/test_mid_mpc_stationary_crossing.py:56: AssertionError
+_ test_stationary_crossing_prediction_does_not_invent_bow_passing[None-PAST_CLEAR] _
+
+risk = 'PAST_CLEAR', velocity = None
+
+    @pytest.mark.parametrize("risk", ["ACTIVE", "PAST_CLEAR"])
+    @pytest.mark.parametrize("velocity", [None, (0.0, 0.0)])
+    def test_stationary_crossing_prediction_does_not_invent_bow_passing(risk, velocity):
+        request = _recorded_request(velocity, risk)
+        findings = []
+        MidMpcPlanAcceptance._colreg(request, findings)
+>       assert "COLREG_CROSSING_BOW" not in {finding.code for finding in findings}
+E       AssertionError: assert 'COLREG_CROSSING_BOW' not in {'COLREG_CROSSING_BOW'}
+
+tests/test_mid_mpc_stationary_crossing.py:56: AssertionError
+_ test_stationary_crossing_prediction_does_not_invent_bow_passing[velocity1-ACTIVE] _
+
+risk = 'ACTIVE', velocity = (0.0, 0.0)
+
+    @pytest.mark.parametrize("risk", ["ACTIVE", "PAST_CLEAR"])
+    @pytest.mark.parametrize("velocity", [None, (0.0, 0.0)])
+    def test_stationary_crossing_prediction_does_not_invent_bow_passing(risk, velocity):
+        request = _recorded_request(velocity, risk)
+        findings = []
+        MidMpcPlanAcceptance._colreg(request, findings)
+>       assert "COLREG_CROSSING_BOW" not in {finding.code for finding in findings}
+E       AssertionError: assert 'COLREG_CROSSING_BOW' not in {'COLREG_CROSSING_BOW'}
+
+tests/test_mid_mpc_stationary_crossing.py:56: AssertionError
+_ test_stationary_crossing_prediction_does_not_invent_bow_passing[velocity1-PAST_CLEAR] _
+
+risk = 'PAST_CLEAR', velocity = (0.0, 0.0)
+
+    @pytest.mark.parametrize("risk", ["ACTIVE", "PAST_CLEAR"])
+    @pytest.mark.parametrize("velocity", [None, (0.0, 0.0)])
+    def test_stationary_crossing_prediction_does_not_invent_bow_passing(risk, velocity):
+        request = _recorded_request(velocity, risk)
+        findings = []
+        MidMpcPlanAcceptance._colreg(request, findings)
+>       assert "COLREG_CROSSING_BOW" not in {finding.code for finding in findings}
+E       AssertionError: assert 'COLREG_CROSSING_BOW' not in {'COLREG_CROSSING_BOW'}
+
+tests/test_mid_mpc_stationary_crossing.py:56: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_mid_mpc_stationary_crossing.py::test_stationary_crossing_prediction_does_not_invent_bow_passing[None-ACTIVE]
+FAILED tests/test_mid_mpc_stationary_crossing.py::test_stationary_crossing_prediction_does_not_invent_bow_passing[None-PAST_CLEAR]
+FAILED tests/test_mid_mpc_stationary_crossing.py::test_stationary_crossing_prediction_does_not_invent_bow_passing[velocity1-ACTIVE]
+FAILED tests/test_mid_mpc_stationary_crossing.py::test_stationary_crossing_prediction_does_not_invent_bow_passing[velocity1-PAST_CLEAR]
+4 failed, 5 passed in 1.41s

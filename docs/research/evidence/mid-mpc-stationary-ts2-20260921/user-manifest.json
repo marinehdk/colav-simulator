@@ -1,0 +1,351 @@
+{
+  "algorithm_build_identity": {
+    "config_sha256": "92fe5a0c7dda50e0d89433ad582b8e9a264599b159d0a1dd083d616811baf072",
+    "dependency_lock_sha256": "c716ec441e36c0017b5de61a06e0a87519d7e8584c024f6ddf8c01cf35c46c15",
+    "factory_ref": "colav_simulator.integrations.mid_mpc_ipopt:create",
+    "module_sha256": "c0e63c94fae751df1bc6ead44f35ad43e160740a7a98fdeb8601125ac04a3eb2",
+    "source_version": "2.0.0"
+  },
+  "algorithm_descriptor": {
+    "build_identity": {
+      "config_sha256": "92fe5a0c7dda50e0d89433ad582b8e9a264599b159d0a1dd083d616811baf072",
+      "dependency_lock_sha256": "c716ec441e36c0017b5de61a06e0a87519d7e8584c024f6ddf8c01cf35c46c15",
+      "factory_ref": "colav_simulator.integrations.mid_mpc_ipopt:create",
+      "module_sha256": "c0e63c94fae751df1bc6ead44f35ad43e160740a7a98fdeb8601125ac04a3eb2",
+      "source_version": "2.0.0"
+    },
+    "build_identity_hash": "183108b3d81a7176b7d5a5226eab12617d8aecad4cb63e5bb49d7e8bc7c9ac3d",
+    "descriptor": {
+      "algorithm_id": "mid_mpc_ipopt",
+      "constraint_terms": [
+        "yaw_rate",
+        "deceleration",
+        "cpa_distance",
+        "preferred_side",
+        "minimum_alteration",
+        "static_swept_hull_clearance"
+      ],
+      "control_form": "course_speed_reference",
+      "execution_profile": {
+        "deadline_s": 20.0,
+        "degraded_track_age_s": 1.0,
+        "first_state_tolerance_m": 0.25,
+        "first_state_tolerance_rad": 0.001,
+        "max_consecutive_timeout": 1,
+        "max_track_age_s": 5.0,
+        "requires_enc": true,
+        "solve_period_s": 10.0,
+        "state_tolerance": 0.001
+      },
+      "horizon_dt": 5.0,
+      "horizon_steps": 80,
+      "objective_terms": [
+        "colreg_barrier",
+        "heading_tracking",
+        "speed_tracking",
+        "route_tracking",
+        "starboard_asymmetry",
+        "terminal_lateral",
+        "cpa_slack",
+        "direction_slack"
+      ],
+      "predictor_model": "heading_speed_point_mass_constant_velocity_targets",
+      "seed_policy": "deterministic_cold_start",
+      "solver": "casadi-3.7.2-ipopt",
+      "state_layout": [
+        "x",
+        "y",
+        "psi",
+        "u",
+        "v",
+        "r",
+        "x_ddot",
+        "y_ddot",
+        "psi_dot"
+      ],
+      "state_samples": 81,
+      "version": "2.0.0"
+    },
+    "descriptor_hash": "56c1b57340731c42beaba96d340e26451289861e1d6b2fcfa2d38251ea190699",
+    "fallback_policy": "forbidden",
+    "role": "collision_avoidance",
+    "schema_version": "1.0",
+    "supported_obstacles": [
+      "dynamic_tracks",
+      "enc"
+    ]
+  },
+  "algorithm_readiness_grade": "G3",
+  "capability_profile_id": "multiship:paper_ccta2023_multiship:mid_mpc_ipopt:god",
+  "ccd_step_tolerance_m": 0.25,
+  "code_commit": "e0523bca52f528a22d1d9a6a2b31ad321d702f21",
+  "code_dirty": true,
+  "collision_oracle_id": "footprint-adaptive-v1",
+  "created_at_utc": "2026-09-21T06:44:40.397786+00:00",
+  "dependencies": {
+    "god": {
+      "available": true,
+      "commit": null,
+      "integration_id": "god",
+      "kind": "tracker",
+      "reason": null,
+      "source": "colav-simulator",
+      "version": null
+    },
+    "kf": {
+      "available": true,
+      "commit": null,
+      "integration_id": "kf",
+      "kind": "tracker",
+      "reason": null,
+      "source": "colav-simulator",
+      "version": null
+    },
+    "mid_mpc_ipopt": {
+      "available": true,
+      "commit": null,
+      "integration_id": "mid_mpc_ipopt",
+      "kind": "algorithm",
+      "reason": null,
+      "source": "/Users/marine/Code/Colav-Simulator/colav_simulator/integrations/mid_mpc_ipopt.py",
+      "version": "1.0.0"
+    },
+    "nominal": {
+      "available": true,
+      "commit": null,
+      "integration_id": "nominal",
+      "kind": "algorithm",
+      "reason": null,
+      "source": "colav-simulator",
+      "version": null
+    },
+    "potocnik_colreg_fan_mpc": {
+      "available": true,
+      "commit": null,
+      "integration_id": "potocnik_colreg_fan_mpc",
+      "kind": "algorithm",
+      "reason": null,
+      "source": "/Users/marine/Code/Colav-Simulator/colav_simulator/integrations/potocnik_colreg_mpc.py",
+      "version": "1.0.0"
+    },
+    "potocnik_simplified_mpc": {
+      "available": true,
+      "commit": null,
+      "integration_id": "potocnik_simplified_mpc",
+      "kind": "algorithm",
+      "reason": null,
+      "source": "/Users/marine/Code/Colav-Simulator/colav_simulator/integrations/potocnik_mpc.py",
+      "version": "1.0.0"
+    },
+    "psbmpc": {
+      "available": true,
+      "commit": "367dad8809424b21c013512308de2a07bd184464",
+      "integration_id": "psbmpc",
+      "kind": "algorithm",
+      "reason": null,
+      "source": "/Users/marine/Code/ecosystem/psbmpc/build/psbmpc_interface/PSBMPCInterface.so",
+      "version": null
+    },
+    "rlmpc": {
+      "available": false,
+      "commit": "73ef4b8cc3850a7a3b007ec14d18b962d134be34",
+      "integration_id": "rlmpc",
+      "kind": "algorithm",
+      "reason": "No module named 'torch'",
+      "source": null,
+      "version": null
+    },
+    "rrt": {
+      "available": true,
+      "commit": "9a661df7acba1bead09e6540f0b3988050db37b5",
+      "integration_id": "rrt",
+      "kind": "algorithm",
+      "reason": null,
+      "source": "/Users/marine/Code/Colav-Simulator/.venv/lib/python3.11/site-packages/rrt_star_lib/__init__.py",
+      "version": "2.0.0"
+    },
+    "sbmpc": {
+      "available": true,
+      "commit": null,
+      "integration_id": "sbmpc",
+      "kind": "algorithm",
+      "reason": null,
+      "source": "colav-simulator",
+      "version": null
+    },
+    "sbmpc_reference": {
+      "available": true,
+      "commit": "367dad8809424b21c013512308de2a07bd184464",
+      "integration_id": "sbmpc_reference",
+      "kind": "algorithm",
+      "reason": null,
+      "source": "/Users/marine/Code/ecosystem/psbmpc/build/psbmpc_interface/PSBMPCInterface.so",
+      "version": null
+    },
+    "scenario_default": {
+      "available": true,
+      "commit": null,
+      "integration_id": "scenario_default",
+      "kind": "tracker",
+      "reason": null,
+      "source": "colav-simulator",
+      "version": null
+    },
+    "vimmjipda": {
+      "available": true,
+      "commit": "b4a0f77ddf72dc8ffd66095418732996c14ea1eb",
+      "integration_id": "vimmjipda",
+      "kind": "tracker",
+      "reason": null,
+      "source": "/Users/marine/Code/ecosystem/vimmjipda/vimmjipda/vimmjipda_tracker_interface.py",
+      "version": "1.0.0"
+    },
+    "vo": {
+      "available": true,
+      "commit": null,
+      "integration_id": "vo",
+      "kind": "algorithm",
+      "reason": null,
+      "source": "colav-simulator",
+      "version": null
+    }
+  },
+  "diagnostic_only": true,
+  "diagnostic_only_reasons": [
+    "original_gnc_response_unqualified"
+  ],
+  "enc_hash": "d1aa1d85e6e307d6c0666ced64e955d40011ce67d74f65d0ab02268dd5e2dafd",
+  "encounter_profile_id": "legacy-g3-v1",
+  "episode_hash": "f1bcfb7ed4032a99ab68057d859427cca580fa0bef52d6a186fc04e76c5e43a8",
+  "evaluation_collision_oracle_id": null,
+  "evaluation_gate": null,
+  "evaluation_schema_version": null,
+  "evaluator_id": null,
+  "evaluator_profile_hash": null,
+  "evaluator_profile_id": null,
+  "evaluator_version": null,
+  "executed_algorithm": "mid_mpc_ipopt",
+  "executed_tracker": "god",
+  "execution_outcome": "FAILED",
+  "failure_reason": "Mid-MPC L4 plan acceptance rejected the candidate: COLREG_CROSSING_BOW",
+  "failure_status": "INFEASIBLE",
+  "fallback_used": false,
+  "formula_set_hash": null,
+  "formula_set_id": null,
+  "grounding_policy_id": null,
+  "historical_case_digest": null,
+  "historical_execution_mode": null,
+  "historical_reference_artifact_digest": null,
+  "historical_replay_evidence": null,
+  "historical_scenario_id": null,
+  "original_gnc": {
+    "acceptance_level": "EXPERIMENTAL_ORIGINAL_SOURCE",
+    "backend_kind": "authoritative_mpc",
+    "environment_enabled": true,
+    "library_sha256": "61e66427174831ff309c201c14361a010aead91f68474aa707237767bdb44b4c",
+    "parameter_sha256": "86bc240404f07a134cda7d43bde9dbb0284fefc93837ddc6e96a09a933f082a9",
+    "python_runtime_sha256": "d82ee59b46a52aeef99835ba9d19efd1b851c793237cc7b5d2b831aadf5b9759",
+    "response_approximation_sha256": "6226142eb36bac8524031c2e2bda6d3d011e02362bc84e3b85a0d587570052ea",
+    "response_input_kind": "route_plan",
+    "response_qualification": "UNQUALIFIED_TRAJECTORY_APPROXIMATION",
+    "scenario_acceptance": "separately_evaluated",
+    "source_manifest_sha256": "f7ee193e04b5165444a680b1e774e8b730639aa13dfd9f013face25ee5cc8a8d",
+    "stack_id": "authoritative-mpc-20260921-v1-env-on"
+  },
+  "platform": "macOS-26.6.2-arm64-arm-64bit",
+  "python_version": "3.11.15",
+  "replay_of_run_id": null,
+  "replay_verified": null,
+  "reproduction_status": "not_evaluated",
+  "requested_algorithm": "mid_mpc_ipopt",
+  "requested_tracker": "god",
+  "run_id": "a0994641-670d-460b-9ec8-fe0199234b40",
+  "scenario_hash": "abaa1f68c35c038c10fd60f7388ab4cd514f7c8023f9be3afca17e63c559b56b",
+  "scenario_provenance": {
+    "confidence": "medium for encounter topology; original vessel states and planner settings unavailable",
+    "numerical_reproduction_confirmed": false,
+    "reconstructed": true,
+    "source": "CCTA 2023 paper Figure 4 and Table II"
+  },
+  "scenario_readiness_grade": "G3",
+  "schema_version": "1.0",
+  "seeds": {
+    "algorithm": 3685993406,
+    "base": 0,
+    "scenario": 3757552657,
+    "sensor": 673228719,
+    "tracker": 3241444873
+  },
+  "simulation_config_hash": "988906c7098b63a082ac9dc5db17256c93f662b47dc0a338f62a5bdffaf4b610",
+  "spec": {
+    "algorithm_capability_evidence": null,
+    "algorithm_config": {
+      "dependency_lock": "/Users/marine/Code/Colav-Simulator/uv.lock",
+      "factory": "colav_simulator.integrations.mid_mpc_ipopt:create",
+      "kwargs": {
+        "cpa_hard_m": 180.0,
+        "cpa_safe_m": 200.0,
+        "deadline_s": 20.0,
+        "decel_max_mps2": 0.3,
+        "heading_window_deg": 45.0,
+        "horizon_dt_s": 5.0,
+        "horizon_steps": 80,
+        "rot_max_deg_s": 3.0,
+        "route_lateral_scale_m": 1000.0,
+        "route_weight": 1.0,
+        "solve_period_s": 10.0,
+        "speed_max_mps": 8.0,
+        "speed_min_mps": 0.0
+      }
+    },
+    "algorithm_id": "mid_mpc_ipopt",
+    "deadline_mode": "ENFORCE",
+    "domain_profile": {
+      "aft_m": 100.0,
+      "assumptions": [
+        "qualified only for declared Colav-Simulator product validation tuples",
+        "off-centred elliptical engineering envelope",
+        "metres and not a COLREG statutory distance"
+      ],
+      "fore_m": 300.0,
+      "model": "OFF_CENTRED_ELLIPSE",
+      "parameter_source": "Colav-Simulator Mid-MPC P1 dynamic-validation evidence",
+      "port_m": 120.0,
+      "profile_hash": "bff38f8731c8d3287d766400277c468b1505b2abf498577bca44415ed72ba9f5",
+      "profile_id": "colav.mid-mpc-validation-domain.v1",
+      "qualification": "QUALIFIED",
+      "starboard_m": 180.0,
+      "uncertainty_multiplier": 2.0,
+      "units": "m",
+      "version": "1"
+    },
+    "dt": null,
+    "episode_index": 0,
+    "evaluator_profile_id": "ccta_2023_demo-v1",
+    "historical_replay": null,
+    "historical_scenario_id": null,
+    "output_root": "runs",
+    "ownship_gnc_stack_id": "authoritative-mpc-20260921-v1-env-on",
+    "reload_enc": false,
+    "replay_of_run_id": null,
+    "reproduction_level": "functional_reproduction",
+    "scenario_id": "paper_ccta2023_multiship",
+    "scenario_override": null,
+    "schema_version": "1.0",
+    "seed": 0,
+    "solve_period_s": null,
+    "strict_no_fallback": true,
+    "t_end": null,
+    "terminate_on_collision_or_grounding": true,
+    "tracker_config": {},
+    "tracker_id": "god",
+    "validation_rule_id": "multiship"
+  },
+  "spec_hash": "7f5a1d9a44cad72b9b1c7cd2d43b35601df2ea9ee38e819490926e721fe7bcb4",
+  "state": "FAILED",
+  "tracker_readiness_grade": "G2",
+  "trajectory_artifact_hash": "67d502b83549e3011247a34cfad745106a4826febfbc39be8d9fe92254803367",
+  "trajectory_hash": "871628a2fe03902e6dc2f1f3ad47b1ec5593bf22f10b7f6fbb9c917cb3d5ab0e",
+  "trajectory_semantic_hash": "871628a2fe03902e6dc2f1f3ad47b1ec5593bf22f10b7f6fbb9c917cb3d5ab0e",
+  "validation_rule_id": "multiship"
+}
