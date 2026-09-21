@@ -1,0 +1,21 @@
+<!doctype html><meta charset="utf-8"><title>FCB45 material and silhouette acceptance</title>
+<link rel="stylesheet" href="../../web_gui/vendor/cesium/Widgets/widgets.css">
+<style>body{margin:0;background:#cbd3d7;font:14px system-ui}header{padding:10px;display:flex;gap:8px;align-items:center}button{padding:7px 12px}#view{width:100vw;height:calc(100vh - 82px)}#result{padding:5px 12px} .cesium-widget-credits{opacity:.7}</style>
+<header><b>FCB45 / same camera and light</b><button data-asset="old">Original</button><button data-asset="normals">Normals only</button><button data-asset="new">Refined v1</button><button data-view="iso">Perspective</button><button data-view="side">Starboard</button><button data-view="front">Bow</button><button data-view="rear">Stern</button><button data-view="top">Top</button></header>
+<div id="view"></div><div id="result">Loading</div>
+<script>window.CESIUM_BASE_URL='/web_gui/vendor/cesium/';</script><script src="../../web_gui/vendor/cesium/Cesium.js"></script>
+<script type="module">
+import {vesselModelMatrix} from '../../web_gui/modules/vessel-models.js';
+const C=window.Cesium;
+const v=new C.Viewer('view',{baseLayer:false,baseLayerPicker:false,geocoder:false,homeButton:false,animation:false,timeline:false,sceneModePicker:false,navigationHelpButton:false,fullscreenButton:false,selectionIndicator:false,infoBox:false,skyBox:false,skyAtmosphere:false,shouldAnimate:false,requestRenderMode:true,maximumRenderTimeChange:Infinity});
+v.scene.globe.show=false;if(v.scene.sun)v.scene.sun.show=false;if(v.scene.moon)v.scene.moon.show=false;v.scene.backgroundColor=C.Color.fromCssColorString('#cbd3d7');
+v.scene.screenSpaceCameraController.enableCollisionDetection=false;
+const origin=C.Cartesian3.fromDegrees(6.05,62.46,0),enu=C.Transforms.eastNorthUpToFixedFrame(origin);
+const light=C.Matrix4.multiplyByPointAsVector(enu,new C.Cartesian3(-.6,.7,-1),new C.Cartesian3());C.Cartesian3.normalize(light,light);
+v.scene.light=new C.DirectionalLight({direction:light,intensity:2.1});
+const descriptor={beam:8,length:45,centerX:0,centerZ:0,waterlineY:0,forward:'-z'};
+let model,variant='old',view='iso',token=0;
+function camera(){const poses={iso:[315,-.43,64],side:[270,-.12,64],front:[180,-.10,45],rear:[0,-.12,45],top:[0,-Math.PI/2+.001,82]};const [h,p,r]=poses[view];v.camera.lookAt(C.Matrix4.multiplyByPoint(enu,new C.Cartesian3(0,0,3.8),new C.Cartesian3()),new C.HeadingPitchRange(h*Math.PI/180,p,r));v.camera.lookAtTransform(C.Matrix4.IDENTITY);v.scene.requestRender();}
+async function load(){const generation=++token;if(model){v.scene.primitives.remove(model);model=null;}document.querySelector('#result').textContent='Loading '+variant;const paths={old:'/web_gui/assets/models/fcb45/ownship.glb',normals:'/tmp/fcb45-visual/normals-only.glb',new:'/web_gui/assets/models/fcb45/ownship-v1.glb'};const next=await C.Model.fromGltfAsync({url:paths[variant]+'?v=20260921',upAxis:C.Axis.Y,forwardAxis:C.Axis.X,modelMatrix:vesselModelMatrix(C,origin,0,{length:45,width:8},descriptor),imageBasedLighting:new C.ImageBasedLighting({imageBasedLightingFactor:new C.Cartesian2(1,.4),sphericalHarmonicCoefficients:Array.from({length:9},(_,i)=>new C.Cartesian3(i===0?.8:0,i===0?.8:0,i===0?.8:0))})});if(generation!==token){next.destroy();return;}model=v.scene.primitives.add(next);model.readyEvent.addEventListener(()=>{document.querySelector('#result').textContent=`Ready: ${variant} / ${view}`;v.scene.requestRender();});camera();}
+document.querySelectorAll('[data-asset]').forEach(b=>b.onclick=()=>{variant=b.dataset.asset;load();});document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>{view=b.dataset.view;camera();document.querySelector('#result').textContent=`Ready: ${variant} / ${view}`;});load();
+</script>

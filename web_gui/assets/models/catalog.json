@@ -205,19 +205,19 @@
   },
   "fcb45": {
     "id": "fcb45",
-    "label": "FCB45 · supplied engineering visual model",
-    "url": "/static/assets/models/fcb45/ownship.glb",
+    "label": "FCB45 · reference-refined visual model v1",
+    "url": "/static/assets/models/fcb45/ownship-v1.glb",
     "type": "ownship",
     "beam": 8,
     "length": 45,
-    "height": 14.870174169540405,
+    "height": 14.895174264907837,
     "centerX": 0,
     "centerZ": 0,
     "waterlineY": 0,
     "waterlineNote": "supplied midship design waterline",
     "forward": "-z",
-    "source": "User supplied FCB45_Cesium_LOD0_v0.glb, 2026-09-20",
+    "source": "User supplied FCB45 v0; reference-refined v1, 2026-09-21",
     "license": "user-provided",
-    "sha256": "843e94e92e663c9174506db88ac1ec771647a40edd8ee7397e70ae9c4df9d035"
+    "sha256": "6a518f344344d0c99a1e88dcfe586979bba017803d7c2f665efaa6d616309b16"
   }
 }

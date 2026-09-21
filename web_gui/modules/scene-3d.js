@@ -1,4 +1,4 @@
-import { chooseVesselAsset, vesselModelMatrix, VESSEL_ASSETS } from './vessel-models.js';
+import { chooseVesselAsset, vesselModelMatrix, VESSEL_ASSETS } from './vessel-models.js?v=20260921-fcb-v1';
 import { createGeography, NM, targetKey, riskForTarget, poiState, frameIdentity, predictionMarkers, offscreenDirection } from './scene-geography.js';
 import { targetsForDisplay } from './situation-display.js?v=20260920-3d-v1';
 
@@ -81,6 +81,19 @@ export async function createScene3D({ host, info, camera = 'bridge', chart, onSe
   const disposers = [];
   function listen(el, event, fn) { el.addEventListener(event, fn); disposers.push(() => el.removeEventListener(event, fn)); }
   function position(n, e, h = 0) { const [lon, lat] = geo.lonLat(n, e); return C.Cartesian3.fromDegrees(lon, lat, h); }
+  // Illustrative daylight, independent of wall-clock sunlight at the scenario longitude.
+  const lightFrame = C.Transforms.eastNorthUpToFixedFrame(position(info.height / 2, info.width / 2));
+  const lightDirection = C.Matrix4.multiplyByPointAsVector(lightFrame, new C.Cartesian3(-0.6, 0.7, -1), new C.Cartesian3());
+  C.Cartesian3.normalize(lightDirection, lightDirection);
+  viewer.scene.light = new C.DirectionalLight({ direction: lightDirection, intensity: 2.1 });
+  function setOwnshipLighting(model) {
+    const dark = ['night', 'dusk'].includes(document.documentElement.getAttribute('data-obc-theme'));
+    model.imageBasedLighting.imageBasedLightingFactor = new C.Cartesian2(1, 0.4);
+    model.imageBasedLighting.sphericalHarmonicCoefficients = Array.from({length: 9}, (_, index) => {
+      const value = index === 0 ? (dark ? 0.25 : 0.8) : 0;
+      return new C.Cartesian3(value, value, value);
+    });
+  }
   function line(id, coordinates, color, width = 2, dashed = false) {
     if (!coordinates?.length || coordinates.length < 2) { const old = geometry.get(id); if (old) viewer.entities.remove(old); geometry.delete(id); return; }
     const points = coordinates.filter(p => p?.length >= 2 && p.slice(0, 2).every(Number.isFinite)).map(p => position(p[0], p[1], 0.8));
@@ -124,6 +137,7 @@ export async function createScene3D({ host, info, camera = 'bridge', chart, onSe
         }).then(model => {
           if (disposed || vessels.get(key) !== record) { model.destroy(); return; }
           // Keep assets hidden until their resources and current telemetry transform are ready.
+          if (record.asset.id === 'fcb45') setOwnshipLighting(model);
           model.show = false;
           record.model = viewer.scene.primitives.add(model);
           model.readyEvent.addEventListener(() => {
@@ -377,6 +391,8 @@ export async function createScene3D({ host, info, camera = 'bridge', chart, onSe
     const name = document.documentElement.getAttribute('data-obc-theme');
     const dark = name === 'night' || name === 'dusk';
     viewer.scene.globe.baseColor = C.Color.fromCssColorString(dark ? '#162c36' : '#75aab5');
+    viewer.scene.light.intensity = dark ? 0.7 : 2.1;
+    for (const record of vessels.values()) if (record.asset.id === 'fcb45' && record.model) setOwnshipLighting(record.model);
     if (viewer.scene.skyAtmosphere) viewer.scene.skyAtmosphere.brightnessShift = dark ? -0.65 : 0;
     viewer.scene.requestRender();
   }

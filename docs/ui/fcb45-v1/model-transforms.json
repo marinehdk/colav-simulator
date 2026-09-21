@@ -1,0 +1,93 @@
+[
+  {
+    "asset": "cargo_large",
+    "hashVerified": true,
+    "localTextures": true,
+    "cardinalHeadings": 4,
+    "scale45x8": true
+  },
+  {
+    "asset": "cargo_small",
+    "hashVerified": true,
+    "localTextures": true,
+    "cardinalHeadings": 4,
+    "scale45x8": true
+  },
+  {
+    "asset": "merchant_large_proxy",
+    "hashVerified": true,
+    "localTextures": true,
+    "cardinalHeadings": 4,
+    "scale45x8": true
+  },
+  {
+    "asset": "passenger",
+    "hashVerified": true,
+    "localTextures": true,
+    "cardinalHeadings": 4,
+    "scale45x8": true
+  },
+  {
+    "asset": "tug",
+    "hashVerified": true,
+    "localTextures": true,
+    "cardinalHeadings": 4,
+    "scale45x8": true
+  },
+  {
+    "asset": "tow_workboat",
+    "hashVerified": true,
+    "localTextures": true,
+    "cardinalHeadings": 4,
+    "scale45x8": true
+  },
+  {
+    "asset": "fishing",
+    "hashVerified": true,
+    "localTextures": true,
+    "cardinalHeadings": 4,
+    "scale45x8": true
+  },
+  {
+    "asset": "sailing",
+    "hashVerified": true,
+    "localTextures": true,
+    "cardinalHeadings": 4,
+    "scale45x8": true
+  },
+  {
+    "asset": "pleasure_hsc",
+    "hashVerified": true,
+    "localTextures": true,
+    "cardinalHeadings": 4,
+    "scale45x8": true
+  },
+  {
+    "asset": "small_craft",
+    "hashVerified": true,
+    "localTextures": true,
+    "cardinalHeadings": 4,
+    "scale45x8": true
+  },
+  {
+    "asset": "fishing_cabin_realistic",
+    "hashVerified": true,
+    "localTextures": true,
+    "cardinalHeadings": 4,
+    "scale45x8": true
+  },
+  {
+    "asset": "rib",
+    "hashVerified": true,
+    "localTextures": true,
+    "cardinalHeadings": 4,
+    "scale45x8": true
+  },
+  {
+    "asset": "fcb45",
+    "hashVerified": true,
+    "localTextures": true,
+    "cardinalHeadings": 4,
+    "scale45x8": true
+  }
+]

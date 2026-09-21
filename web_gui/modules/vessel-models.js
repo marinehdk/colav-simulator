@@ -1,4 +1,4 @@
-import { VESSEL_ASSETS } from './vessel-assets.js';
+import { VESSEL_ASSETS } from './vessel-assets.js?v=20260921-fcb-v1';
 export { VESSEL_ASSETS };
 
 export function chooseVesselAsset(ship, explicitId) {

@@ -33,20 +33,20 @@ for item in manifest["assets"]:
     }
 catalog["fcb45"] = {
     "id": "fcb45",
-    "label": "FCB45 · supplied engineering visual model",
-    "url": "/static/assets/models/fcb45/ownship.glb",
+    "label": "FCB45 · reference-refined visual model v1",
+    "url": "/static/assets/models/fcb45/ownship-v1.glb",
     "type": "ownship",
     "beam": 8,
     "length": 45,
-    "height": bounds["fcb45/ownship.glb"]["size"][1],
+    "height": bounds["fcb45/ownship-v1.glb"]["size"][1],
     "centerX": 0,
     "centerZ": 0,
     "waterlineY": 0,
     "waterlineNote": "supplied midship design waterline",
     "forward": "-z",
-    "source": "User supplied FCB45_Cesium_LOD0_v0.glb, 2026-09-20",
+    "source": "User supplied FCB45 v0; reference-refined v1, 2026-09-21",
     "license": "user-provided",
-    "sha256": bounds["fcb45/ownship.glb"]["sha256"],
+    "sha256": bounds["fcb45/ownship-v1.glb"]["sha256"],
 }
 (assets / "catalog.json").write_text(json.dumps(catalog, indent=2, ensure_ascii=False) + "\n")
 (ROOT / "web_gui/modules/vessel-assets.js").write_text(
