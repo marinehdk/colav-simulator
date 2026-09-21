@@ -1,0 +1,40 @@
+{
+  "session_id": "795ce5d0-9c4e-4513-86b1-0dfd616738ac",
+  "state": "CREATED",
+  "identity": {
+    "acceptance_level": "EXPERIMENTAL_ORIGINAL_SOURCE",
+    "backend_kind": "original_gnc",
+    "environment_enabled": false,
+    "library_sha256": "6e9f2728758b7934296e8da9bfee1a98905e038b29402c6e95ae780c6dc220fa",
+    "parameter_sha256": "0e1a4d50f0a6d482309b52d83a3f1d7d6f0cd00c950c5fdfc88ff10716eea3a8",
+    "python_runtime_sha256": "1bd8467166439ba70881bf2ced7a876010e85bc4264d26e539bcb4eae76f1216",
+    "response_approximation_sha256": "c959d79fb4ccd588c3c7d37e74c12833cecd391eeba154ea78dd20b32da4fdca",
+    "response_qualification": "QUALIFIED_FIRST_ORDER_TRAJECTORY_APPROXIMATION",
+    "scenario_acceptance": "separately_evaluated",
+    "source_manifest_sha256": "2c863347de59474a32d26a53d5631ed9a5b376623cd88d6fb83ca8173fc09411",
+    "stack_id": "original-gnc-20260824-v2-env-off"
+  },
+  "python_sources": {
+    "colav_simulator/core/colav/custom_mpc_adapter.py": "2ad008d9978bdd8a08729f028f5b620ae1aefa259f2636d5ebaa7ebeefe2fb7d",
+    "colav_simulator/core/ship.py": "1838de7fdbdfdc6802b0cb0480c8dac05247598efeab4478bf1bbbe767967498",
+    "colav_simulator/experiment/contracts.py": "05d3b4d163071835386e68432bba8df79f2a1bea82e28225cc0b945e5668aca4",
+    "colav_simulator/experiment/persistence.py": "6342e154cc90d4eabe5201908879e33f92b22a246d925799e465aec9816fee54",
+    "colav_simulator/experiment/runner.py": "fbc96f2c1e88e894466a898ad88f81d67d29bf2749dd19d4c7ab6484c308c4d8",
+    "colav_simulator/original_gnc/__init__.py": "738434e9451d7115f9ec3c0d08015c58743f71f55cb507466ad43a038a5bb270",
+    "colav_simulator/original_gnc/adapter.py": "2befcbd1478f166c37f806bb993a66aa9ccf1917d24321837196057ca5c7f976",
+    "colav_simulator/original_gnc/catalog.py": "00c7654596af7b443c8fd7d63213cb1ce58711e4f857ad4ef44f2ec8f4883256",
+    "colav_simulator/original_gnc/configuration.py": "8e3eb8216999761e30fe10646cfd530dc4e2d2db9a81e1ce590ea2e1c50825fc",
+    "colav_simulator/original_gnc/geometry.py": "4c355c3408c2ac5cb5282a4f5fe2841323f2d5f5eedc21aef583ccbda94f49b1",
+    "colav_simulator/original_gnc/native.py": "46d2b7de51a2b12eeacfd94a236ab2f09a9bc0b633b87da1f6fb83cec29fa9b2",
+    "colav_simulator/original_gnc/observers.py": "ed256b8479cca0a9ab9ea6db4aff21ac11d05ed663d81f545f5e56a23ef6a561",
+    "colav_simulator/original_gnc/output_comparison.py": "551fd8bdf88a7f46ed4c5d42bbe13f96d92983df6e244869a2297911a258a9a9",
+    "colav_simulator/original_gnc/plan_bridge.py": "746a7f2941309de6e258bb32cf39787847eac1dbd380702979113f5832a3a226",
+    "colav_simulator/original_gnc/policy.py": "781898f93c3082cc7bef8d0fe37fd73afd1b149c2e8fe12e3e4b2419c6808106",
+    "colav_simulator/original_gnc/qualification.py": "e00617bfb7ac9b3966b9b68c3662e551baf7c05805b86eb3fb19dde4edf05bb4",
+    "colav_simulator/original_gnc/route_splice.py": "82feca0929cc1e8f9fd73aa7c1ba92958b056456e29df9f48ac831c5ff4783f6",
+    "colav_simulator/original_gnc/stack.py": "a9b4d8f1fb26aa49d2bb2533e4ff1f3d9c75c2e744839d83f52e7f41ffb84cc2",
+    "colav_simulator/original_gnc/state_comparison.py": "26b875e5d0ec701530e0eea51ffb45ad7f773c6bbefd75727fb8ed7e001a7ebe",
+    "colav_simulator/original_gnc/telemetry.py": "9f826cae0061c8358eebe18e4b88fa7b53830da37c82a2f1235574614f1d145c",
+    "colav_simulator/original_gnc/validation.py": "1cc85d276a239850fda0a191d417e07cb9335dc4d05f1161f9ce3ccddfac3ff1"
+  }
+}

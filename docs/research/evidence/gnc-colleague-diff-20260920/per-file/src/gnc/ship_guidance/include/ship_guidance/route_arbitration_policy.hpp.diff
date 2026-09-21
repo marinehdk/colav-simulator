@@ -1,0 +1,22 @@
+diff --git a/src/gnc/ship_guidance/include/ship_guidance/route_arbitration_policy.hpp b/src/gnc/ship_guidance/include/ship_guidance/route_arbitration_policy.hpp
+index eb88ae450e396073f0f842700aeef6dab6316381..d37d6cba093e32e914566e54e25210e02c482241 100644
+--- a/src/gnc/ship_guidance/include/ship_guidance/route_arbitration_policy.hpp
++++ b/src/gnc/ship_guidance/include/ship_guidance/route_arbitration_policy.hpp
+@@ -2,6 +2,7 @@
+ 
+ #include <cstdint>
+ #include <string>
++#include "ship_guidance/avoidance_mode_policy.hpp"
+ 
+ namespace ship_guidance::route_arbitration_policy {
+ 
+@@ -26,8 +27,7 @@ inline bool ordinary_avoidance_blocked(const std::string& normalized_state)
+ 
+ inline bool emergency_behavior(const std::string& normalized_mode)
+ {
+-    return normalized_mode == "emergency_avoidance" ||
+-        normalized_mode == "emergency_avoid";
++    return ship_guidance::avoidance_mode_policy::emergency(normalized_mode);
+ }
+ 
+ inline bool nominal_tail_mode_allowed(const std::string& normalized_mode)

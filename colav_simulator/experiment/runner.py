@@ -1020,13 +1020,21 @@ def _inject_ownship_gnc_stack(config: scenario_config.ScenarioConfig, stack_id: 
             PlanStatus.INVALID_INPUT,
             "GNC stack binding requires a scenario ownship",
         )
-    if entry.get("backend_kind") == "original_gnc":
-        from colav_simulator.original_gnc.configuration import OriginalGncConfig  # noqa: PLC0415
+    if entry.get("backend_kind") in {"original_gnc", "authoritative_mpc"}:
+        if entry["backend_kind"] == "original_gnc":
+            from colav_simulator.original_gnc.configuration import OriginalGncConfig  # noqa: PLC0415
+
+            gnc_configuration = OriginalGncConfig.from_dict({"environment": entry["config"]["environment"]})
+        else:
+            from colav_simulator.authoritative_mpc.configuration import AuthoritativeMpcConfig  # noqa: PLC0415
+
+            gnc_configuration = AuthoritativeMpcConfig.from_dict({"environment": entry["config"]["environment"]})
 
         if not entry["available"]:
             raise ColavExecutionError(PlanStatus.DEPENDENCY_UNAVAILABLE, entry["unavailable_reason"])
         config.ship_list[0].ship_modules = None
-        config.ship_list[0].original_gnc = OriginalGncConfig.from_dict({"environment": entry["config"]["environment"]})
+        config.ship_list[0].original_gnc = gnc_configuration if entry["backend_kind"] == "original_gnc" else None
+        config.ship_list[0].authoritative_mpc = gnc_configuration if entry["backend_kind"] == "authoritative_mpc" else None
         config.stochasticity = None
         return
     config.ship_list[0].original_gnc = None

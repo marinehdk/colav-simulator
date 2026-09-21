@@ -1,0 +1,1880 @@
+{
+  "summary": {
+    "attempts": 186,
+    "accepted": 185,
+    "rejected": 1,
+    "status_counts": {
+      "FeasibleNonOptimal": 186
+    },
+    "candidate_sources": {
+      "IPOPT_BEST_FEASIBLE_ITERATE": 182,
+      "PRIMAL_SEED": 4
+    },
+    "ipopt_median_ms": 39.48139597196132,
+    "ipopt_p95_ms": 394.45316698402166,
+    "ipopt_max_ms": 1517.0487079303712,
+    "graph_builds_during_run": 0
+  },
+  "attempts": [
+    {
+      "sim_time_s": 0.0,
+      "iterations": 7,
+      "ipopt_ms": 145.8629579283297,
+      "solver_total_ms": 152.51274988986552,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 9.99999999999998,
+      "iterations": 1,
+      "ipopt_ms": 30.760542023926973,
+      "solver_total_ms": 33.426292007789016,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 20.000000000000014,
+      "iterations": 7,
+      "ipopt_ms": 129.74474998191,
+      "solver_total_ms": 137.33604201115668,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 30.000000000000156,
+      "iterations": 11,
+      "ipopt_ms": 192.99374986439943,
+      "solver_total_ms": 195.87925006635487,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 40.0000000000003,
+      "iterations": 44,
+      "ipopt_ms": 918.744457885623,
+      "solver_total_ms": 1074.139084201306,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 50.00000000000044,
+      "iterations": 8,
+      "ipopt_ms": 133.98058293387294,
+      "solver_total_ms": 151.44320903345942,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 60.00000000000058,
+      "iterations": 6,
+      "ipopt_ms": 104.5586250256747,
+      "solver_total_ms": 112.81016585417092,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 70.0000000000003,
+      "iterations": 4,
+      "ipopt_ms": 67.15129199437797,
+      "solver_total_ms": 74.31354187428951,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 79.99999999999973,
+      "iterations": 3,
+      "ipopt_ms": 55.86620792746544,
+      "solver_total_ms": 63.01466701552272,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 89.99999999999916,
+      "iterations": 3,
+      "ipopt_ms": 60.35970896482468,
+      "solver_total_ms": 68.55045794509351,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 99.9999999999986,
+      "iterations": 8,
+      "ipopt_ms": 119.1222919151187,
+      "solver_total_ms": 126.2789589818567,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 109.99999999999802,
+      "iterations": 8,
+      "ipopt_ms": 113.23620891198516,
+      "solver_total_ms": 120.42566714808345,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": false,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 119.99999999999746,
+      "iterations": 8,
+      "ipopt_ms": 114.52633421868086,
+      "solver_total_ms": 125.90654194355011,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 129.9999999999969,
+      "iterations": 7,
+      "ipopt_ms": 103.23725012131035,
+      "solver_total_ms": 114.80170907452703,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 139.99999999999633,
+      "iterations": 4,
+      "ipopt_ms": 79.1495000012219,
+      "solver_total_ms": 91.65004105307162,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 149.99999999999577,
+      "iterations": 2,
+      "ipopt_ms": 42.79879201203585,
+      "solver_total_ms": 54.81333308853209,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 159.9999999999952,
+      "iterations": 2,
+      "ipopt_ms": 39.82812515459955,
+      "solver_total_ms": 51.29958293400705,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 169.99999999999463,
+      "iterations": 2,
+      "ipopt_ms": 46.813083812594414,
+      "solver_total_ms": 61.358582926914096,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 179.99999999999406,
+      "iterations": 6,
+      "ipopt_ms": 93.73012487776577,
+      "solver_total_ms": 105.1426250487566,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 189.9999999999935,
+      "iterations": 41,
+      "ipopt_ms": 660.3468749672174,
+      "solver_total_ms": 839.1395839862525,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 199.99999999999292,
+      "iterations": 66,
+      "ipopt_ms": 1517.0487079303712,
+      "solver_total_ms": 1673.019084148109,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 209.99999999999235,
+      "iterations": 30,
+      "ipopt_ms": 354.7787079587579,
+      "solver_total_ms": 534.1667500324547,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 219.9999999999918,
+      "iterations": 14,
+      "ipopt_ms": 201.9642498344183,
+      "solver_total_ms": 371.2689580861479,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 229.99999999999122,
+      "iterations": 17,
+      "ipopt_ms": 217.61641697958112,
+      "solver_total_ms": 370.7519581075758,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 239.99999999999065,
+      "iterations": 1,
+      "ipopt_ms": 38.54579199105501,
+      "solver_total_ms": 44.83025008812547,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 249.99999999999008,
+      "iterations": 15,
+      "ipopt_ms": 197.80008308589458,
+      "solver_total_ms": 201.73062500543892,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 259.9999999999906,
+      "iterations": 8,
+      "ipopt_ms": 109.78245898149908,
+      "solver_total_ms": 113.37295896373689,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 269.9999999999929,
+      "iterations": 11,
+      "ipopt_ms": 192.66675016842782,
+      "solver_total_ms": 200.27699996717274,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 279.99999999999517,
+      "iterations": 15,
+      "ipopt_ms": 185.93512498773634,
+      "solver_total_ms": 190.26045897044241,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 289.99999999999744,
+      "iterations": 14,
+      "ipopt_ms": 193.83487501181662,
+      "solver_total_ms": 201.2842500116676,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 299.9999999999997,
+      "iterations": 14,
+      "ipopt_ms": 160.14599986374378,
+      "solver_total_ms": 164.00554217398167,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 310.000000000002,
+      "iterations": 14,
+      "ipopt_ms": 208.94687506370246,
+      "solver_total_ms": 215.26745799928904,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 320.00000000000426,
+      "iterations": 14,
+      "ipopt_ms": 154.8367498908192,
+      "solver_total_ms": 158.965207869187,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 330.00000000000654,
+      "iterations": 24,
+      "ipopt_ms": 323.2348330784589,
+      "solver_total_ms": 555.582582950592,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 340.0000000000088,
+      "iterations": 31,
+      "ipopt_ms": 550.4390001296997,
+      "solver_total_ms": 553.698250092566,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 350.0000000000111,
+      "iterations": 19,
+      "ipopt_ms": 256.2494589947164,
+      "solver_total_ms": 444.91304201073945,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 360.00000000001336,
+      "iterations": 33,
+      "ipopt_ms": 560.7490839902312,
+      "solver_total_ms": 564.0459160786122,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 370.00000000001563,
+      "iterations": 37,
+      "ipopt_ms": 590.3013329952955,
+      "solver_total_ms": 779.1512080002576,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 380.0000000000179,
+      "iterations": 15,
+      "ipopt_ms": 256.84474990703166,
+      "solver_total_ms": 422.32674988918006,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 390.0000000000202,
+      "iterations": 23,
+      "ipopt_ms": 402.4482909590006,
+      "solver_total_ms": 578.0793339945376,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 400.00000000002245,
+      "iterations": 20,
+      "ipopt_ms": 310.8176249079406,
+      "solver_total_ms": 490.64245889894664,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 410.0000000000247,
+      "iterations": 23,
+      "ipopt_ms": 337.0175000745803,
+      "solver_total_ms": 511.16554206237197,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 420.000000000027,
+      "iterations": 22,
+      "ipopt_ms": 391.16191607899964,
+      "solver_total_ms": 640.9388750325888,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 430.0000000000293,
+      "iterations": 25,
+      "ipopt_ms": 394.45316698402166,
+      "solver_total_ms": 559.7946250345558,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 440.00000000003155,
+      "iterations": 23,
+      "ipopt_ms": 434.92816598154604,
+      "solver_total_ms": 628.7439160514623,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 450.0000000000338,
+      "iterations": 10,
+      "ipopt_ms": 169.96729210950434,
+      "solver_total_ms": 347.44937508367,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 460.0000000000361,
+      "iterations": 6,
+      "ipopt_ms": 87.74137520231307,
+      "solver_total_ms": 261.0278339125216,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 464.100000000037,
+      "iterations": 12,
+      "ipopt_ms": 167.86595806479454,
+      "solver_total_ms": 323.07850010693073,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 474.1000000000393,
+      "iterations": 4,
+      "ipopt_ms": 70.96566585823894,
+      "solver_total_ms": 272.62404188513756,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 484.1000000000416,
+      "iterations": 7,
+      "ipopt_ms": 110.72104214690626,
+      "solver_total_ms": 296.74504208378494,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 494.10000000004385,
+      "iterations": 8,
+      "ipopt_ms": 109.14908396080136,
+      "solver_total_ms": 361.6248748730868,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 504.1000000000461,
+      "iterations": 8,
+      "ipopt_ms": 108.05066605098546,
+      "solver_total_ms": 317.053833976388,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 514.1000000000483,
+      "iterations": 10,
+      "ipopt_ms": 137.86966702900827,
+      "solver_total_ms": 346.938791917637,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 524.1000000000506,
+      "iterations": 10,
+      "ipopt_ms": 128.1647498253733,
+      "solver_total_ms": 334.9947079550475,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 534.1000000000529,
+      "iterations": 7,
+      "ipopt_ms": 94.83733284287155,
+      "solver_total_ms": 305.27812521904707,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 544.1000000000552,
+      "iterations": 9,
+      "ipopt_ms": 130.66995795816183,
+      "solver_total_ms": 380.0257919356227,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 554.1000000000574,
+      "iterations": 9,
+      "ipopt_ms": 131.6952919587493,
+      "solver_total_ms": 353.256959002465,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 564.1000000000597,
+      "iterations": 9,
+      "ipopt_ms": 126.14075001329184,
+      "solver_total_ms": 349.6620829682797,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 574.100000000062,
+      "iterations": 9,
+      "ipopt_ms": 120.03954197280109,
+      "solver_total_ms": 330.0479578319937,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 584.1000000000643,
+      "iterations": 9,
+      "ipopt_ms": 132.26779107935727,
+      "solver_total_ms": 344.41445814445615,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 594.1000000000665,
+      "iterations": 10,
+      "ipopt_ms": 123.38666617870331,
+      "solver_total_ms": 334.5667498651892,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 604.1000000000688,
+      "iterations": 6,
+      "ipopt_ms": 82.17429183423519,
+      "solver_total_ms": 288.22904103435576,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 614.1000000000711,
+      "iterations": 9,
+      "ipopt_ms": 117.93308309279382,
+      "solver_total_ms": 311.6332502104342,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 624.1000000000734,
+      "iterations": 10,
+      "ipopt_ms": 117.65883304178715,
+      "solver_total_ms": 303.9573330897838,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 634.1000000000756,
+      "iterations": 9,
+      "ipopt_ms": 116.14054092206061,
+      "solver_total_ms": 317.73983291350305,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 644.1000000000779,
+      "iterations": 11,
+      "ipopt_ms": 133.48062499426305,
+      "solver_total_ms": 298.09541697613895,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 654.1000000000802,
+      "iterations": 14,
+      "ipopt_ms": 197.37299997359514,
+      "solver_total_ms": 358.89200004749,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 664.1000000000824,
+      "iterations": 10,
+      "ipopt_ms": 107.41491708904505,
+      "solver_total_ms": 264.818208059296,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 674.1000000000847,
+      "iterations": 10,
+      "ipopt_ms": 116.12983304075897,
+      "solver_total_ms": 271.02025016210973,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 684.100000000087,
+      "iterations": 8,
+      "ipopt_ms": 95.6509590614587,
+      "solver_total_ms": 253.14479088410735,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 694.1000000000893,
+      "iterations": 1,
+      "ipopt_ms": 28.27733289450407,
+      "solver_total_ms": 189.09370806068182,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 704.1000000000915,
+      "iterations": 1,
+      "ipopt_ms": 28.606458799913526,
+      "solver_total_ms": 32.07870805636048,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 714.1000000000938,
+      "iterations": 1,
+      "ipopt_ms": 44.22866692766547,
+      "solver_total_ms": 56.2841659411788,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 724.1000000000961,
+      "iterations": 1,
+      "ipopt_ms": 38.67512498982251,
+      "solver_total_ms": 52.50637489371002,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 734.1000000000984,
+      "iterations": 1,
+      "ipopt_ms": 32.54199982620776,
+      "solver_total_ms": 41.63162503391504,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 744.1000000001006,
+      "iterations": 1,
+      "ipopt_ms": 110.68587517365813,
+      "solver_total_ms": 154.81562516652048,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 754.1000000001029,
+      "iterations": 1,
+      "ipopt_ms": 151.45937516354024,
+      "solver_total_ms": 215.4072921257466,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 764.1000000001052,
+      "iterations": 1,
+      "ipopt_ms": 139.41045803949237,
+      "solver_total_ms": 254.12358390167356,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 774.1000000001075,
+      "iterations": 37,
+      "ipopt_ms": 726.4172090217471,
+      "solver_total_ms": 1017.7555000409484,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 784.1000000001097,
+      "iterations": 1,
+      "ipopt_ms": 35.03941697999835,
+      "solver_total_ms": 72.52945890650153,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 794.100000000112,
+      "iterations": 9,
+      "ipopt_ms": 190.9890421666205,
+      "solver_total_ms": 235.74462509714067,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 804.1000000001143,
+      "iterations": 9,
+      "ipopt_ms": 162.2835830785334,
+      "solver_total_ms": 201.46570797078311,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 814.1000000001166,
+      "iterations": 7,
+      "ipopt_ms": 142.58462516590953,
+      "solver_total_ms": 186.43145798705518,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 824.1000000001188,
+      "iterations": 8,
+      "ipopt_ms": 127.94383405707777,
+      "solver_total_ms": 165.34524993039668,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 834.1000000001211,
+      "iterations": 5,
+      "ipopt_ms": 81.86629205010831,
+      "solver_total_ms": 122.3717499524355,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 844.1000000001234,
+      "iterations": 9,
+      "ipopt_ms": 264.65629087761045,
+      "solver_total_ms": 299.04770804569125,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 854.1000000001256,
+      "iterations": 5,
+      "ipopt_ms": 80.34374983981252,
+      "solver_total_ms": 109.36216707341373,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 864.1000000001279,
+      "iterations": 5,
+      "ipopt_ms": 80.86600014939904,
+      "solver_total_ms": 109.82283297926188,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 874.1000000001302,
+      "iterations": 1,
+      "ipopt_ms": 27.419707970693707,
+      "solver_total_ms": 52.08074999973178,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 884.1000000001325,
+      "iterations": 1,
+      "ipopt_ms": 34.53929116949439,
+      "solver_total_ms": 61.7998749949038,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 894.1000000001347,
+      "iterations": 1,
+      "ipopt_ms": 26.238959049806,
+      "solver_total_ms": 46.30070901475847,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 896.2000000001352,
+      "iterations": 1,
+      "ipopt_ms": 27.285292046144605,
+      "solver_total_ms": 47.4562500603497,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 897.3000000001355,
+      "iterations": 1,
+      "ipopt_ms": 26.15295792929828,
+      "solver_total_ms": 46.344124944880605,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 898.4000000001357,
+      "iterations": 1,
+      "ipopt_ms": 27.538958005607128,
+      "solver_total_ms": 47.874749870970845,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 899.500000000136,
+      "iterations": 1,
+      "ipopt_ms": 27.305959025397897,
+      "solver_total_ms": 47.40037489682436,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 900.6000000001362,
+      "iterations": 1,
+      "ipopt_ms": 26.358958100900054,
+      "solver_total_ms": 46.47691687569022,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 901.7000000001365,
+      "iterations": 1,
+      "ipopt_ms": 34.98883405700326,
+      "solver_total_ms": 61.39079201966524,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 902.8000000001367,
+      "iterations": 1,
+      "ipopt_ms": 26.149624958634377,
+      "solver_total_ms": 46.33262497372925,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 903.900000000137,
+      "iterations": 1,
+      "ipopt_ms": 26.50570892728865,
+      "solver_total_ms": 46.88891698606312,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 905.0000000001372,
+      "iterations": 1,
+      "ipopt_ms": 26.412124978378415,
+      "solver_total_ms": 46.74449982121587,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 906.1000000001375,
+      "iterations": 1,
+      "ipopt_ms": 26.461792178452015,
+      "solver_total_ms": 46.90825007855892,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 908.200000000138,
+      "iterations": 1,
+      "ipopt_ms": 26.925500016659498,
+      "solver_total_ms": 47.238708939403296,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 911.3000000001387,
+      "iterations": 1,
+      "ipopt_ms": 26.806707959622145,
+      "solver_total_ms": 47.37154091708362,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 917.40000000014,
+      "iterations": 1,
+      "ipopt_ms": 26.00504201836884,
+      "solver_total_ms": 46.55579198151827,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 927.4000000001423,
+      "iterations": 1,
+      "ipopt_ms": 26.638749986886978,
+      "solver_total_ms": 42.58674988523126,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 937.4000000001446,
+      "iterations": 1,
+      "ipopt_ms": 26.568291941657662,
+      "solver_total_ms": 39.22562510706484,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 947.4000000001469,
+      "iterations": 1,
+      "ipopt_ms": 26.072624837979674,
+      "solver_total_ms": 37.816291907802224,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 957.4000000001491,
+      "iterations": 1,
+      "ipopt_ms": 27.035583974793553,
+      "solver_total_ms": 34.940124955028296,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 967.4000000001514,
+      "iterations": 1,
+      "ipopt_ms": 35.01304192468524,
+      "solver_total_ms": 44.32266601361334,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 977.4000000001537,
+      "iterations": 2,
+      "ipopt_ms": 34.904500003904104,
+      "solver_total_ms": 38.17195910960436,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 987.400000000156,
+      "iterations": 1,
+      "ipopt_ms": 30.70229198783636,
+      "solver_total_ms": 35.30033305287361,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 997.4000000001582,
+      "iterations": 1,
+      "ipopt_ms": 26.494000107049942,
+      "solver_total_ms": 30.071874847635627,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 1007.4000000001605,
+      "iterations": 1,
+      "ipopt_ms": 25.669374968856573,
+      "solver_total_ms": 29.31487513706088,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 1017.4000000001628,
+      "iterations": 1,
+      "ipopt_ms": 25.313541060313582,
+      "solver_total_ms": 28.687208890914917,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 1027.400000000161,
+      "iterations": 1,
+      "ipopt_ms": 24.318167008459568,
+      "solver_total_ms": 27.543040923774242,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 1037.400000000152,
+      "iterations": 1,
+      "ipopt_ms": 24.42399994470179,
+      "solver_total_ms": 27.67895790748298,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 1047.4000000001429,
+      "iterations": 1,
+      "ipopt_ms": 35.71112477220595,
+      "solver_total_ms": 42.08495910279453,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 1057.4000000001338,
+      "iterations": 1,
+      "ipopt_ms": 24.50720896013081,
+      "solver_total_ms": 27.87341712974012,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 1067.4000000001247,
+      "iterations": 1,
+      "ipopt_ms": 25.134416995570064,
+      "solver_total_ms": 28.879541903734207,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 1077.4000000001156,
+      "iterations": 1,
+      "ipopt_ms": 32.13912504725158,
+      "solver_total_ms": 35.48987512476742,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 1087.4000000001065,
+      "iterations": 1,
+      "ipopt_ms": 29.008249985054135,
+      "solver_total_ms": 33.65391702391207,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 1097.4000000000974,
+      "iterations": 1,
+      "ipopt_ms": 24.32112512178719,
+      "solver_total_ms": 27.629708871245384,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 1107.4000000000883,
+      "iterations": 1,
+      "ipopt_ms": 53.354083094745874,
+      "solver_total_ms": 63.60245798714459,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 1117.4000000000792,
+      "iterations": 1,
+      "ipopt_ms": 25.21445811726153,
+      "solver_total_ms": 28.984209056943655,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 1127.4000000000701,
+      "iterations": 1,
+      "ipopt_ms": 27.50616706907749,
+      "solver_total_ms": 31.388208037242293,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 1137.400000000061,
+      "iterations": 1,
+      "ipopt_ms": 25.077041937038302,
+      "solver_total_ms": 28.3700420986861,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 1147.400000000052,
+      "iterations": 1,
+      "ipopt_ms": 25.995041010901332,
+      "solver_total_ms": 29.469291912391782,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 1157.4000000000428,
+      "iterations": 1,
+      "ipopt_ms": 26.74841694533825,
+      "solver_total_ms": 30.46166687272489,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 1167.4000000000337,
+      "iterations": 1,
+      "ipopt_ms": 25.01933299936354,
+      "solver_total_ms": 28.40845799073577,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 1177.4000000000246,
+      "iterations": 1,
+      "ipopt_ms": 35.52466700784862,
+      "solver_total_ms": 40.940457955002785,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 1187.4000000000156,
+      "iterations": 1,
+      "ipopt_ms": 28.98287493735552,
+      "solver_total_ms": 36.46712494082749,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 1197.4000000000065,
+      "iterations": 1,
+      "ipopt_ms": 25.357292033731937,
+      "solver_total_ms": 28.726625023409724,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 1207.3999999999974,
+      "iterations": 1,
+      "ipopt_ms": 24.855042109265924,
+      "solver_total_ms": 28.37474993430078,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 1217.3999999999883,
+      "iterations": 1,
+      "ipopt_ms": 30.92312510125339,
+      "solver_total_ms": 36.988167092204094,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 1227.3999999999792,
+      "iterations": 1,
+      "ipopt_ms": 24.981042137369514,
+      "solver_total_ms": 28.31191709265113,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 1237.39999999997,
+      "iterations": 1,
+      "ipopt_ms": 25.45225014910102,
+      "solver_total_ms": 31.862332951277494,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 1247.399999999961,
+      "iterations": 1,
+      "ipopt_ms": 26.094499975442886,
+      "solver_total_ms": 29.385958099737763,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 1257.399999999952,
+      "iterations": 1,
+      "ipopt_ms": 25.175833143293858,
+      "solver_total_ms": 28.497542021796107,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 1267.3999999999428,
+      "iterations": 1,
+      "ipopt_ms": 28.98420812562108,
+      "solver_total_ms": 32.731999875977635,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 1277.3999999999337,
+      "iterations": 1,
+      "ipopt_ms": 28.86366588063538,
+      "solver_total_ms": 40.57916719466448,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 1287.3999999999246,
+      "iterations": 1,
+      "ipopt_ms": 34.80483312159777,
+      "solver_total_ms": 40.04895896650851,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 1297.3999999999155,
+      "iterations": 1,
+      "ipopt_ms": 35.03487491980195,
+      "solver_total_ms": 40.29499995522201,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 1307.3999999999064,
+      "iterations": 1,
+      "ipopt_ms": 39.24824995920062,
+      "solver_total_ms": 51.45549983717501,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 1317.3999999998973,
+      "iterations": 1,
+      "ipopt_ms": 29.014208121225238,
+      "solver_total_ms": 33.51625008508563,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 1327.3999999998882,
+      "iterations": 1,
+      "ipopt_ms": 30.100916977971792,
+      "solver_total_ms": 34.919041907414794,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 1337.3999999998791,
+      "iterations": 1,
+      "ipopt_ms": 25.615334045141935,
+      "solver_total_ms": 28.964791912585497,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 1347.39999999987,
+      "iterations": 1,
+      "ipopt_ms": 32.816207967698574,
+      "solver_total_ms": 39.30258401669562,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 1357.399999999861,
+      "iterations": 1,
+      "ipopt_ms": 25.762959150597453,
+      "solver_total_ms": 29.155583819374442,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 1367.3999999998518,
+      "iterations": 1,
+      "ipopt_ms": 29.028417076915503,
+      "solver_total_ms": 33.68591610342264,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 1377.3999999998427,
+      "iterations": 1,
+      "ipopt_ms": 31.45429096184671,
+      "solver_total_ms": 36.321458173915744,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 1387.3999999998337,
+      "iterations": 1,
+      "ipopt_ms": 41.76579206250608,
+      "solver_total_ms": 47.60191706009209,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 1397.3999999998246,
+      "iterations": 1,
+      "ipopt_ms": 28.298999881371856,
+      "solver_total_ms": 32.604125095531344,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 1407.3999999998155,
+      "iterations": 1,
+      "ipopt_ms": 27.800249867141247,
+      "solver_total_ms": 31.566041987389326,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 1417.3999999998064,
+      "iterations": 1,
+      "ipopt_ms": 30.54570802487433,
+      "solver_total_ms": 35.35274998284876,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 1427.3999999997973,
+      "iterations": 1,
+      "ipopt_ms": 26.14470780827105,
+      "solver_total_ms": 29.60620797239244,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 1437.3999999997882,
+      "iterations": 11,
+      "ipopt_ms": 251.70599995180964,
+      "solver_total_ms": 260.7779579702765,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 1447.399999999779,
+      "iterations": 10,
+      "ipopt_ms": 169.21254084445536,
+      "solver_total_ms": 254.02933289296925,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 1457.39999999977,
+      "iterations": 13,
+      "ipopt_ms": 200.80866711214185,
+      "solver_total_ms": 288.62029197625816,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 1467.399999999761,
+      "iterations": 24,
+      "ipopt_ms": 456.57770801335573,
+      "solver_total_ms": 546.9828329514712,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 1477.3999999997518,
+      "iterations": 1,
+      "ipopt_ms": 30.403749784454703,
+      "solver_total_ms": 34.51150003820658,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "PRIMAL_SEED"
+    },
+    {
+      "sim_time_s": 1487.3999999997427,
+      "iterations": 1,
+      "ipopt_ms": 57.980540907010436,
+      "solver_total_ms": 69.82533307746053,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "PRIMAL_SEED"
+    },
+    {
+      "sim_time_s": 1497.3999999997336,
+      "iterations": 1,
+      "ipopt_ms": 41.06662515550852,
+      "solver_total_ms": 48.85616712272167,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "PRIMAL_SEED"
+    },
+    {
+      "sim_time_s": 1507.3999999997245,
+      "iterations": 1,
+      "ipopt_ms": 70.44145907275379,
+      "solver_total_ms": 88.33958301693201,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "PRIMAL_SEED"
+    },
+    {
+      "sim_time_s": 1517.3999999997154,
+      "iterations": 1,
+      "ipopt_ms": 72.09012494422495,
+      "solver_total_ms": 77.40179193206131,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 1527.3999999997063,
+      "iterations": 1,
+      "ipopt_ms": 37.82941703684628,
+      "solver_total_ms": 43.67154208011925,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 1537.3999999996972,
+      "iterations": 1,
+      "ipopt_ms": 36.815250059589744,
+      "solver_total_ms": 40.763708064332604,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 1547.3999999996881,
+      "iterations": 1,
+      "ipopt_ms": 26.69612504541874,
+      "solver_total_ms": 29.239166993647814,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 1557.399999999679,
+      "iterations": 1,
+      "ipopt_ms": 43.77945908345282,
+      "solver_total_ms": 48.592083156108856,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 1567.39999999967,
+      "iterations": 1,
+      "ipopt_ms": 23.81683303974569,
+      "solver_total_ms": 26.804208057001233,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 1577.3999999996608,
+      "iterations": 1,
+      "ipopt_ms": 23.11833295971155,
+      "solver_total_ms": 25.66216583363712,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 1587.3999999996518,
+      "iterations": 1,
+      "ipopt_ms": 35.587667021900415,
+      "solver_total_ms": 48.56937495060265,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 1597.3999999996427,
+      "iterations": 1,
+      "ipopt_ms": 39.71454198472202,
+      "solver_total_ms": 45.83350010216236,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 1607.3999999996336,
+      "iterations": 1,
+      "ipopt_ms": 27.778625022619963,
+      "solver_total_ms": 34.58174993284047,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 1617.3999999996245,
+      "iterations": 1,
+      "ipopt_ms": 22.02833304181695,
+      "solver_total_ms": 24.623791920021176,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 1627.3999999996154,
+      "iterations": 1,
+      "ipopt_ms": 25.77399997971952,
+      "solver_total_ms": 29.057207982987165,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 1637.3999999996063,
+      "iterations": 1,
+      "ipopt_ms": 29.158833203837276,
+      "solver_total_ms": 32.79195795767009,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 1647.3999999995972,
+      "iterations": 1,
+      "ipopt_ms": 28.833916876465082,
+      "solver_total_ms": 36.63029219023883,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 1657.399999999588,
+      "iterations": 1,
+      "ipopt_ms": 26.762417051941156,
+      "solver_total_ms": 30.382749857380986,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 1667.399999999579,
+      "iterations": 1,
+      "ipopt_ms": 22.896333131939173,
+      "solver_total_ms": 25.29325010254979,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 1677.39999999957,
+      "iterations": 1,
+      "ipopt_ms": 26.351750129833817,
+      "solver_total_ms": 29.886000091210008,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 1687.3999999995608,
+      "iterations": 1,
+      "ipopt_ms": 33.95025013014674,
+      "solver_total_ms": 40.128375170752406,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 1697.3999999995517,
+      "iterations": 1,
+      "ipopt_ms": 28.391124913468957,
+      "solver_total_ms": 32.92633290402591,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 1707.3999999995426,
+      "iterations": 1,
+      "ipopt_ms": 22.123374976217747,
+      "solver_total_ms": 24.939208989962935,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 1717.3999999995335,
+      "iterations": 1,
+      "ipopt_ms": 30.084667028859258,
+      "solver_total_ms": 35.49220785498619,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 1727.3999999995244,
+      "iterations": 1,
+      "ipopt_ms": 27.401041006669402,
+      "solver_total_ms": 30.85883310995996,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    },
+    {
+      "sim_time_s": 1737.3999999995153,
+      "iterations": 1,
+      "ipopt_ms": 31.50729206390679,
+      "solver_total_ms": 38.61299995332956,
+      "graph_ms": 0.0,
+      "status": "FeasibleNonOptimal",
+      "accepted": true,
+      "source": "IPOPT_BEST_FEASIBLE_ITERATE"
+    }
+  ]
+}

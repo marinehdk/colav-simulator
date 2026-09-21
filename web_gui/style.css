@@ -3757,7 +3757,7 @@ canvas#simCanvas.route-pick-mode { cursor: crosshair; }
 @media (max-width: 760px) {
   .replay-timeline-bar { grid-template-columns: minmax(0, 1fr); }
   .replay-timeline-times { grid-column: auto; }
-  .replay-chart-tool-zone,
+  .replay-chart-tool-zone { overflow: visible; flex-wrap: wrap; height: auto; }
   .replay-timeline-controls { width: 100%; overflow-x: auto; }
   .replay-runs-pagination { align-items: flex-start; flex-direction: column; padding-top: var(--s-2); padding-bottom: var(--s-2); }
   .replay-runs-pagination-controls { width: 100%; justify-content: space-between; }
@@ -3782,20 +3782,58 @@ canvas#simCanvas.route-pick-mode { cursor: crosshair; }
 /* Deployment 3D remains inside the existing chart card. */
 .scene3d-host { position: absolute; inset: 0; visibility: hidden; pointer-events: none; }
 .view-3d > .scene3d-host { visibility: visible; pointer-events: auto; z-index: 4; }
-.view-3d > #simCanvas, .view-3d > .vessel-marker-layer, .view-3d > .vessel-detail-placard { visibility: hidden; pointer-events: none; }
+.view-3d > #simCanvas, .view-3d > #replayCanvas, .view-3d > .vessel-marker-layer, .view-3d > .vessel-detail-placard { visibility: hidden; pointer-events: none; }
 .scene3d-root, .scene3d-canvas { position: absolute; inset: 0; overflow: hidden; }
 .scene3d-pois { position: absolute; inset: 0; pointer-events: none; --obc-poi-layer-height: 0px; z-index: 3; }
 .scene3d-pois > obc-poi-vessel { pointer-events: auto; }
-.scene3d-toolbar { position: absolute; top: 12px; left: 12px; display: flex; gap: 4px; z-index: 6; }
+.scene3d-waypoints { position: absolute; inset: 0; pointer-events: none; z-index: 2; }
+.scene3d-waypoint { position: absolute; width: 0; height: 0; }
+.scene3d-waypoint[hidden] { display: none; }
+.scene3d-waypoint-leader { position: absolute; bottom: 0; left: -1px; width: 2px; height: calc(var(--waypoint-lift) - 18px); background: #e9eef0cc; box-shadow: 1px 0 0 #26374780; }
+.scene3d-waypoint-head { position: absolute; left: -17px; bottom: calc(var(--waypoint-lift) - 17px); width: 34px; height: 34px; }
+.scene3d-waypoint-icon { display: grid; place-items: center; width: 32px; height: 32px; border: 1px solid #b9d9f6; border-radius: 50%; background: #f6f9fc; box-shadow: 0 1px 3px #17345140; }
+.scene3d-waypoint-icon::after { content: ''; width: 9px; height: 9px; border: 2px solid #1764ad; border-radius: 50%; }
+.scene3d-waypoint-label { position: absolute; bottom: 41px; left: 50%; transform: translateX(-50%); color: #123b61; font: 600 12px/1.2 sans-serif; white-space: nowrap; text-shadow: -1px -1px 0 #fff, 1px -1px 0 #fff, -1px 1px 0 #fff, 1px 1px 0 #fff; }
+.scene3d-toolbar { position: absolute; bottom: 12px; left: 12px; display: flex; gap: 4px; z-index: 6; }
 .scene3d-toolbar button, .scene3d-card > button, .scene3d-edges button { border: 1px solid var(--border-color, #9aa5af); border-radius: 4px; padding: 7px 10px; background: var(--container-background-color, #eef1f3); color: var(--element-active-color, #283748); cursor: pointer; }
 .scene3d-toolbar button[aria-pressed="true"] { background: #315b91; color: white; }
 .scene3d-toolbar button:focus-visible, .scene3d-card button:focus-visible { outline: 3px solid #5badf3; outline-offset: 2px; }
-.scene3d-status { position: absolute; bottom: 22px; left: 8px; right: 8px; padding: 4px 8px; font-size: 11px; color: white; background: #172736b8; pointer-events: none; z-index: 5; }
-.scene3d-card { position: absolute; right: 12px; top: 62px; width: min(330px, calc(100% - 24px)); z-index: 7; }
+.scene3d-compass { position: absolute; top: 0; left: 12px; right: 12px; padding: 82px 24px 6px; box-sizing: border-box; color: #243847; background: linear-gradient(90deg, #f3f7fa00 0%, #f3f7fa14 15%, #f3f7fa42 35%, #f3f7fa70 50%, #f3f7fa42 65%, #f3f7fa14 85%, #f3f7fa00 100%); border: 0; z-index: 6; pointer-events: none; }
+.scene3d-compass[hidden] { display: none; }
+.scene3d-compass-heading { position: absolute; top: 5px; left: 50%; transform: translateX(-50%); font: 600 14px/20px sans-serif; font-variant-numeric: tabular-nums; }
+.scene3d-compass-range { position: absolute; top: 7px; right: 12px; color: #516473; font: 11px/16px sans-serif; }
+.scene3d-compass-axis { position: absolute; top: 42px; left: 24px; right: 24px; height: 1px; background: #6a7f8d88; }
+.scene3d-compass-axis > span { position: absolute; bottom: 0; border-left: 1px solid #6a7f8d; padding-left: 3px; font: 10px/12px sans-serif; white-space: nowrap; }
+.scene3d-compass-axis .minor { height: 5px; }
+.scene3d-compass-axis .major { height: 13px; }
+.scene3d-compass-axis > [hidden] { display: none; }
+.scene3d-compass-own { position: absolute; top: 46px; left: 50%; transform: translateX(-50%); color: #185995; width: 24px; height: 28px; }
+.scene3d-compass-own::before { content: ''; position: absolute; top: -20px; left: 50%; height: 17px; border-left: 1px solid #185995; }
+.scene3d-compass-targets { position: relative; max-height: 180px; overflow-y: auto; overflow-x: clip; margin: 0 -20px; padding: 0 20px; box-sizing: content-box; pointer-events: auto; }
+.scene3d-compass-target { position: absolute; transform: translateX(-50%); width: 44px; height: 43px; padding: 0; border: 0; background: transparent; display: grid; justify-items: center; align-content: start; gap: 1px; cursor: pointer; }
+.scene3d-compass-target svg, .scene3d-compass-own svg { width: 24px; height: 28px; display: block; transform-origin: center; filter: drop-shadow(0 0 1px #fff); }
+.scene3d-compass-target span { font: 600 10px/12px sans-serif; }
+.scene3d-compass-target:hover, .scene3d-compass-target:focus-visible { outline: 2px solid currentColor; outline-offset: -1px; border-radius: 4px; background: #ffffff88; }
+.scene3d-card { position: absolute; right: 16px; top: 150px; max-width: calc(100% - 32px); max-height: calc(100% - 210px); overflow-y: auto; z-index: 7; }
 .scene3d-card[hidden] { display: none; }
-.scene3d-card-body { padding: 10px 14px; background: var(--container-background-color, #f0f2f4); color: var(--element-active-color, #283748); }
-.scene3d-card-body > div { display: flex; justify-content: space-between; gap: 8px; padding: 3px 0; font-size: 12px; }
-.scene3d-card-body strong { font-variant-numeric: tabular-nums; text-align: right; }
+.scene3d-card-body { width: 310px; max-width: calc(100vw - 100px); box-sizing: border-box; padding: 12px 16px; background: var(--container-background-color, #f0f2f4); color: #263746; }
+.scene3d-card-alert { pointer-events: none; z-index: 2; }
+.scene3d-card-alert[hidden] { display: none; }
+.scene3d-card [slot="poi-icon"] { width: 24px; height: 24px; }
+.scene3d-target-status { display: flex; align-items: center; gap: 8px; padding-bottom: 12px; color: var(--scene-target-color); }
+.scene3d-target-status strong { border: 1px solid currentColor; border-radius: 4px; padding: 4px 7px; font-size: 12px; }
+.scene3d-target-status > :not(strong):not(span) { width: 24px; height: 24px; flex-shrink: 0; }
+.scene3d-target-status span { font-size: 12px; }
+.scene3d-target-metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 0; margin: 0; }
+.scene3d-target-metrics > div { padding: 10px 0; border-top: 1px solid #a7b5be66; }
+.scene3d-target-metrics dt { color: #526878; font-size: 11px; }
+.scene3d-target-metrics dd { margin: 3px 0 0; font-size: 23px; font-weight: 500; font-variant-numeric: tabular-nums; }
+.scene3d-target-metrics small { margin-left: 7px; font-size: 10px; color: #526878; }
+.scene3d-target-note { margin: 8px 0 0; font-size: 11px; line-height: 1.5; color: #526878; }
+.scene3d-model-settings { width: 310px; max-width: calc(100vw - 100px); box-sizing: border-box; border-top: 1px solid #a7b5be66; }
+.scene3d-model-settings summary { padding: 10px 16px; font-size: 12px; cursor: pointer; }
+.scene3d-model-settings[hidden] { display: none; }
+.scene3d-pois > obc-poi-vessel { --flat-hover-background-color: var(--container-global-color, #f7f9fb); --flat-hover-border-color: var(--scene-target-color); --flat-pressed-background-color: var(--container-global-color, #f7f9fb); --flat-pressed-border-color: var(--scene-target-color); --global-typography-instrument-value-small-font-size: 18px; --global-typography-instrument-value-small-line-height: 22px; --global-typography-instrument-label-font-size: 10px; --global-typography-instrument-unit-font-size: 10px; }
 .scene3d-credits { position: absolute; bottom: 0; left: 0; z-index: 5; }
 .scene3d-edges { position: absolute; inset: 0; z-index: 5; pointer-events: none; }
 .scene3d-edges button { position: absolute; pointer-events: auto; }

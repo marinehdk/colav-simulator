@@ -1,0 +1,1110 @@
+{
+  "before_run": "5e27705c-5242-46e3-858e-20da82862cac",
+  "after_run": "db5fa0e4-e5f2-4821-8fe6-9646bc57b145",
+  "library_sha256": "6e9f2728758b7934296e8da9bfee1a98905e038b29402c6e95ae780c6dc220fa",
+  "tests_passed": 88,
+  "after_min_speed_kn": 3.5950106320542123,
+  "after_t_end": 1199.5,
+  "after_final_relative_along_m": -778.828017339944,
+  "overtaking_complete": false,
+  "evaluation": {
+    "evaluator_id": "behavior-compatible-evaluator-v2",
+    "evaluator_profile_id": "ccta_2023_demo-v1",
+    "evaluator_profile_hash": "a472c59a78357474b06ec660df24385fcded80894a7a48d1a7de4e503f8fc314",
+    "formula_set_id": "ocean-engineering-2023-v1",
+    "formula_set_hash": "c006cce305a3050b9859fa2d302c2f91883243317d6d481fc78dffa249f4ee87",
+    "collision_oracle_id": "c2a-rect2d-v1",
+    "numerical_reproduction_confirmed": false,
+    "reproduction_status": "behavior_compatible_reconstruction",
+    "evaluation_status": "COMPLETE",
+    "hard_gate": {
+      "outcome": "PASS",
+      "checks": [
+        {
+          "check_id": "physical_collision",
+          "outcome": "PASS",
+          "reason": "0 Ship0-vs-target physical footprint contacts",
+          "evidence": {
+            "oracle_id": "c2a-rect2d-v1",
+            "scope": "ship0_vs_target",
+            "global_all_vessel_collision_count": 0
+          }
+        },
+        {
+          "check_id": "minimum_hull_clearance",
+          "outcome": "PASS",
+          "reason": "0 Ship0-vs-target clearances below 50.0 m",
+          "evidence": {
+            "scope": "ship0_vs_target",
+            "required_clearance_m": 50.0,
+            "minimum_hull_clearance_m": 659.6671951408293
+          }
+        },
+        {
+          "check_id": "physical_grounding",
+          "outcome": "PASS",
+          "reason": "0 Ship0 groundings; 0 Ship0 evaluations unavailable",
+          "evidence": {
+            "policy_id": "chart-geometric-footprint-v1",
+            "scope": "ship0",
+            "global_all_vessel_grounding_count": 0,
+            "global_all_vessel_grounding_not_evaluated_count": 0
+          }
+        },
+        {
+          "check_id": "fallback_used",
+          "outcome": "PASS",
+          "reason": "no fallback",
+          "evidence": {}
+        },
+        {
+          "check_id": "run_completion",
+          "outcome": "PASS",
+          "reason": "run completed",
+          "evidence": {}
+        }
+      ]
+    },
+    "scores": {
+      "status": "COMPLETE",
+      "profile_id": "ccta_2023_demo-v1",
+      "profile_hash": "a472c59a78357474b06ec660df24385fcded80894a7a48d1a7de4e503f8fc314",
+      "formula_set_id": "ocean-engineering-2023-v1",
+      "pair_count": 1,
+      "aggregate": {
+        "pair_count": 1,
+        "collision_count": 0,
+        "ownship_collision_count": 0,
+        "global_collision_count": 0,
+        "grounding_count": 0,
+        "ownship_grounding_count": 0,
+        "global_grounding_count": 0,
+        "grounding_not_evaluated_count": 0,
+        "global_grounding_not_evaluated_count": 0,
+        "minimum_distance_m": 686.5140342484017,
+        "grounding_clearance_score": 1.0,
+        "S8": 1.0,
+        "S13": 1.0,
+        "S16": 1.0,
+        "S_safety": 1.0,
+        "S_theta": 0.729971170094108,
+        "S_r": 1.0,
+        "S_apparent": 1.0,
+        "P_delay": 0.0,
+        "P_course_non_apparent": 0.0,
+        "P_speed_non_apparent": 0.0,
+        "P_ahead13": 0.0,
+        "S17": 1.0,
+        "P_stage2": 0.0,
+        "P_stage3": 0.0,
+        "P_pt": 0.0
+      }
+    },
+    "diagnostics": {
+      "task": {
+        "pair_count": 1,
+        "collision_count": 0,
+        "grounding_count": 0
+      },
+      "execution": {
+        "requested_algorithm": "vo",
+        "executed_algorithm": "vo",
+        "fallback_used": false,
+        "run_completed": true
+      },
+      "solver": {
+        "status": "AVAILABLE",
+        "solve_count": 1200,
+        "status_counts": {
+          "SUCCESS": 1200
+        },
+        "elapsed_ms_mean": 42.24017822765745,
+        "elapsed_ms_p95": 52.955948270391666,
+        "iterations_mean": null,
+        "objective_last": 0.8169353495881644
+      }
+    },
+    "evidence": {
+      "source_refs": [
+        "colav-simulator@844718b4:config/evaluator.yaml",
+        "doi:10.1016/j.oceaneng.2023.115991"
+      ],
+      "reconstruction_assumptions": [
+        "Historical epsilon_d_course numeric value 0.3 deg/s retained despite conflicting inline comment.",
+        "Rule formulas use the published Ocean Engineering 2023 definitions."
+      ],
+      "grounding_policy_id": "chart-geometric-footprint-v1",
+      "grounding_compensation_status": "NOT_EVALUATED",
+      "operational_ukc_status": "NOT_EVALUATED"
+    },
+    "pair_results": [
+      {
+        "ownship_id": 0,
+        "target_id": 1,
+        "encounter": "overtaking",
+        "target_encounter": "overtaken",
+        "initial_dcpa_m": 2.2737367544323206e-13,
+        "initial_tcpa_s": 260.5511169151637,
+        "initial_signed_tcpa_s": 260.5511169151637,
+        "minimum_distance_m": 686.5140342484017,
+        "minimum_hull_clearance_m": 659.6671951408293,
+        "cpa_time_s": 1092.0,
+        "collision": false,
+        "collision_toc_s": null,
+        "collision_bracket_s": null,
+        "collision_oracle_id": "c2a-rect2d-v1",
+        "stages": [
+          {
+            "time_s": 0.0,
+            "stage": 2,
+            "distance_m": 1414.213562373095,
+            "signed_tcpa_s": 260.5511169151637
+          },
+          {
+            "time_s": 70.5,
+            "stage": 1,
+            "distance_m": 1168.9761527805335,
+            "signed_tcpa_s": -34.052283874241226
+          },
+          {
+            "time_s": 121.0,
+            "stage": 2,
+            "distance_m": 1262.021622081605,
+            "signed_tcpa_s": 5.435731979169432
+          },
+          {
+            "time_s": 368.5,
+            "stage": 3,
+            "distance_m": 1099.7459808040705,
+            "signed_tcpa_s": 1343.8107766372862
+          },
+          {
+            "time_s": 1088.0,
+            "stage": 1,
+            "distance_m": 687.3436374509823,
+            "signed_tcpa_s": -24.511325946156543
+          },
+          {
+            "time_s": 1135.5,
+            "stage": 3,
+            "distance_m": 801.2939910001202,
+            "signed_tcpa_s": 60.68739406910181
+          }
+        ],
+        "fsm_transitions": [
+          {
+            "time_s": 0.0,
+            "previous": "SF",
+            "current": "OT",
+            "reason": "stage2_entry_and_positive_tcpa",
+            "observation": {
+              "time_s": 0.0,
+              "encounter": "overtaking",
+              "stage": 2,
+              "range_m": 1414.213562373095,
+              "dcpa_m": 2.2737367544323206e-13,
+              "signed_tcpa_s": 260.5511169151637,
+              "relative_bearing_deg": 6.3611093629270335e-15,
+              "contact_angle_deg": 180.0
+            }
+          },
+          {
+            "perspective": "target",
+            "time_s": 0.0,
+            "previous": "SF",
+            "current": "OT",
+            "reason": "stage2_entry_and_positive_tcpa",
+            "observation": {
+              "time_s": 0.0,
+              "encounter": "overtaken",
+              "stage": 2,
+              "range_m": 1414.213562373095,
+              "dcpa_m": 2.2737367544323206e-13,
+              "signed_tcpa_s": 260.5511169151637,
+              "relative_bearing_deg": -180.0,
+              "contact_angle_deg": -6.3611093629270335e-15
+            }
+          }
+        ],
+        "metrics": {
+          "S8": 1.0,
+          "S13": 1.0,
+          "S14": null,
+          "S15": null,
+          "S16": 1.0,
+          "S17": null,
+          "S_safety": 1.0,
+          "S_theta": 0.5949567551411619,
+          "S_r": 1.0,
+          "S_domain": null,
+          "S_apparent": 1.0,
+          "P_delay": 0.0,
+          "P_course_non_apparent": 0.0,
+          "P_speed_non_apparent": 0.0,
+          "P_sts": null,
+          "P_nsb": null,
+          "P_stage2": null,
+          "P_stage3": null,
+          "P_pt": null,
+          "P_ahead13": 0.0,
+          "P_ahead15": null
+        },
+        "target_metrics": {
+          "S8": null,
+          "S13": 1.0,
+          "S14": null,
+          "S15": null,
+          "S16": null,
+          "S17": 1.0,
+          "S_safety": 1.0,
+          "S_theta": 0.864985585047054,
+          "S_r": 1.0,
+          "S_domain": null,
+          "S_apparent": null,
+          "P_delay": null,
+          "P_course_non_apparent": null,
+          "P_speed_non_apparent": null,
+          "P_sts": null,
+          "P_nsb": null,
+          "P_stage2": 0.0,
+          "P_stage3": 0.0,
+          "P_pt": 0.0,
+          "P_ahead13": null,
+          "P_ahead15": null
+        },
+        "metric_evidence": {
+          "S8": {
+            "metric_id": "S8",
+            "value": 1.0,
+            "status": "EVALUATED",
+            "formula_id": "oe2023-rule8-derived",
+            "raw_components": {
+              "minimum_distance_m": 686.5140342484017,
+              "contact_angle_rad": 3.1062624247230812,
+              "relative_bearing_rad": 5.282894598131656,
+              "max_course_change_rad": 3.129889119015192,
+              "starboard_change_rad": 3.0491123142399976,
+              "relative_speed_reduction": 0.8514540193858796
+            },
+            "assumptions": []
+          },
+          "S13": {
+            "metric_id": "S13",
+            "value": 1.0,
+            "status": "EVALUATED",
+            "formula_id": "oe2023-eq25",
+            "raw_components": {
+              "minimum_distance_m": 686.5140342484017,
+              "contact_angle_rad": 3.1062624247230812,
+              "relative_bearing_rad": 5.282894598131656,
+              "max_course_change_rad": 3.129889119015192,
+              "starboard_change_rad": 3.0491123142399976,
+              "relative_speed_reduction": 0.8514540193858796
+            },
+            "assumptions": []
+          },
+          "S14": {
+            "metric_id": "S14",
+            "value": null,
+            "status": "NOT_APPLICABLE",
+            "formula_id": "oe2023-eq27",
+            "raw_components": {
+              "minimum_distance_m": 686.5140342484017,
+              "contact_angle_rad": 3.1062624247230812,
+              "relative_bearing_rad": 5.282894598131656,
+              "max_course_change_rad": 3.129889119015192,
+              "starboard_change_rad": 3.0491123142399976,
+              "relative_speed_reduction": 0.8514540193858796
+            },
+            "assumptions": []
+          },
+          "S15": {
+            "metric_id": "S15",
+            "value": null,
+            "status": "NOT_APPLICABLE",
+            "formula_id": "oe2023-eq31",
+            "raw_components": {
+              "minimum_distance_m": 686.5140342484017,
+              "contact_angle_rad": 3.1062624247230812,
+              "relative_bearing_rad": 5.282894598131656,
+              "max_course_change_rad": 3.129889119015192,
+              "starboard_change_rad": 3.0491123142399976,
+              "relative_speed_reduction": 0.8514540193858796
+            },
+            "assumptions": []
+          },
+          "S16": {
+            "metric_id": "S16",
+            "value": 1.0,
+            "status": "EVALUATED",
+            "formula_id": "oe2023-eq7",
+            "raw_components": {
+              "minimum_distance_m": 686.5140342484017,
+              "contact_angle_rad": 3.1062624247230812,
+              "relative_bearing_rad": 5.282894598131656,
+              "max_course_change_rad": 3.129889119015192,
+              "starboard_change_rad": 3.0491123142399976,
+              "relative_speed_reduction": 0.8514540193858796
+            },
+            "assumptions": []
+          },
+          "S17": {
+            "metric_id": "S17",
+            "value": null,
+            "status": "NOT_APPLICABLE",
+            "formula_id": "oe2023-eq15",
+            "raw_components": {
+              "minimum_distance_m": 686.5140342484017,
+              "contact_angle_rad": 3.1062624247230812,
+              "relative_bearing_rad": 5.282894598131656,
+              "max_course_change_rad": 3.129889119015192,
+              "starboard_change_rad": 3.0491123142399976,
+              "relative_speed_reduction": 0.8514540193858796
+            },
+            "assumptions": []
+          },
+          "S_safety": {
+            "metric_id": "S_safety",
+            "value": 1.0,
+            "status": "EVALUATED",
+            "formula_id": "oe2023-eq2",
+            "raw_components": {
+              "minimum_distance_m": 686.5140342484017,
+              "contact_angle_rad": 3.1062624247230812,
+              "relative_bearing_rad": 5.282894598131656,
+              "max_course_change_rad": 3.129889119015192,
+              "starboard_change_rad": 3.0491123142399976,
+              "relative_speed_reduction": 0.8514540193858796
+            },
+            "assumptions": []
+          },
+          "S_theta": {
+            "metric_id": "S_theta",
+            "value": 0.5949567551411619,
+            "status": "EVALUATED",
+            "formula_id": "oe2023-eq4-6",
+            "raw_components": {
+              "minimum_distance_m": 686.5140342484017,
+              "contact_angle_rad": 3.1062624247230812,
+              "relative_bearing_rad": 5.282894598131656,
+              "max_course_change_rad": 3.129889119015192,
+              "starboard_change_rad": 3.0491123142399976,
+              "relative_speed_reduction": 0.8514540193858796
+            },
+            "assumptions": []
+          },
+          "S_r": {
+            "metric_id": "S_r",
+            "value": 1.0,
+            "status": "EVALUATED",
+            "formula_id": "oe2023-eq3",
+            "raw_components": {
+              "minimum_distance_m": 686.5140342484017,
+              "contact_angle_rad": 3.1062624247230812,
+              "relative_bearing_rad": 5.282894598131656,
+              "max_course_change_rad": 3.129889119015192,
+              "starboard_change_rad": 3.0491123142399976,
+              "relative_speed_reduction": 0.8514540193858796
+            },
+            "assumptions": []
+          },
+          "S_domain": {
+            "metric_id": "S_domain",
+            "value": null,
+            "status": "NOT_APPLICABLE",
+            "formula_id": "fujii-1971-4L-1.6L-domain",
+            "raw_components": {
+              "minimum_distance_m": 686.5140342484017,
+              "contact_angle_rad": 3.1062624247230812,
+              "relative_bearing_rad": 5.282894598131656,
+              "max_course_change_rad": 3.129889119015192,
+              "starboard_change_rad": 3.0491123142399976,
+              "relative_speed_reduction": 0.8514540193858796
+            },
+            "assumptions": []
+          },
+          "S_apparent": {
+            "metric_id": "S_apparent",
+            "value": 1.0,
+            "status": "EVALUATED",
+            "formula_id": "oe2023-eq9",
+            "raw_components": {
+              "minimum_distance_m": 686.5140342484017,
+              "contact_angle_rad": 3.1062624247230812,
+              "relative_bearing_rad": 5.282894598131656,
+              "max_course_change_rad": 3.129889119015192,
+              "starboard_change_rad": 3.0491123142399976,
+              "relative_speed_reduction": 0.8514540193858796
+            },
+            "assumptions": []
+          },
+          "P_delay": {
+            "metric_id": "P_delay",
+            "value": 0.0,
+            "status": "EVALUATED",
+            "formula_id": "oe2023-eq8",
+            "raw_components": {
+              "minimum_distance_m": 686.5140342484017,
+              "contact_angle_rad": 3.1062624247230812,
+              "relative_bearing_rad": 5.282894598131656,
+              "max_course_change_rad": 3.129889119015192,
+              "starboard_change_rad": 3.0491123142399976,
+              "relative_speed_reduction": 0.8514540193858796
+            },
+            "assumptions": []
+          },
+          "P_course_non_apparent": {
+            "metric_id": "P_course_non_apparent",
+            "value": 0.0,
+            "status": "EVALUATED",
+            "formula_id": "oe2023-eq10-11",
+            "raw_components": {
+              "minimum_distance_m": 686.5140342484017,
+              "contact_angle_rad": 3.1062624247230812,
+              "relative_bearing_rad": 5.282894598131656,
+              "max_course_change_rad": 3.129889119015192,
+              "starboard_change_rad": 3.0491123142399976,
+              "relative_speed_reduction": 0.8514540193858796
+            },
+            "assumptions": []
+          },
+          "P_speed_non_apparent": {
+            "metric_id": "P_speed_non_apparent",
+            "value": 0.0,
+            "status": "EVALUATED",
+            "formula_id": "oe2023-eq12-14",
+            "raw_components": {
+              "minimum_distance_m": 686.5140342484017,
+              "contact_angle_rad": 3.1062624247230812,
+              "relative_bearing_rad": 5.282894598131656,
+              "max_course_change_rad": 3.129889119015192,
+              "starboard_change_rad": 3.0491123142399976,
+              "relative_speed_reduction": 0.8514540193858796
+            },
+            "assumptions": []
+          },
+          "P_sts": {
+            "metric_id": "P_sts",
+            "value": null,
+            "status": "NOT_APPLICABLE",
+            "formula_id": "oe2023-eq28",
+            "raw_components": {
+              "minimum_distance_m": 686.5140342484017,
+              "contact_angle_rad": 3.1062624247230812,
+              "relative_bearing_rad": 5.282894598131656,
+              "max_course_change_rad": 3.129889119015192,
+              "starboard_change_rad": 3.0491123142399976,
+              "relative_speed_reduction": 0.8514540193858796
+            },
+            "assumptions": []
+          },
+          "P_nsb": {
+            "metric_id": "P_nsb",
+            "value": null,
+            "status": "NOT_APPLICABLE",
+            "formula_id": "oe2023-eq29-30",
+            "raw_components": {
+              "minimum_distance_m": 686.5140342484017,
+              "contact_angle_rad": 3.1062624247230812,
+              "relative_bearing_rad": 5.282894598131656,
+              "max_course_change_rad": 3.129889119015192,
+              "starboard_change_rad": 3.0491123142399976,
+              "relative_speed_reduction": 0.8514540193858796
+            },
+            "assumptions": []
+          },
+          "P_stage2": {
+            "metric_id": "P_stage2",
+            "value": null,
+            "status": "NOT_APPLICABLE",
+            "formula_id": "oe2023-eq17-24",
+            "raw_components": {
+              "minimum_distance_m": 686.5140342484017,
+              "contact_angle_rad": 3.1062624247230812,
+              "relative_bearing_rad": 5.282894598131656,
+              "max_course_change_rad": 3.129889119015192,
+              "starboard_change_rad": 3.0491123142399976,
+              "relative_speed_reduction": 0.8514540193858796
+            },
+            "assumptions": []
+          },
+          "P_stage3": {
+            "metric_id": "P_stage3",
+            "value": null,
+            "status": "NOT_APPLICABLE",
+            "formula_id": "oe2023-eq17-24",
+            "raw_components": {
+              "minimum_distance_m": 686.5140342484017,
+              "contact_angle_rad": 3.1062624247230812,
+              "relative_bearing_rad": 5.282894598131656,
+              "max_course_change_rad": 3.129889119015192,
+              "starboard_change_rad": 3.0491123142399976,
+              "relative_speed_reduction": 0.8514540193858796
+            },
+            "assumptions": []
+          },
+          "P_pt": {
+            "metric_id": "P_pt",
+            "value": null,
+            "status": "NOT_APPLICABLE",
+            "formula_id": "oe2023-eq16",
+            "raw_components": {
+              "minimum_distance_m": 686.5140342484017,
+              "contact_angle_rad": 3.1062624247230812,
+              "relative_bearing_rad": 5.282894598131656,
+              "max_course_change_rad": 3.129889119015192,
+              "starboard_change_rad": 3.0491123142399976,
+              "relative_speed_reduction": 0.8514540193858796
+            },
+            "assumptions": []
+          },
+          "P_ahead13": {
+            "metric_id": "P_ahead13",
+            "value": 0.0,
+            "status": "EVALUATED",
+            "formula_id": "oe2023-eq26",
+            "raw_components": {
+              "minimum_distance_m": 686.5140342484017,
+              "contact_angle_rad": 3.1062624247230812,
+              "relative_bearing_rad": 5.282894598131656,
+              "max_course_change_rad": 3.129889119015192,
+              "starboard_change_rad": 3.0491123142399976,
+              "relative_speed_reduction": 0.8514540193858796
+            },
+            "assumptions": []
+          },
+          "P_ahead15": {
+            "metric_id": "P_ahead15",
+            "value": null,
+            "status": "NOT_APPLICABLE",
+            "formula_id": "oe2023-eq32",
+            "raw_components": {
+              "minimum_distance_m": 686.5140342484017,
+              "contact_angle_rad": 3.1062624247230812,
+              "relative_bearing_rad": 5.282894598131656,
+              "max_course_change_rad": 3.129889119015192,
+              "starboard_change_rad": 3.0491123142399976,
+              "relative_speed_reduction": 0.8514540193858796
+            },
+            "assumptions": []
+          }
+        },
+        "target_metric_evidence": {
+          "S8": {
+            "metric_id": "S8",
+            "value": null,
+            "status": "NOT_APPLICABLE",
+            "formula_id": "oe2023-rule8-derived",
+            "raw_components": {
+              "minimum_distance_m": 686.5140342484017,
+              "contact_angle_rad": -1.0002907090479307,
+              "relative_bearing_rad": 3.106262424723081,
+              "max_course_change_rad": 1.5795631469472937e-10,
+              "starboard_change_rad": 1.5795631469472937e-10,
+              "relative_speed_reduction": 0.0
+            },
+            "assumptions": []
+          },
+          "S13": {
+            "metric_id": "S13",
+            "value": 1.0,
+            "status": "EVALUATED",
+            "formula_id": "oe2023-eq25",
+            "raw_components": {
+              "minimum_distance_m": 686.5140342484017,
+              "contact_angle_rad": -1.0002907090479307,
+              "relative_bearing_rad": 3.106262424723081,
+              "max_course_change_rad": 1.5795631469472937e-10,
+              "starboard_change_rad": 1.5795631469472937e-10,
+              "relative_speed_reduction": 0.0
+            },
+            "assumptions": []
+          },
+          "S14": {
+            "metric_id": "S14",
+            "value": null,
+            "status": "NOT_APPLICABLE",
+            "formula_id": "oe2023-eq27",
+            "raw_components": {
+              "minimum_distance_m": 686.5140342484017,
+              "contact_angle_rad": -1.0002907090479307,
+              "relative_bearing_rad": 3.106262424723081,
+              "max_course_change_rad": 1.5795631469472937e-10,
+              "starboard_change_rad": 1.5795631469472937e-10,
+              "relative_speed_reduction": 0.0
+            },
+            "assumptions": []
+          },
+          "S15": {
+            "metric_id": "S15",
+            "value": null,
+            "status": "NOT_APPLICABLE",
+            "formula_id": "oe2023-eq31",
+            "raw_components": {
+              "minimum_distance_m": 686.5140342484017,
+              "contact_angle_rad": -1.0002907090479307,
+              "relative_bearing_rad": 3.106262424723081,
+              "max_course_change_rad": 1.5795631469472937e-10,
+              "starboard_change_rad": 1.5795631469472937e-10,
+              "relative_speed_reduction": 0.0
+            },
+            "assumptions": []
+          },
+          "S16": {
+            "metric_id": "S16",
+            "value": null,
+            "status": "NOT_APPLICABLE",
+            "formula_id": "oe2023-eq7",
+            "raw_components": {
+              "minimum_distance_m": 686.5140342484017,
+              "contact_angle_rad": -1.0002907090479307,
+              "relative_bearing_rad": 3.106262424723081,
+              "max_course_change_rad": 1.5795631469472937e-10,
+              "starboard_change_rad": 1.5795631469472937e-10,
+              "relative_speed_reduction": 0.0
+            },
+            "assumptions": []
+          },
+          "S17": {
+            "metric_id": "S17",
+            "value": 1.0,
+            "status": "EVALUATED",
+            "formula_id": "oe2023-eq15",
+            "raw_components": {
+              "minimum_distance_m": 686.5140342484017,
+              "contact_angle_rad": -1.0002907090479307,
+              "relative_bearing_rad": 3.106262424723081,
+              "max_course_change_rad": 1.5795631469472937e-10,
+              "starboard_change_rad": 1.5795631469472937e-10,
+              "relative_speed_reduction": 0.0
+            },
+            "assumptions": []
+          },
+          "S_safety": {
+            "metric_id": "S_safety",
+            "value": 1.0,
+            "status": "EVALUATED",
+            "formula_id": "oe2023-eq2",
+            "raw_components": {
+              "minimum_distance_m": 686.5140342484017,
+              "contact_angle_rad": -1.0002907090479307,
+              "relative_bearing_rad": 3.106262424723081,
+              "max_course_change_rad": 1.5795631469472937e-10,
+              "starboard_change_rad": 1.5795631469472937e-10,
+              "relative_speed_reduction": 0.0
+            },
+            "assumptions": []
+          },
+          "S_theta": {
+            "metric_id": "S_theta",
+            "value": 0.864985585047054,
+            "status": "EVALUATED",
+            "formula_id": "oe2023-eq4-6",
+            "raw_components": {
+              "minimum_distance_m": 686.5140342484017,
+              "contact_angle_rad": -1.0002907090479307,
+              "relative_bearing_rad": 3.106262424723081,
+              "max_course_change_rad": 1.5795631469472937e-10,
+              "starboard_change_rad": 1.5795631469472937e-10,
+              "relative_speed_reduction": 0.0
+            },
+            "assumptions": []
+          },
+          "S_r": {
+            "metric_id": "S_r",
+            "value": 1.0,
+            "status": "EVALUATED",
+            "formula_id": "oe2023-eq3",
+            "raw_components": {
+              "minimum_distance_m": 686.5140342484017,
+              "contact_angle_rad": -1.0002907090479307,
+              "relative_bearing_rad": 3.106262424723081,
+              "max_course_change_rad": 1.5795631469472937e-10,
+              "starboard_change_rad": 1.5795631469472937e-10,
+              "relative_speed_reduction": 0.0
+            },
+            "assumptions": []
+          },
+          "S_domain": {
+            "metric_id": "S_domain",
+            "value": null,
+            "status": "NOT_APPLICABLE",
+            "formula_id": "fujii-1971-4L-1.6L-domain",
+            "raw_components": {
+              "minimum_distance_m": 686.5140342484017,
+              "contact_angle_rad": -1.0002907090479307,
+              "relative_bearing_rad": 3.106262424723081,
+              "max_course_change_rad": 1.5795631469472937e-10,
+              "starboard_change_rad": 1.5795631469472937e-10,
+              "relative_speed_reduction": 0.0
+            },
+            "assumptions": []
+          },
+          "S_apparent": {
+            "metric_id": "S_apparent",
+            "value": null,
+            "status": "NOT_APPLICABLE",
+            "formula_id": "oe2023-eq9",
+            "raw_components": {
+              "minimum_distance_m": 686.5140342484017,
+              "contact_angle_rad": -1.0002907090479307,
+              "relative_bearing_rad": 3.106262424723081,
+              "max_course_change_rad": 1.5795631469472937e-10,
+              "starboard_change_rad": 1.5795631469472937e-10,
+              "relative_speed_reduction": 0.0
+            },
+            "assumptions": []
+          },
+          "P_delay": {
+            "metric_id": "P_delay",
+            "value": null,
+            "status": "NOT_APPLICABLE",
+            "formula_id": "oe2023-eq8",
+            "raw_components": {
+              "minimum_distance_m": 686.5140342484017,
+              "contact_angle_rad": -1.0002907090479307,
+              "relative_bearing_rad": 3.106262424723081,
+              "max_course_change_rad": 1.5795631469472937e-10,
+              "starboard_change_rad": 1.5795631469472937e-10,
+              "relative_speed_reduction": 0.0
+            },
+            "assumptions": []
+          },
+          "P_course_non_apparent": {
+            "metric_id": "P_course_non_apparent",
+            "value": null,
+            "status": "NOT_APPLICABLE",
+            "formula_id": "oe2023-eq10-11",
+            "raw_components": {
+              "minimum_distance_m": 686.5140342484017,
+              "contact_angle_rad": -1.0002907090479307,
+              "relative_bearing_rad": 3.106262424723081,
+              "max_course_change_rad": 1.5795631469472937e-10,
+              "starboard_change_rad": 1.5795631469472937e-10,
+              "relative_speed_reduction": 0.0
+            },
+            "assumptions": []
+          },
+          "P_speed_non_apparent": {
+            "metric_id": "P_speed_non_apparent",
+            "value": null,
+            "status": "NOT_APPLICABLE",
+            "formula_id": "oe2023-eq12-14",
+            "raw_components": {
+              "minimum_distance_m": 686.5140342484017,
+              "contact_angle_rad": -1.0002907090479307,
+              "relative_bearing_rad": 3.106262424723081,
+              "max_course_change_rad": 1.5795631469472937e-10,
+              "starboard_change_rad": 1.5795631469472937e-10,
+              "relative_speed_reduction": 0.0
+            },
+            "assumptions": []
+          },
+          "P_sts": {
+            "metric_id": "P_sts",
+            "value": null,
+            "status": "NOT_APPLICABLE",
+            "formula_id": "oe2023-eq28",
+            "raw_components": {
+              "minimum_distance_m": 686.5140342484017,
+              "contact_angle_rad": -1.0002907090479307,
+              "relative_bearing_rad": 3.106262424723081,
+              "max_course_change_rad": 1.5795631469472937e-10,
+              "starboard_change_rad": 1.5795631469472937e-10,
+              "relative_speed_reduction": 0.0
+            },
+            "assumptions": []
+          },
+          "P_nsb": {
+            "metric_id": "P_nsb",
+            "value": null,
+            "status": "NOT_APPLICABLE",
+            "formula_id": "oe2023-eq29-30",
+            "raw_components": {
+              "minimum_distance_m": 686.5140342484017,
+              "contact_angle_rad": -1.0002907090479307,
+              "relative_bearing_rad": 3.106262424723081,
+              "max_course_change_rad": 1.5795631469472937e-10,
+              "starboard_change_rad": 1.5795631469472937e-10,
+              "relative_speed_reduction": 0.0
+            },
+            "assumptions": []
+          },
+          "P_stage2": {
+            "metric_id": "P_stage2",
+            "value": 0.0,
+            "status": "EVALUATED",
+            "formula_id": "oe2023-eq17-24",
+            "raw_components": {
+              "minimum_distance_m": 686.5140342484017,
+              "contact_angle_rad": -1.0002907090479307,
+              "relative_bearing_rad": 3.106262424723081,
+              "max_course_change_rad": 1.5795631469472937e-10,
+              "starboard_change_rad": 1.5795631469472937e-10,
+              "relative_speed_reduction": 0.0
+            },
+            "assumptions": []
+          },
+          "P_stage3": {
+            "metric_id": "P_stage3",
+            "value": 0.0,
+            "status": "EVALUATED",
+            "formula_id": "oe2023-eq17-24",
+            "raw_components": {
+              "minimum_distance_m": 686.5140342484017,
+              "contact_angle_rad": -1.0002907090479307,
+              "relative_bearing_rad": 3.106262424723081,
+              "max_course_change_rad": 1.5795631469472937e-10,
+              "starboard_change_rad": 1.5795631469472937e-10,
+              "relative_speed_reduction": 0.0
+            },
+            "assumptions": []
+          },
+          "P_pt": {
+            "metric_id": "P_pt",
+            "value": 0.0,
+            "status": "EVALUATED",
+            "formula_id": "oe2023-eq16",
+            "raw_components": {
+              "minimum_distance_m": 686.5140342484017,
+              "contact_angle_rad": -1.0002907090479307,
+              "relative_bearing_rad": 3.106262424723081,
+              "max_course_change_rad": 1.5795631469472937e-10,
+              "starboard_change_rad": 1.5795631469472937e-10,
+              "relative_speed_reduction": 0.0
+            },
+            "assumptions": []
+          },
+          "P_ahead13": {
+            "metric_id": "P_ahead13",
+            "value": null,
+            "status": "NOT_APPLICABLE",
+            "formula_id": "oe2023-eq26",
+            "raw_components": {
+              "minimum_distance_m": 686.5140342484017,
+              "contact_angle_rad": -1.0002907090479307,
+              "relative_bearing_rad": 3.106262424723081,
+              "max_course_change_rad": 1.5795631469472937e-10,
+              "starboard_change_rad": 1.5795631469472937e-10,
+              "relative_speed_reduction": 0.0
+            },
+            "assumptions": []
+          },
+          "P_ahead15": {
+            "metric_id": "P_ahead15",
+            "value": null,
+            "status": "NOT_APPLICABLE",
+            "formula_id": "oe2023-eq32",
+            "raw_components": {
+              "minimum_distance_m": 686.5140342484017,
+              "contact_angle_rad": -1.0002907090479307,
+              "relative_bearing_rad": 3.106262424723081,
+              "max_course_change_rad": 1.5795631469472937e-10,
+              "starboard_change_rad": 1.5795631469472937e-10,
+              "relative_speed_reduction": 0.0
+            },
+            "assumptions": []
+          }
+        },
+        "initial_cpa": {
+          "dcpa_m": 2.2737367544323206e-13,
+          "tcpa_signed_s": 260.5511169151637,
+          "tcpa_forward_s": 260.5511169151637,
+          "relative_position_at_cpa_ne_m": [
+            0.0,
+            2.2737367544323206e-13
+          ],
+          "method": "instantaneous_constant_velocity",
+          "status": "VALID"
+        },
+        "actual_cpa": {
+          "dcpa_m": 686.5140342484017,
+          "tcpa_signed_s": 1092.0,
+          "tcpa_forward_s": 1092.0,
+          "relative_position_at_cpa_ne_m": [
+            502.28288568463176,
+            467.98869854766235
+          ],
+          "method": "synchronized_trajectory",
+          "status": "TRAJECTORY"
+        },
+        "warnings": []
+      }
+    ],
+    "vessel_results": [
+      {
+        "vessel_id": 0,
+        "grounding_distance_m": 601.8520725084494,
+        "grounded": false,
+        "grounding_toc_s": null,
+        "grounding_status": "EVALUATED",
+        "grounding_clearance_score": 1.0,
+        "travel_distance_m": 3721.1233025936313,
+        "duration_s": 1199.5,
+        "grounding_evidence": {
+          "minimum_depth_m": 2,
+          "layers": [
+            {
+              "layer_id": "LAND",
+              "source_status": "AVAILABLE",
+              "geometry_type": "MultiPolygon"
+            },
+            {
+              "layer_id": "SHORE",
+              "source_status": "AVAILABLE",
+              "geometry_type": "MultiPolygon"
+            },
+            {
+              "layer_id": "DEPARE_SHALLOW",
+              "source_status": "DERIVED_FROM_SEABED",
+              "geometry_type": "MultiPolygon"
+            },
+            {
+              "layer_id": "UNSARE",
+              "source_status": "UNAVAILABLE_SOURCE",
+              "geometry_type": "GeometryCollection"
+            },
+            {
+              "layer_id": "SOUNDG",
+              "source_status": "UNAVAILABLE_SOURCE",
+              "geometry_type": "GeometryCollection"
+            },
+            {
+              "layer_id": "OBSTRN",
+              "source_status": "UNAVAILABLE_SOURCE",
+              "geometry_type": "GeometryCollection"
+            },
+            {
+              "layer_id": "UWTROC",
+              "source_status": "KARTVERKET_GRUNNE_DEPTH_FILTERED",
+              "geometry_type": "MultiPoint"
+            },
+            {
+              "layer_id": "SKJER",
+              "source_status": "KARTVERKET_SKJER",
+              "geometry_type": "MultiPoint"
+            }
+          ],
+          "coverage_status": "UNAVAILABLE_SOURCE",
+          "quality_status": "UNAVAILABLE_SOURCE"
+        },
+        "warnings": []
+      },
+      {
+        "vessel_id": 1,
+        "grounding_distance_m": 615.5242488054334,
+        "grounded": false,
+        "grounding_toc_s": null,
+        "grounding_status": "EVALUATED",
+        "grounding_clearance_score": 1.0,
+        "travel_distance_m": 3085.3805559653006,
+        "duration_s": 1199.5,
+        "grounding_evidence": {
+          "minimum_depth_m": 1,
+          "layers": [
+            {
+              "layer_id": "LAND",
+              "source_status": "AVAILABLE",
+              "geometry_type": "MultiPolygon"
+            },
+            {
+              "layer_id": "SHORE",
+              "source_status": "AVAILABLE",
+              "geometry_type": "MultiPolygon"
+            },
+            {
+              "layer_id": "DEPARE_SHALLOW",
+              "source_status": "DERIVED_FROM_SEABED",
+              "geometry_type": "MultiPolygon"
+            },
+            {
+              "layer_id": "UNSARE",
+              "source_status": "UNAVAILABLE_SOURCE",
+              "geometry_type": "GeometryCollection"
+            },
+            {
+              "layer_id": "SOUNDG",
+              "source_status": "UNAVAILABLE_SOURCE",
+              "geometry_type": "GeometryCollection"
+            },
+            {
+              "layer_id": "OBSTRN",
+              "source_status": "UNAVAILABLE_SOURCE",
+              "geometry_type": "GeometryCollection"
+            },
+            {
+              "layer_id": "UWTROC",
+              "source_status": "KARTVERKET_GRUNNE_DEPTH_FILTERED",
+              "geometry_type": "MultiPoint"
+            },
+            {
+              "layer_id": "SKJER",
+              "source_status": "KARTVERKET_SKJER",
+              "geometry_type": "MultiPoint"
+            }
+          ],
+          "coverage_status": "UNAVAILABLE_SOURCE",
+          "quality_status": "UNAVAILABLE_SOURCE"
+        },
+        "warnings": []
+      }
+    ],
+    "aggregate": {
+      "pair_count": 1,
+      "collision_count": 0,
+      "ownship_collision_count": 0,
+      "global_collision_count": 0,
+      "grounding_count": 0,
+      "ownship_grounding_count": 0,
+      "global_grounding_count": 0,
+      "grounding_not_evaluated_count": 0,
+      "global_grounding_not_evaluated_count": 0,
+      "minimum_distance_m": 686.5140342484017,
+      "grounding_clearance_score": 1.0,
+      "S8": 1.0,
+      "S13": 1.0,
+      "S16": 1.0,
+      "S_safety": 1.0,
+      "S_theta": 0.729971170094108,
+      "S_r": 1.0,
+      "S_apparent": 1.0,
+      "P_delay": 0.0,
+      "P_course_non_apparent": 0.0,
+      "P_speed_non_apparent": 0.0,
+      "P_ahead13": 0.0,
+      "S17": 1.0,
+      "P_stage2": 0.0,
+      "P_stage3": 0.0,
+      "P_pt": 0.0
+    },
+    "warnings": [
+      "Original evaluator source unavailable; this is a behavior-compatible reconstruction.",
+      "Only cells with complete published inputs may be marked numerically verified.",
+      "Historical epsilon_d_course numeric value 0.3 deg/s retained despite conflicting inline comment.",
+      "Rule formulas use the published Ocean Engineering 2023 definitions."
+    ],
+    "voyage": {
+      "encounter": {
+        "min_target_center_distance_m": 686.5140342484017,
+        "controlling_target_id": 1
+      },
+      "recovery_voyage": {
+        "cpa_time_s": 1092.0,
+        "window_start_s": 1092.0,
+        "window_end_s": 1332.0,
+        "heading_gross_sweep_deg": 332.2814711723527,
+        "heading_net_rotation_deg": 319.0541115847732,
+        "max_abs_xte_m": 54.58335134443131
+      },
+      "return_voyage": {
+        "window_start_s": 1332.0,
+        "cpa_time_s": 1092.0,
+        "buffer_s": 240.0,
+        "max_abs_xte_m": null,
+        "route_crossings": null,
+        "sample_count": 0
+      }
+    },
+    "schema_version": "2.0"
+  }
+}

@@ -41,12 +41,24 @@ def original_ship():
 
 def test_original_catalog_does_not_change_existing_full_bindings():
     catalog = list_stack_catalog()
-    assert [p["id"] for p in catalog["product_presets"]] == ["legacy", "ideal", "without_guidance", "full", "original_gnc"]
+    assert [p["id"] for p in catalog["product_presets"]] == [
+        "legacy",
+        "ideal",
+        "without_guidance",
+        "full",
+        "original_gnc",
+        "authoritative_mpc",
+    ]
     full = next(p for p in catalog["product_presets"] if p["id"] == "full")
     hashes = {entry["stack_id"]: entry["config_hash"] for entry in catalog["stacks"]}
     assert hashes[full["variants"]["off"]] == "a61684f1ab619ce856f227be78b04c8a6a65e5e599199f00630d1169424a2ac6"
     assert hashes[full["variants"]["on"]] == "802307cace0a7df049e8d26b891870347819583546fcd638eaff1a0ac1933d5a"
-    assert {entry["stack_id"] for entry in catalog["original_gnc_stacks"]} == {ORIGINAL_OFF, ORIGINAL_ON}
+    assert {entry["stack_id"] for entry in catalog["original_gnc_stacks"]} == {
+        ORIGINAL_OFF,
+        ORIGINAL_ON,
+        "authoritative-mpc-20260921-v1-env-off",
+        "authoritative-mpc-20260921-v1-env-on",
+    }
     assert all("modules" not in entry["config"] for entry in catalog["original_gnc_stacks"])
 
 
@@ -65,7 +77,12 @@ def test_balance_uses_recorded_frame_after_native_stack_advances(original_ship):
 def test_source_dependency_failure_does_not_select_full(tmp_path, monkeypatch):
     monkeypatch.setenv("COLAV_ORIGINAL_GNC_BUILD", str(tmp_path / "missing"))
     catalog = list_stack_catalog()
-    assert all(not entry["available"] for entry in catalog["original_gnc_stacks"])
+    original = [e for e in catalog["original_gnc_stacks"] if e["backend_kind"] == "original_gnc"]
+    mpc = [e for e in catalog["original_gnc_stacks"] if e["backend_kind"] == "authoritative_mpc"]
+    assert original and all(not entry["available"] for entry in original)
+    # The MPC controller lane owns its build directory; a broken baseline lane
+    # build must not disable or silently select anything on the MPC lane.
+    assert all(entry["available"] for entry in mpc)
     assert next(p for p in catalog["product_presets"] if p["id"] == "full")["variants"]["off"]
 
 
@@ -85,7 +102,11 @@ def test_original_catalog_reports_loaded_build_identity():
         "library_sha256": manifest["library_sha256"],
     }
     catalog = list_stack_catalog()
-    assert all(entry["build_identity"] == expected for entry in catalog["original_gnc_stacks"])
+    assert all(
+        entry["build_identity"] == expected
+        for entry in catalog["original_gnc_stacks"]
+        if entry["backend_kind"] == "original_gnc"
+    )
     preset = next(p for p in catalog["product_presets"] if p["id"] == "original_gnc")
     assert preset["build_identity"] == expected
     if proposal_ids:

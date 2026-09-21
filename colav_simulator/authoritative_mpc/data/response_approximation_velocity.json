@@ -1,0 +1,21 @@
+{
+  "course": {
+    "gain": 1.0,
+    "method": "closed-loop first-order trajectory least squares: course' = remainder(heading_setpoint - course, 2*pi)/tau, exact zero-order-hold discretization, DC gain structurally 1",
+    "sample_count": 0,
+    "time_constant_s": 39.42557115667648
+  },
+  "input_kind": "velocity_intent",
+  "limits": "Measured velocity-input profile; no route-input qualification or general vessel certification.",
+  "provenance": "Constants borrowed from the baseline (PID) lane measured on byte-identical guidance to seed planner own-ship models. The MPC controller lane has no closed-loop measurement of its own yet; trajectory_r_squared evidence fields are intentionally removed so the computed verdict is honest.",
+  "qualification": "UNQUALIFIED_TRAJECTORY_APPROXIMATION",
+  "schema": "original-gnc.response-approximation.v2",
+  "source_manifest_sha256": "f7ee193e04b5165444a680b1e774e8b730639aa13dfd9f013face25ee5cc8a8d",
+  "speed": {
+    "active_window_s": 400.00000000000006,
+    "gain": 1.031806121317279,
+    "method": "closed-loop first-order trajectory least squares: speed' = (gain*speed_setpoint - speed)/tau, exact zero-order-hold discretization, active window = last nonzero command + 60 s settle",
+    "sample_count": 0,
+    "time_constant_s": 12.505448902388483
+  }
+}

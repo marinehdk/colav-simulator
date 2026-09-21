@@ -10,6 +10,7 @@
  */
 
 import { createSituationDisplay } from './situation-display.js?v=20260918-replay-placard';
+import { createDeploymentView } from './deployment-view.js';
 import { createTelemetryProjection } from './telemetry-projection.js';
 import { projectReplayFrame, REPLAY_PRESENTATION_MODE } from './replay-source.js';
 import { createReplayClock, ReplayPlayState } from './replay-clock.js?v=20260918-buffering';
@@ -42,6 +43,7 @@ export function createEvaluationReplayController({
   documentRef = globalThis.document,
   fetchRef = globalThis.fetch,
   displayFactory = null,
+  sceneFactory = null,
   nowFn = () => Date.now(),
   scheduler = null,
 } = {}) {
@@ -65,6 +67,7 @@ export function createEvaluationReplayController({
   let lastSourceSequence = null;
   let lastSourceSimTime = null;
   let display = null;
+  let replayView = null;
   let clock = null;
   let timerId = null;
   let prefetchInFlight = null;
@@ -256,7 +259,7 @@ export function createEvaluationReplayController({
     for (const input of documentRef.querySelectorAll?.('[data-replay-layer]') ?? []) {
       const layer = state[input.dataset.replayLayer];
       if (!layer) continue;
-      input.disabled = !layer.available;
+      input.disabled = !layer.available || (replayView?.state().mode === '3d' && ['safeWater', 'motionVectors', 'executionPoint'].includes(input.dataset.replayLayer));
       input.checked = layer.available && Boolean(layer.userVisible);
     }
   }
@@ -304,6 +307,7 @@ export function createEvaluationReplayController({
       if (input) input.value = replayScaleValue.toFixed(2);
     };
     const zoom = direction => {
+      if (replayView?.state().mode === '3d') return replayView.zoom(direction);
       if (direction > 0) display?.zoomIn?.(); else display?.zoomOut?.();
       replayScaleValue = Math.max(0.15, Math.min(1.0, replayScaleValue + direction * 0.05));
       updateScaleInput();
@@ -322,20 +326,25 @@ export function createEvaluationReplayController({
       replayScaleValue = clamped;
       updateScaleInput();
     });
-    el('replayFitTrafficBtn')?.addEventListener('click', () => display?.fitTraffic?.());
-    el('replayRecenterBtn')?.addEventListener('click', () => display?.recenterOwnship?.());
+    el('replayRecenterBtn')?.addEventListener('click', () => replayView ? replayView.recenter() : display?.recenterOwnship?.());
     for (const button of documentRef.querySelectorAll?.('[data-replay-map-orientation]') ?? []) {
       button.addEventListener('click', () => {
         const orientation = button.dataset.replayMapOrientation;
-        display?.setOrientation?.(orientation);
+        if (replayView) replayView.orientation(orientation);
+        else display?.setOrientation?.(orientation);
         syncReplayOrientationControls(orientation);
       });
     }
     for (const input of documentRef.querySelectorAll?.('[data-replay-layer]') ?? []) {
       input.addEventListener('change', () => {
         display?.setLayerVisible?.(input.dataset.replayLayer, input.checked);
+        replayView?.layers();
       });
     }
+    el('replayScene3dBtn')?.addEventListener('click', () => {
+      el('replayScene3dError').hidden = true;
+      return replayView?.toggle();
+    });
     syncPopoverState();
     syncReplayOrientationControls('north');
     syncReplayLayerControls();
@@ -401,7 +410,8 @@ export function createEvaluationReplayController({
       telemetry: { envelope, revision: 1, receivedAt: 1, staleAgeMs: null },
       outcome: { status: 'idle', result: null, artifacts: null, error: null },
     });
-    display?.render?.(snapshot.raw);
+    if (replayView) replayView.render(snapshot);
+    else display?.render?.(snapshot.raw);
     const levels = {};
     for (const target of snapshot.risk?.targets ?? []) {
       if (target.targetId === null || target.targetId === undefined) continue;
@@ -572,6 +582,7 @@ export function createEvaluationReplayController({
     stopPlaybackTimer();
     clock = null;
     syncPlayButton();
+    replayView?.beginSession(runId);
     display?.clearSession?.();
     prefetchInFlight = null;
     nextWindowDoc = null;
@@ -667,6 +678,7 @@ export function createEvaluationReplayController({
     display?.setOrientation?.('north');
     clock = createReplayClock({ now: nowFn, tStart: start, tEnd: end });
     ensureDisplay();
+    replayView?.beginSession(runId);
     await display?.beginSession?.(runId);
     readouts();
     await loadWindow(start, Math.min(end, start + prefetchSpanS(INITIAL_WINDOW_SPAN_S)), gen);
@@ -693,7 +705,7 @@ export function createEvaluationReplayController({
           enc.width_m,
           enc.height_m,
           enc.utm_zone,
-        ].every(value => Number.isFinite(Number(value))) && Boolean(enc.image_url);
+        ].every(value => value !== null && value !== undefined && Number.isFinite(Number(value))) && Boolean(enc.image_url);
         return {
           ready,
           run_id: runId,
@@ -701,10 +713,17 @@ export function createEvaluationReplayController({
           origin_n: Number(enc.origin_north_m),
           width: Number(enc.width_m),
           height: Number(enc.height_m),
-          utm_zone: enc.utm_zone,
+          utm_zone: Number(enc.utm_zone),
+          // Recorded simulator charts use the same ETRS89 UTM convention as
+          // Deployment. Unsupported/missing zones remain unavailable in 3D.
+          horizontal_crs: [32, 33].includes(Number(enc.utm_zone)) ? `EPSG:${25800 + Number(enc.utm_zone)}` : null,
+          hemisphere: [32, 33].includes(Number(enc.utm_zone)) ? 'north' : null,
+          display_height_reference: 'ellipsoid-zero-visual-only',
+          tile_url: enc.image_url,
         };
       },
       fetchTile: () => context?.enc?.image_url ?? '',
+      onEncStatus: () => replayView?.refresh(),
       onLayerStateChange: state => syncReplayLayerControls(state),
       onSelectionChange: target => selectTarget(target?.id ?? null),
       onVesselPositionsChange: positions => {
@@ -720,6 +739,36 @@ export function createEvaluationReplayController({
         getScenarioId: () => context?.scenario_id ?? null,
         getResponseRange: () => null,
         getPlannerSurface: () => null,
+      });
+    }
+    if (display?.renderFrame) {
+      replayView = createDeploymentView({
+        chart: display,
+        createScene: async options => {
+          const createScene = sceneFactory ?? (await import('./scene-3d.js?v=20260921-replay-v1')).createScene3D;
+          return createScene({ ...options, chart: display, host: el('replayScene3dHost'),
+            onSelect: id => display.selectTarget(id) });
+        },
+        onState: state => {
+          const active = state.mode === '3d';
+          wrapper.classList.toggle('view-3d', active);
+          wrapper.dataset.frame = JSON.stringify(state.frame);
+          const button = el('replayScene3dBtn');
+          button.disabled = Boolean(state.unavailable) && !active && !state.loading;
+          button.setAttribute('aria-pressed', String(active));
+          button.setAttribute('aria-busy', String(state.loading));
+          button.title = state.loading ? '加载三维视景，可取消' : state.unavailable || '切换三维回放';
+          button.classList.toggle('active', active);
+          el('replayChartScaleInput').disabled = active;
+          syncReplayOrientationControls(active ? '3d' : state.orientation);
+          syncReplayLayerControls();
+          if (active) el('replayVesselDetailPlacard').hidden = true;
+        },
+        onError: error => {
+          const notice = el('replayScene3dError');
+          notice.textContent = `${error.message || error} · 点击 3D 重试`;
+          notice.hidden = false;
+        },
       });
     }
     display?.setLayerVisible?.('history', true);
@@ -781,7 +830,7 @@ export function createEvaluationReplayController({
       : vesselPositions?.targets?.find(item => String(item.vessel.id) === selectedTargetId);
     const target = selected?.vessel;
     const anchor = selected?.anchor;
-    if (status === 'LOADING' || selectedTargetId === null || !target || !anchor || target.active === false
+    if (replayView?.state().mode === '3d' || status === 'LOADING' || selectedTargetId === null || !target || !anchor || target.active === false
       || anchor.x < 0 || anchor.y < 0 || anchor.x > wrapper.clientWidth || anchor.y > wrapper.clientHeight) {
       placard.hidden = true;
       return;
@@ -830,7 +879,23 @@ export function createEvaluationReplayController({
     renderVesselPlacard();
   }
 
+  function exitReplay3D() {
+    const state = replayView?.state();
+    if (state?.mode === '3d' || state?.loading) replayView.toggle();
+  }
+
+  const workface = el('evaluationReplayPanel')?.closest?.('[data-workface-panel]');
+  if (workface && typeof MutationObserver !== 'undefined') {
+    const observer = new MutationObserver(() => { if (workface.hidden) exitReplay3D(); });
+    observer.observe(workface, { attributes: true, attributeFilter: ['hidden'] });
+    globalThis.addEventListener?.('pagehide', () => {
+      observer.disconnect();
+      replayView?.destroy();
+    }, { once: true });
+  }
+
   function close() {
+    exitReplay3D();
     selectTarget(null);
     generation += 1;
     stopPlaybackTimer();
@@ -993,6 +1058,7 @@ export function createEvaluationReplayController({
 
   function switchEvaluationView(next) {
     if (!evaluationViews.includes(next)) return;
+    if (next !== 'replay') exitReplay3D();
     selectedEvaluationView = next;
     for (const view of evaluationViews) {
       const section = el(`evalView${view === 'hais' ? 'HistoricalAIS' : view.charAt(0).toUpperCase() + view.slice(1)}`);

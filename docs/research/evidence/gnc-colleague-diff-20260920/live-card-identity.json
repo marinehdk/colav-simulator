@@ -1,0 +1,92 @@
+{
+  "observed_date": "2026-09-20",
+  "endpoint": "http://127.0.0.1:8010/api/gnc/stacks",
+  "preset": {
+    "id": "original_gnc",
+    "display_name": "Authoritative GNC · 2026-09-14",
+    "description": "Native C++ · course / route input.",
+    "input": "Velocity intent (VO/Fan) / timed trajectory (Mid)",
+    "available": true,
+    "unavailable_reason": null,
+    "variants": {
+      "off": "original-gnc-20260914-v1-env-off",
+      "on": "original-gnc-20260914-v1-env-on"
+    },
+    "environment_description": "Original models · wind U10 6 m/s from 45° · current 0.3 m/s from 90° · waves Hs 0.5 m / Tz 6 s from 90°",
+    "note": "VO/Fan velocity intents require a valid parent route, mode and unexpired lease. Mid timed trajectories receive independent source motion, identity and expiry checks. Ordinary operator routes retain their original route guards. PGD degradation retained. Source equivalence and scenario safety are separate results. Loaded execution baseline: baseline; native library SHA-256 78997104a85bfc5042698d5d9b702058700e342e6e6a0625669719d7ba652277; approved source manifest SHA-256 8590d52f4b3ee551ae390bb019ffca2a6ad434bd5659a6c92d8f54c870ff9e62. Scenario safety is separate and Original GNC acceptance remains diagnostic.",
+    "build_identity": {
+      "execution_lane": "baseline",
+      "candidate": null,
+      "proposal_ids": [],
+      "source_manifest_sha256": "8590d52f4b3ee551ae390bb019ffca2a6ad434bd5659a6c92d8f54c870ff9e62",
+      "library_sha256": "78997104a85bfc5042698d5d9b702058700e342e6e6a0625669719d7ba652277"
+    },
+    "fields": {
+      "Plant": "Original 4DOF · 44.1 × 8 × 2 m",
+      "Guidance": "Velocity/course tracking · ILOS/ALOS routes · terminal DP",
+      "Controller": "Original PID/SMC and source mode logic",
+      "Actuation": "Original PGD · actuator dynamics and limits"
+    }
+  },
+  "environment_on_stack": {
+    "schema_version": 1,
+    "backend_kind": "original_gnc",
+    "stack_id": "original-gnc-20260914-v1-env-on",
+    "display_name": "Authoritative GNC 2026-09-14 · environment ON",
+    "config_hash": "1b97151436a1d0808348b381ea95ccd6281d76e15bdc95dff59e4864af212f51",
+    "fidelity_profile": "frozen_original_source_port",
+    "supported_tasks": [
+      "TRANSIT"
+    ],
+    "modules": [
+      {
+        "role": "plant",
+        "identity": "ship_dynamics_node",
+        "interface_version": "original-20260824-v2",
+        "acceptance_evidence": "Independent original-source replay; full scenario acceptance separate"
+      },
+      {
+        "role": "guidance",
+        "identity": "ship_guidance_node",
+        "interface_version": "original-20260824-v2",
+        "acceptance_evidence": "Independent original-source replay; full scenario acceptance separate"
+      },
+      {
+        "role": "controller",
+        "identity": "ship_control_node",
+        "interface_version": "original-20260824-v2",
+        "acceptance_evidence": "Independent original-source replay; full scenario acceptance separate"
+      },
+      {
+        "role": "allocation",
+        "identity": "thrust_allocation_node",
+        "interface_version": "original-20260824-v2",
+        "acceptance_evidence": "Independent original-source replay; full scenario acceptance separate"
+      }
+    ],
+    "asset_trust": [
+      {
+        "asset_id": "L4-5_source_only_20260824_v2",
+        "trust_level": "source hash pinned; design parameters"
+      }
+    ],
+    "acceptance_level": "EXPERIMENTAL_ORIGINAL_SOURCE",
+    "available": true,
+    "unavailable_reason": null,
+    "build_identity": {
+      "execution_lane": "baseline",
+      "candidate": null,
+      "proposal_ids": [],
+      "source_manifest_sha256": "8590d52f4b3ee551ae390bb019ffca2a6ad434bd5659a6c92d8f54c870ff9e62",
+      "library_sha256": "78997104a85bfc5042698d5d9b702058700e342e6e6a0625669719d7ba652277"
+    },
+    "config": {
+      "backend": "original_gnc",
+      "source_manifest_sha256": "8590d52f4b3ee551ae390bb019ffca2a6ad434bd5659a6c92d8f54c870ff9e62",
+      "baseline_sha256": "9e4adb53e9f2970f2c9a71d9a2ce699ea693d814560ad42f2a56e20dd03eff85",
+      "environment": true,
+      "response_approximation_sha256": "0431026d5466b4311bda74a6636a5dc88b911af40890254ca45167999aa91ae2",
+      "bridge_contract": "original-gnc-route-authority.v1"
+    }
+  }
+}

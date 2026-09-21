@@ -1,0 +1,15 @@
+diff --git a/src/gnc/ship_guidance/include/ship_guidance/route_contract.hpp b/src/gnc/ship_guidance/include/ship_guidance/route_contract.hpp
+index 3cf554a0078ded5a0d07119439d3bf4e68e04d9a..05d28bc68395feea351e7edabd97e92bc9485375 100644
+--- a/src/gnc/ship_guidance/include/ship_guidance/route_contract.hpp
++++ b/src/gnc/ship_guidance/include/ship_guidance/route_contract.hpp
+@@ -113,6 +113,10 @@ inline ContractResult validate_and_normalize(
+     RouteKind kind)
+ {
+     ContractResult result;
++    if (kind == RouteKind::Nominal && normalize_token(route.route_type) == "planner_trajectory_v1") {
++        result.reason = "planner_trajectory_requires_avoidance_admission";
++        return result;
++    }
+     const std::size_t count = route.latitude.size();
+     if (count < 2) {
+         result.reason = "waypoint_count_less_than_two";

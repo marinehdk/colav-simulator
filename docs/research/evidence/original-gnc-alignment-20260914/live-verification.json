@@ -1,0 +1,92 @@
+{
+  "verified_at_utc": "2026-09-14T05:46:25.296641+00:00",
+  "preset": {
+    "id": "original_gnc",
+    "display_name": "Original GNC \u00b7 2026-08-24",
+    "description": "Frozen colleague GNC \u00b7 independent local C++ backend",
+    "input": "Original route / avoidance contract",
+    "available": true,
+    "unavailable_reason": null,
+    "variants": {
+      "off": "original-gnc-20260824-v2-env-off",
+      "on": "original-gnc-20260824-v2-env-on"
+    },
+    "environment_description": "Original models \u00b7 wind U10 6 m/s from 45\u00b0 \u00b7 current 0.3 m/s from 90\u00b0 \u00b7 waves Hs 0.5 m / Tz 6 s from 90\u00b0",
+    "note": "Original guards and PGD degradation retained. Ordinary route updates require 500 m lookahead; short avoidance intents can be rejected. Source equivalence and scenario safety are separate results. Loaded execution baseline: baseline; native library SHA-256 6e9f2728758b7934296e8da9bfee1a98905e038b29402c6e95ae780c6dc220fa; approved source manifest SHA-256 2c863347de59474a32d26a53d5631ed9a5b376623cd88d6fb83ca8173fc09411. Scenario safety is separate and Original GNC acceptance remains diagnostic.",
+    "build_identity": {
+      "execution_lane": "baseline",
+      "candidate": null,
+      "proposal_ids": [],
+      "source_manifest_sha256": "2c863347de59474a32d26a53d5631ed9a5b376623cd88d6fb83ca8173fc09411",
+      "library_sha256": "6e9f2728758b7934296e8da9bfee1a98905e038b29402c6e95ae780c6dc220fa"
+    },
+    "fields": {
+      "Plant": "Original 4DOF \u00b7 44.1 \u00d7 8 \u00d7 2 m",
+      "Guidance": "Original ILOS/ALOS \u00b7 route guards \u00b7 terminal DP",
+      "Controller": "Original PID/SMC and source mode logic",
+      "Actuation": "Original PGD \u00b7 actuator dynamics and limits"
+    }
+  },
+  "session": {
+    "active": true,
+    "session_id": "5e27705c-5242-46e3-858e-20da82862cac",
+    "state": "CREATED",
+    "spec": {
+      "scenario_id": "overtaking",
+      "validation_rule_id": "rule13",
+      "algorithm_id": "vo",
+      "tracker_id": "god",
+      "ownship_gnc_stack_id": "original-gnc-20260824-v2-env-off",
+      "seed": 0,
+      "episode_index": 0,
+      "dt": null,
+      "t_end": null,
+      "reload_enc": false,
+      "terminate_on_collision_or_grounding": true,
+      "strict_no_fallback": true,
+      "solve_period_s": 5.0,
+      "deadline_mode": "ENFORCE",
+      "evaluator_profile_id": "ccta_2023_demo-v1",
+      "reproduction_level": "functional_reproduction",
+      "algorithm_config": {
+        "dependency_lock": "/Users/marine/Code/Colav-Simulator/uv.lock",
+        "los": {
+          "K_p": 0.005,
+          "K_i": 0.0
+        },
+        "vo": {
+          "length_os": 44.1,
+          "width_os": 8.0,
+          "d_min": 190.0,
+          "hard_hull_clearance_m": 182.0,
+          "preferred_hull_clearance_m": 190.0,
+          "t_max": 60.0
+        }
+      },
+      "tracker_config": {},
+      "domain_profile": null,
+      "scenario_override": null,
+      "output_root": "runs",
+      "replay_of_run_id": null,
+      "historical_replay": null,
+      "historical_scenario_id": null,
+      "algorithm_capability_evidence": null,
+      "schema_version": "1.0"
+    },
+    "run_dir": "/Users/marine/Code/Colav-Simulator/runs/5e27705c-5242-46e3-858e-20da82862cac",
+    "sequence": 0,
+    "sim_time": 0.0,
+    "source_time_s": 0.0,
+    "ais_utc": null,
+    "failure_reason": null,
+    "result_ready": false,
+    "replay_status": "CAPTURING",
+    "replay_reason": null,
+    "playback": {
+      "requested_multiplier": 1.0,
+      "effective_multiplier": null,
+      "realtime_limited": false,
+      "scheduler_lag_ms": 0.0
+    }
+  }
+}

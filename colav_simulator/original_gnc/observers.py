@@ -120,8 +120,9 @@ class NativeObserver:
         *,
         replay_clocks: list[int] | None = None,
         replay_steady: list[float] | None = None,
+        approved_manifest_sha256: str | None = None,
     ):
-        manifest = verify_build(build)
+        manifest = verify_build(build, approved_manifest_sha256)
         metadata = json.loads((build / "extraction.json").read_text())["python_observers"][name]
         fingerprints = {key: value for key, value in manifest["source_fingerprints"].items() if key.startswith("observers/")}
         identity = hashlib.sha256(json.dumps(fingerprints, sort_keys=True).encode()).hexdigest()

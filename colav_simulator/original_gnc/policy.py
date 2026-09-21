@@ -35,8 +35,9 @@ class NativePolicy:
         shadow_mode: bool = True,
         publish_rate_hz: float = 2.0,
         replay_clocks: list[int] | None = None,
+        approved_manifest_sha256: str | None = None,
     ):
-        verify_build(build)
+        verify_build(build, approved_manifest_sha256)
         metadata = json.loads((build / "extraction.json").read_text())["python_policy"]
         self.callbacks = metadata["callbacks"]
         self.time_ns = time_ns

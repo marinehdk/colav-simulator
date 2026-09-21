@@ -1,0 +1,21 @@
+{
+  "time": 1789697289.9239922,
+  "removed_files": 2989,
+  "removed_allocated_bytes": 52840271872,
+  "filesystem_before": {
+    "total": 1965440720896,
+    "used": 1833901359104,
+    "free": 31624962048
+  },
+  "filesystem_after": {
+    "total": 1965440720896,
+    "used": 1781063024640,
+    "free": 84463296512
+  },
+  "filesystem_free_increase_bytes": 52838334464,
+  "protected_reference_roots": 82,
+  "protected_reference_files_unchanged": 2838,
+  "kept_files_sha256_verified": 18086,
+  "indices_sha256_verified": true,
+  "busy_after": []
+}

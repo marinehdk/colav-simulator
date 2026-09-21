@@ -1,0 +1,144 @@
+diff --git a/src/gnc/ship_guidance/include/ship_guidance/ship_guidance_node.hpp b/src/gnc/ship_guidance/include/ship_guidance/ship_guidance_node.hpp
+index 12f9d2d94e1f823f17b38ff1ef4b7f1f828b14a7..d4e952aecff46c7611050f78f1bea1b4850c84ad 100644
+--- a/src/gnc/ship_guidance/include/ship_guidance/ship_guidance_node.hpp
++++ b/src/gnc/ship_guidance/include/ship_guidance/ship_guidance_node.hpp
+@@ -11,6 +11,9 @@
+ #include <std_msgs/msg/float64.hpp>
+ #include <std_msgs/msg/string.hpp>
+ #include <ship_interfaces/msg/current_observation.hpp>
++#include <ship_interfaces/msg/velocity_intent.hpp>
++#include <ship_interfaces/msg/velocity_execution_status.hpp>
++#include <ship_interfaces/msg/route_execution_status.hpp>
+ #include <tf2/LinearMath/Quaternion.h>
+ #include <tf2/LinearMath/Matrix3x3.h>
+ #include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
+@@ -37,8 +40,17 @@ public:
+     ShipGuidanceNode();
+     ~ShipGuidanceNode() = default;
+ 
++    // Execution authority exposed read-only to native/reference adapters.
++    // Ordinary avoidance retains the vessel ceiling; emergency policy is
++    // separate from curvature, tracking and terminal restrictions.
++    double ordinary_avoidance_speed_cap() const { return max_speed_; }
++    double emergency_avoidance_speed_cap() const { return emergency_avoidance_speed_cap_mps_; }
++
+ private:
++    void velocity_intent_callback(const ship_interfaces::msg::VelocityIntent::SharedPtr msg);
++    bool execute_velocity_intent();
+     void get_parameters();
++    void route_status_callback(const ship_interfaces::msg::RouteExecutionStatus::SharedPtr msg);
+     void odom_callback(const nav_msgs::msg::Odometry::SharedPtr msg);
+     void env_load_callback(const geometry_msgs::msg::WrenchStamped::SharedPtr msg);
+     void current_load_callback(const geometry_msgs::msg::WrenchStamped::SharedPtr msg);
+@@ -62,12 +74,24 @@ private:
+     rclcpp::Subscription<ship_interfaces::msg::CurrentObservation>::SharedPtr
+         effective_current_sub_;
+     rclcpp::Subscription<nav_msgs::msg::Path>::SharedPtr path_sub_;
++    rclcpp::Subscription<ship_interfaces::msg::RouteExecutionStatus>::SharedPtr route_status_sub_;
++    // Provenance of the route currently published to /gnc/internal_waypoints.
++    // Empty means no manager status observed yet: keep legacy operator policy.
++    std::string latest_route_command_source_;
+     rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr heading_setpoint_pub_;
+     rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr target_speed_pub_;
+     rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr target_pose_pub_;
+     rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr smoothed_waypoints_pub_;
+     rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr dp_hold_state_pub_;
+     rclcpp::Publisher<std_msgs::msg::String>::SharedPtr ilos_diagnostics_pub_;
++    rclcpp::Subscription<ship_interfaces::msg::VelocityIntent>::SharedPtr velocity_intent_sub_;
++    rclcpp::Publisher<ship_interfaces::msg::VelocityExecutionStatus>::SharedPtr velocity_status_pub_;
++    ship_interfaces::msg::VelocityIntent velocity_intent_;
++    double velocity_course_gain_ = 4.0;
++    bool velocity_intent_active_ = false;
++    bool velocity_hold_initialized_ = false;
++    double velocity_hold_heading_ = 0.0;
++    rclcpp::Time velocity_last_publish_{0, 0, RCL_ROS_TIME};
+     rclcpp::TimerBase::SharedPtr timer_;
+     double guidance_period_s_ = 0.5;
+ 
+@@ -181,8 +205,8 @@ private:
+     double turn_recovery_speed_margin_mps_;
+     double turn_recovery_speed_ramp_mps2_;
+     double turn_segment_max_los_correction_deg_;
+-    double turn_segment_los_correction_45deg_;
+-    double turn_entry_max_los_correction_deg_;
++    double turn_segment_los_correction_45deg_;
++    double turn_entry_max_los_correction_deg_;
+     double turn_entry_los_correction_45deg_;
+     bool turn_segment_speed_gate_enabled_;
+     double turn_segment_speed_cap_mps_;
+@@ -225,6 +249,23 @@ private:
+     double external_route_turn_centerline_distance_m_ = 600.0;
+     double external_route_turn_centerline_release_xte_m_ = 18.0;
+     double external_route_turn_speed_cap_mps_ = 4.2;
++    // Planner-owned avoidance routes carry per-waypoint speeds already made
++    // dynamically feasible by route admission. The operator-leg external turn
++    // speed preview re-derives a slower envelope from dense trajectory-style
++    // geometry and would override those admitted speeds for the whole
++    // avoidance maneuver; skip only the speed application for such routes.
++    bool external_route_turn_skip_planner_routes_ = true;
++    // Dense planner-owned routes (mid_mpc_ipopt) are re-published every few
++    // seconds, so the rejoin/turn-segment speed gates tuned for hand-written
++    // low-density routes see a permanent heading-error transient and latch
++    // their low-speed caps over the whole maneuver. Route admission already
++    // validated their per-waypoint speeds; skip those two gates for such
++    // routes (the lateral rejoin safety leg is kept).
++    bool planner_route_speed_gate_skip_ = true;
++    // Dense planner-owned routes (mid_mpc_ipopt) must keep their per-point
++    // geometry: the turn-arc rewrite would replace mirrored points and
++    // override admission-validated speeds with hand-route turn speeds.
++    bool planner_route_arc_smoothing_skip_ = true;
+     bool turn_feasibility_preview_enabled_ = true;
+     double turn_feasibility_preview_distance_m_ = 1200.0;
+     double turn_feasibility_min_cumulative_angle_deg_ = 10.0;
+@@ -264,11 +305,11 @@ private:
+     double wind_cruise_full_xte_dot_mps_;
+     double wind_cruise_full_outward_xte_dot_mps_;
+     double wind_cruise_full_stable_s_;
+-    double kappa_ilos_;
+-    bool ilos_turn_kappa_schedule_enabled_ = false;
+-    double ilos_turn_kappa_scale_ = 1.0;
+-    double ilos_turn_kappa_preview_m_ = 0.0;
+-    double ilos_turn_kappa_hold_m_ = 0.0;
++    double kappa_ilos_;
++    bool ilos_turn_kappa_schedule_enabled_ = false;
++    double ilos_turn_kappa_scale_ = 1.0;
++    double ilos_turn_kappa_preview_m_ = 0.0;
++    double ilos_turn_kappa_hold_m_ = 0.0;
+     double ilos_turn_kappa_min_angle_deg_ = 10.0;
+     double ilos_integral_max_heading_effect_deg_ = 15.0;
+     bool ilos_turn_integral_schedule_enabled_ = false;
+@@ -356,12 +397,12 @@ private:
+     double wind_crab_release_force_n_ = 250.0;
+     double wind_crab_filtered_force_n_ = 0.0;
+     bool wind_crab_filter_initialized_ = false;
+-    bool wind_crab_filter_engaged_ = false;
++    bool wind_crab_filter_engaged_ = false;
+     bool wind_crab_target_offset_enabled_ = true;
+     double wind_crab_target_offset_max_m_ = 12.0;
+     double wind_crab_target_offset_min_m_ = 3.0;
+     double wind_crab_target_offset_force_ref_n_ = 6000.0;
+-    bool wind_ilos_bias_enabled_ = false;
++    bool wind_ilos_bias_enabled_ = false;
+     bool wind_ilos_bias_target_centerline_ = false;
+     double wind_ilos_bias_gain_per_s_ = 0.02;
+     double wind_ilos_bias_max_effect_m_ = 6.0;
+@@ -414,7 +455,7 @@ private:
+     bool current_vector_crab_target_offset_enabled_ = true;
+     double current_vector_crab_target_offset_m_ = 12.0;
+     double current_vector_crab_xte_kp_deg_per_m_ = 0.10;
+-    double current_vector_crab_xte_rate_kd_deg_per_mps_ = 2.2;
++    double current_vector_crab_xte_rate_kd_deg_per_mps_ = 2.2;
+     double current_vector_crab_turn_xte_rate_kd_scale_ = 1.0;
+     double current_vector_crab_feedback_max_angle_deg_ = 7.5;
+     // Keep vector-current smoothing state separate from the force branch.
+@@ -471,6 +512,10 @@ private:
+     bool has_last_path_signature_ = false;
+     std::uint64_t last_path_signature_ = 0;
+     size_t last_path_size_ = 0;
++    bool planner_trajectory_path_{false};
++    double planner_trajectory_dt_s_{0.0};
++    std::int64_t planner_trajectory_issued_ns_{0};
++    double planner_trajectory_speed_ceiling() const;
+ 
+     // ALOS参数
+     bool use_adaptive_los_;

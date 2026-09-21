@@ -88,6 +88,7 @@ class FakeElement {
     this.textContent = '';
     this.dataset = {};
     this.className = '';
+    this.classList = { toggle() {} };
     this.style = {};
     this.attributes = {};
     this.children = [];
@@ -176,7 +177,7 @@ function makeDisplay() {
   };
 }
 
-async function makeController(displayFactory = null) {
+async function makeController(displayFactory = null, sceneFactory = null) {
   const { createEvaluationReplayController } = await import('../../web_gui/modules/evaluation-replay.js');
   const documentRef = makeDocumentRef();
   const network = makeFetchRef();
@@ -185,6 +186,7 @@ async function makeController(displayFactory = null) {
     documentRef,
     fetchRef: network.fetchRef,
     displayFactory: displayFactory ?? (() => display),
+    sceneFactory,
   });
   return { controller, documentRef, network, display };
 }
@@ -199,7 +201,7 @@ test('Evaluation workface hosts the replay viewer between the run panel and Hist
   assert.ok(viewer > evaluationStart, 'replay viewer must live in the Evaluation workface');
   assert.ok(viewer > runsPanel, 'replay viewer must follow the run catalog');
   assert.ok(historical > viewer, 'Historical AIS workbench must stay present');
-  for (const id of ['replayTimeline', 'replayTimeStart', 'replayTimeCurrent', 'replayTimeTotal', 'replaySourceFrame', 'replayStatusLine', 'replayStartBtn', 'replayCloseBtn', 'replayCanvas', 'replayCanvasWrapper', 'replayPlayPauseBtn', 'replayPlaybackRate', 'replayRate05', 'replayRate1', 'replayRate5', 'replayRate20', 'replayPrevEventBtn', 'replayNextEventBtn', 'replayEventFilter', 'replayZoomOutBtn', 'replayChartScaleInput', 'replayZoomInBtn', 'replayFitTrafficBtn', 'replayRecenterBtn', 'replayChartLayersBtn', 'replayChartDisplayPopover']) {
+  for (const id of ['replayTimeline', 'replayTimeStart', 'replayTimeCurrent', 'replayTimeTotal', 'replaySourceFrame', 'replayStatusLine', 'replayStartBtn', 'replayCloseBtn', 'replayCanvas', 'replayCanvasWrapper', 'replayPlayPauseBtn', 'replayPlaybackRate', 'replayRate05', 'replayRate1', 'replayRate5', 'replayRate20', 'replayPrevEventBtn', 'replayNextEventBtn', 'replayEventFilter', 'replayZoomOutBtn', 'replayChartScaleInput', 'replayZoomInBtn', 'replayRecenterBtn', 'replayChartLayersBtn', 'replayChartDisplayPopover']) {
     assert.match(html, new RegExp(`id="${id}"`), id);
   }
   assert.match(html, /data-replay-layer="history" checked/);
@@ -291,6 +293,10 @@ test('Replay adapts persisted ENC context to the Situation Display contract befo
     width: 4000,
     height: 6000,
     utm_zone: 32,
+    horizontal_crs: 'EPSG:25832',
+    hemisphere: 'north',
+    display_height_reference: 'ellipsoid-zero-visual-only',
+    tile_url: CONTEXT.enc.image_url,
   });
   assert.equal(displayOptions.fetchTile(), CONTEXT.enc.image_url);
 });
@@ -1030,7 +1036,7 @@ test('Rate controls retain accessible terminology without redundant deployment l
 
 test('Historical AIS Open Replay routes through the shared player without a second player', async () => {
   const workbenchSource = await readFile(new URL('../../web_gui/modules/historical-ais-workbench.js', import.meta.url), 'utf8');
-  assert.match(workbenchSource, /import \{ openReplayForRun \} from '\.\/evaluation-replay\.js\?v=20260916-replay-layout-v4'/);
+  assert.match(workbenchSource, /import \{ openReplayForRun \} from '\.\/evaluation-replay\.js\?v=20260921-replay-controls-v2'/);
   assert.match(workbenchSource, /replayable = state === 'READY' \|\| state === 'INCOMPLETE'/);
   assert.match(html, /id="historicalAISOpenReplay"/);
 
@@ -1135,4 +1141,73 @@ test('replay vessel click opens recorded placard and draw updates follow motion 
   assert.equal(card.hidden,true);
   controller.close();
   assert.equal(controller.state.selectedTargetId,null);
+});
+
+test('shell and Historical AIS load one replay controller module instance', async () => {
+  const workbench = await readFile(new URL('../../web_gui/modules/historical-ais-workbench.js', import.meta.url), 'utf8');
+  const entry = html.match(/src="\/static\/modules\/(evaluation-replay\.js[^\"]*)"/)[1];
+  const imported = workbench.match(/from '\.\/(evaluation-replay\.js[^']*)'/)[1];
+  assert.equal(entry, imported, 'duplicate module URLs bind two toggles and immediately close the chart panel');
+});
+
+async function make3DReplay(sceneFactory) {
+  const frames = [];
+  let info, orientation = 'north';
+  const chart = {
+    ...makeDisplay(),
+    renderFrame: (raw, visible) => frames.push({raw, visible}),
+    getEncInfo: () => info,
+    getOrientation: () => orientation,
+    setOrientation: value => { orientation = value; },
+    captureView: () => ({orientation}),
+    restoreView: saved => { orientation = saved.orientation; },
+  };
+  const parts = await makeController(options => {
+    chart.beginSession = async () => { info = await options.fetchInfo(); };
+    return chart;
+  }, sceneFactory);
+  return {...parts, frames, chart};
+}
+
+test('Replay sends recorded projections to shared 3D on entry and seek, and releases it on close', async () => {
+  const sceneFrames = [];
+  let options, destroyed = 0;
+  const parts = await make3DReplay(value => {
+    options = value;
+    return {render: snapshot => sceneFrames.push(snapshot), destroy: () => destroyed++};
+  });
+  await openReadyRun(parts);
+  const button = parts.documentRef.getElementById('replayScene3dBtn');
+  await button.listeners.click();
+  assert.equal(button.getAttribute('aria-pressed'), 'true');
+  assert.equal(options.info.tile_url, CONTEXT.enc.image_url);
+  assert.equal(options.info.run_id, RUN_ID);
+  assert.equal(sceneFrames.at(-1).raw.run_id, RUN_ID);
+  const seeking = parts.controller.seek(20);
+  await parts.network.respondNext(windowDoc(19.5,20.5));
+  await seeking;
+  assert.equal(sceneFrames.at(-1).raw.sim_time, 20);
+  assert.equal(parts.frames.at(-1).raw, sceneFrames.at(-1).raw);
+  assert.equal(parts.frames.at(-1).visible, false);
+  parts.controller.close();
+  assert.equal(destroyed, 1);
+  assert.equal(button.getAttribute('aria-pressed'), 'false');
+  assert.ok(parts.network.calls.every(call => call.method === 'GET' && call.url.startsWith('/api/runs/')));
+});
+
+test('closing Replay during 3D initialization aborts and destroys the late scene', async () => {
+  let resolveScene, signal, destroyed = 0;
+  const parts = await make3DReplay(options => {
+    signal = options.signal;
+    return new Promise(resolve => { resolveScene = resolve; });
+  });
+  await openReadyRun(parts);
+  const button = parts.documentRef.getElementById('replayScene3dBtn');
+  const pending = button.listeners.click();
+  parts.controller.close();
+  assert.equal(signal.aborted, true);
+  resolveScene({destroy: () => destroyed++});
+  await pending;
+  assert.equal(destroyed, 1);
+  assert.equal(button.getAttribute('aria-pressed'), 'false');
 });

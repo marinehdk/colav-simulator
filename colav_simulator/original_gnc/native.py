@@ -22,13 +22,14 @@ class OriginalGncError(RuntimeError):
     """A source, dependency, input, or native execution failure."""
 
 
-def verify_build(build_directory: Path) -> dict:
+def verify_build(build_directory: Path, approved_manifest_sha256: str | None = None) -> dict:
     """Reject changed code or library before loading either native component."""
+    approved = approved_manifest_sha256 or APPROVED_SOURCE_MANIFEST_SHA256
     manifest_path = build_directory / "build-manifest.json"
     if not manifest_path.is_file():
         raise OriginalGncError(f"Original GNC is not built: {manifest_path}")
     manifest = json.loads(manifest_path.read_text())
-    if manifest.get("source_manifest_sha256") != APPROVED_SOURCE_MANIFEST_SHA256:
+    if manifest.get("source_manifest_sha256") != approved:
         raise OriginalGncError("Original GNC build is not bound to the approved source manifest")
     extraction = build_directory / "extraction.json"
     if not extraction.is_file() or hashlib.sha256(extraction.read_bytes()).hexdigest() != manifest["extraction_sha256"]:
@@ -46,10 +47,17 @@ def verify_build(build_directory: Path) -> dict:
 class NativeModule:
     """Own one original module instance behind a narrow local C ABI."""
 
-    def __init__(self, build_directory: Path, module: str, parameters: dict, options: dict | None = None):
+    def __init__(
+        self,
+        build_directory: Path,
+        module: str,
+        parameters: dict,
+        options: dict | None = None,
+        approved_manifest_sha256: str | None = None,
+    ):
         self._lock = threading.RLock()
         self._handle = None
-        self.manifest = verify_build(build_directory)
+        self.manifest = verify_build(build_directory, approved_manifest_sha256)
         library = Path(self.manifest["library"])
         self._library = ctypes.CDLL(str(library))
         self._library.original_gnc_create.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_char_p]

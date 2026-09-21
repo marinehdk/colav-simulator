@@ -1,0 +1,160 @@
+diff --git a/SOURCE_MANIFEST.csv b/SOURCE_MANIFEST.csv
+index 6d03bb18834dda25ac9bb868a912f7360dcab4c2..3098e9d11f944ade55c318ce75736f4569a206e7 100644
+--- a/SOURCE_MANIFEST.csv
++++ b/SOURCE_MANIFEST.csv
+@@ -55,11 +55,11 @@ src/gnc/ship_guidance/include/ship_guidance/dp_state_policy.hpp,code,574,25,bdf3
+ src/gnc/ship_guidance/include/ship_guidance/guidance_policy.hpp,code,29007,850,dde0230b817417a9cfff9a3511f82131c000065de2b872a6aabc351350aa15be
+ src/gnc/ship_guidance/include/ship_guidance/route_arbitration_policy.hpp,code,1680,54,746b99a026d408bc995dcff12162237630d5763a79ad8ef97f3c0d37cdc0bb71
+ src/gnc/ship_guidance/include/ship_guidance/route_contract.hpp,code,16397,431,feb3e502024a8524ae6f985aa377a8cd5aa9caa7132aef37a110f3270387ca8a
+-src/gnc/ship_guidance/include/ship_guidance/ship_guidance_node.hpp,code,27200,565,ae4d7ddebc4901059c8e7fa8a3b2abdc6de453750579995205c654c910deb3fe
++src/gnc/ship_guidance/include/ship_guidance/ship_guidance_node.hpp,code,27471,569,43d2641a55783e1cd559485d8a2b802ed90039aef9e4e99297ce6ff8ac8d831e
+ src/gnc/ship_guidance/package.xml,config_asset,940,28,8ea347686416aee34761193f2026558489c2ddade6bdc5b161597c2301d2cbb5
+-src/gnc/ship_guidance/src/active_route_manager_node.cpp,code,65064,1441,5fa0866b5b169dff748a41ad4cceb1783b18d14511248319939df2e84f2aca01
++src/gnc/ship_guidance/src/active_route_manager_node.cpp,code,66957,1472,d89ff1c066796c2e1d2a6562237ce208108e63d93d440f5b6a86231763267142
+ src/gnc/ship_guidance/src/coordinate_transform_node.cpp,code,63766,1506,a4bde8def3bea929f509fc8de47251a13946ddbb3ae17cc50c1aa95f38f07ade
+-src/gnc/ship_guidance/src/ship_guidance_node.cpp,code,345261,6477,be83e827cab50cfe2e24b3370ff6a3413d64f6cdfe50e37736b5d4787a116e4a
++src/gnc/ship_guidance/src/ship_guidance_node.cpp,code,346477,6497,07bc795f23249b614fa5fd5d9eb869085712b846a308c5f39a5613d18fac93aa
+ src/gnc/thrust_allocation/CMakeLists.txt,build_or_runtime_asset,1563,45,c082380b84d598a21c4eec0581957e583a8fcb5c53882b57a8c3ceefb34b4091
+ src/gnc/thrust_allocation/config/propeller_curve_45m_fcb.csv,build_or_runtime_asset,7011,273,68cabcc504212c329bcbdc47a6798e6447cb521225d0bf7ab0d66954d26be961
+ src/gnc/thrust_allocation/include/thrust_allocation/allocation_evaluation.hpp,code,1278,44,272616c3fe898e21c65fd68a43f9a3bcbc2340692185e2b9795712a3f383e0bd
+diff --git a/SOURCE_REVISION.json b/SOURCE_REVISION.json
+index c804db2f06760b12030196c0c9d887309ca4b497..c6f49bcd479f54484018683383b2ed889568787b 100644
+--- a/SOURCE_REVISION.json
++++ b/SOURCE_REVISION.json
+@@ -1,7 +1,7 @@
+ {
+-  "revision": "gnc-20260917-planner-speed-gate-development",
+-  "parent_source_manifest_sha256": "10f454b3fbebe7dc14d98ecf1ed7bb65a9e798016259db8016ba62856c329370",
+-  "source_manifest_sha256": "11d291f81a7cdc365d0745645bd06c211cb3de7f24ccdd2e236ef444b765aa7e",
++  "revision": "gnc-20260917-planner-route-mirror-development",
++  "parent_source_manifest_sha256": "11d291f81a7cdc365d0745645bd06c211cb3de7f24ccdd2e236ef444b765aa7e",
++  "source_manifest_sha256": "60777ce5da80df0913a636e90a3796d6f8fc4e83ebb1ea4fab0604bdcd11cce2",
+   "inputs": [
+     "velocity_intent",
+     "route_plan"
+diff --git a/src/gnc/ship_guidance/include/ship_guidance/ship_guidance_node.hpp b/src/gnc/ship_guidance/include/ship_guidance/ship_guidance_node.hpp
+index d813fd5005f5a23f21d75379fb0371c0725bd296..bf2bc72cc124da1cd75c665f0404ad9f7edab100 100644
+--- a/src/gnc/ship_guidance/include/ship_guidance/ship_guidance_node.hpp
++++ b/src/gnc/ship_guidance/include/ship_guidance/ship_guidance_node.hpp
+@@ -262,6 +262,10 @@ private:
+     // validated their per-waypoint speeds; skip those two gates for such
+     // routes (the lateral rejoin safety leg is kept).
+     bool planner_route_speed_gate_skip_ = true;
++    // Dense planner-owned routes (mid_mpc_ipopt) must keep their per-point
++    // geometry: the turn-arc rewrite would replace mirrored points and
++    // override admission-validated speeds with hand-route turn speeds.
++    bool planner_route_arc_smoothing_skip_ = true;
+     bool turn_feasibility_preview_enabled_ = true;
+     double turn_feasibility_preview_distance_m_ = 1200.0;
+     double turn_feasibility_min_cumulative_angle_deg_ = 10.0;
+diff --git a/src/gnc/ship_guidance/src/active_route_manager_node.cpp b/src/gnc/ship_guidance/src/active_route_manager_node.cpp
+index d8ffd4157690c8e92ae8553e0037255c4808ce15..9eba88ad5aea33a8440d5e56253f935fd11b4fed 100644
+--- a/src/gnc/ship_guidance/src/active_route_manager_node.cpp
++++ b/src/gnc/ship_guidance/src/active_route_manager_node.cpp
+@@ -99,6 +99,7 @@ public:
+         declare_parameter("max_command_speed_mps", 8.0);
+         declare_parameter("min_segment_length_m", 30.0);
+         declare_parameter("emergency_min_segment_length_m", 15.0);
++        declare_parameter("planner_route_min_segment_skip", true);
+         declare_parameter("min_turn_radius_m", 80.0);
+         declare_parameter("emergency_min_turn_radius_m", 45.0);
+         declare_parameter("max_lateral_accel_mps2", 0.25);
+@@ -129,6 +130,7 @@ public:
+         max_command_speed_mps_ = std::max(0.1, get_parameter("max_command_speed_mps").as_double());
+         min_segment_length_m_ = std::max(1.0, get_parameter("min_segment_length_m").as_double());
+         emergency_min_segment_length_m_ = std::max(1.0, get_parameter("emergency_min_segment_length_m").as_double());
++        planner_route_min_segment_skip_ = get_parameter("planner_route_min_segment_skip").as_bool();
+         min_turn_radius_m_ = std::max(1.0, get_parameter("min_turn_radius_m").as_double());
+         emergency_min_turn_radius_m_ = std::max(1.0, get_parameter("emergency_min_turn_radius_m").as_double());
+         max_lateral_accel_mps2_ = std::max(0.01, get_parameter("max_lateral_accel_mps2").as_double());
+@@ -1022,9 +1024,31 @@ private:
+             }
+         }
+ 
++        // Planner-owned dense stitch geometry must reach the guidance chain
++        // point-for-point: rejecting it here would expire the previous plan
++        // into the 3-point internal return route and collapse the route
++        // mirror. Every other admission gate below still applies, emergency
++        // plans keep the 15 m floor, and operator/collision-avoidance plans
++        // keep the legacy reject.
++        const bool planner_owned_plan =
++            planner_route_min_segment_skip_ && !emergency &&
++            plan.command_source == "mid_mpc_ipopt";
++        bool tolerated_short_segment_logged = false;
+         for (size_t i = 0; i + 1 < points.size(); ++i) {
+             const double seg_len = distance(points[i], points[i + 1]);
+             if (seg_len < min_segment) {
++                if (planner_owned_plan) {
++                    if (!tolerated_short_segment_logged) {
++                        RCLCPP_WARN(
++                            get_logger(),
++                            "[ActiveRouteManager] plan_id='%s' planner-owned segment %.3fm < %.1fm tolerated; dense stitch geometry kept point-for-point",
++                            plan.plan_id.c_str(),
++                            seg_len,
++                            min_segment);
++                        tolerated_short_segment_logged = true;
++                    }
++                    continue;
++                }
+                 auto rejected = rejected_result("segment_too_short", "increase_segment_length");
+                 rejected.available_decel_distance_m = seg_len;
+                 rejected.suggested_min_distance_m = min_segment;
+@@ -1378,6 +1402,13 @@ private:
+     double max_command_speed_mps_{8.0};
+     double min_segment_length_m_{30.0};
+     double emergency_min_segment_length_m_{15.0};
++    // The 30 m floor is a hand-route admission contract. Dense planner-owned
++    // (mid_mpc_ipopt) stitch geometry is mirrored point-for-point downstream,
++    // and a re-spliced boundary leg can sit marginally below the floor, so a
++    // hard reject would collapse the route into the 3-point internal return
++    // route. Such plans keep every other admission gate (speed, turn radius,
++    // decel distance); emergency plans always keep the 15 m floor.
++    bool planner_route_min_segment_skip_{true};
+     double min_turn_radius_m_{80.0};
+     double emergency_min_turn_radius_m_{45.0};
+     double max_lateral_accel_mps2_{0.25};
+diff --git a/src/gnc/ship_guidance/src/ship_guidance_node.cpp b/src/gnc/ship_guidance/src/ship_guidance_node.cpp
+index fce649b6dfee9bbebed63312f909afd61cabcba9..25177384e51c2644fb58ac546c44dd3498f3e845 100644
+--- a/src/gnc/ship_guidance/src/ship_guidance_node.cpp
++++ b/src/gnc/ship_guidance/src/ship_guidance_node.cpp
+@@ -379,6 +379,7 @@ ShipGuidanceNode::ShipGuidanceNode()
+     this->declare_parameter("external_route_turn_speed_cap_mps", 4.2);
+     this->declare_parameter("external_route_turn_skip_planner_routes", true);
+     this->declare_parameter("planner_route_speed_gate_skip", true);
++    this->declare_parameter("planner_route_arc_smoothing_skip", true);
+     this->declare_parameter("turn_feasibility_preview_enabled", true);
+     this->declare_parameter("turn_feasibility_preview_distance_m", 1200.0);
+     this->declare_parameter("turn_feasibility_min_cumulative_angle_deg", 10.0);
+@@ -938,6 +939,8 @@ void ShipGuidanceNode::get_parameters()
+         this->get_parameter("external_route_turn_skip_planner_routes").as_bool();
+     planner_route_speed_gate_skip_ =
+         this->get_parameter("planner_route_speed_gate_skip").as_bool();
++    planner_route_arc_smoothing_skip_ =
++        this->get_parameter("planner_route_arc_smoothing_skip").as_bool();
+     turn_feasibility_preview_enabled_ =
+         this->get_parameter("turn_feasibility_preview_enabled").as_bool();
+     turn_feasibility_preview_distance_m_ = std::clamp(
+@@ -1481,6 +1484,23 @@ std::vector<Waypoint> ShipGuidanceNode::smooth_waypoints_for_turns(const std::ve
+         return raw_waypoints;
+     }
+ 
++    // Dense planner-owned routes (mid_mpc_ipopt) are point-for-point mirrors
++    // of the route the planner published: the guidance feedback chain and the
++    // next splice generation both assume per-point geometry, and admission
++    // already validated every point (decel distance, turn radius, yaw rate).
++    // The turn-arc rewrite (dense-cluster Chaikin, circular arc insertion,
++    // segment merging) replaces those points and overrides their admitted
++    // speeds with hand-route turn speeds, so skip the whole rewrite for such
++    // routes. Operator routes, emergency bypass, and waypoint switching are
++    // unchanged.
++    if (planner_route_arc_smoothing_skip_ &&
++        latest_route_command_source_ == "mid_mpc_ipopt") {
++        RCLCPP_INFO(this->get_logger(),
++            "[TURN ARC] bypassed internal smoothing: planner-owned route (command_source='mid_mpc_ipopt') keeps all %zu points for the route mirror contract",
++            raw_waypoints.size());
++        return raw_waypoints;
++    }
++
+     const bool external_planner_route =
+         turn_arc_external_route_min_points_ > 0 &&
+         raw_waypoints.size() >= static_cast<size_t>(turn_arc_external_route_min_points_);

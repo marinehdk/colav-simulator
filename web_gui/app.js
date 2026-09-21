@@ -135,7 +135,7 @@ const radarMiniMap = createRadarMiniMap({ canvas: document.getElementById('liveR
 deploymentView = createDeploymentView({
   chart: situationDisplay,
   createScene: async options => {
-    const { createScene3D } = await import('./modules/scene-3d.js?v=20260921-fcb-v1');
+    const { createScene3D } = await import('./modules/scene-3d.js?v=20260921-poi-v2');
     return createScene3D({ ...options, chart: situationDisplay,
       host: document.getElementById('scene3dHost'),
       onSelect: id => situationDisplay.selectTarget(id),
@@ -421,7 +421,7 @@ customElements.whenDefined('obc-top-bar').then(syncDeploymentSidebarControls);
 // Brilliance-menu ships inside the same locally-bundled module config-shell.js
 // loads (vendor/openbridge/entry-source.mjs); re-import is a cache no-op and
 // failure degrades like every other best-effort OpenBridge piece.
-import('/static/vendor/openbridge/openbridge-components.mjs?v=20260920-3d-v1').catch(() => {});
+import('/static/vendor/openbridge/openbridge-components.mjs?v=20260921-poi-v2').catch(() => {});
 
 function applyPalette(palette, persist = true) {
   const nextPalette = PALETTE_NAMES[palette] ? palette : 'day';

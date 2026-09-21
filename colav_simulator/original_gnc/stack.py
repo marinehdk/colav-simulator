@@ -48,6 +48,7 @@ class NativeStack:
         asset_paths: dict[str, str] | None = None,
         epoch_ns: int = DEFAULT_EPOCH_NS,
         trace: Callable[[dict], None] | None = None,
+        approved_manifest_sha256: str | None = None,
     ):
         if isinstance(epoch_ns, bool) or not isinstance(epoch_ns, int) or not 0 < epoch_ns < 2**63:
             raise ValueError("Original GNC epoch must be a positive int64 nanosecond timestamp")
@@ -78,6 +79,7 @@ class NativeStack:
                     name,
                     copy.deepcopy(parameters[name]),
                     {"time_ns": epoch_ns, "package_roots": package_roots, "asset_paths": asset_paths or {}},
+                    approved_manifest_sha256=approved_manifest_sha256,
                 )
                 self.modules[name] = module
                 description = module.describe()
@@ -87,7 +89,9 @@ class NativeStack:
                 for timer in description["timer_descriptors"].values():
                     self._update_timer(name, timer)
                 initial_outputs.extend(description["initial_outputs"])
-            self.policy = NativePolicy(build, copy.deepcopy(policy_config), epoch_ns)
+            self.policy = NativePolicy(
+                build, copy.deepcopy(policy_config), epoch_ns, approved_manifest_sha256=approved_manifest_sha256
+            )
             policy_types = {
                 "/mission/status": "std_msgs/msg/String",
                 "/captain/decision": "std_msgs/msg/String",
@@ -110,7 +114,7 @@ class NativeStack:
                 },
             )
             for name, settings in observer_parameters(package_roots).items():
-                observer = NativeObserver(build, name, settings, epoch_ns)
+                observer = NativeObserver(build, name, settings, epoch_ns, approved_manifest_sha256=approved_manifest_sha256)
                 self.observers[name] = observer
                 for callback, (topic, kind, _) in observer.inputs.items():
                     self._subscribers[topic].append((name, callback, kind))

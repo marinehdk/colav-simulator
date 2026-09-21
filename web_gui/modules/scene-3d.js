@@ -1,6 +1,9 @@
 import { chooseVesselAsset, vesselModelMatrix, VESSEL_ASSETS } from './vessel-models.js?v=20260921-fcb-v1';
-import { createGeography, NM, targetKey, riskForTarget, poiState, frameIdentity, predictionMarkers, offscreenDirection } from './scene-geography.js';
-import { targetsForDisplay } from './situation-display.js?v=20260920-3d-v1';
+import { createGeography, NM, targetKey, riskForTarget, frameIdentity, predictionMarkers, offscreenDirection } from './scene-geography.js?v=20260921-poi-v1';
+import { targetsForDisplay, RADAR_DETECTION_RANGE_M } from './situation-display.js?v=20260920-3d-v1';
+import { createRoute3D } from './route-3d.js?v=20260921-route-ar-v1';
+import { createSceneCompass } from './scene-compass.js?v=20260921-poi-v1';
+import { targetPresentation, applyTargetAppearance, updateTargetPoi, renderTargetCard } from './scene-target.js?v=20260921-poi-v1';
 
 let enginePromise;
 export function loadCesium() {
@@ -47,13 +50,17 @@ export async function createScene3D({ host, info, camera = 'bridge', chart, onSe
   const canvasHost = document.createElement('div'); canvasHost.className = 'scene3d-canvas';
   const toolbar = document.createElement('div'); toolbar.className = 'scene3d-toolbar';
   toolbar.setAttribute('role', 'group'); toolbar.setAttribute('aria-label', '三维机位');
-  const status = document.createElement('div'); status.className = 'scene3d-status'; status.setAttribute('role', 'status');
   const layer = document.createElement('obc-poi-layer'); layer.className = 'scene3d-pois'; layer.overlapMode = 'grouping';
   const edges = document.createElement('div'); edges.className = 'scene3d-edges';
   const card = document.createElement('obc-poi-card'); card.className = 'scene3d-card'; card.hidden = true;
   const cardBody = document.createElement('div'); cardBody.className = 'scene3d-card-body'; card.append(cardBody);
+  const cardIcon = document.createElement('obi-vessel-generic-default-outlined'); cardIcon.slot = 'poi-icon'; card.append(cardIcon);
+  const cardAlert = document.createElement('obc-alert-frame'); cardAlert.className = 'scene3d-card-alert'; cardAlert.type = 'regular'; cardAlert.thickness = 'large'; cardAlert.hidden = true; card.append(cardAlert);
+  card.hasCloseButton = true;
+  card.addEventListener('close-click', () => choose(null));
   const credits = document.createElement('div'); credits.className = 'scene3d-credits';
-  root.append(canvasHost, layer, edges, toolbar, status, card, credits); host.append(root);
+  root.append(canvasHost, layer, edges, toolbar, card, credits); host.append(root);
+  C.CreditDisplay.cesiumCredit = undefined;
   let viewer;
   try {
     viewer = new C.Viewer(canvasHost, {
@@ -74,13 +81,15 @@ export async function createScene3D({ host, info, camera = 'bridge', chart, onSe
   viewer.scene.globe.depthTestAgainstTerrain = false;
   const applyResolution = () => { viewer.resolutionScale = pixelRatio ?? Math.min(window.devicePixelRatio || 1, 2); };
   applyResolution();
-  let disposed = false, projection = null, preset = camera, follow = true, showRings = true;
+  let disposed = false, projection = null, preset = camera, follow = true;
   let selected = chart.getSelectedTargetId(), selectedKey = null, encPrimitive = null;
   let lastGeometryKey = null, lastRingCenter = null;
-  const vessels = new Map(), pois = new Map(), geometry = new Map();
+  const vessels = new Map(), pois = new Map(), geometry = new Map(), linePoints = new Map();
   const disposers = [];
   function listen(el, event, fn) { el.addEventListener(event, fn); disposers.push(() => el.removeEventListener(event, fn)); }
   function position(n, e, h = 0) { const [lon, lat] = geo.lonLat(n, e); return C.Cartesian3.fromDegrees(lon, lat, h); }
+  const routeDisplay = createRoute3D({ C, viewer, host: root, position });
+  const compass = createSceneCompass({ host: root, onSelect: choose });
   // Illustrative daylight, independent of wall-clock sunlight at the scenario longitude.
   const lightFrame = C.Transforms.eastNorthUpToFixedFrame(position(info.height / 2, info.width / 2));
   const lightDirection = C.Matrix4.multiplyByPointAsVector(lightFrame, new C.Cartesian3(-0.6, 0.7, -1), new C.Cartesian3());
@@ -95,23 +104,25 @@ export async function createScene3D({ host, info, camera = 'bridge', chart, onSe
     });
   }
   function line(id, coordinates, color, width = 2, dashed = false) {
-    if (!coordinates?.length || coordinates.length < 2) { const old = geometry.get(id); if (old) viewer.entities.remove(old); geometry.delete(id); return; }
-    const points = coordinates.filter(p => p?.length >= 2 && p.slice(0, 2).every(Number.isFinite)).map(p => position(p[0], p[1], 0.8));
-    if (points.length < 2) return;
+    const points = (coordinates || []).filter(p => p?.length >= 2 && p.slice(0, 2).every(Number.isFinite)).map(p => position(p[0], p[1], 0.8));
+    if (points.length < 2) { const old = geometry.get(id); if (old) viewer.entities.remove(old); geometry.delete(id); linePoints.delete(id); return; }
+    linePoints.set(id, points);
     let entity = geometry.get(id);
     if (!entity) {
-      entity = viewer.entities.add({ polyline: { positions: points, width,
-        material: dashed ? new C.PolylineDashMaterialProperty({ color: C.Color.fromCssColorString(color) }) : C.Color.fromCssColorString(color),
+      // Streamed paths must bypass asynchronous static-geometry rebuilds, which
+      // can keep displaying an old line while point/label entities already update.
+      entity = viewer.entities.add({ polyline: { positions: new C.CallbackProperty(() => linePoints.get(id), false), width,
+        material: dashed ? new C.PolylineDashMaterialProperty({ color: C.Color.fromCssColorString(color), dashLength: id === 'route' ? 28 : 16 }) : C.Color.fromCssColorString(color),
         arcType: C.ArcType.NONE } });
       geometry.set(id, entity);
-    } else entity.polyline.positions = points;
+    }
   }
   // A sampled UTM mesh, not a four-corner geographic rectangle.
   function addEnc() {
     const mesh = createEncGeometry(C, geo);
     encPrimitive = viewer.scene.primitives.add(new C.Primitive({
       geometryInstances: new C.GeometryInstance({ geometry: mesh }), asynchronous: false,
-      appearance: new C.MaterialAppearance({ material: C.Material.fromType('Image', { image: `/api/enc_tile?run_id=${encodeURIComponent(info.run_id)}` }),
+      appearance: new C.MaterialAppearance({ material: C.Material.fromType('Image', { image: info.tile_url || `/api/enc_tile?run_id=${encodeURIComponent(info.run_id)}` }),
         translucent: false, closed: false, faceForward: true }),
     }));
   }
@@ -147,14 +158,19 @@ export async function createScene3D({ host, info, camera = 'bridge', chart, onSe
             viewer.scene.requestRender();
           });
           viewer.scene.requestRender();
-        }).catch(() => { if (!disposed && vessels.get(key) === record) { record.failed = true; status.textContent = '船模加载失败 · 使用位置标记'; } });
-        record.marker = viewer.entities.add({ position: position(ship.x, ship.y, 1), point: { pixelSize: 7, color: C.Color.WHITE }, id: `fallback:${key}` });
+        }).catch(() => { if (!disposed && vessels.get(key) === record) record.failed = true; });
+        const marker = String(ship.id) === '0'
+          ? { point: { pixelSize: 7, color: C.Color.WHITE } }
+          : { billboard: { image: '/static/assets/target-position-marker.svg', width: 32, height: 32,
+            disableDepthTestDistance: Infinity } };
+        record.marker = viewer.entities.add({ position: position(ship.x, ship.y, 1), ...marker, id: `fallback:${key}` });
         record.marker.addProperty('targetId'); record.marker.targetId = ship.id;
       }
       record.ship = ship;
       record.assignment = choice.reason;
       record.marker.position = position(ship.x, ship.y, 1);
-      record.marker.show = !record.model || !record.model.ready;
+      record.marker.show = chart.getLayerState().ships?.visible !== false
+        && (String(ship.id) !== '0' || !record.model?.ready);
       if (record.model?.ready) record.model.modelMatrix = vesselMatrix(ship, record.asset);
     }
     for (const [key, record] of vessels) if (!wanted.has(key)) {
@@ -164,16 +180,15 @@ export async function createScene3D({ host, info, camera = 'bridge', chart, onSe
   }
   function setCamera(value) {
     preset = value; follow = true; lastRingCenter = null; onCamera(value); updateCamera(); updateRings();
+    compass.render(projection, preset, chart.getLayerState().ships?.visible !== false);
     toolbar.querySelectorAll('[data-camera]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.camera === preset)));
     viewer.scene.requestRender();
   }
-  for (const [value, text] of [['bridge', '驾驶台'], ['chase', '追随'], ['top', '俯视']]) {
+  for (const [value, text] of [['bridge', '舰桥'], ['chase', '追随'], ['top', '俯视']]) {
     const button = document.createElement('button'); button.type = 'button'; button.textContent = text;
     button.dataset.camera = value; button.setAttribute('aria-pressed', String(value === preset));
     listen(button, 'click', () => setCamera(value)); toolbar.append(button);
   }
-  const ringsButton = document.createElement('button'); ringsButton.textContent = '距离环'; ringsButton.type = 'button'; ringsButton.setAttribute('aria-pressed', 'true');
-  listen(ringsButton, 'click', () => { showRings = !showRings; lastRingCenter = null; ringsButton.setAttribute('aria-pressed', String(showRings)); updateRings(); viewer.scene.requestRender(); }); toolbar.append(ringsButton);
   const modelLabel = document.createElement('label'); modelLabel.className = 'scene3d-model-choice';
   modelLabel.textContent = '显示外观（不改船型/动力学）';
   const modelChoice = document.createElement('select'); modelChoice.setAttribute('aria-label', '目标船显示外观');
@@ -181,14 +196,14 @@ export async function createScene3D({ host, info, camera = 'bridge', chart, onSe
   for (const asset of Object.values(VESSEL_ASSETS)) if (asset.id !== 'fcb45') {
     const option = document.createElement('option'); option.value = asset.id; option.textContent = asset.label; modelChoice.append(option);
   }
-  modelLabel.append(modelChoice); card.append(modelLabel);
+  const modelDetails = document.createElement('details'); modelDetails.className = 'scene3d-model-settings';
+  const modelSummary = document.createElement('summary'); modelSummary.textContent = '船模外观';
+  modelLabel.append(modelChoice); modelDetails.append(modelSummary, modelLabel); card.append(modelDetails);
   listen(modelChoice, 'change', () => {
     if (!selectedKey || !projection) return;
     if (modelChoice.value) modelOverrides.set(selectedKey, modelChoice.value); else modelOverrides.delete(selectedKey);
     updateVessels([projection.raw.os, ...targetsForDisplay(projection.raw)]); updateCard(); viewer.scene.requestRender();
   });
-  const close = document.createElement('button'); close.textContent = '关闭详情'; close.type = 'button';
-  listen(close, 'click', () => choose(null)); card.append(close);
   function updateCamera() {
     const ship = projection?.raw?.os;
     if (!ship || !follow) return;
@@ -231,68 +246,37 @@ export async function createScene3D({ host, info, camera = 'bridge', chart, onSe
     if (!record || (selectedKey && targetKey(info.run_id, record.ship) !== selectedKey)) {
       card.hidden = true; if (selected !== null) { selected = null; selectedKey = null; onSelect(null); } return;
     }
-    const ship = record.ship, risk = riskForTarget(projection, ship);
+    const ship = record.ship;
     selectedKey = targetKey(info.run_id, ship);
-    const source = projection.raw.executed_tracker === 'god' ? 'God / 仿真真值' : 'Tracker';
+    const model = targetPresentation(projection, ship);
     card.cardTitle = String(ship.id) === '0' ? 'OWN SHIP' : ship.name || `TS${ship.id}`;
-    card.index = String(ship.id); card.source = source;
-    card.description = record.assignment; card.headerVariant = 'condensed';
-    modelLabel.hidden = String(ship.id) === '0';
+    card.index = String(ship.id); card.source = projection.raw.executed_tracker === 'god' ? 'GOD' : 'TRACK';
+    card.description = `${metric(ship.length)} × ${metric(ship.width)} m`; card.headerVariant = 'detailed';
+    applyTargetAppearance(card, model.alert);
+    cardAlert.status = model.alert.poiState;
+    cardAlert.hidden = !['caution', 'alarm'].includes(model.alert.poiState);
+    modelDetails.hidden = String(ship.id) === '0';
     modelChoice.value = modelOverrides.get(selectedKey) || '';
-    const health = risk?.unavailableReasons?.join(' / ') || risk?.observationHealth || '不可用';
-    const entries = [
-      ['外观', record.asset.label, ''],
-      ['尺度', `${metric(ship.length)} × ${metric(ship.width)}`, 'm'],
-      ['BRG', metric(risk?.bearingDeg, 0), 'DEG'], ['RNG', metric(Number.isFinite(risk?.rangeM) ? risk.rangeM / NM : null, 2), 'NM'],
-      ['DCPA', metric(Number.isFinite(risk?.dcpaM) ? risk.dcpaM / NM : null, 2), 'NM'],
-      ['TCPA', metric(Number.isFinite(risk?.tcpaS) ? risk.tcpaS / 60 : null), 'min'],
-      ['HDG', metric(projection.raw.executed_tracker === 'god' || String(ship.id) === '0' ? degrees(ship.psi) : null, 0), 'DEG'],
-      ['SOG', metric(Number.isFinite(ship.sog) ? ship.sog * 3600 / NM : null), 'kn'],
-      ['职责', risk?.role || risk?.lifecycleRole || '不可用', ''], ['质量', health, ''],
-      ['威胁证据', metric(projection.risk?.snapshot?.sim_time_s, 2), 's'],
-      ['呈现', metric(projection.raw.presentation?.render_time_s ?? projection.raw.sim_time, 2), 's'],
-    ];
-    const signature = JSON.stringify(entries);
-    if (cardBody.dataset.signature !== signature) {
-      cardBody.replaceChildren(...entries.map(([name, value, unit]) => {
-        const row = document.createElement('div'); const label = document.createElement('span'); const output = document.createElement('strong');
-        label.textContent = name; output.textContent = `${value} ${unit}`.trim(); row.append(label, output); return row;
-      })); cardBody.dataset.signature = signature;
-    }
+    renderTargetCard(cardBody, model);
     card.hidden = false;
   }
   function updateRings() {
     const ship = projection?.raw?.os; if (!ship) return;
-    const visible = showRings && preset !== 'bridge';
+    const visible = chart.getLayerState().radarRange?.visible !== false;
+    const radius = RADAR_DETECTION_RANGE_M, id = 'detection-ring';
     const needsUpdate = !lastRingCenter || Math.hypot(ship.x - lastRingCenter.x, ship.y - lastRingCenter.y) > 0.25;
-    for (const radius of [NM / 2, NM]) {
-      const id = `ring:${radius}`;
-      if (visible && needsUpdate) {
-        line(id, Array.from({ length: 129 }, (_, i) => [ship.x + radius * Math.cos(i * Math.PI / 64), ship.y + radius * Math.sin(i * Math.PI / 64)]), '#b5e3e8', 1);
-      }
-      if (geometry.get(id)) geometry.get(id).show = visible;
+    if (visible && needsUpdate) {
+      line(id, Array.from({ length: 257 }, (_, i) => [ship.x + radius * Math.cos(i * Math.PI / 128), ship.y + radius * Math.sin(i * Math.PI / 128)]), '#d4e9ee', 1.5);
+      lastRingCenter = { x: ship.x, y: ship.y };
     }
-    if (visible) {
-      for (let bearing = 0; bearing < 360; bearing += 30) {
-        const angle = bearing * Math.PI / 180;
-        const id = `bearing:${bearing}`;
-        let entity = geometry.get(id);
-        if (!entity) { entity = viewer.entities.add({ label: { text: `${bearing}°`, font: '12px sans-serif', fillColor: C.Color.WHITE, showBackground: true, disableDepthTestDistance: Infinity } }); geometry.set(id, entity); }
-        entity.position = position(ship.x + NM * Math.cos(angle), ship.y + NM * Math.sin(angle), 2); entity.show = true;
-      }
-      for (const [radius, text] of [[NM / 2, '0.50 NM'], [NM, '1.00 NM']]) {
-        const id = `range:${radius}`; let entity = geometry.get(id);
-        if (!entity) { entity = viewer.entities.add({ label: { text, font: '13px sans-serif', fillColor: C.Color.WHITE, showBackground: true } }); geometry.set(id, entity); }
-        entity.position = position(ship.x + radius, ship.y, 2); entity.show = true;
-      }
-      if (needsUpdate) lastRingCenter = { x: ship.x, y: ship.y };
-    } else for (const [id, entity] of geometry) if (/^(bearing|range):/.test(id)) entity.show = false;
+    if (geometry.get(id)) geometry.get(id).show = visible;
   }
   function updatePaths() {
     const data = projection.raw, layers = Object.fromEntries(Object.entries(chart.getLayerState()).map(([id, item]) => [id, item.visible]));
     const key = `${data.seq}:${JSON.stringify(layers)}`;
     if (lastGeometryKey === key) return; lastGeometryKey = key;
     const route = chart.getMissionRoute();
+    routeDisplay.update(route, layers);
     const mission = route[0].map((north, i) => [north, route[1][i]]);
     line('route', layers.route !== false ? mission : [], '#137fd1', 3, true);
     line('history', layers.history !== false ? data.os?.trajectory : [], '#7e8991', 2);
@@ -313,6 +297,7 @@ export async function createScene3D({ host, info, camera = 'bridge', chart, onSe
     const wanted = new Set(), edgeLabels = [];
     const frustum = viewer.camera.frustum.computeCullingVolume(viewer.camera.positionWC, viewer.camera.directionWC, viewer.camera.upWC);
     const occluder = new C.EllipsoidalOccluder(C.Ellipsoid.WGS84, viewer.camera.positionWC);
+    routeDisplay.project(frustum, occluder, width, height);
     for (const [key, record] of vessels) {
       const ship = record.ship; if (String(ship.id) === '0' || chart.getLayerState().ships?.visible === false) continue;
       const world = position(ship.x, ship.y, 3);
@@ -330,24 +315,33 @@ export async function createScene3D({ host, info, camera = 'bridge', chart, onSe
         if (focus) {
           const right = C.Cartesian3.dot(delta, viewer.camera.rightWC) >= 0;
           const direction = offscreenDirection(projected, width, height, ahead, right);
-          edgeLabels.push({ key, id: ship.id, text: `${direction.arrow} TS${ship.id}`, edge: direction.edge });
+          edgeLabels.push({ key, id: ship.id, text: `${direction.arrow} TS${ship.id}`, edge: direction.edge,
+            alert: targetPresentation(projection, ship).alert });
         }
         continue;
       }
       wanted.add(key); let poi = pois.get(key);
       if (!poi) {
         poi = document.createElement('obc-poi-vessel'); poi.animatePosition = false;
+        const icon = document.createElement('obi-vessel-generic-default-outlined'); poi.append(icon);
         poi.hasHeader = true; poi.headerContent = String(ship.id); poi.hasPointer = true;
         poi.setAttribute('aria-label', `TS${ship.id} 目标详情`); poi.dataset.targetKey = key;
         poi.addEventListener('click', () => choose(ship.id));
         layer.append(poi); pois.set(key, poi);
       }
-      const top = Math.max(72, Math.min(point.y - 65, height * 0.22));
-      // Subpixel changes must not continuously retrigger the component's overlap observers.
+      const compassElement = root.querySelector('.scene3d-compass');
+      const topInset = compassElement && !compassElement.hidden ? compassElement.offsetHeight + 16 : 20;
+      const model = targetPresentation(projection, ship);
+      const available = point.y - topInset;
+      const blocks = available >= 320 ? model.blocks : available >= 180 ? [model.blocks[1]] : [];
+      if (updateTargetPoi(poi, { ...model, blocks })) poi.updateComplete.then(() => requestAnimationFrame(() => { if (!disposed) viewer.scene.requestRender(); }));
+      const cardHeight = poi.getVisualRect('size').height || (blocks.length ? blocks.length * 64 + 80 : 48);
+      const top = Math.max(12, Math.min(point.y - cardHeight - 24, Math.max(topInset, height * 0.22)));
+      // The native pointer begins below the full data card, not its top edge.
       poi.x = Math.round(point.x * 2) / 2;
-      poi.y = Math.round(Math.max(20, point.y - top) * 2) / 2;
+      poi.y = Math.round(Math.max(0, point.y - top - cardHeight) * 2) / 2;
       poi.buttonY = Math.round(top * 2) / 2;
-      poi.selected = String(selected) === String(ship.id); poi.vesselState = poiState(risk);
+      poi.selected = String(selected) === String(ship.id);
       poi.relativeDirection = degrees(ship.psi - projection.raw.os.psi) ?? 0;
       const title = `TS${ship.id} · ${risk?.displayClass || '不可用'} · DCPA ${metric(risk?.dcpaM)} m / TCPA ${metric(risk?.tcpaS)} s`;
       if (poi.title !== title) poi.title = title;
@@ -358,6 +352,11 @@ export async function createScene3D({ host, info, camera = 'bridge', chart, onSe
       const counts = {};
       edges.replaceChildren(...edgeLabels.map(item => {
         const button = document.createElement('button'); button.textContent = item.text; button.className = item.edge;
+        applyTargetAppearance(button, item.alert); button.style.borderColor = item.alert.color; button.style.color = item.alert.color;
+        if (['caution', 'alarm'].includes(item.alert.poiState)) {
+          const alertFrame = document.createElement('obc-alert-frame'); alertFrame.type = 'regular'; alertFrame.status = item.alert.poiState;
+          alertFrame.style.pointerEvents = 'none'; button.append(alertFrame);
+        }
         const index = counts[item.edge] || 0; counts[item.edge] = index + 1;
         button.style.setProperty('--edge-index', index);
         button.addEventListener('click', () => choose(item.id)); return button;
@@ -371,7 +370,8 @@ export async function createScene3D({ host, info, camera = 'bridge', chart, onSe
   const removePostRender = viewer.scene.postRender.addEventListener(() => {
     projectPois();
     for (const record of vessels.values()) {
-      record.marker.show = chart.getLayerState().ships?.visible !== false && !record.model?.ready;
+      record.marker.show = chart.getLayerState().ships?.visible !== false
+        && (String(record.ship.id) !== '0' || !record.model?.ready);
       if (record.model?.ready) record.model.show = chart.getLayerState().ships?.visible !== false && !(preset === 'bridge' && String(record.ship.id) === '0');
     }
     renderSamples.push(performance.now() - renderStarted);
@@ -404,13 +404,9 @@ export async function createScene3D({ host, info, camera = 'bridge', chart, onSe
       projection = value;
       const ships = [value.raw.os, ...targetsForDisplay(value.raw)];
       updateVessels(ships); updatePaths(); updateCamera(); updateRings(); updateCard();
+      compass.render(value, preset, chart.getLayerState().ships?.visible !== false);
       const frame = frameIdentity(value.raw);
       root.dataset.frame = JSON.stringify(frame);
-      const outside = !geo.contains(value.raw.os.x, value.raw.os.y);
-      const planTime = value.raw.planner?.sim_time;
-      const age = Number.isFinite(planTime) ? ` · 预测龄期 ${metric(Math.max(0, value.raw.sim_time - planTime))}s` : '';
-      const failedModel = [...vessels.values()].some(v => v.failed);
-      status.textContent = `仿真三维视景 · 示意眼点/船模 · ${metric(frame.renderTime, 1)} s${value.raw.presentation?.buffering ? ' · 缓冲中' : ''}${outside ? ' · 无海图覆盖' : ''}${failedModel ? ' · 船模不可用（位置标记）' : ''}${age} · 蓝虚线任务 / 橙线预测（非执行保证）`;
       if (encPrimitive) encPrimitive.show = chart.isEncVisible();
       viewer.scene.requestRender();
     },
@@ -421,7 +417,7 @@ export async function createScene3D({ host, info, camera = 'bridge', chart, onSe
       if (disposed) return; disposed = true;
       resize.disconnect(); theme.disconnect(); removePreRender(); removePostRender(); removeError(); handler.destroy();
       disposers.forEach(dispose => dispose()); pois.forEach(poi => poi.remove()); pois.clear();
-      viewer.destroy(); root.remove(); vessels.clear(); geometry.clear();
+      compass.destroy(); routeDisplay.destroy(); viewer.destroy(); root.remove(); vessels.clear(); geometry.clear(); linePoints.clear();
     },
   };
 }

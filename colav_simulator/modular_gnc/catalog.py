@@ -1041,6 +1041,9 @@ def list_stack_catalog() -> dict[str, Any]:
     from colav_simulator.original_gnc.catalog import original_catalog  # noqa: PLC0415
 
     original_stacks, original_preset = original_catalog()
+    from colav_simulator.authoritative_mpc.catalog import mpc_catalog  # noqa: PLC0415
+
+    mpc_stacks, mpc_preset = mpc_catalog()
     return {
         "schema_version": STACK_CATALOG_SCHEMA_VERSION,
         "acceptance_ceiling": {
@@ -1054,9 +1057,9 @@ def list_stack_catalog() -> dict[str, Any]:
         ),
         "default_stack_id": stacks[0]["stack_id"] if stacks else None,
         "recommended_stack_ids_by_plant": _recommended_stack_ids_by_plant(stacks),
-        "product_presets": [*_product_presets(stacks), original_preset],
+        "product_presets": [*_product_presets(stacks), original_preset, mpc_preset],
         "environment_description": "Wind NE (6, 2) m/s · current NE (0.4, −0.2) m/s · Hs 1 m · Tp 7 s; reproducible seed.",
         "module_axes": _module_axes(),
         "stacks": stacks,
-        "original_gnc_stacks": original_stacks,
+        "original_gnc_stacks": [*original_stacks, *mpc_stacks],
     }

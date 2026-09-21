@@ -1,0 +1,15 @@
+{
+  "date": "2026-09-20",
+  "complete_patch_roundtrip": {
+    "exit_code": 0,
+    "target_files_verified": 201,
+    "mismatches": [],
+    "extra_files": []
+  },
+  "local_document_links_checked": 98,
+  "missing_links": [],
+  "fresh_pytest": "34 passed in 6.41s",
+  "standalone_cpp_tests": 2,
+  "live_card_source_library_identity_match": true,
+  "historical_closed_loop_rerun_this_task": false
+}

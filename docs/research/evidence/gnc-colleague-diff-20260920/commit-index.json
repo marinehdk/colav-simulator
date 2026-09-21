@@ -1,0 +1,32 @@
+[
+  {
+    "commit": "b3b7b2b5efca403711a120bde5c6a7a798ff09bd",
+    "subject": "feat: add native velocity intents and distinct avoidance speed modes",
+    "diff": "commits/01-b3b7b2b.diff"
+  },
+  {
+    "commit": "4dcfedd9b0973c7ba37f0cac9b9eb4c55c565359",
+    "subject": "fix(gnc): localize route speed limits and correct guidance target index",
+    "diff": "commits/02-4dcfedd.diff"
+  },
+  {
+    "commit": "11a21c356f69e3cd5a2a9f11946b07616b743b4f",
+    "subject": "fix(gnc): let planner-owned routes keep admitted speeds past external turn preview",
+    "diff": "commits/03-11a21c3.diff"
+  },
+  {
+    "commit": "8a574a0e2fd0c43245c3c64ab191ad9183e3f67b",
+    "subject": "fix(gnc): waive rejoin/turn-segment speed gates for planner-owned routes",
+    "diff": "commits/04-8a574a0.diff"
+  },
+  {
+    "commit": "9c43d7b1f2821b6d5e4119ae159f9cea8f80091f",
+    "subject": "fix(gnc): keep planner-owned routes point-for-point through admission and turn-arc rewrite",
+    "diff": "commits/05-9c43d7b.diff"
+  },
+  {
+    "commit": "0bbce06d7ad9ba8330d1d9934070f75c16ac2cf7",
+    "subject": "feat(guidance): admit validated timed planner trajectories",
+    "diff": "commits/06-0bbce06.diff"
+  }
+]

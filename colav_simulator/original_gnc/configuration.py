@@ -60,6 +60,16 @@ class OriginalGncConfig:
         """Versioned identity, separate from every existing Full Stack ID."""
         return ORIGINAL_ON if self.environment else ORIGINAL_OFF
 
+    @property
+    def backend_kind(self) -> str:
+        """Catalog backend discriminator for this frozen lane."""
+        return "original_gnc"
+
+    @property
+    def source_manifest_sha256(self) -> str:
+        """Approved manifest identity of this frozen lane."""
+        return SOURCE_MANIFEST_SHA256
+
     def source_assets(self) -> tuple[dict, dict, dict]:
         """Verify all frozen source bytes and map relocated assets by content."""
         manifest = self.source_root / "SOURCE_MANIFEST.csv"

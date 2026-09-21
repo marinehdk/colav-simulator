@@ -1,0 +1,55 @@
+{
+  "course": {
+    "derivative": {
+      "derivative_rmse": 0.0004458306934132772,
+      "method": "zero-intercept least squares: derivative = error / tau",
+      "r_squared": 0.9466612272304658,
+      "sample_count": 8952,
+      "time_constant_s": 73.81698782010655
+    },
+    "gain": 1.0,
+    "method": "closed-loop first-order trajectory least squares: course' = remainder(heading_setpoint - course, 2*pi)/tau, exact zero-order-hold discretization, DC gain structurally 1",
+    "sample_count": 0,
+    "second_order_refit": {
+      "form": "two-pole: tau1*s+1 over (tau1*s+1)(tau2*s+1), explicit Euler",
+      "gain": 0.9816357162383448,
+      "tau1_s": 69.56378201206593,
+      "tau2_s": 7.785648113864893,
+      "trajectory_r_squared": 0.9993768552030171,
+      "verdict": "NOT_ADOPTED_NO_MATERIAL_GAIN_OVER_FIRST_ORDER"
+    },
+    "time_constant_s": 87.03326199697486
+  },
+  "limits": "No dead-time fit, no safety-threshold changes, no claim that nonlinear source GNC is first-order. Derivative-basis fits are legacy evidence kept verbatim; qualification uses only the trajectory basis at the wired threshold.",
+  "provenance": "Constants borrowed from the baseline (PID) lane measured on byte-identical guidance to seed planner own-ship models. The MPC controller lane has no closed-loop measurement of its own yet; trajectory_r_squared evidence fields are intentionally removed so the computed verdict is honest.",
+  "qualification": "UNQUALIFIED_TRAJECTORY_APPROXIMATION",
+  "qualification_rule": {
+    "basis": "closed-loop trajectory r_squared on the active maneuvering window",
+    "evaluator": "colav_simulator.original_gnc.qualification",
+    "threshold": 0.9
+  },
+  "schema": "original-gnc.response-approximation.v2",
+  "source_manifest_sha256": "f7ee193e04b5165444a680b1e774e8b730639aa13dfd9f013face25ee5cc8a8d",
+  "speed": {
+    "active_window_s": 2401.48,
+    "derivative": {
+      "derivative_rmse": 0.00913418256975114,
+      "method": "zero-intercept least squares: derivative = error / tau",
+      "r_squared": 0.34379618284940117,
+      "sample_count": 249976,
+      "time_constant_s": 29.619574760900125
+    },
+    "gain": 1.005704828260766,
+    "method": "closed-loop first-order trajectory least squares: speed' = (gain*speed_setpoint - speed)/tau, exact zero-order-hold discretization, active window = last nonzero command + 60 s settle",
+    "sample_count": 0,
+    "second_order_refit": {
+      "form": "two-pole: gain/((tau1*s+1)(tau2*s+1)), explicit Euler",
+      "gain": 1.0057001809654136,
+      "tau1_s": 24.10251157285284,
+      "tau2_s": 0.05000023702863025,
+      "trajectory_r_squared": 0.9928466520455671,
+      "verdict": "DEGENERATE_SECOND_POLE_NOT_IDENTIFIABLE"
+    },
+    "time_constant_s": 24.067536218028664
+  }
+}

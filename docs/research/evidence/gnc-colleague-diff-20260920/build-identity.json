@@ -1,0 +1,10 @@
+{
+  "schema": "original-gnc.native-build.v1",
+  "source_manifest_sha256": "8590d52f4b3ee551ae390bb019ffca2a6ad434bd5659a6c92d8f54c870ff9e62",
+  "library": "/Users/marine/Code/Colav-Simulator/build/gnc-planner-trajectory-v7-20260917/liboriginal_gnc-42a28947ed484b4a964b691e1d18c4db.dylib",
+  "library_sha256": "78997104a85bfc5042698d5d9b702058700e342e6e6a0625669719d7ba652277",
+  "extraction_sha256": "0d4a116862e68de46757c777569f2e27b47578e3f61600eaf6d0a7ec7c3eaa11",
+  "platform": "macOS-26.6.2-arm64-arm-64bit",
+  "ros_runtime_dependency": false,
+  "colleague_proposal": null
+}

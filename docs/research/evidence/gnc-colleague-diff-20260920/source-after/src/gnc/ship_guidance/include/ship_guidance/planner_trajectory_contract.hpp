@@ -1,0 +1,75 @@
+#pragma once
+
+#include <algorithm>
+#include <cmath>
+#include <string>
+#include <vector>
+
+namespace ship_guidance::planner_trajectory_contract {
+
+// Matches the simulator's existing initial-state and primal tolerances.
+constexpr double position_tolerance_m = 0.25;
+constexpr double primal_tolerance = 1e-3;
+
+struct Sample {
+    double north;
+    double east;
+    double course;
+    double speed;
+};
+
+struct Limits {
+    double max_speed;
+    double max_yaw_rate;
+    double max_speed_rate;
+    double max_lateral_acceleration;
+    double min_turn_radius;
+};
+
+inline double angle_difference(double a, double b) {
+    return std::atan2(std::sin(a - b), std::cos(a - b));
+}
+
+inline bool initial_state_matches(const Sample& initial, const Sample& measured) {
+    return std::hypot(initial.north - measured.north, initial.east - measured.east) <= position_tolerance_m &&
+        std::abs(angle_difference(initial.course, measured.course)) <= primal_tolerance &&
+        std::abs(initial.speed - measured.speed) <= primal_tolerance;
+}
+
+inline std::string validate(const std::vector<Sample>& samples, double dt, const Limits& limits) {
+    if (samples.size() < 2 || !std::isfinite(dt) || dt <= 0.0) {
+        return "trajectory_grid_invalid";
+    }
+    for (std::size_t i = 0; i < samples.size(); ++i) {
+        const auto& current = samples[i];
+        if (!std::isfinite(current.north) || !std::isfinite(current.east) ||
+            !std::isfinite(current.course) || !std::isfinite(current.speed) ||
+            current.speed < 0.0 || current.speed > limits.max_speed + primal_tolerance) {
+            return "trajectory_sample_invalid";
+        }
+        if (i == 0) continue;
+        const auto& previous = samples[i - 1];
+        const double angle = std::abs(angle_difference(current.course, previous.course));
+        if (angle > limits.max_yaw_rate * dt + primal_tolerance) {
+            return "trajectory_yaw_rate_exceeded";
+        }
+        if (std::abs(current.speed - previous.speed) > limits.max_speed_rate * dt + primal_tolerance) {
+            return "trajectory_speed_rate_exceeded";
+        }
+        if (current.speed * angle > limits.max_lateral_acceleration * dt + primal_tolerance) {
+            return "trajectory_lateral_acceleration_exceeded";
+        }
+        if (current.speed > primal_tolerance && angle > primal_tolerance &&
+            current.speed * dt / angle + position_tolerance_m < limits.min_turn_radius) {
+            return "trajectory_turn_radius_exceeded";
+        }
+        const double north = previous.north + dt * current.speed * std::cos(current.course);
+        const double east = previous.east + dt * current.speed * std::sin(current.course);
+        if (std::hypot(north - current.north, east - current.east) > position_tolerance_m) {
+            return "trajectory_position_speed_mismatch";
+        }
+    }
+    return {};
+}
+
+}  // namespace ship_guidance::planner_trajectory_contract

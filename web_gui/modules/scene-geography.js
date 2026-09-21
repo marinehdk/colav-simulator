@@ -1,4 +1,5 @@
 import proj4 from '../vendor/proj4/proj4.mjs';
+import { TARGET_RISK_STYLES } from './situation-display.js?v=20260920-3d-v1';
 
 export const NM = 1852;
 const finite = Number.isFinite;
@@ -43,6 +44,18 @@ export function riskForTarget(projection, target) {
 export function poiState(risk) {
   if (!risk || risk.unavailableReasons?.length || String(risk.observationHealth).toUpperCase() === 'STALE') return 'unchecked';
   return { HIGH: 'alarm', LOW: 'caution', CLEAR: 'checked' }[risk.displayClass] ?? 'unchecked';
+}
+
+const TARGET_ALERTS = {
+  checked: { name: '安全', color: TARGET_RISK_STYLES.safe.color, poiState: 'enabled' },
+  caution: { name: '监控', color: TARGET_RISK_STYLES.warn.color, poiState: 'caution' },
+  alarm: { name: '紧急', color: TARGET_RISK_STYLES.danger.color, poiState: 'alarm' },
+  unchecked: { name: '态势未知', color: '#64717b', poiState: 'enabled' },
+};
+
+export function targetAlert(projection, ship) {
+  const state = poiState(riskForTarget(projection, ship));
+  return { state, ...TARGET_ALERTS[state] };
 }
 
 export function frameIdentity(data) {

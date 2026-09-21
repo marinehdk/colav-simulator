@@ -34,13 +34,14 @@ def dependency_fingerprints(dependencies: Path, eigen: Path) -> dict:
     return result
 
 
-def write_bindings(manifest: dict, output: Path) -> list[Path]:
+def write_bindings(manifest: dict, output: Path, snapshot_overrides: dict[str, str] | None = None) -> list[Path]:
     """Expose only the original registered callbacks and read-only state."""
     sources = []
     factories = []
     branches = []
     for name, module in manifest["modules"].items():
         cls = module["class"]
+        snapshot = (snapshot_overrides or {}).get(name, SNAPSHOTS[name])
         dispatch = []
         for callback in module["callbacks"]:
             function, message = callback["function"], callback["message_type"]
@@ -59,7 +60,7 @@ def write_bindings(manifest: dict, output: Path) -> list[Path]:
 namespace original_gnc {{
 template<> Json Kernel<{cls}>::snapshot() const {{
     const auto& node = *module;
-    {SNAPSHOTS[name]}
+    {snapshot}
 }}
 template<> Json Kernel<{cls}>::invoke(const std::string& function, const Json& input, int64_t time_ns) {{
     context.outputs.clear();
@@ -92,9 +93,17 @@ inline std::unique_ptr<KernelBase> make_kernel(const std::string& name, const Js
     return sources
 
 
-def build(
-    source: Path, dependencies: Path, output: Path, compiler: str, eigen: Path, proposals: list[str] | None = None
-) -> dict:  # noqa: PLR0915
+def build(  # noqa: PLR0915
+    source: Path,
+    dependencies: Path,
+    output: Path,
+    compiler: str,
+    eigen: Path,
+    proposals: list[str] | None = None,
+    *,
+    source_manifest_sha256: str | None = None,
+    controller_package: str | None = None,
+) -> dict:
     """Verify, extract and compile a separately identifiable native library."""
     if (output / "build-manifest.json").exists():
         raise FileExistsError("Use a new build directory to preserve existing validation evidence")
@@ -117,13 +126,21 @@ def build(
         for token in ("#define EIGEN_WORLD_VERSION 3", "#define EIGEN_MAJOR_VERSION 4", "#define EIGEN_MINOR_VERSION 0")
     ):
         raise ValueError("Original GNC requires the reference Eigen 3.4.0 headers")
-    manifest = extract(source, dependencies, output, support)
+    manifest = extract(
+        source,
+        dependencies,
+        output,
+        support,
+        source_manifest_sha256=source_manifest_sha256,
+        controller_package=controller_package,
+    )
     if proposals:
         # Colleague-proposal reference builds compile the reviewed semantic
         # changes on top of the mechanical extraction; the ledger records
         # them (dependencies apply first, composition is explicit).
         manifest["colleague_proposal"] = apply_proposals(proposals, source, output)
-    sources = write_bindings(manifest, output)
+    snapshot_overrides = {"ship_control_node": SNAPSHOTS["ship_control_node_mpc"]} if controller_package else None
+    sources = write_bindings(manifest, output, snapshot_overrides)
     shutil.copytree(support / "reference_math", output / "reference_math", dirs_exist_ok=True)
     sources.append(output / "reference_math/reference_exp.cpp")
     generated_math = output / "reference_math/glibc_cpp"
@@ -210,6 +227,7 @@ def build(
     result = {
         "schema": "original-gnc.native-build.v1",
         "source_manifest_sha256": manifest["source_manifest_sha256"],
+        "controller_package": controller_package,
         "command": command,
         "compiler": subprocess.check_output([compiler, "--version"], text=True),
         "platform": platform.platform(),
@@ -258,6 +276,16 @@ if __name__ == "__main__":
         choices=sorted(PROPOSALS),
         help="Apply reviewed colleague-proposal reference patches after extraction (repeatable, composed)",
     )
+    parser.add_argument(
+        "--source-manifest-sha256",
+        default=None,
+        help="Pin a lane-specific approved SOURCE_MANIFEST.csv sha256 (default: baseline lane)",
+    )
+    parser.add_argument(
+        "--controller-package",
+        default=None,
+        help="Extract the ship_control_node module from this package instead of gnc/ship_control",
+    )
     args = parser.parse_args()
     eigen = args.eigen.resolve() if args.eigen else args.dependencies.resolve() / "eigen3"
     report = build(
@@ -267,5 +295,7 @@ if __name__ == "__main__":
         args.compiler,
         eigen,
         args.proposal,
+        source_manifest_sha256=args.source_manifest_sha256,
+        controller_package=args.controller_package,
     )
     print(json.dumps({"library": report["library"], "sha256": report["library_sha256"]}))

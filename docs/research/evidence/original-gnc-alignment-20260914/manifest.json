@@ -1,0 +1,11 @@
+{
+  "scope": "Alignment evidence copied from completed checks; live API refreshed at report delivery",
+  "files": {
+    "alignment.json": "9b62a86278765702cbf42e95f34ccf270ca35fc35801c63f45cbde7e296db925",
+    "live-verification.json": "af90a852e901e4a2217e047d6516a0a867e85fcd5a6a049867b9783b5c1fcfb3",
+    "new-run-identity.json": "0314b1c743e2104b8fda55abdae6746898c8fabc4e6d3d42d43cbbf878609440",
+    "route-tests.log": "f264703c95e6b10405027215e92e189dd6adeef619541d2db0867ca65b763792",
+    "tests.log": "cd3b34395975b0e416bed720fa4a9f481d505d5e8bd06d83669131b83cca558e",
+    "vector-results.json": "cac0c6ddab3549ee47d0ed8eea3b7b05490c4a8bb17e7f9f57477e6ae0e1955d"
+  }
+}

@@ -1,0 +1,242 @@
+{
+  "mode": "emergency_avoidance",
+  "identity": {
+    "backend_kind": "original_gnc",
+    "stack_id": "original-gnc-20260824-v2-env-off",
+    "source_manifest_sha256": "2c863347de59474a32d26a53d5631ed9a5b376623cd88d6fb83ca8173fc09411",
+    "library_sha256": "6e9f2728758b7934296e8da9bfee1a98905e038b29402c6e95ae780c6dc220fa",
+    "python_runtime_sha256": "1bd8467166439ba70881bf2ced7a876010e85bc4264d26e539bcb4eae76f1216",
+    "parameter_sha256": "ab12936dedcd8d721f9e2bc6dfd5d9ae5bd9b19be41530a920809d30197d9eb4",
+    "acceptance_level": "EXPERIMENTAL_ORIGINAL_SOURCE",
+    "response_qualification": "QUALIFIED_FIRST_ORDER_TRAJECTORY_APPROXIMATION",
+    "response_approximation_sha256": "c959d79fb4ccd588c3c7d37e74c12833cecd391eeba154ea78dd20b32da4fdca",
+    "environment_enabled": false,
+    "scenario_acceptance": "separately_evaluated"
+  },
+  "manager_requested": 8.0,
+  "route_limit": 8.0,
+  "guidance_setpoint": 3.2,
+  "actual_speed": 3.9015622712569287,
+  "feedback": {
+    "plan_id": "straight-speed-contract",
+    "time_ns": 2000000011000000000,
+    "accepted": true,
+    "rejected": false,
+    "degraded": false,
+    "outcome": "ADMITTED",
+    "classification": [],
+    "metrics": {
+      "submitted": 1,
+      "coordinate_accepted": 1,
+      "accepted": 1,
+      "degraded": 0,
+      "rejected": 0,
+      "rejected_addressable": 0,
+      "rejected_dynamic": 0,
+      "ignored_duplicate": 0,
+      "holds": 0
+    },
+    "feedback": [
+      {
+        "accepted": true,
+        "active_route_id": "original-gnc-mission-0",
+        "active_route_revision": 1,
+        "applied_heading_deg": {
+          "$nonfinite": "nan"
+        },
+        "applied_speed_mps": 8.0,
+        "available_decel_distance_m": {
+          "$nonfinite": "+inf"
+        },
+        "command_source": "vo",
+        "cross_track_error_m": -5.94951391001024e-05,
+        "current_course_deg": 4.284327513914832e-05,
+        "current_heading_deg": 0.001105566796184121,
+        "current_latitude": 58.00070086710477,
+        "current_longitude": 5.999999998993873,
+        "current_navigation_mode": "",
+        "current_segment_index": 0,
+        "current_speed_limit_mps": 0.0,
+        "current_speed_mps": 6.7754951175751925,
+        "current_target_waypoint_index": 0,
+        "degraded": false,
+        "estimated_available_turn_radius_m": {
+          "$nonfinite": "+inf"
+        },
+        "executing": true,
+        "execution_state": "ACCEPTED",
+        "header": {
+          "frame_id": "map",
+          "stamp": {
+            "nanosec": 0,
+            "sec": 2000000011
+          }
+        },
+        "plan_id": "straight-speed-contract",
+        "reason": "feasible",
+        "rejected": false,
+        "requested_heading_deg": {
+          "$nonfinite": "nan"
+        },
+        "requested_speed_mps": 8.0,
+        "required_decel_distance_m": 0.0,
+        "required_turn_radius_m": 256.0,
+        "stage_snapshot_valid": false,
+        "suggested_action": "none",
+        "suggested_max_speed_mps": 8.0,
+        "suggested_min_distance_m": 0.0,
+        "topic": "/gnc/route_execution_status"
+      },
+      {
+        "accepted": true,
+        "current_along_track_m": 78.06093018255099,
+        "first_changed_distance_ahead_m": 621.9390698165321,
+        "header": {
+          "frame_id": "route_plan_status",
+          "stamp": {
+            "nanosec": 0,
+            "sec": 2000000011
+          }
+        },
+        "internal_waypoint_count": 3,
+        "max_lateral_delta_m": 0.0,
+        "navigation_mode_valid": true,
+        "reason": "route accepted and published",
+        "route_id": "straight-speed-contract",
+        "route_type": "avoidance",
+        "speed_limit_valid": true,
+        "status": "ACCEPTED",
+        "total_distance_m": 4999.999999994948,
+        "waypoint_count": 3,
+        "topic": "/route_planning/route_plan_status"
+      },
+      {
+        "accepted": true,
+        "active_route_id": "straight-speed-contract",
+        "active_route_revision": 1,
+        "applied_heading_deg": {
+          "$nonfinite": "nan"
+        },
+        "applied_speed_mps": 8.0,
+        "available_decel_distance_m": {
+          "$nonfinite": "+inf"
+        },
+        "command_source": "vo",
+        "cross_track_error_m": -5.94951391001024e-05,
+        "current_course_deg": 4.284327513914832e-05,
+        "current_heading_deg": 0.001105566796184121,
+        "current_latitude": 58.00070086710477,
+        "current_longitude": 5.999999998993873,
+        "current_navigation_mode": "emergency_avoidance",
+        "current_segment_index": 0,
+        "current_speed_limit_mps": 8.0,
+        "current_speed_mps": 6.7754951175751925,
+        "current_target_waypoint_index": 1,
+        "degraded": false,
+        "estimated_available_turn_radius_m": {
+          "$nonfinite": "+inf"
+        },
+        "executing": true,
+        "execution_state": "ACCEPTED",
+        "header": {
+          "frame_id": "map",
+          "stamp": {
+            "nanosec": 0,
+            "sec": 2000000011
+          }
+        },
+        "plan_id": "straight-speed-contract",
+        "reason": "route accepted and published",
+        "rejected": false,
+        "requested_heading_deg": {
+          "$nonfinite": "nan"
+        },
+        "requested_speed_mps": 8.0,
+        "required_decel_distance_m": 0.0,
+        "required_turn_radius_m": 256.0,
+        "stage_snapshot_valid": true,
+        "suggested_action": "none",
+        "suggested_max_speed_mps": 8.0,
+        "suggested_min_distance_m": 0.0,
+        "topic": "/gnc/route_execution_status"
+      }
+    ]
+  },
+  "waypoints": {
+    "header": {
+      "frame_id": "odom",
+      "stamp": {
+        "nanosec": 0,
+        "sec": 2000000011
+      }
+    },
+    "poses": [
+      {
+        "header": {
+          "frame_id": "odom",
+          "stamp": {
+            "nanosec": 0,
+            "sec": 2000000011
+          }
+        },
+        "pose": {
+          "orientation": {
+            "w": 1.0,
+            "x": 0.0,
+            "y": 1.0,
+            "z": 8.0
+          },
+          "position": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 1.0
+          }
+        }
+      },
+      {
+        "header": {
+          "frame_id": "odom",
+          "stamp": {
+            "nanosec": 0,
+            "sec": 2000000011
+          }
+        },
+        "pose": {
+          "orientation": {
+            "w": 1.0,
+            "x": 0.0,
+            "y": 1.0,
+            "z": 8.0
+          },
+          "position": {
+            "x": 699.999999999083,
+            "y": 0.0,
+            "z": 6.0
+          }
+        }
+      },
+      {
+        "header": {
+          "frame_id": "odom",
+          "stamp": {
+            "nanosec": 0,
+            "sec": 2000000011
+          }
+        },
+        "pose": {
+          "orientation": {
+            "w": 1.0,
+            "x": 0.0,
+            "y": 1.0,
+            "z": 8.0
+          },
+          "position": {
+            "x": 4999.999999994948,
+            "y": 0.0,
+            "z": 1.0
+          }
+        }
+      }
+    ]
+  }
+}

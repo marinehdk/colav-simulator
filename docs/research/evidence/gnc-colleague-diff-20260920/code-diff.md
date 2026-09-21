@@ -1,0 +1,1899 @@
+# Authoritative GNC：逐文件完整源码 diff
+
+范围：GNC `e1d435d → 0bbce06`；共 14 个 src 文件。代码与 git diff 一致；此 Markdown 统一显示换行，应用补丁请使用原始 `.diff`。
+
+## src/gnc/ship_guidance/include/ship_guidance/avoidance_mode_policy.hpp
+
+新增文件。[源码](source-after/src/gnc/ship_guidance/include/ship_guidance/avoidance_mode_policy.hpp) · [原始 diff](per-file/src/gnc/ship_guidance/include/ship_guidance/avoidance_mode_policy.hpp.diff)
+
+```diff
+diff --git a/src/gnc/ship_guidance/include/ship_guidance/avoidance_mode_policy.hpp b/src/gnc/ship_guidance/include/ship_guidance/avoidance_mode_policy.hpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..440149e76bad727f8efb5e7eaa4ed4857e3682d9
+--- /dev/null
++++ b/src/gnc/ship_guidance/include/ship_guidance/avoidance_mode_policy.hpp
+@@ -0,0 +1,39 @@
++#pragma once
++
++#include <string>
++
++namespace ship_guidance::avoidance_mode_policy {
++
++// Inputs are normalized by the route/guidance boundary. Code 6 retains the
++// established emergency protocol; ordinary avoidance has its own code.
++inline bool emergency(const std::string& mode)
++{
++    return mode == "emergency_avoidance" || mode == "emergency_avoid";
++}
++
++inline bool ordinary(const std::string& mode)
++{
++    return mode == "avoidance" || mode == "collision_avoidance";
++}
++
++inline bool any(const std::string& mode)
++{
++    return ordinary(mode) || emergency(mode);
++}
++
++inline bool velocity(const std::string& mode)
++{
++    return mode == "cruise" || any(mode);
++}
++
++inline int encode(const std::string& mode)
++{
++    return emergency(mode) ? 6 : (ordinary(mode) ? 10 : 0);
++}
++
++inline bool is_avoidance_code(int code)
++{
++    return code == 6 || code == 10;
++}
++
++}  // namespace ship_guidance::avoidance_mode_policy
+```
+
+## src/gnc/ship_guidance/include/ship_guidance/geodesy.hpp
+
+新增文件。[源码](source-after/src/gnc/ship_guidance/include/ship_guidance/geodesy.hpp) · [原始 diff](per-file/src/gnc/ship_guidance/include/ship_guidance/geodesy.hpp.diff)
+
+```diff
+diff --git a/src/gnc/ship_guidance/include/ship_guidance/geodesy.hpp b/src/gnc/ship_guidance/include/ship_guidance/geodesy.hpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..66cca66a4e2cfbe59239613660089b25fe3a0216
+--- /dev/null
++++ b/src/gnc/ship_guidance/include/ship_guidance/geodesy.hpp
+@@ -0,0 +1,115 @@
++#pragma once
++
++#include <algorithm>
++#include <cmath>
++
++namespace ship_guidance::geodesy {
++
++// Shared verbatim Vincenty calculation used by the original route ingress.
++inline bool vincenty_inverse(
++    double lat1_deg, double lon1_deg,
++    double lat2_deg, double lon2_deg,
++    double semi_major_axis, double first_eccentricity_sq,
++    double& distance_m, double& azimuth_rad)
++{
++    constexpr double deg_to_rad = M_PI / 180.0;
++    constexpr double convergence_tol = 1e-12;
++    constexpr int max_iterations = 100;
++
++    const double phi1 = lat1_deg * deg_to_rad;
++    const double phi2 = lat2_deg * deg_to_rad;
++    double L = (lon2_deg - lon1_deg) * deg_to_rad;
++    if (L > M_PI || L < -M_PI) {
++        L = std::remainder(L, 2.0 * M_PI);
++    }
++
++    if (std::abs(phi2 - phi1) < 1e-15 && std::abs(L) < 1e-15) {
++        distance_m = 0.0;
++        azimuth_rad = 0.0;
++        return true;
++    }
++
++    const double flattening = 1.0 - std::sqrt(std::max(0.0, 1.0 - first_eccentricity_sq));
++    if (!std::isfinite(flattening) || flattening <= 0.0 || flattening >= 1.0 || semi_major_axis <= 0.0) {
++        return false;
++    }
++
++    const double semi_minor_axis = semi_major_axis * (1.0 - flattening);
++    const double U1 = std::atan((1.0 - flattening) * std::tan(phi1));
++    const double U2 = std::atan((1.0 - flattening) * std::tan(phi2));
++    const double sinU1 = std::sin(U1);
++    const double cosU1 = std::cos(U1);
++    const double sinU2 = std::sin(U2);
++    const double cosU2 = std::cos(U2);
++
++    double lambda = L;
++    double sinSigma = 0.0;
++    double cosSigma = 0.0;
++    double sigma = 0.0;
++    double sinAlpha = 0.0;
++    double cosSqAlpha = 0.0;
++    double cos2SigmaM = 0.0;
++    bool converged = false;
++
++    for (int iter = 0; iter < max_iterations; ++iter) {
++        const double sinLambda = std::sin(lambda);
++        const double cosLambda = std::cos(lambda);
++        const double term1 = cosU2 * sinLambda;
++        const double term2 = cosU1 * sinU2 - sinU1 * cosU2 * cosLambda;
++        sinSigma = std::hypot(term1, term2);
++        if (sinSigma == 0.0) {
++            distance_m = 0.0;
++            azimuth_rad = 0.0;
++            return true;
++        }
++        cosSigma = sinU1 * sinU2 + cosU1 * cosU2 * cosLambda;
++        sigma = std::atan2(sinSigma, cosSigma);
++        sinAlpha = cosU1 * cosU2 * sinLambda / sinSigma;
++        cosSqAlpha = 1.0 - sinAlpha * sinAlpha;
++        if (cosSqAlpha > 1e-15) {
++            cos2SigmaM = cosSigma - 2.0 * sinU1 * sinU2 / cosSqAlpha;
++        } else {
++            cos2SigmaM = 0.0;
++        }
++        const double C = flattening / 16.0 * cosSqAlpha * (4.0 + flattening * (4.0 - 3.0 * cosSqAlpha));
++        const double previous_lambda = lambda;
++        lambda = L + (1.0 - C) * flattening * sinAlpha *
++            (sigma + C * sinSigma * (cos2SigmaM + C * cosSigma *
++            (-1.0 + 2.0 * cos2SigmaM * cos2SigmaM)));
++        if (std::abs(lambda - previous_lambda) <= convergence_tol) {
++            converged = true;
++            break;
++        }
++    }
++
++    if (!converged) {
++        return false;
++    }
++
++    const double uSq = cosSqAlpha * (semi_major_axis * semi_major_axis - semi_minor_axis * semi_minor_axis) /
++        (semi_minor_axis * semi_minor_axis);
++    const double A = 1.0 + uSq / 16384.0 * (4096.0 + uSq * (-768.0 + uSq * (320.0 - 175.0 * uSq)));
++    const double B = uSq / 1024.0 * (256.0 + uSq * (-128.0 + uSq * (74.0 - 47.0 * uSq)));
++    const double deltaSigma = B * sinSigma * (cos2SigmaM + B / 4.0 *
++        (cosSigma * (-1.0 + 2.0 * cos2SigmaM * cos2SigmaM) -
++         B / 6.0 * cos2SigmaM * (-3.0 + 4.0 * sinSigma * sinSigma) *
++         (-3.0 + 4.0 * cos2SigmaM * cos2SigmaM)));
++
++    distance_m = semi_minor_axis * A * (sigma - deltaSigma);
++    azimuth_rad = std::atan2(
++        cosU2 * std::sin(lambda),
++        cosU1 * sinU2 - sinU1 * cosU2 * std::cos(lambda));
++    return std::isfinite(distance_m) && std::isfinite(azimuth_rad);
++}
++
++inline bool wgs84_to_ned(double origin_lat, double origin_lon, double latitude, double longitude,
++                         double& north, double& east) {
++    double distance = 0.0, azimuth = 0.0;
++    if (!vincenty_inverse(origin_lat, origin_lon, latitude, longitude,
++                          6378137.0, 6.69437999014e-3, distance, azimuth)) return false;
++    north = distance * std::cos(azimuth);
++    east = distance * std::sin(azimuth);
++    return true;
++}
++
++}  // namespace ship_guidance::geodesy
+```
+
+## src/gnc/ship_guidance/include/ship_guidance/planner_trajectory_contract.hpp
+
+新增文件。[源码](source-after/src/gnc/ship_guidance/include/ship_guidance/planner_trajectory_contract.hpp) · [原始 diff](per-file/src/gnc/ship_guidance/include/ship_guidance/planner_trajectory_contract.hpp.diff)
+
+```diff
+diff --git a/src/gnc/ship_guidance/include/ship_guidance/planner_trajectory_contract.hpp b/src/gnc/ship_guidance/include/ship_guidance/planner_trajectory_contract.hpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..1f9937c2f24800136d040977d7ae0f87355e02a6
+--- /dev/null
++++ b/src/gnc/ship_guidance/include/ship_guidance/planner_trajectory_contract.hpp
+@@ -0,0 +1,75 @@
++#pragma once
++
++#include <algorithm>
++#include <cmath>
++#include <string>
++#include <vector>
++
++namespace ship_guidance::planner_trajectory_contract {
++
++// Matches the simulator's existing initial-state and primal tolerances.
++constexpr double position_tolerance_m = 0.25;
++constexpr double primal_tolerance = 1e-3;
++
++struct Sample {
++    double north;
++    double east;
++    double course;
++    double speed;
++};
++
++struct Limits {
++    double max_speed;
++    double max_yaw_rate;
++    double max_speed_rate;
++    double max_lateral_acceleration;
++    double min_turn_radius;
++};
++
++inline double angle_difference(double a, double b) {
++    return std::atan2(std::sin(a - b), std::cos(a - b));
++}
++
++inline bool initial_state_matches(const Sample& initial, const Sample& measured) {
++    return std::hypot(initial.north - measured.north, initial.east - measured.east) <= position_tolerance_m &&
++        std::abs(angle_difference(initial.course, measured.course)) <= primal_tolerance &&
++        std::abs(initial.speed - measured.speed) <= primal_tolerance;
++}
++
++inline std::string validate(const std::vector<Sample>& samples, double dt, const Limits& limits) {
++    if (samples.size() < 2 || !std::isfinite(dt) || dt <= 0.0) {
++        return "trajectory_grid_invalid";
++    }
++    for (std::size_t i = 0; i < samples.size(); ++i) {
++        const auto& current = samples[i];
++        if (!std::isfinite(current.north) || !std::isfinite(current.east) ||
++            !std::isfinite(current.course) || !std::isfinite(current.speed) ||
++            current.speed < 0.0 || current.speed > limits.max_speed + primal_tolerance) {
++            return "trajectory_sample_invalid";
++        }
++        if (i == 0) continue;
++        const auto& previous = samples[i - 1];
++        const double angle = std::abs(angle_difference(current.course, previous.course));
++        if (angle > limits.max_yaw_rate * dt + primal_tolerance) {
++            return "trajectory_yaw_rate_exceeded";
++        }
++        if (std::abs(current.speed - previous.speed) > limits.max_speed_rate * dt + primal_tolerance) {
++            return "trajectory_speed_rate_exceeded";
++        }
++        if (current.speed * angle > limits.max_lateral_acceleration * dt + primal_tolerance) {
++            return "trajectory_lateral_acceleration_exceeded";
++        }
++        if (current.speed > primal_tolerance && angle > primal_tolerance &&
++            current.speed * dt / angle + position_tolerance_m < limits.min_turn_radius) {
++            return "trajectory_turn_radius_exceeded";
++        }
++        const double north = previous.north + dt * current.speed * std::cos(current.course);
++        const double east = previous.east + dt * current.speed * std::sin(current.course);
++        if (std::hypot(north - current.north, east - current.east) > position_tolerance_m) {
++            return "trajectory_position_speed_mismatch";
++        }
++    }
++    return {};
++}
++
++}  // namespace ship_guidance::planner_trajectory_contract
+```
+
+## src/gnc/ship_guidance/include/ship_guidance/route_arbitration_policy.hpp
+
+[修改前](source-before/src/gnc/ship_guidance/include/ship_guidance/route_arbitration_policy.hpp) · [修改后](source-after/src/gnc/ship_guidance/include/ship_guidance/route_arbitration_policy.hpp) · [原始 diff](per-file/src/gnc/ship_guidance/include/ship_guidance/route_arbitration_policy.hpp.diff)
+
+```diff
+diff --git a/src/gnc/ship_guidance/include/ship_guidance/route_arbitration_policy.hpp b/src/gnc/ship_guidance/include/ship_guidance/route_arbitration_policy.hpp
+index eb88ae450e396073f0f842700aeef6dab6316381..d37d6cba093e32e914566e54e25210e02c482241 100644
+--- a/src/gnc/ship_guidance/include/ship_guidance/route_arbitration_policy.hpp
++++ b/src/gnc/ship_guidance/include/ship_guidance/route_arbitration_policy.hpp
+@@ -2,6 +2,7 @@
+ 
+ #include <cstdint>
+ #include <string>
++#include "ship_guidance/avoidance_mode_policy.hpp"
+ 
+ namespace ship_guidance::route_arbitration_policy {
+ 
+@@ -26,8 +27,7 @@ inline bool ordinary_avoidance_blocked(const std::string& normalized_state)
+ 
+ inline bool emergency_behavior(const std::string& normalized_mode)
+ {
+-    return normalized_mode == "emergency_avoidance" ||
+-        normalized_mode == "emergency_avoid";
++    return ship_guidance::avoidance_mode_policy::emergency(normalized_mode);
+ }
+ 
+ inline bool nominal_tail_mode_allowed(const std::string& normalized_mode)
+```
+
+## src/gnc/ship_guidance/include/ship_guidance/route_contract.hpp
+
+[修改前](source-before/src/gnc/ship_guidance/include/ship_guidance/route_contract.hpp) · [修改后](source-after/src/gnc/ship_guidance/include/ship_guidance/route_contract.hpp) · [原始 diff](per-file/src/gnc/ship_guidance/include/ship_guidance/route_contract.hpp.diff)
+
+```diff
+diff --git a/src/gnc/ship_guidance/include/ship_guidance/route_contract.hpp b/src/gnc/ship_guidance/include/ship_guidance/route_contract.hpp
+index 3cf554a0078ded5a0d07119439d3bf4e68e04d9a..05d28bc68395feea351e7edabd97e92bc9485375 100644
+--- a/src/gnc/ship_guidance/include/ship_guidance/route_contract.hpp
++++ b/src/gnc/ship_guidance/include/ship_guidance/route_contract.hpp
+@@ -113,6 +113,10 @@ inline ContractResult validate_and_normalize(
+     RouteKind kind)
+ {
+     ContractResult result;
++    if (kind == RouteKind::Nominal && normalize_token(route.route_type) == "planner_trajectory_v1") {
++        result.reason = "planner_trajectory_requires_avoidance_admission";
++        return result;
++    }
+     const std::size_t count = route.latitude.size();
+     if (count < 2) {
+         result.reason = "waypoint_count_less_than_two";
+```
+
+## src/gnc/ship_guidance/include/ship_guidance/ship_guidance_node.hpp
+
+[修改前](source-before/src/gnc/ship_guidance/include/ship_guidance/ship_guidance_node.hpp) · [修改后](source-after/src/gnc/ship_guidance/include/ship_guidance/ship_guidance_node.hpp) · [原始 diff](per-file/src/gnc/ship_guidance/include/ship_guidance/ship_guidance_node.hpp.diff)
+
+```diff
+diff --git a/src/gnc/ship_guidance/include/ship_guidance/ship_guidance_node.hpp b/src/gnc/ship_guidance/include/ship_guidance/ship_guidance_node.hpp
+index 12f9d2d94e1f823f17b38ff1ef4b7f1f828b14a7..d4e952aecff46c7611050f78f1bea1b4850c84ad 100644
+--- a/src/gnc/ship_guidance/include/ship_guidance/ship_guidance_node.hpp
++++ b/src/gnc/ship_guidance/include/ship_guidance/ship_guidance_node.hpp
+@@ -11,6 +11,9 @@
+ #include <std_msgs/msg/float64.hpp>
+ #include <std_msgs/msg/string.hpp>
+ #include <ship_interfaces/msg/current_observation.hpp>
++#include <ship_interfaces/msg/velocity_intent.hpp>
++#include <ship_interfaces/msg/velocity_execution_status.hpp>
++#include <ship_interfaces/msg/route_execution_status.hpp>
+ #include <tf2/LinearMath/Quaternion.h>
+ #include <tf2/LinearMath/Matrix3x3.h>
+ #include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
+@@ -37,8 +40,17 @@ public:
+     ShipGuidanceNode();
+     ~ShipGuidanceNode() = default;
+ 
++    // Execution authority exposed read-only to native/reference adapters.
++    // Ordinary avoidance retains the vessel ceiling; emergency policy is
++    // separate from curvature, tracking and terminal restrictions.
++    double ordinary_avoidance_speed_cap() const { return max_speed_; }
++    double emergency_avoidance_speed_cap() const { return emergency_avoidance_speed_cap_mps_; }
++
+ private:
++    void velocity_intent_callback(const ship_interfaces::msg::VelocityIntent::SharedPtr msg);
++    bool execute_velocity_intent();
+     void get_parameters();
++    void route_status_callback(const ship_interfaces::msg::RouteExecutionStatus::SharedPtr msg);
+     void odom_callback(const nav_msgs::msg::Odometry::SharedPtr msg);
+     void env_load_callback(const geometry_msgs::msg::WrenchStamped::SharedPtr msg);
+     void current_load_callback(const geometry_msgs::msg::WrenchStamped::SharedPtr msg);
+@@ -62,12 +74,24 @@ private:
+     rclcpp::Subscription<ship_interfaces::msg::CurrentObservation>::SharedPtr
+         effective_current_sub_;
+     rclcpp::Subscription<nav_msgs::msg::Path>::SharedPtr path_sub_;
++    rclcpp::Subscription<ship_interfaces::msg::RouteExecutionStatus>::SharedPtr route_status_sub_;
++    // Provenance of the route currently published to /gnc/internal_waypoints.
++    // Empty means no manager status observed yet: keep legacy operator policy.
++    std::string latest_route_command_source_;
+     rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr heading_setpoint_pub_;
+     rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr target_speed_pub_;
+     rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr target_pose_pub_;
+     rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr smoothed_waypoints_pub_;
+     rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr dp_hold_state_pub_;
+     rclcpp::Publisher<std_msgs::msg::String>::SharedPtr ilos_diagnostics_pub_;
++    rclcpp::Subscription<ship_interfaces::msg::VelocityIntent>::SharedPtr velocity_intent_sub_;
++    rclcpp::Publisher<ship_interfaces::msg::VelocityExecutionStatus>::SharedPtr velocity_status_pub_;
++    ship_interfaces::msg::VelocityIntent velocity_intent_;
++    double velocity_course_gain_ = 4.0;
++    bool velocity_intent_active_ = false;
++    bool velocity_hold_initialized_ = false;
++    double velocity_hold_heading_ = 0.0;
++    rclcpp::Time velocity_last_publish_{0, 0, RCL_ROS_TIME};
+     rclcpp::TimerBase::SharedPtr timer_;
+     double guidance_period_s_ = 0.5;
+ 
+@@ -181,8 +205,8 @@ private:
+     double turn_recovery_speed_margin_mps_;
+     double turn_recovery_speed_ramp_mps2_;
+     double turn_segment_max_los_correction_deg_;
+-    double turn_segment_los_correction_45deg_;
+-    double turn_entry_max_los_correction_deg_;
++    double turn_segment_los_correction_45deg_;
++    double turn_entry_max_los_correction_deg_;
+     double turn_entry_los_correction_45deg_;
+     bool turn_segment_speed_gate_enabled_;
+     double turn_segment_speed_cap_mps_;
+@@ -225,6 +249,23 @@ private:
+     double external_route_turn_centerline_distance_m_ = 600.0;
+     double external_route_turn_centerline_release_xte_m_ = 18.0;
+     double external_route_turn_speed_cap_mps_ = 4.2;
++    // Planner-owned avoidance routes carry per-waypoint speeds already made
++    // dynamically feasible by route admission. The operator-leg external turn
++    // speed preview re-derives a slower envelope from dense trajectory-style
++    // geometry and would override those admitted speeds for the whole
++    // avoidance maneuver; skip only the speed application for such routes.
++    bool external_route_turn_skip_planner_routes_ = true;
++    // Dense planner-owned routes (mid_mpc_ipopt) are re-published every few
++    // seconds, so the rejoin/turn-segment speed gates tuned for hand-written
++    // low-density routes see a permanent heading-error transient and latch
++    // their low-speed caps over the whole maneuver. Route admission already
++    // validated their per-waypoint speeds; skip those two gates for such
++    // routes (the lateral rejoin safety leg is kept).
++    bool planner_route_speed_gate_skip_ = true;
++    // Dense planner-owned routes (mid_mpc_ipopt) must keep their per-point
++    // geometry: the turn-arc rewrite would replace mirrored points and
++    // override admission-validated speeds with hand-route turn speeds.
++    bool planner_route_arc_smoothing_skip_ = true;
+     bool turn_feasibility_preview_enabled_ = true;
+     double turn_feasibility_preview_distance_m_ = 1200.0;
+     double turn_feasibility_min_cumulative_angle_deg_ = 10.0;
+@@ -264,11 +305,11 @@ private:
+     double wind_cruise_full_xte_dot_mps_;
+     double wind_cruise_full_outward_xte_dot_mps_;
+     double wind_cruise_full_stable_s_;
+-    double kappa_ilos_;
+-    bool ilos_turn_kappa_schedule_enabled_ = false;
+-    double ilos_turn_kappa_scale_ = 1.0;
+-    double ilos_turn_kappa_preview_m_ = 0.0;
+-    double ilos_turn_kappa_hold_m_ = 0.0;
++    double kappa_ilos_;
++    bool ilos_turn_kappa_schedule_enabled_ = false;
++    double ilos_turn_kappa_scale_ = 1.0;
++    double ilos_turn_kappa_preview_m_ = 0.0;
++    double ilos_turn_kappa_hold_m_ = 0.0;
+     double ilos_turn_kappa_min_angle_deg_ = 10.0;
+     double ilos_integral_max_heading_effect_deg_ = 15.0;
+     bool ilos_turn_integral_schedule_enabled_ = false;
+@@ -356,12 +397,12 @@ private:
+     double wind_crab_release_force_n_ = 250.0;
+     double wind_crab_filtered_force_n_ = 0.0;
+     bool wind_crab_filter_initialized_ = false;
+-    bool wind_crab_filter_engaged_ = false;
++    bool wind_crab_filter_engaged_ = false;
+     bool wind_crab_target_offset_enabled_ = true;
+     double wind_crab_target_offset_max_m_ = 12.0;
+     double wind_crab_target_offset_min_m_ = 3.0;
+     double wind_crab_target_offset_force_ref_n_ = 6000.0;
+-    bool wind_ilos_bias_enabled_ = false;
++    bool wind_ilos_bias_enabled_ = false;
+     bool wind_ilos_bias_target_centerline_ = false;
+     double wind_ilos_bias_gain_per_s_ = 0.02;
+     double wind_ilos_bias_max_effect_m_ = 6.0;
+@@ -414,7 +455,7 @@ private:
+     bool current_vector_crab_target_offset_enabled_ = true;
+     double current_vector_crab_target_offset_m_ = 12.0;
+     double current_vector_crab_xte_kp_deg_per_m_ = 0.10;
+-    double current_vector_crab_xte_rate_kd_deg_per_mps_ = 2.2;
++    double current_vector_crab_xte_rate_kd_deg_per_mps_ = 2.2;
+     double current_vector_crab_turn_xte_rate_kd_scale_ = 1.0;
+     double current_vector_crab_feedback_max_angle_deg_ = 7.5;
+     // Keep vector-current smoothing state separate from the force branch.
+@@ -471,6 +512,10 @@ private:
+     bool has_last_path_signature_ = false;
+     std::uint64_t last_path_signature_ = 0;
+     size_t last_path_size_ = 0;
++    bool planner_trajectory_path_{false};
++    double planner_trajectory_dt_s_{0.0};
++    std::int64_t planner_trajectory_issued_ns_{0};
++    double planner_trajectory_speed_ceiling() const;
+ 
+     // ALOS参数
+     bool use_adaptive_los_;
+```
+
+## src/gnc/ship_guidance/src/active_route_manager_node.cpp
+
+[修改前](source-before/src/gnc/ship_guidance/src/active_route_manager_node.cpp) · [修改后](source-after/src/gnc/ship_guidance/src/active_route_manager_node.cpp) · [原始 diff](per-file/src/gnc/ship_guidance/src/active_route_manager_node.cpp.diff)
+
+```diff
+diff --git a/src/gnc/ship_guidance/src/active_route_manager_node.cpp b/src/gnc/ship_guidance/src/active_route_manager_node.cpp
+index 9fe86c2ab6e579bc0ea364a72c3fd2fa88c64a8d..5544c527f3e11b8ac3bd328941fa67fe19a5574a 100644
+--- a/src/gnc/ship_guidance/src/active_route_manager_node.cpp
++++ b/src/gnc/ship_guidance/src/active_route_manager_node.cpp
+@@ -15,6 +15,7 @@
+ #include "std_msgs/msg/string.hpp"
+ 
+ #include "ship_interfaces/msg/avoidance_plan.hpp"
++#include "ship_interfaces/msg/velocity_intent.hpp"
+ #include "ship_interfaces/msg/geo_position.hpp"
+ #include "ship_interfaces/msg/route_execution_status.hpp"
+ #include "ship_interfaces/msg/route_plan.hpp"
+@@ -22,6 +23,8 @@
+ 
+ #include "ship_guidance/route_arbitration_policy.hpp"
+ #include "ship_guidance/route_contract.hpp"
++#include "ship_guidance/planner_trajectory_contract.hpp"
++#include "ship_guidance/geodesy.hpp"
+ 
+ namespace {
+ 
+@@ -78,6 +81,7 @@ struct FeasibilityResult {
+     double available_decel_distance_m{std::numeric_limits<double>::infinity()};
+     double suggested_max_speed_mps{0.0};
+     double suggested_min_distance_m{0.0};
++    std::vector<double> admitted_speed_limits_mps;
+ };
+ 
+ }  // namespace
+@@ -97,6 +101,7 @@ public:
+         declare_parameter("max_command_speed_mps", 8.0);
+         declare_parameter("min_segment_length_m", 30.0);
+         declare_parameter("emergency_min_segment_length_m", 15.0);
++        declare_parameter("planner_route_min_segment_skip", true);
+         declare_parameter("min_turn_radius_m", 80.0);
+         declare_parameter("emergency_min_turn_radius_m", 45.0);
+         declare_parameter("max_lateral_accel_mps2", 0.25);
+@@ -127,6 +132,7 @@ public:
+         max_command_speed_mps_ = std::max(0.1, get_parameter("max_command_speed_mps").as_double());
+         min_segment_length_m_ = std::max(1.0, get_parameter("min_segment_length_m").as_double());
+         emergency_min_segment_length_m_ = std::max(1.0, get_parameter("emergency_min_segment_length_m").as_double());
++        planner_route_min_segment_skip_ = get_parameter("planner_route_min_segment_skip").as_bool();
+         min_turn_radius_m_ = std::max(1.0, get_parameter("min_turn_radius_m").as_double());
+         emergency_min_turn_radius_m_ = std::max(1.0, get_parameter("emergency_min_turn_radius_m").as_double());
+         max_lateral_accel_mps2_ = std::max(0.01, get_parameter("max_lateral_accel_mps2").as_double());
+@@ -179,6 +185,10 @@ public:
+         avoidance_plan_sub_ = create_subscription<ship_interfaces::msg::AvoidancePlan>(
+             avoidance_plan_topic_, 10,
+             std::bind(&ActiveRouteManagerNode::avoidance_plan_callback, this, std::placeholders::_1));
++        velocity_intent_pub_ = create_publisher<ship_interfaces::msg::VelocityIntent>("/gnc/velocity_intent", 10);
++        velocity_intent_sub_ = create_subscription<ship_interfaces::msg::VelocityIntent>(
++            "/colav/velocity_intent", 10,
++            std::bind(&ActiveRouteManagerNode::velocity_intent_callback, this, std::placeholders::_1));
+         ship_state_sub_ = create_subscription<ship_interfaces::msg::GeoPosition>(
+             ship_state_topic_, 10,
+             std::bind(&ActiveRouteManagerNode::ship_state_callback, this, std::placeholders::_1));
+@@ -360,7 +370,8 @@ private:
+             return;
+         }
+ 
+-        apply_speed_degradation(route, result.suggested_max_speed_mps);
++        clear_velocity_intent();
++        apply_speed_degradation(route, result.admitted_speed_limits_mps);
+         set_active_route_context(route, command_source, result);
+         active_route_pub_->publish(route);
+         mark_avoidance_active(*msg);
+@@ -373,6 +384,74 @@ private:
+             result.reason.c_str(), result.suggested_max_speed_mps);
+     }
+ 
++    void clear_velocity_intent()
++    {
++        if (!has_active_velocity_intent_) return;
++        auto clear = active_velocity_intent_;
++        clear.header.stamp = now();
++        clear.behavior_mode = "return_to_route";
++        velocity_intent_pub_->publish(clear);
++        has_active_velocity_intent_ = false;
++        velocity_expiry_reported_ = false;
++    }
++
++    void velocity_intent_callback(const ship_interfaces::msg::VelocityIntent::SharedPtr msg)
++    {
++        ship_interfaces::msg::AvoidancePlan identity;
++        identity.plan_id = msg->intent_id;
++        identity.parent_route_id = msg->parent_route_id;
++        identity.parent_route_revision = msg->parent_route_revision;
++        identity.command_source = msg->command_source;
++        identity.valid_until = msg->valid_until;
++        const std::string mode = normalize_mode(msg->behavior_mode);
++        identity.behavior_mode = mode;
++        auto reject = [&](const std::string& reason) {
++            publish_status_for_avoidance(identity, rejected_result(reason, "send_valid_velocity_intent"));
++        };
++        if (!has_nominal_route_ || !ship_guidance::route_arbitration_policy::parent_binding_matches(
++                msg->parent_route_id, msg->parent_route_revision,
++                latest_nominal_route_.route_id, latest_nominal_route_.route_revision)) {
++            reject("velocity_parent_route_version_mismatch"); return;
++        }
++        if (mode == "return_to_route") {
++            publish_return_to_preempted_route(msg->intent_id, msg->command_source, "velocity_return_requested");
++            return;
++        }
++        const bool emergency = ship_guidance::route_arbitration_policy::emergency_behavior(mode);
++        if (!ship_guidance::avoidance_mode_policy::velocity(mode) || msg->intent_id.empty() ||
++            msg->speed_reference != "SOG" || !std::isfinite(msg->course_rad) ||
++            !std::isfinite(msg->speed_mps) || msg->speed_mps < 0.0 || msg->speed_mps > max_command_speed_mps_) {
++            reject("invalid_velocity_intent"); return;
++        }
++        if (time_is_zero(msg->valid_until) || rclcpp::Time(msg->valid_until) <= now() ||
++            rclcpp::Time(msg->header.stamp) > now()) {
++            reject("velocity_intent_expired_or_future"); return;
++        }
++        if (has_active_velocity_intent_ && rclcpp::Time(msg->header.stamp) < rclcpp::Time(active_velocity_intent_.header.stamp)) {
++            reject("velocity_intent_out_of_order"); return;
++        }
++        if (enable_berthing_arbitration_ && !emergency &&
++            ship_guidance::route_arbitration_policy::ordinary_avoidance_blocked(normalize_mode(latest_berthing_state_))) {
++            reject("ordinary_velocity_blocked_during_berthing_transition"); return;
++        }
++        active_velocity_intent_ = *msg;
++        has_active_velocity_intent_ = true;
++        velocity_expiry_reported_ = false;
++        mark_avoidance_active(identity);
++        velocity_intent_pub_->publish(*msg);
++        FeasibilityResult result;
++        result.accepted = true;
++        result.executing = true;
++        result.rejected = false;
++        result.suggested_action = "none";
++        result.state = "VELOCITY_INTENT_ACCEPTED";
++        result.reason = "velocity_intent_authorized";
++        result.requested_speed_mps = msg->speed_mps;
++        result.applied_speed_mps = msg->speed_mps;
++        result.suggested_max_speed_mps = max_command_speed_mps_;
++        publish_status_for_avoidance(identity, result);
++    }
++
+     static bool route_contains_berthing_segment(
+         const ship_interfaces::msg::RoutePlan& route)
+     {
+@@ -641,6 +720,7 @@ private:
+         result.executing = msg->accepted;
+         result.rejected = !msg->accepted;
+         if (msg->accepted) {
++            admitted_route_ = active_route_;
+             result.state = msg->status == "IGNORED_DUPLICATE"
+                 ? "EXECUTING"
+                 : msg->status;
+@@ -695,6 +775,7 @@ private:
+         const std::string& command_source,
+         const std::string& trigger_reason)
+     {
++        clear_velocity_intent();
+         if (has_active_berthing_ && berthing_state_allows_route(latest_berthing_state_) &&
+             publish_return_to_berthing(request_id, command_source, trigger_reason)) {
+             return true;
+@@ -790,7 +871,17 @@ private:
+ 
+     void maintenance_callback()
+     {
+-        if (has_active_avoidance_ && now() > active_avoidance_until_) {
++        if (has_active_velocity_intent_ && now() > active_avoidance_until_) {
++            if (!velocity_expiry_reported_) {
++                ship_interfaces::msg::AvoidancePlan identity;
++                identity.plan_id = active_velocity_intent_.intent_id;
++                identity.parent_route_id = active_velocity_intent_.parent_route_id;
++                identity.parent_route_revision = active_velocity_intent_.parent_route_revision;
++                publish_status_for_avoidance(identity,
++                    rejected_result("velocity_intent_expired", "send_fresh_intent_or_explicit_return"));
++                velocity_expiry_reported_ = true;
++            }
++        } else if (has_active_avoidance_ && now() > active_avoidance_until_) {
+             publish_return_to_preempted_route(
+                 active_avoidance_plan_id_,
+                 "collision_avoidance",
+@@ -844,10 +935,75 @@ private:
+         route.longitude = plan.longitude;
+         route.speed_limit_mps = plan.command_speed_mps;
+         route.navigation_mode = plan.navigation_mode;
++        if (normalize_mode(plan.behavior_mode) == "planner_trajectory_v1") {
++            route.trajectory_dt_s = plan.trajectory_dt_s;
++            route.trajectory_reference_id = plan.trajectory_reference_id;
++            route.trajectory_course_deg = plan.command_heading_deg;
++            route.trajectory_valid_for_s =
++                (rclcpp::Time(plan.valid_until) - rclcpp::Time(plan.header.stamp)).seconds();
++        }
+ 
+         return route;
+     }
+ 
++    FeasibilityResult evaluate_planner_trajectory(
++        const ship_interfaces::msg::AvoidancePlan& plan,
++        const ship_interfaces::msg::RoutePlan& route) const
++    {
++        namespace contract = ship_guidance::planner_trajectory_contract;
++        if (plan.command_source != "mid_mpc_ipopt" || !has_ship_state_ ||
++            !latest_ship_state_.origin_locked || time_is_zero(plan.header.stamp)) {
++            return rejected_result("trajectory_source_or_state_invalid", "provide_current_planner_state");
++        }
++        if (route.trajectory_course_deg.size() != route.latitude.size() ||
++            route.speed_limit_mps.size() != route.latitude.size() ||
++            !std::isfinite(route.trajectory_valid_for_s) || route.trajectory_valid_for_s <= 0.0 ||
++            route.trajectory_valid_for_s > (route.latitude.size() - 1) * route.trajectory_dt_s ||
++            rclcpp::Time(plan.header.stamp) > get_clock()->now()) {
++            return rejected_result("trajectory_metadata_invalid", "provide_aligned_timed_samples");
++        }
++        const bool renewal = route.route_id == admitted_route_.route_id;
++        if (renewal) {
++            if (route.latitude != admitted_route_.latitude || route.longitude != admitted_route_.longitude ||
++                route.speed_limit_mps != admitted_route_.speed_limit_mps ||
++                route.navigation_mode != admitted_route_.navigation_mode ||
++                route.trajectory_course_deg != admitted_route_.trajectory_course_deg ||
++                route.trajectory_dt_s != admitted_route_.trajectory_dt_s ||
++                rclcpp::Time(route.header.stamp) != rclcpp::Time(admitted_route_.header.stamp)) {
++                return rejected_result("trajectory_identity_changed", "issue_a_new_plan_identity");
++            }
++        } else if (route.trajectory_reference_id.empty() ||
++                   route.trajectory_reference_id != admitted_route_.route_id) {
++            return rejected_result("trajectory_reference_stale", "bind_to_admitted_route");
++        }
++        std::vector<contract::Sample> samples;
++        samples.reserve(route.latitude.size());
++        for (std::size_t i = 0; i < route.latitude.size(); ++i) {
++            double north = 0.0, east = 0.0;
++            if (!ship_guidance::geodesy::wgs84_to_ned(latest_ship_state_.origin_lat,
++                    latest_ship_state_.origin_lon, route.latitude[i], route.longitude[i], north, east)) {
++                return rejected_result("trajectory_projection_failed", "provide_local_WGS84_trajectory");
++            }
++            samples.push_back({north, east, route.trajectory_course_deg[i] * kDegToRad, route.speed_limit_mps[i]});
++        }
++        if (!renewal && !contract::initial_state_matches(samples.front(),
++                {latest_ship_state_.x_ned, latest_ship_state_.y_ned, latest_ship_state_.course_deg * kDegToRad, latest_ship_state_.speed_mps})) {
++            return rejected_result("trajectory_initial_state_mismatch", "replan_from_current_state");
++        }
++        const auto reason = contract::validate(samples, route.trajectory_dt_s,
++            {max_command_speed_mps_, max_yaw_rate_deg_s_ * kDegToRad, max_decel_mps2_,
++             max_lateral_accel_mps2_, min_turn_radius_m_});
++        if (!reason.empty()) return rejected_result(reason, "replan_with_source_motion_limits");
++        auto result = accepted_result();
++        result.reason = "planner_trajectory_validated";
++        result.admitted_speed_limits_mps = route.speed_limit_mps;
++        result.requested_speed_mps = max_requested_speed(route);
++        result.applied_speed_mps = result.requested_speed_mps;
++        result.requested_heading_deg = route.trajectory_course_deg.front();
++        result.applied_heading_deg = result.requested_heading_deg;
++        return result;
++    }
++
+     FeasibilityResult evaluate_avoidance_plan(
+         const ship_interfaces::msg::AvoidancePlan& plan,
+         const ship_interfaces::msg::RoutePlan& route) const
+@@ -855,6 +1011,9 @@ private:
+         if (!basic_route_valid(route)) {
+             return rejected_result("invalid_avoidance_route", "fix_route_plan");
+         }
++        if (normalize_mode(plan.behavior_mode) == "planner_trajectory_v1") {
++            return evaluate_planner_trajectory(plan, route);
++        }
+         if (!plan.command_heading_deg.empty() &&
+             plan.command_heading_deg.size() != route.latitude.size()) {
+             return rejected_result("heading_length_mismatch", "fix_heading_array");
+@@ -889,6 +1048,10 @@ private:
+         result.requested_speed_mps = max_requested_speed(route);
+         result.applied_speed_mps = std::min(result.requested_speed_mps, max_command_speed_mps_);
+         result.suggested_max_speed_mps = result.applied_speed_mps;
++        result.admitted_speed_limits_mps.reserve(points.size());
++        for (size_t i = 0; i < points.size(); ++i) {
++            result.admitted_speed_limits_mps.push_back(requested_speed_at(route, i));
++        }
+         if (!plan.command_heading_deg.empty()) {
+             result.requested_heading_deg = clamp_angle_deg(plan.command_heading_deg.front());
+             result.applied_heading_deg = result.requested_heading_deg;
+@@ -932,9 +1095,31 @@ private:
+             }
+         }
+ 
++        // Planner-owned dense stitch geometry must reach the guidance chain
++        // point-for-point: rejecting it here would expire the previous plan
++        // into the 3-point internal return route and collapse the route
++        // mirror. Every other admission gate below still applies, emergency
++        // plans keep the 15 m floor, and operator/collision-avoidance plans
++        // keep the legacy reject.
++        const bool planner_owned_plan =
++            planner_route_min_segment_skip_ && !emergency &&
++            plan.command_source == "mid_mpc_ipopt";
++        bool tolerated_short_segment_logged = false;
+         for (size_t i = 0; i + 1 < points.size(); ++i) {
+             const double seg_len = distance(points[i], points[i + 1]);
+             if (seg_len < min_segment) {
++                if (planner_owned_plan) {
++                    if (!tolerated_short_segment_logged) {
++                        RCLCPP_WARN(
++                            get_logger(),
++                            "[ActiveRouteManager] plan_id='%s' planner-owned segment %.3fm < %.1fm tolerated; dense stitch geometry kept point-for-point",
++                            plan.plan_id.c_str(),
++                            seg_len,
++                            min_segment);
++                        tolerated_short_segment_logged = true;
++                    }
++                    continue;
++                }
+                 auto rejected = rejected_result("segment_too_short", "increase_segment_length");
+                 rejected.available_decel_distance_m = seg_len;
+                 rejected.suggested_min_distance_m = min_segment;
+@@ -968,6 +1153,8 @@ private:
+                     yaw_required_radius >= static_min_turn_radius;
+                 result.suggested_max_speed_mps =
+                     std::min(result.suggested_max_speed_mps, safe_speed);
++                result.admitted_speed_limits_mps[i] =
++                    std::min(result.admitted_speed_limits_mps[i], safe_speed);
+                 if (plan.require_exact_speed || !plan.allow_degraded_execution) {
+                     auto rejected = rejected_result(
+                         yaw_rate_is_dominant ? "yaw_rate_too_high" : "turn_radius_too_small",
+@@ -1018,7 +1205,17 @@ private:
+         if (!result.degraded) {
+             result.state = "ACCEPTED";
+         }
+-        result.applied_speed_mps = std::min(result.requested_speed_mps, result.suggested_max_speed_mps);
++        // A local turn limit is not a permanent cruise limit. Propagate only
++        // the necessary braking envelope upstream; keep later requested speeds.
++        for (size_t i = points.size() - 1; i > 0; --i) {
++            const double next = result.admitted_speed_limits_mps[i];
++            const double upstream = std::sqrt(next * next +
++                2.0 * max_decel_mps2_ * distance(points[i - 1], points[i]));
++            result.admitted_speed_limits_mps[i - 1] =
++                std::min(result.admitted_speed_limits_mps[i - 1], upstream);
++        }
++        result.applied_speed_mps = *std::max_element(
++            result.admitted_speed_limits_mps.begin(), result.admitted_speed_limits_mps.end());
+         return result;
+     }
+ 
+@@ -1101,22 +1298,10 @@ private:
+ 
+     void apply_speed_degradation(
+         ship_interfaces::msg::RoutePlan& route,
+-        double suggested_max_speed_mps) const
++        const std::vector<double>& admitted_speed_limits_mps) const
+     {
+-        if (!std::isfinite(suggested_max_speed_mps) || suggested_max_speed_mps <= 0.0) {
+-            return;
+-        }
+-        const double cap = std::min(suggested_max_speed_mps, max_command_speed_mps_);
+-        if (route.speed_limit_mps.empty()) {
+-            route.speed_limit_mps.assign(route.latitude.size(), cap);
+-            return;
+-        }
+-        for (double& speed : route.speed_limit_mps) {
+-            if (!std::isfinite(speed) || speed <= 0.0) {
+-                speed = cap;
+-            } else {
+-                speed = std::min(speed, cap);
+-            }
++        if (admitted_speed_limits_mps.size() == route.latitude.size()) {
++            route.speed_limit_mps = admitted_speed_limits_mps;
+         }
+     }
+ 
+@@ -1288,6 +1473,15 @@ private:
+     double max_command_speed_mps_{8.0};
+     double min_segment_length_m_{30.0};
+     double emergency_min_segment_length_m_{15.0};
++    // The 30 m floor is a hand-route admission contract. Dense planner-owned
++    // (mid_mpc_ipopt) stitch geometry is mirrored point-for-point downstream,
++    // and a re-spliced boundary leg can sit marginally below the floor, so a
++    // hard reject would collapse the route into the 3-point internal return
++    // route. Such plans keep every other admission gate (speed, turn radius,
++    // decel distance); emergency plans always keep the 15 m floor.
++    bool planner_route_min_segment_skip_{true};
++    const int planner_trajectory_contract_version_{1};
++    ship_interfaces::msg::RoutePlan admitted_route_;
+     double min_turn_radius_m_{80.0};
+     double emergency_min_turn_radius_m_{45.0};
+     double max_lateral_accel_mps2_{0.25};
+@@ -1312,6 +1506,11 @@ private:
+     std::string latest_berthing_state_{"inactive"};
+     rclcpp::Time berthing_candidate_deadline_{0, 0, RCL_ROS_TIME};
+     bool has_active_avoidance_{false};
++    bool has_active_velocity_intent_{false};
++    bool velocity_expiry_reported_{false};
++    ship_interfaces::msg::VelocityIntent active_velocity_intent_;
++    rclcpp::Publisher<ship_interfaces::msg::VelocityIntent>::SharedPtr velocity_intent_pub_;
++    rclcpp::Subscription<ship_interfaces::msg::VelocityIntent>::SharedPtr velocity_intent_sub_;
+     std::string active_avoidance_plan_id_;
+     rclcpp::Time active_avoidance_until_{0, 0, RCL_ROS_TIME};
+ 
+```
+
+## src/gnc/ship_guidance/src/coordinate_transform_node.cpp
+
+[修改前](source-before/src/gnc/ship_guidance/src/coordinate_transform_node.cpp) · [修改后](source-after/src/gnc/ship_guidance/src/coordinate_transform_node.cpp) · [原始 diff](per-file/src/gnc/ship_guidance/src/coordinate_transform_node.cpp.diff)
+
+```diff
+diff --git a/src/gnc/ship_guidance/src/coordinate_transform_node.cpp b/src/gnc/ship_guidance/src/coordinate_transform_node.cpp
+index 4d45d26e08f06afa88abe5dd502b6375711008b4..b42d4cc822a086d69fa0eee9a4990cba5733af8f 100644
+--- a/src/gnc/ship_guidance/src/coordinate_transform_node.cpp
++++ b/src/gnc/ship_guidance/src/coordinate_transform_node.cpp
+@@ -1,5 +1,7 @@
+ #include "ship_guidance/coordinate_transform_node.hpp"
+ #include "ship_guidance/dp_state_policy.hpp"
++#include "ship_guidance/geodesy.hpp"
++#include "ship_guidance/avoidance_mode_policy.hpp"
+ #include <chrono>
+ #include <ctime>
+ #include <filesystem>
+@@ -80,111 +82,16 @@ int navigation_mode_code(const std::string& raw_mode)
+     if (mode == "harbor") return 3;
+     if (mode == "approach") return 4;
+     if (mode == "dp_hold" || mode == "dp" || mode == "station_keeping") return 5;
+-    if (mode == "emergency_avoidance" ||
+-        mode == "emergency_avoid" ||
+-        mode == "collision_avoidance" ||
+-        mode == "avoidance") return 6;
++    if (ship_guidance::avoidance_mode_policy::any(mode)) {
++        return ship_guidance::avoidance_mode_policy::encode(mode);
++    }
+     if (mode == "berth_departure" || mode == "departure" || mode == "undocking") return 7;
+     if (mode == "join_route" || mode == "route_join") return 8;
+     if (mode == "berthing" || mode == "docking" || mode == "berth_approach") return 9;
+     return 0;
+ }
+ 
+-bool vincenty_inverse(
+-    double lat1_deg, double lon1_deg,
+-    double lat2_deg, double lon2_deg,
+-    double semi_major_axis, double first_eccentricity_sq,
+-    double& distance_m, double& azimuth_rad)
+-{
+-    constexpr double deg_to_rad = M_PI / 180.0;
+-    constexpr double convergence_tol = 1e-12;
+-    constexpr int max_iterations = 100;
+-
+-    const double phi1 = lat1_deg * deg_to_rad;
+-    const double phi2 = lat2_deg * deg_to_rad;
+-    double L = (lon2_deg - lon1_deg) * deg_to_rad;
+-    if (L > M_PI || L < -M_PI) {
+-        L = std::remainder(L, 2.0 * M_PI);
+-    }
+-
+-    if (std::abs(phi2 - phi1) < 1e-15 && std::abs(L) < 1e-15) {
+-        distance_m = 0.0;
+-        azimuth_rad = 0.0;
+-        return true;
+-    }
+-
+-    const double flattening = 1.0 - std::sqrt(std::max(0.0, 1.0 - first_eccentricity_sq));
+-    if (!std::isfinite(flattening) || flattening <= 0.0 || flattening >= 1.0 || semi_major_axis <= 0.0) {
+-        return false;
+-    }
+-
+-    const double semi_minor_axis = semi_major_axis * (1.0 - flattening);
+-    const double U1 = std::atan((1.0 - flattening) * std::tan(phi1));
+-    const double U2 = std::atan((1.0 - flattening) * std::tan(phi2));
+-    const double sinU1 = std::sin(U1);
+-    const double cosU1 = std::cos(U1);
+-    const double sinU2 = std::sin(U2);
+-    const double cosU2 = std::cos(U2);
+-
+-    double lambda = L;
+-    double sinSigma = 0.0;
+-    double cosSigma = 0.0;
+-    double sigma = 0.0;
+-    double sinAlpha = 0.0;
+-    double cosSqAlpha = 0.0;
+-    double cos2SigmaM = 0.0;
+-    bool converged = false;
+-
+-    for (int iter = 0; iter < max_iterations; ++iter) {
+-        const double sinLambda = std::sin(lambda);
+-        const double cosLambda = std::cos(lambda);
+-        const double term1 = cosU2 * sinLambda;
+-        const double term2 = cosU1 * sinU2 - sinU1 * cosU2 * cosLambda;
+-        sinSigma = std::hypot(term1, term2);
+-        if (sinSigma == 0.0) {
+-            distance_m = 0.0;
+-            azimuth_rad = 0.0;
+-            return true;
+-        }
+-        cosSigma = sinU1 * sinU2 + cosU1 * cosU2 * cosLambda;
+-        sigma = std::atan2(sinSigma, cosSigma);
+-        sinAlpha = cosU1 * cosU2 * sinLambda / sinSigma;
+-        cosSqAlpha = 1.0 - sinAlpha * sinAlpha;
+-        if (cosSqAlpha > 1e-15) {
+-            cos2SigmaM = cosSigma - 2.0 * sinU1 * sinU2 / cosSqAlpha;
+-        } else {
+-            cos2SigmaM = 0.0;
+-        }
+-        const double C = flattening / 16.0 * cosSqAlpha * (4.0 + flattening * (4.0 - 3.0 * cosSqAlpha));
+-        const double previous_lambda = lambda;
+-        lambda = L + (1.0 - C) * flattening * sinAlpha *
+-            (sigma + C * sinSigma * (cos2SigmaM + C * cosSigma *
+-            (-1.0 + 2.0 * cos2SigmaM * cos2SigmaM)));
+-        if (std::abs(lambda - previous_lambda) <= convergence_tol) {
+-            converged = true;
+-            break;
+-        }
+-    }
+-
+-    if (!converged) {
+-        return false;
+-    }
+-
+-    const double uSq = cosSqAlpha * (semi_major_axis * semi_major_axis - semi_minor_axis * semi_minor_axis) /
+-        (semi_minor_axis * semi_minor_axis);
+-    const double A = 1.0 + uSq / 16384.0 * (4096.0 + uSq * (-768.0 + uSq * (320.0 - 175.0 * uSq)));
+-    const double B = uSq / 1024.0 * (256.0 + uSq * (-128.0 + uSq * (74.0 - 47.0 * uSq)));
+-    const double deltaSigma = B * sinSigma * (cos2SigmaM + B / 4.0 *
+-        (cosSigma * (-1.0 + 2.0 * cos2SigmaM * cos2SigmaM) -
+-         B / 6.0 * cos2SigmaM * (-3.0 + 4.0 * sinSigma * sinSigma) *
+-         (-3.0 + 4.0 * cos2SigmaM * cos2SigmaM)));
+-
+-    distance_m = semi_minor_axis * A * (sigma - deltaSigma);
+-    azimuth_rad = std::atan2(
+-        cosU2 * std::sin(lambda),
+-        cosU1 * sinU2 - sinU1 * cosU2 * std::cos(lambda));
+-    return std::isfinite(distance_m) && std::isfinite(azimuth_rad);
+-}
++using ship_guidance::geodesy::vincenty_inverse;
+ 
+ }  // namespace
+ 
+@@ -662,6 +569,17 @@ void CoordinateTransformNode::route_callback(
+         publish_route_status(*msg, false, "REJECTED", reason,
+             lats.size(), 0, 0.0, false, false);
+     };
++    const bool planner_trajectory = msg->route_type == "planner_trajectory_v1";
++    if (planner_trajectory &&
++        (!std::isfinite(msg->trajectory_dt_s) || msg->trajectory_dt_s <= 0.0 ||
++         !std::isfinite(msg->trajectory_valid_for_s) || msg->trajectory_valid_for_s <= 0.0 ||
++         msg->trajectory_course_deg.size() != lats.size() ||
++         msg->speed_limit_mps.size() != lats.size() ||
++         msg->trajectory_reference_id.empty() ||
++         (this->now() - rclcpp::Time(msg->header.stamp)).seconds() >= msg->trajectory_valid_for_s)) {
++        reject_route("planner trajectory metadata or validity is invalid");
++        return;
++    }
+ 
+     if (lats.empty() || lons.empty()) {
+         RCLCPP_WARN(this->get_logger(), "[CoordTransform] rejected empty RoutePlan");
+@@ -764,14 +682,21 @@ void CoordinateTransformNode::route_callback(
+     raw_pts.reserve(lats.size());
+     for (size_t i = 0; i < lats.size(); ++i) {
+         double x = 0.0, y = 0.0;
+-        wgs84_to_local(lats[i], lons[i], lat0, lon0, x, y);
++        if (planner_trajectory) {
++            if (!ship_guidance::geodesy::wgs84_to_ned(lat0, lon0, lats[i], lons[i], x, y)) {
++                reject_route("planner trajectory WGS84 projection failed");
++                return;
++            }
++        } else {
++            wgs84_to_local(lats[i], lons[i], lat0, lon0, x, y);
++        }
+         NedPoint np;
+         np.x = x;
+         np.y = y;
+         np.speed_override = -1.0;
+         if (has_speed_limits &&
+             std::isfinite(msg->speed_limit_mps[i]) &&
+-            msg->speed_limit_mps[i] > 0.0) {
++            (msg->speed_limit_mps[i] > 0.0 || (planner_trajectory && msg->speed_limit_mps[i] == 0.0))) {
+             np.speed_override = msg->speed_limit_mps[i];
+             np.speed_override_is_route_limit = true;
+         }
+@@ -783,7 +708,7 @@ void CoordinateTransformNode::route_callback(
+     }
+     const bool has_emergency_avoidance = std::any_of(
+         raw_pts.begin(), raw_pts.end(),
+-        [](const NedPoint& pt) { return pt.navigation_mode_code == 6; });
++        [](const NedPoint& pt) { return ship_guidance::avoidance_mode_policy::is_avoidance_code(pt.navigation_mode_code); });
+     const double active_min_future_update_distance =
+         (has_emergency_avoidance && emergency_avoidance_relax_update_guard_)
+             ? emergency_avoidance_min_future_update_distance_m_
+@@ -821,7 +746,10 @@ void CoordinateTransformNode::route_callback(
+             "[CoordTransform] internal return route bypasses dynamic update guard route_id='%s'",
+             msg->route_id.c_str());
+     }
+-    if (enable_route_update_guard_ && !internal_return_to_route &&
++    // Timed planner trajectories have already passed the source motion and
++    // initial-state contract in ARM. They re-anchor at the measured vessel;
++    // operator-route index and 150 m rules describe a different interface.
++    if (enable_route_update_guard_ && !internal_return_to_route && !planner_trajectory &&
+         has_last_route_ && last_feedback_path_.size() >= 2) {
+         const int first_changed_idx = first_geometry_change_index(raw_pts, last_feedback_path_);
+         if (first_changed_idx >= 0) {
+@@ -881,7 +809,7 @@ void CoordinateTransformNode::route_callback(
+     const bool external_planner_route =
+         arc_smoothing_external_route_min_points_ > 0 &&
+         raw_pts.size() >= static_cast<size_t>(arc_smoothing_external_route_min_points_);
+-    if (enable_arc_smoothing_ && ned_pts.size() >= 3) {
++    if (enable_arc_smoothing_ && ned_pts.size() >= 3 && !planner_trajectory) {
+         if (has_emergency_avoidance) {
+             RCLCPP_WARN(this->get_logger(),
+                 "[CoordTransform] arc smoothing bypassed for emergency_avoidance route_id='%s'",
+@@ -911,7 +839,7 @@ void CoordinateTransformNode::route_callback(
+         }
+     }
+ 
+-    if (enable_fap_ && ned_pts.size() >= 2 && !has_emergency_avoidance) {
++    if (enable_fap_ && ned_pts.size() >= 2 && !has_emergency_avoidance && !planner_trajectory) {
+         ned_pts = insert_fap(ned_pts, fap_distance_m_, fap_speed_mps_);
+     } else if (enable_fap_ && has_emergency_avoidance) {
+         RCLCPP_WARN(this->get_logger(),
+@@ -926,13 +854,19 @@ void CoordinateTransformNode::route_callback(
+     for (auto& np : ned_pts) {
+         geometry_msgs::msg::PoseStamped pose;
+         pose.header = path_msg.header;
++        if (planner_trajectory) {
++            pose.header.stamp = rclcpp::Time(msg->header.stamp) +
++                rclcpp::Duration::from_seconds(path_msg.poses.size() * msg->trajectory_dt_s);
++        }
+         pose.pose.position.x = np.x;
+         pose.pose.position.y = np.y;
+         pose.pose.position.z = static_cast<double>(np.navigation_mode_code);
+         pose.pose.orientation.x = np.is_arc_point ? 1.0 : 0.0;
+         pose.pose.orientation.y = np.speed_override_is_route_limit ? 1.0 : 0.0;
+         pose.pose.orientation.z = (np.speed_override > 0) ? np.speed_override : 0.0;
+-        pose.pose.orientation.w = 1.0;
++        // Path already uses orientation as waypoint metadata, not rotation.
++        // Version 2 identifies the source-validated timed planner contract.
++        pose.pose.orientation.w = planner_trajectory ? 2.0 : 1.0;
+         path_msg.poses.push_back(pose);
+     }
+ 
+```
+
+## src/gnc/ship_guidance/src/ship_guidance_node.cpp
+
+[修改前](source-before/src/gnc/ship_guidance/src/ship_guidance_node.cpp) · [修改后](source-after/src/gnc/ship_guidance/src/ship_guidance_node.cpp) · [原始 diff](per-file/src/gnc/ship_guidance/src/ship_guidance_node.cpp.diff)
+
+```diff
+diff --git a/src/gnc/ship_guidance/src/ship_guidance_node.cpp b/src/gnc/ship_guidance/src/ship_guidance_node.cpp
+index f8efd9f888764184b9d64640343553f4f9835029..82dcf2d9048fe07308a969179e5466325c593849 100644
+--- a/src/gnc/ship_guidance/src/ship_guidance_node.cpp
++++ b/src/gnc/ship_guidance/src/ship_guidance_node.cpp
+@@ -1,4 +1,5 @@
+ #include "ship_guidance/ship_guidance_node.hpp"
++#include "ship_guidance/avoidance_mode_policy.hpp"
+ #include <algorithm>
+ #include <cmath>
+ #include <cctype>
+@@ -57,6 +58,7 @@ static std::string navigation_mode_from_code(double code_value)
+         case 4: return "approach";
+         case 5: return "dp_hold";
+         case 6: return "emergency_avoidance";
++        case 10: return "avoidance";
+         case 7: return "berth_departure";
+         case 8: return "join_route";
+         case 9: return "berthing";
+@@ -375,6 +377,9 @@ ShipGuidanceNode::ShipGuidanceNode()
+     this->declare_parameter("external_route_turn_centerline_distance_m", 600.0);
+     this->declare_parameter("external_route_turn_centerline_release_xte_m", 18.0);
+     this->declare_parameter("external_route_turn_speed_cap_mps", 4.2);
++    this->declare_parameter("external_route_turn_skip_planner_routes", true);
++    this->declare_parameter("planner_route_speed_gate_skip", true);
++    this->declare_parameter("planner_route_arc_smoothing_skip", true);
+     this->declare_parameter("turn_feasibility_preview_enabled", true);
+     this->declare_parameter("turn_feasibility_preview_distance_m", 1200.0);
+     this->declare_parameter("turn_feasibility_min_cumulative_angle_deg", 10.0);
+@@ -422,10 +427,10 @@ ShipGuidanceNode::ShipGuidanceNode()
+     this->declare_parameter("ilos_turn_kappa_preview_m", 0.0);
+     this->declare_parameter("ilos_turn_kappa_hold_m", 0.0);
+     this->declare_parameter("ilos_turn_kappa_min_angle_deg", 10.0);
+-    this->declare_parameter("ilos_integral_max_heading_effect_deg", 15.0);
+-    this->declare_parameter("ilos_turn_integral_schedule_enabled", false);
+-    this->declare_parameter("ilos_turn_integral_fade_start_m", 0.0);
+-    this->declare_parameter("ilos_turn_integral_zero_distance_m", 0.0);
++    this->declare_parameter("ilos_integral_max_heading_effect_deg", 15.0);
++    this->declare_parameter("ilos_turn_integral_schedule_enabled", false);
++    this->declare_parameter("ilos_turn_integral_fade_start_m", 0.0);
++    this->declare_parameter("ilos_turn_integral_zero_distance_m", 0.0);
+     this->declare_parameter("ilos_turn_integral_hold_m", 0.0);
+     this->declare_parameter("ilos_diagnostics_enabled", false);
+     this->declare_parameter("corridor_guidance_enabled", false);
+@@ -447,6 +452,7 @@ ShipGuidanceNode::ShipGuidanceNode()
+     this->declare_parameter("rejoin_severe_heading_error_deg", 30.0);
+     this->declare_parameter("rejoin_cross_track_m", 60.0);
+     this->declare_parameter("emergency_avoidance_speed_cap_mps", 3.2);
++    this->declare_parameter("velocity_course_gain", 4.0);
+     this->declare_parameter("emergency_avoidance_wheel_over_distance_m", 120.0);
+     this->declare_parameter("emergency_avoidance_switch_max_xte_m", 90.0);
+     this->declare_parameter("heading_align_rejoin_enabled", true);
+@@ -631,6 +637,14 @@ ShipGuidanceNode::ShipGuidanceNode()
+         "/guidance/dp_hold_active", rclcpp::QoS(1).transient_local().reliable());
+     ilos_diagnostics_pub_ = this->create_publisher<std_msgs::msg::String>(
+         "/diagnostics/ilos_guidance", 10);
++    velocity_status_pub_ = this->create_publisher<ship_interfaces::msg::VelocityExecutionStatus>(
++        "/gnc/velocity_execution_status", 10);
++    velocity_intent_sub_ = this->create_subscription<ship_interfaces::msg::VelocityIntent>(
++        "/gnc/velocity_intent", 10,
++        std::bind(&ShipGuidanceNode::velocity_intent_callback, this, std::placeholders::_1));
++    route_status_sub_ = this->create_subscription<ship_interfaces::msg::RouteExecutionStatus>(
++        "/gnc/route_execution_status", 10,
++        std::bind(&ShipGuidanceNode::route_status_callback, this, std::placeholders::_1));
+     publish_dp_hold_state(false);
+ 
+     timer_ = this->create_wall_timer(
+@@ -921,6 +935,12 @@ void ShipGuidanceNode::get_parameters()
+         this->get_parameter("external_route_turn_speed_cap_mps").as_double(),
+         minimum_steerage_speed_,
+         std::max(max_speed_, minimum_steerage_speed_));
++    external_route_turn_skip_planner_routes_ =
++        this->get_parameter("external_route_turn_skip_planner_routes").as_bool();
++    planner_route_speed_gate_skip_ =
++        this->get_parameter("planner_route_speed_gate_skip").as_bool();
++    planner_route_arc_smoothing_skip_ =
++        this->get_parameter("planner_route_arc_smoothing_skip").as_bool();
+     turn_feasibility_preview_enabled_ =
+         this->get_parameter("turn_feasibility_preview_enabled").as_bool();
+     turn_feasibility_preview_distance_m_ = std::clamp(
+@@ -1033,16 +1053,16 @@ void ShipGuidanceNode::get_parameters()
+         this->get_parameter("ilos_integral_max_heading_effect_deg").as_double(),
+         0.0,
+         45.0);
+-    ilos_turn_integral_schedule_enabled_ =
+-        this->get_parameter("ilos_turn_integral_schedule_enabled").as_bool();
+-    ilos_turn_integral_fade_start_m_ = std::max(
+-        0.0, this->get_parameter("ilos_turn_integral_fade_start_m").as_double());
+-    ilos_turn_integral_zero_distance_m_ = std::clamp(
+-        this->get_parameter("ilos_turn_integral_zero_distance_m").as_double(),
+-        0.0,
+-        ilos_turn_integral_fade_start_m_);
+-    ilos_turn_integral_hold_m_ = std::max(
+-        0.0, this->get_parameter("ilos_turn_integral_hold_m").as_double());
++    ilos_turn_integral_schedule_enabled_ =
++        this->get_parameter("ilos_turn_integral_schedule_enabled").as_bool();
++    ilos_turn_integral_fade_start_m_ = std::max(
++        0.0, this->get_parameter("ilos_turn_integral_fade_start_m").as_double());
++    ilos_turn_integral_zero_distance_m_ = std::clamp(
++        this->get_parameter("ilos_turn_integral_zero_distance_m").as_double(),
++        0.0,
++        ilos_turn_integral_fade_start_m_);
++    ilos_turn_integral_hold_m_ = std::max(
++        0.0, this->get_parameter("ilos_turn_integral_hold_m").as_double());
+     ilos_diagnostics_enabled_ =
+         this->get_parameter("ilos_diagnostics_enabled").as_bool();
+     corridor_guidance_enabled_ = this->get_parameter("corridor_guidance_enabled").as_bool();
+@@ -1068,6 +1088,7 @@ void ShipGuidanceNode::get_parameters()
+     rejoin_heading_error_deg_ = std::max(0.1, this->get_parameter("rejoin_heading_error_deg").as_double());
+     rejoin_severe_heading_error_deg_ = std::max(rejoin_heading_error_deg_, this->get_parameter("rejoin_severe_heading_error_deg").as_double());
+     rejoin_cross_track_m_ = std::max(0.0, this->get_parameter("rejoin_cross_track_m").as_double());
++    velocity_course_gain_ = std::clamp(this->get_parameter("velocity_course_gain").as_double(), 1.0, 4.0);
+     emergency_avoidance_speed_cap_mps_ = std::clamp(
+         this->get_parameter("emergency_avoidance_speed_cap_mps").as_double(),
+         0.5,
+@@ -1463,6 +1484,23 @@ std::vector<Waypoint> ShipGuidanceNode::smooth_waypoints_for_turns(const std::ve
+         return raw_waypoints;
+     }
+ 
++    // Dense planner-owned routes (mid_mpc_ipopt) are point-for-point mirrors
++    // of the route the planner published: the guidance feedback chain and the
++    // next splice generation both assume per-point geometry, and admission
++    // already validated every point (decel distance, turn radius, yaw rate).
++    // The turn-arc rewrite (dense-cluster Chaikin, circular arc insertion,
++    // segment merging) replaces those points and overrides their admitted
++    // speeds with hand-route turn speeds, so skip the whole rewrite for such
++    // routes. Operator routes, emergency bypass, and waypoint switching are
++    // unchanged.
++    if (planner_trajectory_path_ || (planner_route_arc_smoothing_skip_ &&
++        latest_route_command_source_ == "mid_mpc_ipopt")) {
++        RCLCPP_INFO(this->get_logger(),
++            "[TURN ARC] bypassed internal smoothing: planner-owned route (command_source='mid_mpc_ipopt') keeps all %zu points for the route mirror contract",
++            raw_waypoints.size());
++        return raw_waypoints;
++    }
++
+     const bool external_planner_route =
+         turn_arc_external_route_min_points_ > 0 &&
+         raw_waypoints.size() >= static_cast<size_t>(turn_arc_external_route_min_points_);
+@@ -2124,30 +2162,53 @@ void ShipGuidanceNode::path_callback(const nav_msgs::msg::Path::SharedPtr msg)
+     std::lock_guard<std::mutex> lock(state_mutex_);
+     if (msg->poses.empty()) return;
+ 
++    const bool incoming_planner_trajectory = msg->poses.front().pose.orientation.w == 2.0;
++    const bool was_planner_trajectory = planner_trajectory_path_;
+     const auto incoming_path_signature = compute_path_signature(*msg);
+     if (has_last_path_signature_ &&
+         last_path_signature_ == incoming_path_signature &&
+-        last_path_size_ == msg->poses.size()) {
++        last_path_size_ == msg->poses.size() &&
++        incoming_planner_trajectory == planner_trajectory_path_ &&
++        (!incoming_planner_trajectory ||
++         rclcpp::Time(msg->header.stamp).nanoseconds() == planner_trajectory_issued_ns_)) {
+         RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 5000,
+             "[PATH] ignored duplicate Path poses=%zu signature=%llu",
+             msg->poses.size(),
+             static_cast<unsigned long long>(incoming_path_signature));
+         return;
+     }
++    if (incoming_planner_trajectory) {
++        if (msg->poses.size() < 2) return;
++        const double dt = (rclcpp::Time(msg->poses[1].header.stamp) -
++            rclcpp::Time(msg->poses[0].header.stamp)).seconds();
++        if (!std::isfinite(dt) || dt <= 0.0) return;
++        planner_trajectory_dt_s_ = dt;
++        planner_trajectory_issued_ns_ = rclcpp::Time(msg->header.stamp).nanoseconds();
++    }
++    planner_trajectory_path_ = incoming_planner_trajectory;
+     has_last_path_signature_ = true;
+     last_path_signature_ = incoming_path_signature;
+     last_path_size_ = msg->poses.size();
+ 
++    // Preserve state only when the actual local guidance frame survives.
++    // current_wp_idx_ names the target; the active segment is [idx-1, idx].
++    const int previous_target_idx = current_wp_idx_;
++    const bool had_local_frame = path_from_callback_ && previous_target_idx > 0 &&
++        previous_target_idx < static_cast<int>(waypoints_.size());
++    const Waypoint previous_start = had_local_frame ? waypoints_[previous_target_idx - 1] : Waypoint{};
++    const Waypoint previous_target = had_local_frame ? waypoints_[previous_target_idx] : Waypoint{};
++
+     waypoints_.clear();
+     raw_waypoints_.clear();
+     for (const auto& pose : msg->poses) {
+         Waypoint wp;
+         wp.x = pose.pose.position.x;
+         wp.y = pose.pose.position.y;
+-        wp.speed_override = (pose.pose.orientation.z > 0.1) ? pose.pose.orientation.z : -1.0;
++        wp.speed_override = (planner_trajectory_path_ || pose.pose.orientation.z > 0.1)
++            ? pose.pose.orientation.z : -1.0;
+         wp.is_arc_point = (pose.pose.orientation.x > 0.5);
+         wp.speed_override_is_route_limit =
+-            wp.speed_override > 0.1 && pose.pose.orientation.y > 0.5;
++            planner_trajectory_path_ || (wp.speed_override > 0.1 && pose.pose.orientation.y > 0.5);
+         wp.route_speed_limit = wp.speed_override_is_route_limit ? wp.speed_override : -1.0;
+         wp.navigation_mode = navigation_mode_from_code(pose.pose.position.z);
+         waypoints_.push_back(wp);
+@@ -2165,26 +2226,7 @@ void ShipGuidanceNode::path_callback(const nav_msgs::msg::Path::SharedPtr msg)
+     dp_hold_x_ = 0.0;
+     dp_hold_y_ = 0.0;
+     dp_hold_psi_ = 0.0;
+-    raw_route_rejoin_active_ = false;
+-    speed_recovery_segment_idx_ = -1;
+-    speed_recovery_gate_cleared_ = false;
+-    speed_recovery_speed_cap_ = 0.0;
+-    speed_recovery_last_time_ = this->now();
+-    turn_segment_speed_gate_active_ = false;
+-    cruise_envelope_state_ = ship_guidance::CruiseEnvelopeState::Normal;
+-    cruise_speed_cap_mps_ = cruise_base_speed_mps_;
+     final_dp_stop_envelope_latched_ = false;
+-    current_crab_command_rad_ = 0.0;
+-    current_crab_command_initialized_ = false;
+-    current_vector_crab_command_rad_ = 0.0;
+-    current_vector_crab_command_initialized_ = false;
+-    current_vector_target_xte_m_ = 0.0;
+-    current_vector_target_xte_initialized_ = false;
+-    current_vector_residual_filtered_force_n_ = 0.0;
+-    current_vector_residual_filter_initialized_ = false;
+-    current_vector_residual_engaged_ = false;
+-    current_vector_residual_command_rad_ = 0.0;
+-    current_vector_residual_command_initialized_ = false;
+     publish_dp_hold_state(false);
+ 
+     // ========== 智能航点索引确定：找到船当前所在的航段 ==========
+@@ -2218,8 +2260,9 @@ void ShipGuidanceNode::path_callback(const nav_msgs::msg::Path::SharedPtr msg)
+ 
+             if (progress > 0.0) {
+                 // 船已经越过T_{i+1}，应该从下一个航段开始导航
+-                current_wp_idx_ = i + 1;
++                current_wp_idx_ = std::min(static_cast<int>(i + 2), static_cast<int>(waypoints_.size()) - 1);
+             } else {
++                current_wp_idx_ = static_cast<int>(i + 1);
+                 // 船尚未越过T_{i+1}，当前航段是 i -> i+1
+                 break;
+             }
+@@ -2258,6 +2301,54 @@ void ShipGuidanceNode::path_callback(const nav_msgs::msg::Path::SharedPtr msg)
+     const size_t raw_waypoint_count = waypoints_.size();
+     waypoints_ = smooth_waypoints_for_turns(waypoints_);
+     current_wp_idx_ = std::clamp(current_wp_idx_, 0, static_cast<int>(waypoints_.size()) - 1);
++    const auto same_local_waypoint = [](const Waypoint& old, const Waypoint& incoming) {
++        // Geographic/local round trips can move retained points by nanometres.
++        return std::hypot(old.x - incoming.x, old.y - incoming.y) <= 1.0e-6 &&
++            old.navigation_mode == incoming.navigation_mode;
++    };
++    bool equivalent_planner_segment = false;
++    if (was_planner_trajectory && planner_trajectory_path_ && had_local_frame && current_wp_idx_ > 0) {
++        const auto& start = waypoints_[current_wp_idx_ - 1];
++        const auto& end = waypoints_[current_wp_idx_];
++        const double dx = previous_target.x - previous_start.x;
++        const double dy = previous_target.y - previous_start.y;
++        const double length = std::hypot(dx, dy);
++        const double new_dx = end.x - start.x;
++        const double new_dy = end.y - start.y;
++        const double new_length = std::hypot(new_dx, new_dy);
++        equivalent_planner_segment = length > 1e-6 && new_length > 1e-6 &&
++            dx * new_dx + dy * new_dy > 0.0 &&
++            std::abs(dx * new_dy - dy * new_dx) / (length * new_length) <= 1e-6 &&
++            std::abs(dx * (start.y - previous_start.y) - dy * (start.x - previous_start.x)) / length <= 1e-6;
++    }
++    const bool preserve_local_guidance_state = equivalent_planner_segment || (had_local_frame &&
++        previous_target_idx < static_cast<int>(waypoints_.size()) &&
++        same_local_waypoint(previous_start, waypoints_[previous_target_idx - 1]) &&
++        same_local_waypoint(previous_target, waypoints_[previous_target_idx]));
++    if (equivalent_planner_segment) speed_recovery_segment_idx_ = current_wp_idx_;
++    if (!preserve_local_guidance_state) {
++        raw_route_rejoin_active_ = false;
++        speed_recovery_segment_idx_ = -1;
++        speed_recovery_gate_cleared_ = false;
++        speed_recovery_speed_cap_ = 0.0;
++        speed_recovery_last_time_ = this->now();
++        turn_segment_speed_gate_active_ = false;
++        cruise_envelope_state_ = ship_guidance::CruiseEnvelopeState::Normal;
++        cruise_speed_cap_mps_ = cruise_base_speed_mps_;
++        cruise_recovery_gate_cleared_ = false;
++        cruise_recovery_stable_timer_active_ = false;
++        current_crab_command_rad_ = 0.0;
++        current_crab_command_initialized_ = false;
++        current_vector_crab_command_rad_ = 0.0;
++        current_vector_crab_command_initialized_ = false;
++        current_vector_target_xte_m_ = 0.0;
++        current_vector_target_xte_initialized_ = false;
++        current_vector_residual_filtered_force_n_ = 0.0;
++        current_vector_residual_filter_initialized_ = false;
++        current_vector_residual_engaged_ = false;
++        current_vector_residual_command_rad_ = 0.0;
++        current_vector_residual_command_initialized_ = false;
++    }
+     if (smoothed_waypoints_pub_) {
+         nav_msgs::msg::Path smoothed_path;
+         smoothed_path.header.stamp = this->now();
+@@ -2501,6 +2592,7 @@ void ShipGuidanceNode::calculate_los(double x, double y, double& psi_cmd, double
+         return fallback;
+     };
+     auto waypoint_speed_limit = [&](int waypoint_idx, double fallback) {
++        if (planner_trajectory_path_) return planner_trajectory_speed_ceiling();
+         if (waypoint_idx >= 0 && waypoint_idx < static_cast<int>(waypoints_.size()) &&
+             std::isfinite(waypoints_[waypoint_idx].route_speed_limit) &&
+             waypoints_[waypoint_idx].route_speed_limit > 0.1) {
+@@ -3320,10 +3412,10 @@ void ShipGuidanceNode::calculate_los(double x, double y, double& psi_cmd, double
+             waypoints_[idx].is_arc_point, heading_change_deg,
+             ilos_turn_kappa_min_angle_deg_);
+     };
+-    const bool ilos_turn_geometry_required =
+-        ilos_turn_kappa_schedule_enabled_ || ilos_turn_integral_schedule_enabled_;
+-    const double ilos_turn_scan_distance_m = std::max(
+-        ilos_turn_kappa_preview_m_, ilos_turn_integral_fade_start_m_);
++    const bool ilos_turn_geometry_required =
++        ilos_turn_kappa_schedule_enabled_ || ilos_turn_integral_schedule_enabled_;
++    const double ilos_turn_scan_distance_m = std::max(
++        ilos_turn_kappa_preview_m_, ilos_turn_integral_fade_start_m_);
+     if (ilos_turn_geometry_required && waypoints_.size() >= 3) {
+         double ahead = std::max(0.0, seg_len - std::clamp(s, 0.0, seg_len));
+         for (int idx = target_wp_idx; idx + 1 < static_cast<int>(waypoints_.size()); ++idx) {
+@@ -3905,34 +3997,34 @@ void ShipGuidanceNode::calculate_los(double x, double y, double& psi_cmd, double
+             ilos_integral_max_heading_effect_deg_ * M_PI / 180.0);
+ 
+         // 将积分器死死钳制在物理天花板内（告别了荒谬的 200.0）
+-        const double turn_integral_weight =
+-            ship_guidance::compute_ilos_turn_integral_weight(
+-                ilos_turn_integral_schedule_enabled_,
+-                ilos_turn_distance_ahead_m,
+-                ilos_turn_distance_behind_m,
+-                ilos_turn_integral_fade_start_m_,
+-                ilos_turn_integral_zero_distance_m_,
+-                ilos_turn_integral_hold_m_);
+-        const double scheduled_max_integral_val =
+-            max_integral_val * turn_integral_weight;
+-
+-        // Clamp the state itself, so close-turn zeroing cannot be undone by
+-        // another accumulation path during the same guidance cycle.
+-        integral_e_ = std::clamp(
+-            integral_e_, -scheduled_max_integral_val, scheduled_max_integral_val);
+-        if (ilos_turn_integral_schedule_enabled_) {
+-            const char * integral_phase = "CRUISE";
+-            if (turn_integral_weight <= 1.0e-6) {
+-                integral_phase =
+-                    std::isfinite(ilos_turn_distance_behind_m) ? "POST_TURN_ZERO" : "ENTRY_ZERO";
+-            } else if (turn_integral_weight < 1.0 - 1.0e-6) {
+-                integral_phase = "ENTRY_FADE";
+-            }
+-            RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 3000,
+-                "[ILOS TURN INTEGRAL] phase=%s weight=%.3f ahead=%.1fm behind=%.1fm limit=%.2f state=%.2f",
+-                integral_phase, turn_integral_weight,
+-                ilos_turn_distance_ahead_m, ilos_turn_distance_behind_m,
+-                scheduled_max_integral_val, integral_e_);
++        const double turn_integral_weight =
++            ship_guidance::compute_ilos_turn_integral_weight(
++                ilos_turn_integral_schedule_enabled_,
++                ilos_turn_distance_ahead_m,
++                ilos_turn_distance_behind_m,
++                ilos_turn_integral_fade_start_m_,
++                ilos_turn_integral_zero_distance_m_,
++                ilos_turn_integral_hold_m_);
++        const double scheduled_max_integral_val =
++            max_integral_val * turn_integral_weight;
++
++        // Clamp the state itself, so close-turn zeroing cannot be undone by
++        // another accumulation path during the same guidance cycle.
++        integral_e_ = std::clamp(
++            integral_e_, -scheduled_max_integral_val, scheduled_max_integral_val);
++        if (ilos_turn_integral_schedule_enabled_) {
++            const char * integral_phase = "CRUISE";
++            if (turn_integral_weight <= 1.0e-6) {
++                integral_phase =
++                    std::isfinite(ilos_turn_distance_behind_m) ? "POST_TURN_ZERO" : "ENTRY_ZERO";
++            } else if (turn_integral_weight < 1.0 - 1.0e-6) {
++                integral_phase = "ENTRY_FADE";
++            }
++            RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 3000,
++                "[ILOS TURN INTEGRAL] phase=%s weight=%.3f ahead=%.1fm behind=%.1fm limit=%.2f state=%.2f",
++                integral_phase, turn_integral_weight,
++                ilos_turn_distance_ahead_m, ilos_turn_distance_behind_m,
++                scheduled_max_integral_val, integral_e_);
+         }
+ 
+         // Candidate-only ILOS coordination for persistent wind/wave bias.
+@@ -4507,7 +4599,7 @@ void ShipGuidanceNode::calculate_los(double x, double y, double& psi_cmd, double
+                 << R"json(,"xte_m":)json" << e
+                 << R"json(,"xte_control_m":)json" << e_control
+                 << R"json(,"xte_rate_mps":)json" << diag_xte_rate_mps
+-                << R"json(,"integral_e_ms":)json" << integral_e_
++                << R"json(,"integral_e_ms":)json" << integral_e_
+                 << R"json(,"turn_integral_weight":)json" << turn_integral_weight
+                 << R"json(,"wind_ilos_bias_effect_m":)json" << wind_ilos_bias_effect_m_
+                 << R"json(,"alos_beta_deg":)json" << beta_hat_ * rad_to_deg
+@@ -5135,7 +5227,31 @@ void ShipGuidanceNode::calculate_los(double x, double y, double& psi_cmd, double
+         }
+     }
+ 
+-    if (external_turn_context.enabled) {
++    // Planner-owned avoidance routes already carry per-waypoint speeds that
++    // route admission made dynamically feasible (decel distance, turn radius,
++    // yaw rate). The operator-leg external turn preview re-derives a slower
++    // envelope from cumulative segment-delta angles, which misreads a dense
++    // trajectory-style avoidance route as one continuous turn cluster and
++    // caps the whole maneuver. Skip only this speed application for such
++    // routes; heading preview and centerline corridor behavior are unchanged,
++    // and operator legs keep the legacy policy.
++    const bool planner_owned_route_speed_authority =
++        external_route_turn_skip_planner_routes_ &&
++        latest_route_command_source_ == "mid_mpc_ipopt";
++    // The rejoin and turn-segment speed gates assume hand-written low-density
++    // routes: a large leg angle appears once and decays while the vessel
++    // reacquires the line. Dense planner-owned routes are re-published every
++    // few seconds, so every S-curve keeps the tracking-error transient above
++    // the hand-route thresholds and the gates latch their low-speed caps for
++    // the whole maneuver. Their per-waypoint speeds were already made
++    // dynamically feasible by route admission (decel distance, turn radius,
++    // yaw rate), so waive the heading legs of those gates for such routes.
++    // The lateral rejoin leg, operator routes, emergency behavior, and every
++    // hydrodynamic/control behavior are unchanged.
++    const bool planner_route_speed_gate_exempt =
++        planner_route_speed_gate_skip_ &&
++        latest_route_command_source_ == "mid_mpc_ipopt";
++    if (external_turn_context.enabled && !planner_owned_route_speed_authority) {
+         double external_turn_speed = max_speed_;
+         if (external_turn_context.upcoming &&
+             std::isfinite(external_turn_context.first_turn_distance_m)) {
+@@ -5544,7 +5660,8 @@ void ShipGuidanceNode::calculate_los(double x, double y, double& psi_cmd, double
+         roll_guard_active_ = false;
+     }
+ 
+-    if (turn_segment_speed_gate_enabled_ && !dp_mode_active_ && !final_speed_coupling_blocked) {
++    if (turn_segment_speed_gate_enabled_ && !dp_mode_active_ && !final_speed_coupling_blocked &&
++        !planner_route_speed_gate_exempt) {
+         const double ground_vx =
+             std::cos(current_yaw_) * current_u_ - std::sin(current_yaw_) * current_v_;
+         const double ground_vy =
+@@ -5591,8 +5708,10 @@ void ShipGuidanceNode::calculate_los(double x, double y, double& psi_cmd, double
+         turn_segment_speed_gate_active_ = false;
+     }
+ 
++    // Spatial speed preview belongs to operator routes. Timed planner
++    // samples already carry a validated braking schedule.
+     // [Fix-C v2] 前向速度预判：只看300m内的速度覆盖点，防止远距离FAP误限速
+-    {
++    if (!planner_trajectory_path_) {
+         double min_upcoming_speed = max_speed_;
+         double dist_accumulated = 0.0;
+         for (int k = target_wp_idx; k + 1 < (int)waypoints_.size(); ++k) {
+@@ -5627,11 +5746,23 @@ void ShipGuidanceNode::calculate_los(double x, double y, double& psi_cmd, double
+             current_vector_crab_enabled_ &&
+             current_guidance_active &&
+             raw_abs_xte_for_rejoin <= current_rejoin_far_threshold_m_;
++        // Planner-owned routes keep the tracking-error transiently above the
++        // hand-route heading threshold through every S-curve, so the heading
++        // leg of this gate would latch the low-speed cap for the whole
++        // maneuver. Keep the lateral leg: a genuine cross-track excursion
++        // (>60 m) still slows the rejoin exactly as before.
+         const bool rejoin_heading_required =
++            !planner_route_speed_gate_exempt &&
+             rejoin_heading_error_deg > rejoin_heading_error_deg_ &&
+             !vector_crab_lateral_safe;
+         const bool rejoin_lateral_required =
+             rejoin_xte_limit > 0.0 && std::abs(e) > rejoin_xte_limit;
++        if (planner_route_speed_gate_exempt && rejoin_heading_error_deg > rejoin_heading_error_deg_) {
++            RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 2000,
++                "[REJOIN SPEED GATE] planner-route heading leg waived hdg=%.1f/%.1fdeg xte=%.1f/%.1fm lateral_required=%d",
++                rejoin_heading_error_deg, rejoin_heading_error_deg_, std::abs(e), rejoin_xte_limit,
++                rejoin_lateral_required ? 1 : 0);
++        }
+         const bool rejoin_gate_required =
+             (rejoin_heading_required || rejoin_lateral_required) && !final_speed_coupling_blocked;
+         if (rejoin_gate_required) {
+@@ -5967,7 +6098,10 @@ void ShipGuidanceNode::calculate_los(double x, double y, double& psi_cmd, double
+             far_terminal_dp_alignment ? 1 : 0, old_u_cmd);
+     }
+ 
+-    if (emergency_avoidance_active && !dp_mode_active_ && !final_speed_coupling_blocked) {
++    const bool emergency_speed_policy_active =
++        ship_guidance::avoidance_mode_policy::emergency(normalize_navigation_mode(target_navigation_mode)) ||
++        ship_guidance::avoidance_mode_policy::emergency(normalize_navigation_mode(previous_navigation_mode));
++    if (emergency_speed_policy_active && !dp_mode_active_ && !final_speed_coupling_blocked) {
+         const double emergency_cap = std::clamp(
+             emergency_avoidance_speed_cap_mps_,
+             0.5,
+@@ -6045,6 +6179,9 @@ void ShipGuidanceNode::calculate_los(double x, double y, double& psi_cmd, double
+             publish_speed_wp_idx, speed_before_hard_ceiling, u_cmd);
+     }
+ 
++    if (planner_trajectory_path_) {
++        u_cmd = std::min(u_cmd, planner_trajectory_speed_ceiling());
++    }
+     psi_cmd = apply_heading_rate_limit(psi_cmd, cmd_dt);
+ 
+     // 记录状态供下一周期使用
+@@ -6058,6 +6195,169 @@ void ShipGuidanceNode::calculate_los(double x, double y, double& psi_cmd, double
+         e, s, seg_len, psi_cmd*180/M_PI, u_cmd, beta_hat_*180/M_PI);
+ }
+ 
++double ShipGuidanceNode::planner_trajectory_speed_ceiling() const
++{
++    if (!planner_trajectory_path_ || planner_trajectory_dt_s_ <= 0.0 || waypoints_.size() < 2) return max_speed_;
++    const double elapsed = std::max(0.0,
++        (this->now().nanoseconds() - planner_trajectory_issued_ns_) * 1e-9);
++    const auto index = std::min(waypoints_.size() - 1,
++        static_cast<std::size_t>(elapsed / planner_trajectory_dt_s_) + 1);
++    const double ground_speed = std::max(0.0, waypoints_[index].route_speed_limit);
++    // The timed trajectory is ground course/SOG; the source speed loop
++    // consumes body surge, as in the existing velocity-intent interface.
++    const double surge_fraction = std::max(0.0, std::cos(std::atan2(current_v_, current_u_)));
++    return ground_speed * surge_fraction;
++}
++
++void ShipGuidanceNode::route_status_callback(const ship_interfaces::msg::RouteExecutionStatus::SharedPtr msg)
++{
++    std::lock_guard<std::mutex> lock(state_mutex_);
++    if (latest_route_command_source_ != msg->command_source) {
++        RCLCPP_INFO(this->get_logger(),
++            "[ROUTE SOURCE] command_source='%s' route_id='%s'",
++            msg->command_source.c_str(),
++            msg->active_route_id.c_str());
++    }
++    latest_route_command_source_ = msg->command_source;
++}
++
++void ShipGuidanceNode::velocity_intent_callback(const ship_interfaces::msg::VelocityIntent::SharedPtr msg)
++{
++    const std::string mode = normalize_navigation_mode(msg->behavior_mode);
++    if (mode == "return_to_route") {
++        ship_interfaces::msg::VelocityExecutionStatus status;
++        status.header.stamp = now();
++        status.header.frame_id = "map";
++        status.intent_id = velocity_intent_.intent_id;
++        status.parent_route_id = velocity_intent_.parent_route_id;
++        status.parent_route_revision = velocity_intent_.parent_route_revision;
++        status.state = "RETURNING";
++        status.applied_speed_reference = "UNAVAILABLE";
++        velocity_status_pub_->publish(status);
++        velocity_intent_active_ = false;
++        velocity_hold_initialized_ = false;
++        velocity_last_publish_ = rclcpp::Time(0, 0, RCL_ROS_TIME);
++        return;
++    }
++    if (!ship_guidance::avoidance_mode_policy::velocity(mode) || msg->speed_reference != "SOG" ||
++        !std::isfinite(msg->course_rad) || !std::isfinite(msg->speed_mps) || msg->speed_mps < 0.0) return;
++    if (velocity_intent_active_ && rclcpp::Time(msg->header.stamp) < rclcpp::Time(velocity_intent_.header.stamp)) return;
++    if (!velocity_intent_active_ || velocity_hold_initialized_) {
++        // A different guidance owner must not seed this reference governor.
++        // Begin from measured attitude, then enforce the same rate limits.
++        psi_cmd_prev_ = current_yaw_;
++        init_psi_ = !odom_received_;
++        velocity_last_publish_ = rclcpp::Time(0, 0, RCL_ROS_TIME);
++        // Clear the old route's lateral-error input once. Publishing target_pose
++        // on every renewal would reset the source controller's speed integral.
++        geometry_msgs::msg::PoseStamped pose;
++        pose.header.stamp = now();
++        pose.header.frame_id = "odom";
++        pose.pose.position.x = current_x_;
++        pose.pose.position.y = current_y_;
++        pose.pose.position.z = 0.0;
++        tf2::Quaternion q;
++        q.setRPY(0.0, 0.0, current_yaw_);
++        pose.pose.orientation = tf2::toMsg(q);
++        target_pose_pub_->publish(pose);
++    }
++    velocity_intent_ = *msg;
++    velocity_intent_active_ = true;
++    velocity_hold_initialized_ = false;
++    dp_mode_active_ = false;
++    final_dp_latched_ = false;
++}
++
++bool ShipGuidanceNode::execute_velocity_intent()
++{
++    if (!velocity_intent_active_) return false;
++    const auto current_time = now();
++    const bool expired = current_time > rclcpp::Time(velocity_intent_.valid_until);
++    const bool stopping = expired || velocity_intent_.speed_mps <= 0.0;
++    const bool emergency = ship_guidance::avoidance_mode_policy::emergency(
++        normalize_navigation_mode(velocity_intent_.behavior_mode));
++    const double mode_cap = emergency ? std::min(max_speed_, emergency_avoidance_speed_cap_mps_) : max_speed_;
++    const double actual_speed = std::hypot(current_u_, current_v_);
++    double dt = velocity_last_publish_.nanoseconds() == 0 ? guidance_period_s_ :
++        (current_time - velocity_last_publish_).seconds();
++    if (dt <= 0.0 || dt > 2.0) dt = guidance_period_s_;
++    velocity_last_publish_ = current_time;
++    last_time_ = current_time;
++
++    // Odometry is body-frame ground velocity (its rotation is eta_dot).
++    // The unchanged autopilot tracks signed surge, not SOG. Use measured
++    // sideslip for direction and convert SOG to surge below; no second
++    // addition/subtraction of environmental current is allowed.
++    const double beta = current_u_ > 0.1 ? std::atan2(current_v_, current_u_) : 0.0;
++    const double measured_course = normalize_angle_pi(current_yaw_ + beta);
++    // Counter the source inner loop's inverse-speed-squared gain scheduling
++    // for velocity/course tracking. The bounded gain is characterized in the
++    // authoritative source tests; the original PID gains are unchanged.
++    const double ratio = std::min(1.0, actual_speed / std::max(0.5, max_speed_));
++    const double course_gain = std::clamp(velocity_course_gain_ * ratio * ratio, 1.0, velocity_course_gain_);
++    const double course_error = normalize_angle_pi(velocity_intent_.course_rad - measured_course);
++    const double heading_lead = std::clamp(course_gain * course_error, -M_PI / 2.0, M_PI / 2.0);
++    const double desired_heading = normalize_angle_pi(current_yaw_ + heading_lead);
++    const double previous_heading = init_psi_ ? current_yaw_ : psi_cmd_prev_;
++    double heading = apply_heading_rate_limit(desired_heading, dt);
++    const double yaw_limit = model_turn_max_yaw_rate_deg_s_ * M_PI / 180.0;
++    const double lateral_limit = model_turn_max_lateral_accel_mps2_ / std::max(0.5, actual_speed);
++    const double step = std::min(yaw_limit, lateral_limit) * dt;
++    heading = normalize_angle_pi(previous_heading + std::clamp(
++        normalize_angle_pi(heading - previous_heading), -step, step));
++    psi_cmd_prev_ = heading;
++    init_psi_ = false;
++    const double target_sog = stopping ? 0.0 : std::min(velocity_intent_.speed_mps, mode_cap);
++    const double speed = target_sog * std::cos(beta);
++
++    if (stopping && !velocity_hold_initialized_) {
++        geometry_msgs::msg::PoseStamped hold;
++        hold.header.stamp = current_time;
++        hold.header.frame_id = "odom";
++        hold.pose.position.x = current_x_;
++        hold.pose.position.y = current_y_;
++        tf2::Quaternion q;
++        q.setRPY(0.0, 0.0, current_yaw_);
++        hold.pose.orientation = tf2::toMsg(q);
++        target_pose_pub_->publish(hold);
++        velocity_hold_heading_ = current_yaw_;
++        velocity_hold_initialized_ = true;
++    }
++    if (stopping) heading = velocity_hold_heading_;
++    std_msgs::msg::Float64 speed_message;
++    speed_message.data = speed;
++    target_speed_pub_->publish(speed_message);
++    std_msgs::msg::Float64 heading_message;
++    heading_message.data = heading;
++    heading_setpoint_pub_->publish(heading_message);
++    publish_dp_hold_state(stopping);
++
++    ship_interfaces::msg::VelocityExecutionStatus status;
++    status.header.stamp = current_time;
++    status.header.frame_id = "map";
++    status.intent_id = velocity_intent_.intent_id;
++    status.parent_route_id = velocity_intent_.parent_route_id;
++    status.parent_route_revision = velocity_intent_.parent_route_revision;
++    status.behavior_mode = velocity_intent_.behavior_mode;
++    status.state = expired ? "EXPIRED" : stopping ? "STOPPING" : "TRACKING";
++    status.requested_course_rad = velocity_intent_.course_rad;
++    status.requested_speed_mps = velocity_intent_.speed_mps;
++    status.applied_heading_rad = heading;
++    status.applied_speed_mps = speed;
++    status.applied_speed_reference = "SURGE";
++    status.mode_speed_cap_mps = mode_cap;
++    status.actual_course_rad = normalize_angle_pi(current_yaw_ + (actual_speed > 0.1 ? std::atan2(current_v_, current_u_) : 0.0));
++    status.actual_speed_mps = actual_speed;
++    status.valid_until = velocity_intent_.valid_until;
++    if (expired) status.limiting_reasons.push_back("intent_expired");
++    if (!stopping && target_sog < velocity_intent_.speed_mps) status.limiting_reasons.push_back(
++        emergency ? "emergency_speed_cap" : "vessel_speed_cap");
++    if (std::abs(normalize_angle_pi(heading - desired_heading)) > 1e-9)
++        status.limiting_reasons.push_back("heading_rate_or_lateral_acceleration");
++    velocity_status_pub_->publish(status);
++    return true;
++}
++
+ void ShipGuidanceNode::control_loop()
+ {
+     if (!odom_received_) {
+@@ -6074,6 +6374,8 @@ void ShipGuidanceNode::control_loop()
+         y = current_y_;
+     }
+ 
++    if (execute_velocity_intent()) return;
++
+     // ========== 检查终点模式 (需要同时满足距离和速度条件) ==========
+     double psi_cmd = 0.0;  // Declare early for speed check branch
+     double u_cmd = 0.0;
+@@ -6170,7 +6472,10 @@ if (current_wp_idx_ >= (int)waypoints_.size()) {
+     // Final publisher-side guard: calculate_los() may advance a waypoint and
+     // return early. Re-evaluate the active waypoint immediately before publish
+     // so no branch can bypass an explicit RoutePlan speed limit.
+-    if (!waypoints_.empty()) {
++    if (planner_trajectory_path_) {
++        // Preserve zero and use time, not an anticipated waypoint index.
++        u_cmd = std::min(u_cmd, planner_trajectory_speed_ceiling());
++    } else if (!waypoints_.empty()) {
+         const int publish_wp_idx = std::clamp(
+             current_wp_idx_, 0, static_cast<int>(waypoints_.size()) - 1);
+         const bool publish_is_deferred_final_dp =
+```
+
+## src/interfaces/ship_interfaces/CMakeLists.txt
+
+[修改前](source-before/src/interfaces/ship_interfaces/CMakeLists.txt) · [修改后](source-after/src/interfaces/ship_interfaces/CMakeLists.txt) · [原始 diff](per-file/src/interfaces/ship_interfaces/CMakeLists.txt.diff)
+
+```diff
+diff --git a/src/interfaces/ship_interfaces/CMakeLists.txt b/src/interfaces/ship_interfaces/CMakeLists.txt
+index 8594bd58b8f47c40bee48db9ad6a738b30989c64..a64033e2b6cfeba6a547074ff644a3ef4f56eaf6 100644
+--- a/src/interfaces/ship_interfaces/CMakeLists.txt
++++ b/src/interfaces/ship_interfaces/CMakeLists.txt
+@@ -24,6 +24,8 @@ set(msg_files
+   "msg/RoutePlan.msg"
+   "msg/RoutePlanStatus.msg"
+   "msg/AvoidancePlan.msg"
++  "msg/VelocityIntent.msg"
++  "msg/VelocityExecutionStatus.msg"
+   "msg/RouteExecutionStatus.msg"
+   "msg/NavigationModeStatus.msg"
+   "msg/BerthingTask.msg"
+```
+
+## src/interfaces/ship_interfaces/msg/AvoidancePlan.msg
+
+[修改前](source-before/src/interfaces/ship_interfaces/msg/AvoidancePlan.msg) · [修改后](source-after/src/interfaces/ship_interfaces/msg/AvoidancePlan.msg) · [原始 diff](per-file/src/interfaces/ship_interfaces/msg/AvoidancePlan.msg.diff)
+
+```diff
+diff --git a/src/interfaces/ship_interfaces/msg/AvoidancePlan.msg b/src/interfaces/ship_interfaces/msg/AvoidancePlan.msg
+index e161fd09a91ed2d9fd6a5598214fa47773e3fa86..0ac053e9c11b350f0b40d0d7475dbfbc8479f5b8 100644
+--- a/src/interfaces/ship_interfaces/msg/AvoidancePlan.msg
++++ b/src/interfaces/ship_interfaces/msg/AvoidancePlan.msg
+@@ -21,3 +21,7 @@ bool allow_degraded_execution
+ bool has_return_to_route_point
+ float64 return_latitude
+ float64 return_longitude
++
++# Explicit timed-trajectory contract; zero/empty keeps the legacy route API.
++float64 trajectory_dt_s 0.0
++string trajectory_reference_id ""
+```
+
+## src/interfaces/ship_interfaces/msg/RoutePlan.msg
+
+[修改前](source-before/src/interfaces/ship_interfaces/msg/RoutePlan.msg) · [修改后](source-after/src/interfaces/ship_interfaces/msg/RoutePlan.msg) · [原始 diff](per-file/src/interfaces/ship_interfaces/msg/RoutePlan.msg.diff)
+
+```diff
+diff --git a/src/interfaces/ship_interfaces/msg/RoutePlan.msg b/src/interfaces/ship_interfaces/msg/RoutePlan.msg
+index 88f210fecc679eb567bd7dedef9aa0e5e4f3b73a..90e374b780d961a62ea7898a1289a73f928e1b97 100644
+--- a/src/interfaces/ship_interfaces/msg/RoutePlan.msg
++++ b/src/interfaces/ship_interfaces/msg/RoutePlan.msg
+@@ -14,3 +14,9 @@ string[] navigation_mode
+ string route_id
+ uint32 route_revision
+ string route_type
++
++# Set by the validated planner_trajectory_v1 admission path.
++float64 trajectory_dt_s 0.0
++float64 trajectory_valid_for_s 0.0
++float64[] trajectory_course_deg
++string trajectory_reference_id ""
+```
+
+## src/interfaces/ship_interfaces/msg/VelocityExecutionStatus.msg
+
+新增文件。[源码](source-after/src/interfaces/ship_interfaces/msg/VelocityExecutionStatus.msg) · [原始 diff](per-file/src/interfaces/ship_interfaces/msg/VelocityExecutionStatus.msg.diff)
+
+```diff
+diff --git a/src/interfaces/ship_interfaces/msg/VelocityExecutionStatus.msg b/src/interfaces/ship_interfaces/msg/VelocityExecutionStatus.msg
+new file mode 100644
+index 0000000000000000000000000000000000000000..b166b6a7202b6ac37acd90eac5f84f499cab12e6
+--- /dev/null
++++ b/src/interfaces/ship_interfaces/msg/VelocityExecutionStatus.msg
+@@ -0,0 +1,16 @@
++std_msgs/Header header
++string intent_id
++string parent_route_id
++uint32 parent_route_revision
++string behavior_mode
++string state
++float64 requested_course_rad
++float64 requested_speed_mps
++float64 applied_heading_rad
++float64 applied_speed_mps
++string applied_speed_reference
++float64 mode_speed_cap_mps
++float64 actual_course_rad
++float64 actual_speed_mps
++string[] limiting_reasons
++builtin_interfaces/Time valid_until
+```
+
+## src/interfaces/ship_interfaces/msg/VelocityIntent.msg
+
+新增文件。[源码](source-after/src/interfaces/ship_interfaces/msg/VelocityIntent.msg) · [原始 diff](per-file/src/interfaces/ship_interfaces/msg/VelocityIntent.msg.diff)
+
+```diff
+diff --git a/src/interfaces/ship_interfaces/msg/VelocityIntent.msg b/src/interfaces/ship_interfaces/msg/VelocityIntent.msg
+new file mode 100644
+index 0000000000000000000000000000000000000000..ce4a84d7a0be20ecdae9fead2540ed9d754e59bb
+--- /dev/null
++++ b/src/interfaces/ship_interfaces/msg/VelocityIntent.msg
+@@ -0,0 +1,11 @@
++# Ground-referenced velocity intent. No route is synthesized by the caller.
++std_msgs/Header header
++string intent_id
++string parent_route_id
++uint32 parent_route_revision
++string behavior_mode
++string command_source
++float64 course_rad
++float64 speed_mps
++string speed_reference
++builtin_interfaces/Time valid_until
+```

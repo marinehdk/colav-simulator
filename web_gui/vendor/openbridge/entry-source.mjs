@@ -53,3 +53,8 @@ import '@oicl/openbridge-webcomponents/dist/navigation-instruments/graph-mini/gr
 
 import '@oicl/openbridge-webcomponents/dist/ar/poi-layer/poi-layer.js';
 import '@oicl/openbridge-webcomponents/dist/ar/poi-vessel/poi-vessel.js';
+import '@oicl/openbridge-webcomponents/dist/components/alert-frame/alert-frame.js';
+import '@oicl/openbridge-webcomponents/dist/icons/icon-vessel-generic-default-outlined.js';
+import '@oicl/openbridge-webcomponents/dist/icons/icon-collision-avoidance-overtaking.js';
+import '@oicl/openbridge-webcomponents/dist/icons/icon-collision-avoidance-port-side.js';
+import '@oicl/openbridge-webcomponents/dist/icons/icon-collision-avoidance-starboard-side.js';

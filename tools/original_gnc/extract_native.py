@@ -49,6 +49,14 @@ MESSAGE_PACKAGES = (
 )
 
 
+def module_table(controller_package: str | None = None) -> dict:
+    """Return the extraction table; an override swaps only the controller lane."""
+    modules = dict(MODULES)
+    if controller_package:
+        modules["ship_control_node"] = (controller_package, "ShipControllerNode", "ShipControllerNode")
+    return modules
+
+
 def blank(text: str) -> str:
     """Keep source line positions stable while removing an interface statement."""
     return "".join("\n" if c == "\n" else " " for c in text)
@@ -379,9 +387,18 @@ def source_edits(text: str, name: str, class_name: str | None) -> tuple[str, dic
 
 
 # Keep source contract branches together for audit against the frozen implementation.
-def extract(source: Path, dependencies: Path, output: Path, support: Path) -> dict:  # noqa: PLR0915
+def extract(  # noqa: C901, PLR0915
+    source: Path,
+    dependencies: Path,
+    output: Path,
+    support: Path,
+    *,
+    source_manifest_sha256: str | None = None,
+    controller_package: str | None = None,
+) -> dict:
     """Generate a reproducible local source port from the approved export."""
-    if hashlib.sha256((source / "SOURCE_MANIFEST.csv").read_bytes()).hexdigest() != SOURCE_MANIFEST_SHA256:
+    pinned = source_manifest_sha256 or SOURCE_MANIFEST_SHA256
+    if hashlib.sha256((source / "SOURCE_MANIFEST.csv").read_bytes()).hexdigest() != pinned:
         raise ValueError("Unapproved original source manifest")
     records = list(csv.DictReader((source / "SOURCE_MANIFEST.csv").open(encoding="utf-8-sig")))
     hashes = {r["relative_path"]: r["sha256"] for r in records}
@@ -399,12 +416,13 @@ def extract(source: Path, dependencies: Path, output: Path, support: Path) -> di
     messages = generate_messages(source, dependencies, include / "native_messages.hpp")
     manifest = {
         "schema": "original-gnc.native-extraction.v1",
-        "source_manifest_sha256": SOURCE_MANIFEST_SHA256,
+        "source_manifest_sha256": pinned,
+        "controller_package": controller_package,
         "messages": messages,
         "files": [],
         "modules": {},
     }
-    for module, (package, qualified, klass) in MODULES.items():
+    for module, (package, qualified, klass) in module_table(controller_package).items():
         root = source / "src" / package
         module_static_fields = []
         node_path = root / "src" / ("nodes" if package == "environment/env_engines" else "") / f"{module}.cpp"
@@ -472,6 +490,23 @@ if __name__ == "__main__":
     parser.add_argument("--dependencies", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--support", type=Path, required=True)
+    parser.add_argument(
+        "--source-manifest-sha256",
+        default=None,
+        help="Pin a lane-specific approved SOURCE_MANIFEST.csv sha256 (default: baseline lane)",
+    )
+    parser.add_argument(
+        "--controller-package",
+        default=None,
+        help="Extract the ship_control_node module from this package instead of gnc/ship_control",
+    )
     args = parser.parse_args()
-    result = extract(args.source.resolve(), args.dependencies.resolve(), args.output.resolve(), args.support.resolve())
+    result = extract(
+        args.source.resolve(),
+        args.dependencies.resolve(),
+        args.output.resolve(),
+        args.support.resolve(),
+        source_manifest_sha256=args.source_manifest_sha256,
+        controller_package=args.controller_package,
+    )
     print(json.dumps({"files": len(result["files"]), "modules": sorted(result["modules"])}))

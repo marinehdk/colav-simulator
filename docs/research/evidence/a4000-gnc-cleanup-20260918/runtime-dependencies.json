@@ -1,0 +1,17 @@
+[
+  {
+    "group": "frozen",
+    "executables_checked": 11,
+    "failures": []
+  },
+  {
+    "group": "authority-v5",
+    "executables_checked": 24,
+    "failures": []
+  },
+  {
+    "group": "mid-v7",
+    "executables_checked": 14,
+    "failures": []
+  }
+]

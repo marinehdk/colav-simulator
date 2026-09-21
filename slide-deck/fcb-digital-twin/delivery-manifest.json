@@ -1,0 +1,17 @@
+{
+  "slides": 15,
+  "style": "sango-ai",
+  "language": "zh",
+  "backend": "native imagegen",
+  "format": "image-based slides with textual speaker notes",
+  "outputs": {
+    "fcb-digital-twin.pptx": {
+      "bytes": 28837823,
+      "sha256": "c85a71732b0b1aba8a635cab98b711de21578804dfb06699502588fafe3a2a7d"
+    },
+    "fcb-digital-twin.pdf": {
+      "bytes": 36500051,
+      "sha256": "82aa140263a7c8975e0a4e3215fbec057b96e7bab91bef46ff8141894bf1a4e9"
+    }
+  }
+}

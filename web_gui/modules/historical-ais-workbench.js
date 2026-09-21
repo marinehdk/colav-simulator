@@ -1,6 +1,6 @@
 // Match the shell's evaluation-replay module URL so HAIS Open Replay and the
 // Evaluation run catalog share one controller instance.
-import { openReplayForRun } from './evaluation-replay.js?v=20260916-replay-layout-v4';
+import { openReplayForRun } from './evaluation-replay.js?v=20260921-replay-controls-v2';
 import { createHistoricalAISApi } from './historical-ais-api.js?v=20260824-canonical-presentation';
 import { createHistoricalAISController } from './historical-ais-controller.js?v=20260824-canonical-presentation';
 import { renderHistoricalAISWorkbench } from './historical-ais-render.js?v=20260824-canonical-presentation';

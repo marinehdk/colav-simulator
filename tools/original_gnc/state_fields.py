@@ -43,6 +43,20 @@ return {{"integrals", {node.integral_surge_,node.integral_sway_,node.integral_ya
         {"mode",static_cast<int>(node.active_mode_)}, {"last_time_ns",node.last_time_.nanoseconds()},
         {"quiet_zone",node.autopilot_quiet_zone_active_}, {"dp_deadband",node.dp_position_deadband_active_}};
 """,
+    # MPC controller lane (gnc/mpc_control): same PID-lineage state names plus
+    # the MPC command/route engagement surface. quiet_zone/dp_deadband do not
+    # exist in that node and are intentionally absent.
+    "ship_control_node_mpc": """
+return {{"integrals", {node.integral_surge_,node.integral_sway_,node.integral_yaw_,node.integral_speed_}},
+        {"previous_errors", {node.prev_error_surge_,node.prev_error_sway_,node.prev_error_yaw_,node.prev_error_speed_}},
+        {"previous_derivatives", {node.prev_deriv_surge_,node.prev_deriv_sway_,node.prev_deriv_yaw_}},
+        {"mode",static_cast<int>(node.active_mode_)}, {"last_time_ns",node.last_time_.nanoseconds()},
+        {"tau_last",{node.tau_last_.x(),node.tau_last_.y(),node.tau_last_.z()}},
+        {"tau_filtered",{node.mpc_tau_filtered_.x(),node.mpc_tau_filtered_.y(),node.mpc_tau_filtered_.z()}},
+        {"target",{node.target_x_,node.target_y_,node.target_yaw_,node.target_speed_}},
+        {"mpc_path_received",node.mpc_path_received_}, {"route_plan_received",node.mpc_route_plan_received_},
+        {"cruise_speed_cap_mps",node.mpc_cruise_speed_cap_mps_}, {"target_reached",node.target_reached_}};
+""",
     "ship_guidance_node": """
 return {{"integral_e",node.integral_e_}, {"previous_e",node.prev_e_}, {"previous_heading",node.psi_cmd_prev_},
         {"cruise_speed_cap_mps",node.cruise_speed_cap_mps_},

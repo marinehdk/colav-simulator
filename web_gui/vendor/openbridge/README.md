@@ -42,3 +42,15 @@ The selective entry now includes POI Layer and POI Vessel, with their upstream d
 The build also gives the upstream POI Group wrapper button an accessible
 Chinese label (`展开重叠目标组`). Grouping/layout remains upstream behavior;
 the scene handles Escape through the component's public `expand` property.
+
+## COLAV data markers (2026-09-21)
+
+The entry includes the official alert frame, outlined vessel icon, and
+head-on/port-side/starboard-side/overtaking relationship icons. The pinned
+`poi-button-vessel` already implements data rows, alert framing, and a relation
+slot. Its 1.0.1 top-level `poi-vessel` wrapper does not forward that slot or
+`hasRelation`; `tools/web_3d/build-vendor.mjs` applies a small reproducible
+forwarding patch. The button, relationship icons, and grouping implementation
+remain upstream. Scene code uses the public `data`, `state`, `hasRelation`,
+`getVisualRect`, and header APIs. Green safe borders use theme tokens; unknown
+or stale assessments are neutral and never converted to a safety claim.

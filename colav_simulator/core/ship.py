@@ -48,9 +48,10 @@ class Config:
     speed_plan: np.ndarray | None = None
     ship_modules: Any | None = None
     original_gnc: Any | None = None
+    authoritative_mpc: Any | None = None
 
     @classmethod
-    def from_dict(cls, config_dict: dict) -> "Config":  # noqa: C901, PLR0912, D102
+    def from_dict(cls, config_dict: dict) -> "Config":  # noqa: C901, PLR0912, PLR0915, D102
         config = Config()
         if "csog_state" in config_dict:
             config.csog_state = np.array(config_dict["csog_state"])
@@ -109,12 +110,21 @@ class Config:
             config.original_gnc = OriginalGncConfig.from_dict(config_dict["original_gnc"])
             if config.ship_modules is not None:
                 raise ValueError("A ship cannot select both modular and original GNC execution")
+        if "authoritative_mpc" in config_dict:
+            from colav_simulator.authoritative_mpc.configuration import AuthoritativeMpcConfig  # noqa: PLC0415
+
+            config.authoritative_mpc = AuthoritativeMpcConfig.from_dict(config_dict["authoritative_mpc"])
+            if config.ship_modules is not None:
+                raise ValueError("A ship cannot select both modular and original-lineage execution")
+            if config.original_gnc is not None:
+                raise ValueError("A ship cannot select two original-lineage backends")
 
         # COLAV take priority over guidance, if both are specified.
         if config.colav and config.guidance:
             config.guidance = None
 
-        if config.colav is None and config.guidance is None and config.original_gnc is None:
+        has_lineage_backend = config.original_gnc is not None or config.authoritative_mpc is not None
+        if config.colav is None and config.guidance is None and not has_lineage_backend:
             msg = "Ship must have either a guidance or a colav system."
             raise ValueError(msg)
 
@@ -160,6 +170,8 @@ class Config:
             config_dict["ship_modules"] = self.ship_modules.to_dict()
         if self.original_gnc is not None:
             config_dict["original_gnc"] = self.original_gnc.to_dict()
+        if self.authoritative_mpc is not None:
+            config_dict["authoritative_mpc"] = self.authoritative_mpc.to_dict()
 
         return config_dict
 
@@ -171,7 +183,7 @@ def build_ship(
     episode_seed: int | None = None,
 ) -> "IShip":
     """Build exact legacy Ship unless modular composition is explicitly selected."""
-    if config.original_gnc is not None:
+    if config.original_gnc is not None or config.authoritative_mpc is not None:
         if config.ship_modules is not None:
             raise ValueError("A ship cannot select both modular and original GNC execution")
         from colav_simulator.original_gnc.adapter import OriginalGncShipAdapter  # noqa: PLC0415

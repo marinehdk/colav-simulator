@@ -15,7 +15,7 @@ from colav_simulator.common import miscellaneous_helper_methods as mhm
 from colav_simulator.core.colav.diagnostics import validate_plan
 from colav_simulator.core.ship import Config, IShip, Ship
 from colav_simulator.original_gnc import qualification as response_qualification_rule
-from colav_simulator.original_gnc.configuration import SOURCE_MANIFEST_SHA256, OriginalGncConfig
+from colav_simulator.original_gnc.configuration import OriginalGncConfig
 from colav_simulator.original_gnc.geometry import RouteFrame, nominal_route
 from colav_simulator.original_gnc.native import OriginalGncError
 from colav_simulator.original_gnc.plan_bridge import OriginalPlanBridge
@@ -27,6 +27,7 @@ RUNTIME_SOURCE_FINGERPRINTS = {
     str(path.relative_to(_PROJECT_ROOT)): hashlib.sha256(path.read_bytes()).hexdigest()
     for path in [
         *Path(__file__).parent.glob("*.py"),
+        *(_PROJECT_ROOT / "colav_simulator/authoritative_mpc").glob("*.py"),
         *[
             _PROJECT_ROOT / name
             for name in (
@@ -78,11 +79,17 @@ class OriginalGncShipAdapter(IShip):
     @classmethod
     def from_config(cls, config: Config, dt_s: float) -> OriginalGncShipAdapter:
         """Build an opt-in original backend without selecting any modular stack."""
+        gnc_configuration = (
+            config.original_gnc if config.original_gnc is not None else config.authoritative_mpc
+        )
+        if gnc_configuration is None:
+            raise ValueError("An original-lineage backend configuration is required")
         services_config = copy.copy(config)
         services_config.original_gnc = None
+        services_config.authoritative_mpc = None
         services_config.ship_modules = None
         services = Ship(mmsi=config.mmsi, identifier=config.id, config=services_config)
-        return cls(services, config.original_gnc, dt_s)
+        return cls(services, gnc_configuration, dt_s)
 
     def _start_stack(self) -> None:
         if self._stack is not None:
@@ -112,6 +119,7 @@ class OriginalGncShipAdapter(IShip):
             enabled_environment=("wind", "current", "wave") if self.configuration.environment else (),
             asset_paths=self._asset_paths,
             trace=self._capture,
+            approved_manifest_sha256=self.configuration.source_manifest_sha256,
         )
         self._build_identity = self.stack.modules["ship_dynamics_node"].manifest
         self._executed_module_names = [*self.stack.modules, "propulsion_policy_node", *self.stack.observers]
@@ -176,6 +184,7 @@ class OriginalGncShipAdapter(IShip):
             enabled_environment=("wind", "current", "wave") if clone.configuration.environment else (),
             asset_paths=clone._asset_paths,
             trace=clone._capture,
+            approved_manifest_sha256=clone.configuration.source_manifest_sha256,
         )
         for request in self._requested_plans:
             if request["time_ns"] != self.stack.epoch_ns or request["kind"] != "nominal":
@@ -338,7 +347,7 @@ class OriginalGncShipAdapter(IShip):
         data["turn_rate"] = self.turn_rate
         data["original_gnc"] = {
             "stack_id": self.configuration.stack_id,
-            "source_manifest_sha256": SOURCE_MANIFEST_SHA256,
+            "source_manifest_sha256": self.configuration.source_manifest_sha256,
             "parameter_sha256": self._parameter_hash,
             "time_ns": self._stack.time_ns,
             "state_8d": self.original_state.tolist(),
@@ -364,9 +373,9 @@ class OriginalGncShipAdapter(IShip):
         """Return executing build identity without importing another stack's qualification."""
         build = self._build_identity
         return {
-            "backend_kind": "original_gnc",
+            "backend_kind": self.configuration.backend_kind,
             "stack_id": self.configuration.stack_id,
-            "source_manifest_sha256": SOURCE_MANIFEST_SHA256,
+            "source_manifest_sha256": self.configuration.source_manifest_sha256,
             "library_sha256": build["library_sha256"],
             "python_runtime_sha256": _RUNTIME_SHA256,
             "parameter_sha256": self._parameter_hash,
@@ -492,7 +501,7 @@ class OriginalGncShipAdapter(IShip):
         return {"supports_stop": self._response_approximation.get("input_kind") == "velocity_intent",
                 "cruise_cap_mps": ordinary, "ordinary_cap_mps": ordinary,
                 "emergency_cap_mps": emergency,
-                "source_manifest_sha256": SOURCE_MANIFEST_SHA256,
+                "source_manifest_sha256": self.configuration.source_manifest_sha256,
                 "library_sha256": self._build_identity["library_sha256"]}
 
     @property
