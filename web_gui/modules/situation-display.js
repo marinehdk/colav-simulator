@@ -429,6 +429,123 @@ export function drawVelocityArrow(
   surface.fill();
 }
 
+export function drawVODecisionDisc(surface, snapshot, centerX, centerY, radius, osHeading, rotation) {
+  if (!snapshot) return false;
+  const speeds = snapshot.speed_candidates_mps || [];
+  const headings = snapshot.heading_candidates_rad || [];
+  const bits = snapshot.candidate_state_bits || [];
+  const costs = snapshot.total_costs || [];
+  const [rows, columns] = snapshot.shape || [];
+  if (!rows || !columns || rows !== speeds.length || columns !== headings.length
+    || bits.length !== rows * columns) return false;
+
+  const maxSpeed = Math.max(...speeds, 1);
+  const headingStep = 2 * Math.PI / columns;
+  const ownshipHeading = Number(snapshot.ownship_heading_rad) || Number(osHeading) || 0;
+  const displayRotation = Number(rotation) || 0;
+  const finiteCosts = costs.filter(Number.isFinite);
+  const minimumCost = finiteCosts.length ? Math.min(...finiteCosts) : 0;
+  const maximumCost = finiteCosts.length ? Math.max(...finiteCosts) : 1;
+
+  surface.save();
+  surface.beginPath();
+  surface.arc(centerX, centerY, radius, 0, Math.PI * 2);
+  surface.clip();
+  surface.fillStyle = 'rgba(8,18,20,0.34)';
+  surface.fillRect(centerX - radius, centerY - radius, radius * 2, radius * 2);
+
+  for (let speedIndex = 0; speedIndex < rows; speedIndex += 1) {
+    const innerSpeed = speedIndex === 0 ? 0 : (speeds[speedIndex - 1] + speeds[speedIndex]) / 2;
+    const outerSpeed = speedIndex === rows - 1
+      ? maxSpeed
+      : (speeds[speedIndex] + speeds[speedIndex + 1]) / 2;
+    const innerRadius = innerSpeed / maxSpeed * radius;
+    const outerRadius = outerSpeed / maxSpeed * radius;
+    for (let headingIndex = 0; headingIndex < columns; headingIndex += 1) {
+      const index = speedIndex * columns + headingIndex;
+      const relativeHeading = wrapRadians(headings[headingIndex] - ownshipHeading);
+      const displayedHeading = relativeHeading + displayRotation;
+      const start = displayedHeading - headingStep / 2 - Math.PI / 2;
+      const end = displayedHeading + headingStep / 2 - Math.PI / 2;
+      const cost = costs[index] == null ? NaN : Number(costs[index]);
+      const normalizedCost = Number.isFinite(cost) && maximumCost > minimumCost
+        ? (cost - minimumCost) / (maximumCost - minimumCost)
+        : 0;
+      surface.fillStyle = voCandidateColor(bits[index], normalizedCost);
+      surface.beginPath();
+      surface.arc(centerX, centerY, outerRadius, start, end);
+      if (innerRadius > 0) surface.arc(centerX, centerY, innerRadius, end, start, true);
+      else surface.lineTo(centerX, centerY);
+      surface.closePath();
+      surface.fill();
+    }
+  }
+  surface.restore();
+
+  surface.save();
+  surface.strokeStyle = 'rgba(232,244,240,0.38)';
+  surface.fillStyle = 'rgba(232,244,240,0.82)';
+  surface.lineWidth = 0.8;
+  surface.font = '8px SFMono-Regular, monospace';
+  surface.textAlign = 'center';
+  surface.textBaseline = 'middle';
+  for (let speed = 2; speed <= maxSpeed; speed += 2) {
+    const ringRadius = speed / maxSpeed * radius;
+    surface.beginPath();
+    surface.arc(centerX, centerY, ringRadius, 0, Math.PI * 2);
+    surface.stroke();
+    surface.fillText(`${speed}`, centerX + 3, centerY - ringRadius + 8);
+  }
+  for (let degrees = -180; degrees < 180; degrees += 30) {
+    const angle = degrees * Math.PI / 180 + displayRotation;
+    const endX = centerX + radius * Math.sin(angle);
+    const endY = centerY - radius * Math.cos(angle);
+    surface.beginPath();
+    surface.moveTo(centerX, centerY);
+    surface.lineTo(endX, endY);
+    surface.stroke();
+    if (degrees % 60 === 0) {
+      surface.fillText(
+        `${degrees}°`,
+        centerX + (radius - 10) * Math.sin(angle),
+        centerY - (radius - 10) * Math.cos(angle),
+      );
+    }
+  }
+
+  drawVelocityArrow(
+    surface, centerX, centerY, radius, maxSpeed,
+    snapshot.current_velocity_ne_mps, ownshipHeading, '#9aa7a2', 1.7, displayRotation,
+  );
+  drawVelocityArrow(
+    surface, centerX, centerY, radius, maxSpeed,
+    snapshot.reference_velocity_ne_mps, ownshipHeading, '#f3f6f5', 1.7, displayRotation,
+  );
+  const selected = snapshot.selected || {};
+  drawVelocityArrow(
+    surface,
+    centerX,
+    centerY,
+    radius,
+    maxSpeed,
+    [
+      Number(selected.speed_mps) * Math.cos(Number(selected.heading_rad)),
+      Number(selected.speed_mps) * Math.sin(Number(selected.heading_rad)),
+    ],
+    ownshipHeading,
+    '#58a6ff',
+    2.5,
+    displayRotation,
+  );
+  surface.strokeStyle = 'rgba(232,244,240,0.72)';
+  surface.lineWidth = 1.2;
+  surface.beginPath();
+  surface.arc(centerX, centerY, radius, 0, Math.PI * 2);
+  surface.stroke();
+  surface.restore();
+  return true;
+}
+
 /* ══════════════════════════════════════════════
    FACTORY
 ══════════════════════════════════════════════ */
@@ -1670,122 +1787,9 @@ export function createSituationDisplay(options) {
 
   function drawVODecisionSpaceOnMap(os, snapshot) {
     if (!snapshot || !Number.isFinite(os?.x) || !Number.isFinite(os?.y)) return;
-    const speeds = snapshot.speed_candidates_mps || [];
-    const headings = snapshot.heading_candidates_rad || [];
-    const bits = snapshot.candidate_state_bits || [];
-    const costs = snapshot.total_costs || [];
-    const [rows, columns] = snapshot.shape || [];
-    if (!rows || !columns || rows !== speeds.length || columns !== headings.length
-      || bits.length !== rows * columns) return;
-
     const point = worldToCanvas(os.x, os.y);
-    const centerX = point.x;
-    const centerY = point.y;
-    const radius = 110;
-    const maxSpeed = Math.max(...speeds, 1);
-    const headingStep = 2 * Math.PI / columns;
-    const ownshipHeading = Number(snapshot.ownship_heading_rad) || Number(os.psi) || 0;
-    const displayRotation = Number(os.psi) || ownshipHeading;
-    const finiteCosts = costs.filter(Number.isFinite);
-    const minimumCost = finiteCosts.length ? Math.min(...finiteCosts) : 0;
-    const maximumCost = finiteCosts.length ? Math.max(...finiteCosts) : 1;
-
-    ctx.save();
-    ctx.beginPath();
-    ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
-    ctx.clip();
-    ctx.fillStyle = 'rgba(8,18,20,0.34)';
-    ctx.fillRect(centerX - radius, centerY - radius, radius * 2, radius * 2);
-
-    for (let speedIndex = 0; speedIndex < rows; speedIndex += 1) {
-      const innerSpeed = speedIndex === 0 ? 0 : (speeds[speedIndex - 1] + speeds[speedIndex]) / 2;
-      const outerSpeed = speedIndex === rows - 1
-        ? maxSpeed
-        : (speeds[speedIndex] + speeds[speedIndex + 1]) / 2;
-      const innerRadius = innerSpeed / maxSpeed * radius;
-      const outerRadius = outerSpeed / maxSpeed * radius;
-      for (let headingIndex = 0; headingIndex < columns; headingIndex += 1) {
-        const index = speedIndex * columns + headingIndex;
-        const relativeHeading = wrapRadians(headings[headingIndex] - ownshipHeading);
-        const displayedHeading = relativeHeading + displayRotation;
-        const start = displayedHeading - headingStep / 2 - Math.PI / 2;
-        const end = displayedHeading + headingStep / 2 - Math.PI / 2;
-        const cost = costs[index] == null ? NaN : Number(costs[index]);
-        const normalizedCost = Number.isFinite(cost) && maximumCost > minimumCost
-          ? (cost - minimumCost) / (maximumCost - minimumCost)
-          : 0;
-        ctx.fillStyle = voCandidateColor(bits[index], normalizedCost);
-        ctx.beginPath();
-        ctx.arc(centerX, centerY, outerRadius, start, end);
-        if (innerRadius > 0) ctx.arc(centerX, centerY, innerRadius, end, start, true);
-        else ctx.lineTo(centerX, centerY);
-        ctx.closePath();
-        ctx.fill();
-      }
-    }
-    ctx.restore();
-
-    ctx.save();
-    ctx.strokeStyle = 'rgba(232,244,240,0.38)';
-    ctx.fillStyle = 'rgba(232,244,240,0.82)';
-    ctx.lineWidth = 0.8;
-    ctx.font = '8px SFMono-Regular, monospace';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    for (let speed = 2; speed <= maxSpeed; speed += 2) {
-      const ringRadius = speed / maxSpeed * radius;
-      ctx.beginPath();
-      ctx.arc(centerX, centerY, ringRadius, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.fillText(`${speed}`, centerX + 3, centerY - ringRadius + 8);
-    }
-    for (let degrees = -180; degrees < 180; degrees += 30) {
-      const angle = degrees * Math.PI / 180 + displayRotation;
-      const endX = centerX + radius * Math.sin(angle);
-      const endY = centerY - radius * Math.cos(angle);
-      ctx.beginPath();
-      ctx.moveTo(centerX, centerY);
-      ctx.lineTo(endX, endY);
-      ctx.stroke();
-      if (degrees % 60 === 0) {
-        ctx.fillText(
-          `${degrees}°`,
-          centerX + (radius - 10) * Math.sin(angle),
-          centerY - (radius - 10) * Math.cos(angle),
-        );
-      }
-    }
-
-    drawVelocityArrow(
-      ctx, centerX, centerY, radius, maxSpeed,
-      snapshot.current_velocity_ne_mps, ownshipHeading, '#9aa7a2', 1.7, displayRotation,
-    );
-    drawVelocityArrow(
-      ctx, centerX, centerY, radius, maxSpeed,
-      snapshot.reference_velocity_ne_mps, ownshipHeading, '#f3f6f5', 1.7, displayRotation,
-    );
-    const selected = snapshot.selected || {};
-    drawVelocityArrow(
-      ctx,
-      centerX,
-      centerY,
-      radius,
-      maxSpeed,
-      [
-        Number(selected.speed_mps) * Math.cos(Number(selected.heading_rad)),
-        Number(selected.speed_mps) * Math.sin(Number(selected.heading_rad)),
-      ],
-      ownshipHeading,
-      '#58a6ff',
-      2.5,
-      displayRotation,
-    );
-    ctx.strokeStyle = 'rgba(232,244,240,0.72)';
-    ctx.lineWidth = 1.2;
-    ctx.beginPath();
-    ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.restore();
+    drawVODecisionDisc(ctx, snapshot, point.x, point.y, 110, os.psi,
+      Number(os.psi) || Number(snapshot.ownship_heading_rad) || 0);
   }
 
   function drawSimplifiedMpcFanOnMap(os, planner) {

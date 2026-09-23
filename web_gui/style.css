@@ -3784,6 +3784,8 @@ canvas#simCanvas.route-pick-mode { cursor: crosshair; }
 .view-3d > .scene3d-host { visibility: visible; pointer-events: auto; z-index: 4; }
 .view-3d > #simCanvas, .view-3d > #replayCanvas, .view-3d > .vessel-marker-layer, .view-3d > .vessel-detail-placard { visibility: hidden; pointer-events: none; }
 .scene3d-root, .scene3d-canvas { position: absolute; inset: 0; overflow: hidden; }
+.scene3d-vo-disc { position: absolute; width: 240px; height: 240px; z-index: 2; pointer-events: none; opacity: 0.9; filter: drop-shadow(0 2px 6px #101d2588); }
+.scene3d-vo-disc[hidden] { display: none; }
 .scene3d-pois { position: absolute; inset: 0; pointer-events: none; --obc-poi-layer-height: 0px; z-index: 3; }
 .scene3d-pois > obc-poi-vessel { pointer-events: auto; }
 .scene3d-waypoints { position: absolute; inset: 0; pointer-events: none; z-index: 2; }

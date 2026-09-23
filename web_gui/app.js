@@ -10,7 +10,7 @@ import {
   voCandidateColor,
   drawVelocityArrow,
   simplifiedMpcFanGeometry,
-} from './modules/situation-display.js?v=20260920-3d-v1';
+} from './modules/situation-display.js?v=20260923-vo-disc-v1';
 import { buildRadarModel, createRadarMiniMap } from './modules/radar-mini-map.js?v=20260827-instrument-polish-v1';
 import { routeLegs, routeProgress } from './modules/route-progress.js?v=20260901-route-card-v1';
 
@@ -103,6 +103,16 @@ function setEncStatus(state) {
 }
 
 let deploymentView = null;
+function currentPlannerSurface() {
+  const type = plannerSurfaceType(currentDiagnosticPlanner());
+  if (type === 'vo') {
+    const sessionId = currentRunId();
+    const snapshot = voDecisionSpaceKey?.startsWith(`${sessionId}:`) ? voDecisionSpace : null;
+    return snapshot ? { type: 'vo', vo: snapshot } : null;
+  }
+  if (type === 'fan') return { type: 'fan', fan: currentDiagnosticPlanner() };
+  return null;
+}
 const situationDisplay = createSituationDisplay({
   canvas: document.getElementById('simCanvas'),
   wrapper: document.getElementById('canvasWrapper'),
@@ -110,16 +120,7 @@ const situationDisplay = createSituationDisplay({
   // Config owns the draft. Deployment only receives the immutable active
   // session projection; it must not read retired selector DOM.
   getScenarioId: () => deploymentRuntimeSnapshot.session?.spec?.scenario_id || null,
-  getPlannerSurface: () => {
-    const type = plannerSurfaceType(currentDiagnosticPlanner());
-    if (type === 'vo') {
-      const sessionId = currentRunId();
-      const snapshot = voDecisionSpaceKey?.startsWith(`${sessionId}:`) ? voDecisionSpace : null;
-      return snapshot ? { type: 'vo', vo: snapshot } : null;
-    }
-    if (type === 'fan') return { type: 'fan', fan: currentDiagnosticPlanner() };
-    return null;
-  },
+  getPlannerSurface: currentPlannerSurface,
   onEncStatus: state => { setEncStatus(state); deploymentView?.refresh(); },
   onLog: pushLog,
   onScaleLabel: text => {
@@ -135,10 +136,12 @@ const radarMiniMap = createRadarMiniMap({ canvas: document.getElementById('liveR
 deploymentView = createDeploymentView({
   chart: situationDisplay,
   createScene: async options => {
-    const { createScene3D } = await import('./modules/scene-3d.js?v=20260923-follow-v1');
+    const { createScene3D } = await import('./modules/scene-3d.js?v=20260923-vo-disc-v1');
     return createScene3D({ ...options, chart: situationDisplay,
       host: document.getElementById('scene3dHost'),
       onSelect: id => situationDisplay.selectTarget(id),
+      getPlannerSurface: currentPlannerSurface,
+      requestVODecisionSpace: () => ensureVODecisionSpace(currentDiagnosticPlanner()),
     });
   },
   onState: state => {
@@ -2137,7 +2140,8 @@ function ensureVODecisionSpace(planner) {
   if (planner.algorithm_id !== 'vo' || !sessionId) return;
   const card = document.getElementById('cardPlanner');
   const solveId = Number(planner.solve_id);
-  if ((card?.classList.contains('collapsed') && !situationDisplay.isPlannerSurfaceAttached())
+  if ((card?.classList.contains('collapsed') && !situationDisplay.isPlannerSurfaceAttached()
+    && deploymentView?.state().mode !== '3d')
     || !Number.isInteger(solveId) || solveId < 1) return;
   const requestKey = `${sessionId}:${solveId}`;
   if (voDecisionSpaceKey === requestKey || voDecisionSpaceAttemptedKey === requestKey) return;
@@ -2196,6 +2200,7 @@ function requestPendingVODecisionSpace() {
     lastVORenderKey = null;
     drawPlannerSurface(pending.planner);
     if (situationDisplay.isPlannerSurfaceAttached()) situationDisplay.rerender();
+    if (deploymentView?.state().mode === '3d') deploymentView.layers();
   }).catch(error => {
     if (error.name !== 'AbortError') {
       setText('val-surface-explanation', '决策空间暂不可用');
