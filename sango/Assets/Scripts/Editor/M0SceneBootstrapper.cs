@@ -106,6 +106,14 @@ namespace Sango.Editor
             return profile;
         }
 
+        // HDRP/Lit 材质实例染色（占位船剪影可信即可，M2 换 CC0 船模时整段替换）
+        static void Tint(GameObject go, Color c)
+        {
+            var r = go.GetComponent<Renderer>();
+            var m = new Material(r.sharedMaterial.shader) { color = c };
+            r.sharedMaterial = m;
+        }
+
         static void BuildScene(VolumeProfile profile)
         {
             // 幂等核心：直接换新空场景再重建（未保存的当前场景改动会被丢弃，跑菜单前先保存工作场景）。
@@ -156,12 +164,14 @@ namespace Sango.Editor
                 hull.transform.SetParent(ship.transform, false);
                 hull.transform.localPosition = Vector3.zero; // 吃水一半在 y=0 水面下
                 hull.transform.localScale = new Vector3(12f, 3f, 4f);
+                Tint(hull, new Color(0.16f, 0.19f, 0.23f)); // 深蓝灰船体：默认 Lit 白色在 M1 截图里像白沫堆积
 
                 var superstructure = GameObject.CreatePrimitive(PrimitiveType.Cube);
                 superstructure.name = "Superstructure";
                 superstructure.transform.SetParent(ship.transform, false);
                 superstructure.transform.localPosition = new Vector3(-2f, 2.75f, 0f);
                 superstructure.transform.localScale = new Vector3(3f, 2.5f, 2.5f);
+                Tint(superstructure, new Color(0.62f, 0.64f, 0.66f));
 
                 ship.GetComponent<TriangleBuoyancyProbe>().waterSurface = water;
             }

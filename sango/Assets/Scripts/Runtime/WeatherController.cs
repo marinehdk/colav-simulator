@@ -195,7 +195,9 @@ namespace Sango
                 fog.enabled.value = true;
                 fog.enableVolumetricFog.value = true;
                 fog.maxFogDistance.value = Mathf.Max(0f, fogDistanceMeters);
-                fog.meanFreePath.value = Mathf.Max(1f, fogDistanceMeters * 0.25f); // 起调 1/4 雾距，TBD-实机
+                fog.meanFreePath.value = Mathf.Max(1f, fogDistanceMeters); // 起调值修正：0.25×雾距在 3km 档自由程仅 750m，
+                                                                           // 数公里外全白且散射拖暗正午（M1-C 实测）；1× 保持
+                                                                           // 雾感同时目标可见（仍 TBD-实机微调）
                 fog.maximumHeight.value = 120f; // 雾层盖过桥楼视线（相机 y=12 + 余量），TBD-实机
             }
         }

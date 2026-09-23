@@ -34,6 +34,15 @@ namespace Sango.Editor
             BuildScene(profile);
         }
 
+        // HDRP/Lit 材质实例染色（占位物剪影用，M2 换 CC0 资产时替换）
+        static void Tint(GameObject go, Color c)
+        {
+            var r = go.GetComponent<Renderer>();
+            r.sharedMaterial = new Material(r.sharedMaterial.shader) { color = c };
+        }
+
+        static Material TintedLit(Color c) => new Material(Shader.Find("HDRP/Lit")) { color = c };
+
         static VolumeProfile CreateVolumeProfileAsset()
         {
             // 幂等：旧 profile 资产先删再建（M1 用独立资产，不与 M0 共用：M0 重跑会整建删重建其资产）
@@ -129,12 +138,14 @@ namespace Sango.Editor
                 hull.transform.SetParent(ship.transform, false);
                 hull.transform.localPosition = new Vector3(0f, -1.5f, 0f); // 吃水一半在水面下
                 hull.transform.localScale = new Vector3(12f, 3f, 4f);
+                Tint(hull, new Color(0.16f, 0.19f, 0.23f)); // 深蓝灰船体：默认 Lit 白色在截图里像白沫堆积
 
                 var superstructure = GameObject.CreatePrimitive(PrimitiveType.Cube);
                 superstructure.name = "Superstructure";
                 superstructure.transform.SetParent(ship.transform, false);
                 superstructure.transform.localPosition = new Vector3(-2f, 1.25f, 0f);
                 superstructure.transform.localScale = new Vector3(3f, 2.5f, 2.5f);
+                Tint(superstructure, new Color(0.62f, 0.64f, 0.66f));
             }
 
             // e. Perlin 岛屿：5 岛 seed 42（PLAN §5 M1；程序化 mesh 生成器见 PerlinIslandGenerator）
@@ -146,7 +157,7 @@ namespace Sango.Editor
                 resolution = 96,
                 seed = 42,
                 clusterRadius = k_IslandClusterRadius,
-                material = null, // null → HDRP/Lit 兜底材质（PerlinIslandGenerator.DefaultMaterial）
+                material = TintedLit(new Color(0.22f, 0.30f, 0.22f)), // 岛体深绿灰：默认 Lit 白色远景像冰盖/白沫
                 vertexColors = false,
             });
             islands.transform.position = k_IslandCenter;

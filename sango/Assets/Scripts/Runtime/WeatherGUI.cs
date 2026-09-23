@@ -159,10 +159,36 @@ namespace Sango
 
         static void EnsureEventSystem()
         {
-            if (EventSystem.current != null) return;
+            if (EventSystem.current != null)
+            {
+                Debug.Log($"[Sango.M1] EventSystem exists: {EventSystem.current.name}");
+                return;
+            }
             // StandaloneInputModule 在 com.unity.ugui 包内（Runtime/UGUI/EventSystem/InputModules/）；
             // 工程未装 com.unity.inputsystem，走旧输入模块即可。
-            new GameObject("EventSystem", typeof(EventSystem), typeof(StandaloneInputModule));
+            var es = new GameObject("EventSystem", typeof(EventSystem), typeof(StandaloneInputModule));
+            Debug.Log($"[Sango.M1] EventSystem created: {es != null}");
+        }
+
+        /// <summary>
+        /// UGUI Slider 原生不响应 track 点击（只拖 handle）；演示需要点按跳值。
+        /// 点击处 → 沿 slider 方向归一化 → 直接写 value。
+        /// </summary>
+        class TrackClickJump : MonoBehaviour, IPointerClickHandler
+        {
+            public Slider slider;
+            public void OnPointerClick(PointerEventData e)
+            {
+                if (slider == null || slider.direction != Slider.Direction.LeftToRight) return;
+                var cam = e.pressEventCamera;
+                if (!RectTransformUtility.ScreenPointToLocalPointInRectangle(
+                        transform as RectTransform, e.position, cam, out var local)) return;
+                var rt = transform as RectTransform;
+                float t = Mathf.Clamp01((local.x - rt.rect.xMin) / rt.rect.width);
+                float v = Mathf.Lerp(slider.minValue, slider.maxValue, t);
+                Debug.Log($"[Sango.M1] track click -> value={v:F2}");
+                slider.value = v;
+            }
         }
 
         static RectTransform NewRect(string name, Transform parent)
@@ -272,6 +298,10 @@ namespace Sango
             slider.wholeNumbers = wholeNumbers;
             slider.value = Mathf.Clamp(value, min, max);
             slider.onValueChanged.AddListener(onChanged);
+            // track 点击跳值：挂在 Background（全 track 覆盖、raycastTarget 开启）
+            var jump = bg.gameObject.AddComponent<TrackClickJump>();
+            jump.slider = slider;
+            slider.onValueChanged.AddListener(v => Debug.Log($"[Sango.M1] {name} onValueChanged={v:F2}"));
             return slider;
         }
 
