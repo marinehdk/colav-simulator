@@ -31,7 +31,7 @@ namespace Sango.Editor
 
         // 在所有可解析到的 HDRP Asset（默认管线 + 当前管线 + 各画质档槽位）上强制开启
         // Water 支持与 Script Interactions（CPU 查询前置，引入 GPU->CPU 回读代价，即 M0 要测的成本）。
-        static void ConfigureHdrpAssets()
+        public static void ConfigureHdrpAssets()
         {
             var assets = new HashSet<HDRenderPipelineAsset>();
             if (GraphicsSettings.defaultRenderPipeline is HDRenderPipelineAsset defaultAsset) assets.Add(defaultAsset);
