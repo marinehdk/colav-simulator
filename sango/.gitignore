@@ -46,3 +46,4 @@ crashlytics-build.properties
 
 # Note: Logs/ above keeps fps-report.jsonl out of git; M0 evidence goes to
 # docs/research/2026-09-22-sango-prototype/evidence/ instead.
+_Recovery/
