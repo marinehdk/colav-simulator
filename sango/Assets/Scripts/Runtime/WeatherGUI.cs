@@ -23,6 +23,8 @@ namespace Sango
         Font _font;
         float _cursorY;
         RectTransform _panel;
+        Slider[] _sliders;   // [beaufort, windDir, time, cloud, fog]，Update 镜像用
+        Dropdown _tierDropdown;
 
         const float PanelWidth = 380f;
         const float ValueRowHeight = 26f; // 标签行高
@@ -127,14 +129,81 @@ namespace Sango
             CreateRowLabel("Spectrum tier (JS-PM approx)");
             _cursorY -= ValueRowHeight;
             var tierNames = new[] { "Calm", "Moderate", "Rough", "VeryRough" };
-            CreateDropdown(_panel, "TierDropdown", tierNames, controller != null ? (int)controller.spectrumTier : 1, i =>
+            _tierDropdown = CreateDropdown(_panel, "TierDropdown", tierNames, controller != null ? (int)controller.spectrumTier : 1, i =>
             {
                 if (controller == null) return;
                 controller.spectrumTier = (JsPmTier)i;
                 OnAnyChanged();
             });
 
+            _sliders = new[] { beaufortSlider, windDirSlider, timeSlider, cloudSlider, fogSlider };
             _panel.sizeDelta = new Vector2(PanelWidth, -_cursorY + 12f);
+        }
+
+        // 键盘驾驶（演示 + 自动化采集共用）：数字键 0-9 直设蒲福级 B0-B9；
+        // T 循环时刻预设（正午/傍晚/深夜），F 循环雾距预设（3000/1000/8000m）。
+        // 面板经 Update 镜像自动同步；为什么需要：自动化 harness 无法移动物理光标
+        // （CGEvent 只在当前光标位置派发），键盘事件是唯一可编程精确输入通路。
+        static readonly float[] k_TimePresets = { 12f, 17.5f, 0f };
+        static readonly float[] k_FogPresets = { 3000f, 1000f, 8000f };
+        int _timePresetIdx, _fogPresetIdx;
+
+        void HandleHotkeys()
+        {
+            if (controller == null) return;
+            for (int k = 0; k <= 9; k++)
+            {
+                if (Input.GetKeyDown((KeyCode)((int)KeyCode.Alpha0 + k)))
+                {
+                    controller.beaufort = k;
+                    // 文档默认分配（beaufort-water-mapping.md）：B0-1 Calm、B2-4 Moderate、B5-7 Rough、B8-11 VeryRough
+                    controller.spectrumTier = k <= 1 ? JsPmTier.Calm : k <= 4 ? JsPmTier.Moderate
+                                            : k <= 7 ? JsPmTier.Rough : JsPmTier.VeryRough;
+                    controller.Apply();
+                    RefreshReadout();
+                    Debug.Log($"[Sango.M1] hotkey beaufort=B{k} tier={controller.TierName()}");
+                }
+            }
+            if (Input.GetKeyDown(KeyCode.T))
+            {
+                _timePresetIdx = (_timePresetIdx + 1) % k_TimePresets.Length;
+                controller.timeOfDayHours = k_TimePresets[_timePresetIdx];
+                controller.Apply();
+                RefreshReadout();
+                Debug.Log($"[Sango.M1] hotkey time={k_TimePresets[_timePresetIdx]}h");
+            }
+            if (Input.GetKeyDown(KeyCode.F))
+            {
+                _fogPresetIdx = (_fogPresetIdx + 1) % k_FogPresets.Length;
+                controller.fogDistanceMeters = k_FogPresets[_fogPresetIdx];
+                controller.Apply();
+                RefreshReadout();
+                Debug.Log($"[Sango.M1] hotkey fog={k_FogPresets[_fogPresetIdx]}m");
+            }
+        }
+
+        // applyEveryFrame 下 controller 公开字段是唯一真值源（Inspector/后续脚本可绕 GUI 直改）。
+        // 每帧镜像回 UI：SetValueWithoutNotify 与 Text/Dropdown setter 对等值均 no-op，无回调风暴；
+        // 拖动路径先写 controller 再由本镜像回读，天然收敛。映射表截图（精确 B0/3/6/9）走
+        // Inspector 输入 + 此镜像，GUI 点 track 精度不足。
+        void Update()
+        {
+            HandleHotkeys();
+            if (controller == null || !controller.applyEveryFrame) return;
+            if (_sliders != null)
+            {
+                _sliders[0].SetValueWithoutNotify(controller.beaufort);
+                _sliders[1].SetValueWithoutNotify(controller.windDirectionDeg);
+                _sliders[2].SetValueWithoutNotify(controller.timeOfDayHours);
+                _sliders[3].SetValueWithoutNotify(controller.cloudCover);
+                _sliders[4].SetValueWithoutNotify(controller.fogDistanceMeters);
+            }
+            if (_tierDropdown != null && (int)controller.spectrumTier != _tierDropdown.value)
+            {
+                _tierDropdown.SetValueWithoutNotify((int)controller.spectrumTier);
+                _tierDropdown.RefreshShownValue();
+            }
+            RefreshReadout();
         }
 
         void OnAnyChanged()
@@ -377,7 +446,9 @@ namespace Sango
             var rt = NewRect(name, parent);
             var img = rt.gameObject.AddComponent<Image>();
             img.color = color; // 无 sprite：纯色矩形
-            img.raycastTarget = false;
+            // raycastTarget 必须开：EventSystem 射线命中 raycastable Graphic 才派发指针事件，
+            // 滑条 Background/Fill/Handle 全经此处创建，全关 = 滑条对鼠标完全失聪（M1-C UGUI 事故根因）
+            img.raycastTarget = true;
             return img;
         }
 

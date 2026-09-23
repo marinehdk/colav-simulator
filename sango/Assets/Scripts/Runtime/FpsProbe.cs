@@ -32,6 +32,9 @@ namespace Sango
         public int LastQueriesPerFrame { get; private set; }
         public double LastQueryMsPerFrame { get; private set; }
 
+        [Tooltip("M0 闸门补测专用：Play 2s 后请求固定 2560x1440 backbuffer。普通运行（M1 GUI 交互/截图/录屏、播放器构建）必须保持 false——display topology 动荡下 SetResolution 会把 Game view 退化成幽灵尺寸（实测 2560x36），UGUI 面板下半对射线失联。")]
+        public bool requestFixedResolution = false;
+
         void Awake()
         {
             Instance = this;
@@ -42,6 +45,7 @@ namespace Sango
         // 会 resize Game 视图；是否生效以 jsonl res 字段实测为准，不生效则如实记录实际值）。
         System.Collections.IEnumerator RequestFixedRes()
         {
+            if (!requestFixedResolution) yield break;
             yield return new WaitForSecondsRealtime(2f);
             Screen.SetResolution(2560, 1440, FullScreenMode.Windowed);
         }
