@@ -47,6 +47,7 @@ REASON_TRACE_BUDGET_EXCEEDED = "TRACE_BUDGET_EXCEEDED"
 REASON_TRACE_WRITE_FAILED = "TRACE_WRITE_FAILED"
 REASON_TRACE_SERIALIZE_FAILED = "TRACE_SERIALIZE_FAILED"
 REASON_VO_DECISION_CAPTURE_FAILED = "VO_DECISION_CAPTURE_FAILED"
+REASON_THREAT_CAPTURE_FAILED = "THREAT_SNAPSHOT_CAPTURE_FAILED"
 
 WORKER_POLL_S = 0.05
 
@@ -137,12 +138,18 @@ class TraceSink:
         with self._lock:
             return self._produced_bytes
 
-    def append(self, snapshot: Any, *, vo_decision_space: dict[str, Any] | None = None) -> None:
+    def append(
+        self,
+        snapshot: Any,
+        *,
+        vo_decision_space: dict[str, Any] | None = None,
+        threat_management: dict[str, Any] | None = None,
+    ) -> None:
         """Admit one immutable frame record. Never raises; typed on failure."""
         with self._lock:
             if self._closed or self._state != STATE_CAPTURING:
                 return
-            record = self._serialize(snapshot, vo_decision_space)
+            record = self._serialize(snapshot, vo_decision_space, threat_management)
             if record is None:
                 self._enter_failure_locked(REASON_TRACE_SERIALIZE_FAILED)
                 return
@@ -182,7 +189,12 @@ class TraceSink:
 
     # -- internals ---------------------------------------------------------
 
-    def _serialize(self, snapshot: Any, vo_decision_space: dict[str, Any] | None) -> bytes | None:
+    def _serialize(
+        self,
+        snapshot: Any,
+        vo_decision_space: dict[str, Any] | None = None,
+        threat_management: dict[str, Any] | None = None,
+    ) -> bytes | None:
         try:
             record = {
                 "sequence": snapshot.sequence,
@@ -194,6 +206,8 @@ class TraceSink:
             }
             if vo_decision_space is not None:
                 record["vo_decision_space"] = vo_decision_space
+            if threat_management is not None and threat_management.get("status") == "AVAILABLE":
+                record["threat_management"] = threat_management
             if self._policy.capture_profile == "chart":
                 record["payload"] = chart_payload(snapshot.payload)
                 record["events"] = chart_events(snapshot.events)
