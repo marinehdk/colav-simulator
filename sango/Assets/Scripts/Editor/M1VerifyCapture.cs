@@ -66,6 +66,8 @@ namespace Sango.Editor
         [InitializeOnLoadMethod]
         static void ResumePendingRun()
         {
+            // 前置：依赖进 Play 触发域重载来恢复协程泵。若工程开启 Enter Play Mode Options
+            // 的"禁用域重载"，本恢复路径不会执行，Verify/Capture 会静默无输出。
             if (SessionState.GetBool(k_VerifyStateKey, false))
                 new EditorPump(VerifySteps());
             else if (SessionState.GetBool(k_CaptureStateKey, false))
@@ -214,13 +216,16 @@ namespace Sango.Editor
             for (int i = 0; i < 600 && FindWeatherCanvas() == null; i++) yield return null;
             for (int i = 0; i < 30; i++) yield return null;
 
-            // Beaufort 四档（固定机位，正午 + 默认云/雾）
+            // Beaufort 四档（固定机位，正午 + 默认云/雾）；谱档按映射表默认分配随级联动
+            // （与 WeatherGUI.HandleHotkeys 一致，防重采证据与表格"谱档按行取"列矛盾）
             foreach (var b in new[] { 0f, 3f, 6f, 9f })
             {
                 controller.timeOfDayHours = 12f;
                 controller.cloudCover = 0.4f;
                 controller.fogDistanceMeters = 3000f;
                 yield return SetAndSettle(v => controller.beaufort = v, b);
+                controller.spectrumTier = b <= 1f ? JsPmTier.Calm : b <= 4f ? JsPmTier.Moderate
+                                        : b <= 7f ? JsPmTier.Rough : JsPmTier.VeryRough;
                 yield return Shot($"{dir}/beaufort-b{b:0}.png");
             }
 

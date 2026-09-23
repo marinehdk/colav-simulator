@@ -40,8 +40,9 @@
 - **锚点档观感**：B0 近镜面 ✓ / B3 白沫适度 ✓ / B6 大浪成形白沫成片 ✓ / B9 惊涛大面积白沫+船体被浪半掩 ✓，全部达"调值指引"第 2 条目标，未触发调参迭代（代码锚点值即收敛值）。
 - **面板一致性**（验收②）：各档截图中面板读数（风速 m/s + B 级 + 谱档）与 `BeaufortToWindSpeedMs` 输出一致（B0=0.5 / B3=4.5 / B6=12.5 / B9=22.5），代码与文档同源。
 - **扫描影像**（验收②）：本机 shell 无屏幕录制 TCC 权限，`screencapture -v` 不可用；改以键盘驾驶逐档采集 + ffmpeg 装配 timelapse（`evidence/m1-beaufort-sweep.mp4`，B0→B9 每档 6s 收敛后取帧）。
-- **昼夜对**（验收③）：`evidence/m1-time-midnight.png`（0.0h，暗夜空+岛剪影）对照 B3/B6 截图正午态。
+- **昼夜对**（验收③）：`evidence/m1-time-noon.png`（B3 正午 12.0h）/ `evidence/m1-time-midnight.png`（0.0h，暗夜空+岛剪影；正午帧与 B3 锚点帧同配置，面板 12.0h 可读）。
 - **雾距对**（验收③）：`evidence/m1-fog-1000m.png` / `m1-fog-8000m.png` 机制生效但视觉差异弱——岛群最远 ~440m 未达雾距档位差量级；M2 候选：加 2-3km 远距参照物后再采对比对。
+- **画面3/4 天气要素核对**（验收④）：画面3 夜空——`m1-time-midnight.png`（暗夜空、微光地平线）；画面4 天气项逐一在锚点截图中可核——Beaufort 滑条+读数（b0-b9 各帧）、风向 30°（各帧面板）、谱档下拉 Calm/Moderate/Rough/VeryRough（随级联动，见 b0/b3/b6/b9 帧下沿）、时刻滑条（b 系列 12.0h / midnight 0.0h）、云量 0.40（各帧面板，天空少云态）、雾距 3000m（各帧面板）；航行灯/矢量属 M2 不在本条。
 - **采集环境**：编辑器 Game view 在本机有 topology 动荡史（背缓冲退化/窗口 offscreen 翻转，见持久记忆坑清单），M1 证据统一改在 **Standalone 播放器**（`Sango/M1/Build Standalone Player (Mono)` 菜单构建）中采集；编辑器内 UGUI 点击"失聪"的两层根因均已修复（raycastTarget 全关 + Game view 背缓冲退化致画布裁剔），真人鼠标交互待人工复核。
 5. 验收条款（PLAN §5 M1）：① 本表有可对数值锚点+每级截图对；② 录屏 Beaufort 0→9 波高/白沫可感知增强且**面板风速与映射表一致**；③ 时刻滑条正午 vs 深夜、雾距两档截图；④ 画面3/4 天气要素先行核对。
 

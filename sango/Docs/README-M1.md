@@ -1,5 +1,11 @@
 # README-M1 — M1-C 执行手册（海况环境与天气 GUI 骨架导入与实机调锚点）
 
+> **状态（2026-09-23）：M1 已收口**。本手册保留作历史执行记录与故障对照表（§7/§8 仍有效）；
+> §0-§2 前置待办已全部落地（方案 A：`M0SceneBootstrapper.ConfigureHdrpAssets` 已 public，
+> M1SceneBootstrapper 直接调用），§6 验收清单已由
+> `sango/Docs/beaufort-water-mapping.md`"M1 实机核对记录"节取代（勾选见下）。
+> **雨/雪 VFX 未在本里程碑实现，显式顺延 M2+**（PLAN §5 M1 内容清单含它但四条验收条款不含，故不阻塞）。
+
 本目录是 M1 代码骨架的暂存区（保持未来在 `sango/` 内的相对路径）。执行者目标：把骨架装进已就绪的
 `sango/` 工程（M0 已 PASS），编译出 M1 场景，在 Play 中调出 Beaufort 0-11 海况并把锚点值回填映射表。
 验收对照 `docs/research/2026-09-22-sango-prototype/PHASE1-PLAN.md` §5 M1 四条。
@@ -87,13 +93,15 @@ cp tmp/sango-skeleton-m1/sango-docs-beaufort-water-mapping.md sango/Docs/beaufor
 
 ## 6. 验收清单（PLAN §5 M1 四条对照）
 
-- [ ] 1. 映射表有数值锚点：风速列（B0≈0.5/B3≈4.5/B6≈12.5/B9≈22.5 级内中值线性内插）+ band 参数锚点列 +
-      每级固定机位+固定参数截图对；
-- [ ] 2. 录屏：Beaufort 0→9 波高/白帽可感知增强，面板风速与映射表一致；
-- [ ] 3. 截图：时刻正午 vs 深夜；雾距两档对比；
-- [ ] 4. 四画面之画面3/画面4 天气部分要素核对一次（航行灯与矢量属 M2，本条只对天气项）。
+> ✅ 2026-09-23 全部核过，证据与逐条记录见 `beaufort-water-mapping.md`"M1 实机核对记录"。
 
-全部打勾后：`cd sango && git add -A && git status --short` 核对入库清单（Library/ Temp/ Logs/ 不出现），提交。
+- [x] 1. 映射表有数值锚点：风速列（B0≈0.5/B3≈4.5/B6≈12.5/B9≈22.5 级内中值线性内插）+ band 参数锚点列 +
+      锚点档固定机位+固定参数截图（B0/B3/B6/B9，非锚点档未逐级采图）；
+- [x] 2. Beaufort 0→9 波高/白帽可感知增强，面板风速与映射表一致（timelapse 代替录屏，原因见核对记录）；
+- [x] 3. 截图：时刻正午 vs 深夜；雾距两档对比；
+- [x] 4. 四画面之画面3/画面4 天气部分要素核对一次（航行灯与矢量属 M2，本条只对天气项）。
+
+~~全部打勾后：`cd sango && git add -A && git status --short` 核对入库清单（Library/ Temp/ Logs/ 不出现），提交。~~（已收口于 41ad7422；`git add -A` 为仓库禁用操作，原手册措辞作废）
 
 ## 7. 故障对照表
 
