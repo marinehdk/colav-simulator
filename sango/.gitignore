@@ -1,0 +1,48 @@
+# Unity standard .gitignore — M0-C copies this file to sango/.gitignore
+
+# Unity generated folders (never commit)
+/[Ll]ibrary/
+/[Tt]emp/
+/[Oo]bj/
+/[Bb]uild/
+/[Bb]uilds/
+/[Ll]ogs/
+/[Uu]serSettings/
+/[Mm]emoryCaptures/
+/[Rr]ecordings/
+
+# Asset import cache sidecars that must not be shared
+/[Aa]ssets/AssetStoreTools*
+/[Aa]ssets/Plugins/Editor/JetBrains*
+
+# IDE / editor caches
+.vs/
+.idea/
+.vscode/
+*.csproj
+*.sln
+*.suo
+*.user
+*.userprefs
+*.pidb
+*.booproj
+*.svd
+*.pdb
+*.mdb
+*.opendb
+*.VC.db
+
+# Unity crash reports / metrics / packages
+sysinfo.txt
+crashlytics-build.properties
+*.stackdump
+*.unitypackage
+*.apk
+*.aab
+*.unityweb
+
+# OS cruft
+.DS_Store
+
+# Note: Logs/ above keeps fps-report.jsonl out of git; M0 evidence goes to
+# docs/research/2026-09-22-sango-prototype/evidence/ instead.
