@@ -7,7 +7,7 @@ export function createDeploymentView({ chart, createScene, onState = () => {}, o
   let identities = new Map();
   const modelOverrides = new Map();
   let lastEntryMs = null, loadingController = null;
-  let loading = false, savedView = null, camera = 'bridge', destroyed = false;
+  let loading = false, savedView = null, camera = 'chase', destroyed = false;
   function reason() {
     if (!projection?.raw?.os || ![projection.raw.os.x, projection.raw.os.y, projection.raw.os.psi].every(Number.isFinite)) return '等待有效本船状态';
     return geographyProblem(chart.getEncInfo(), runId);
@@ -28,6 +28,7 @@ export function createDeploymentView({ chart, createScene, onState = () => {}, o
   }
   async function enter() {
     if (destroyed || loading || mode === '3d' || reason()) return;
+    camera = 'chase';
     const token = ++generation;
     const started = now();
     loadingController = new AbortController();
@@ -51,7 +52,7 @@ export function createDeploymentView({ chart, createScene, onState = () => {}, o
     state,
     refresh: notify,
     beginSession(id) {
-      exit(); projection = null; identities.clear(); modelOverrides.clear(); runId = id; camera = 'bridge'; notify();
+      exit(); projection = null; identities.clear(); modelOverrides.clear(); runId = id; camera = 'chase'; notify();
     },
     render(value) {
       if (destroyed || !value?.raw || value.raw.run_id !== runId) return;

@@ -1,4 +1,4 @@
-import { createDeploymentView } from './modules/deployment-view.js?v=20260920-3d-v1';
+import { createDeploymentView } from './modules/deployment-view.js?v=20260924-chase-vo-v1';
 import { renderBalance, resetBalance } from './modules/gnc-balance.js?v=20260909-balance-v7';
 import { activeSessionRuntime, telemetryProjection } from './modules/session-runtime-instance.js?v=20260908-buffered-motion-v2';
 import './modules/line-graph.js?v=20260826-chart-view-control-v1';
@@ -136,7 +136,7 @@ const radarMiniMap = createRadarMiniMap({ canvas: document.getElementById('liveR
 deploymentView = createDeploymentView({
   chart: situationDisplay,
   createScene: async options => {
-    const { createScene3D } = await import('./modules/scene-3d.js?v=20260923-vo-primitive-v1');
+    const { createScene3D } = await import('./modules/scene-3d.js?v=20260924-chase-vo-v1');
     return createScene3D({ ...options, chart: situationDisplay,
       host: document.getElementById('scene3dHost'),
       onSelect: id => situationDisplay.selectTarget(id),
