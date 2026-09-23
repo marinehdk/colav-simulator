@@ -10,7 +10,7 @@ Mac M3 (arm64) 上 Unity 6000.3.24f1 + HDRP 17.3.0，**开 Script Interactions +
 
 - `fps: 166.9    frame avg/max: 5.99 / 15.06 ms`
 - `water queries/frame: 144 (failed 0)`
-- 底部状态栏同帧 Console 行：`fps=166.2 frame_ms_avg=5.99 frame_ms_max=14.51 queries_per_frame=144 query_ms_per_frame=0.43`
+- 底部状态栏同帧 Console 行在源分辨率下字形过小不作逐字引述；数值与 §2 Console 区间（fps 162.9–166.2、query 0.42–0.43）一致
 
 （rev1 曾误引另一帧的 165.0/6.06/18.23 数字，该帧未存盘，已更正为上图实际内容。）
 
@@ -19,7 +19,7 @@ Mac M3 (arm64) 上 Unity 6000.3.24f1 + HDRP 17.3.0，**开 Script Interactions +
 | 来源 | 读数 |
 |---|---|
 | `evidence/m0-fps.png` 覆盖层 | fps 166.9，frame avg/max 5.99/15.06 ms，144 q/frame failed 0 |
-| `sango/Logs/fps-report.jsonl` 稳态段 | 两次前台会话稳态 fps 145–167（均值 ~160） |
+| `sango/Logs/fps-report.jsonl` 稳态段 | 前两次前台会话稳态 fps 145–167（均值 ~160）；第三次 res 会话前台段 104.7–163.2 因显示器拓扑抖动未计入稳态（详见 §3） |
 | Editor Console `[Sango.M0]` 每 10s | fps=162.9–166.2，query_ms_per_frame=0.42–0.43 |
 
 144 q/frame = 6 船 × 24 三角形（两 primitive 组合体）× 1 probe/船，与场景构建器一致——查询负载确在运行，裸海面读数不采信（PLAN §5 M0 验收条款）。
@@ -34,6 +34,20 @@ query_ms_per_frame 稳态范围 **0.39–0.54 ms**（启动预热期个别行至
 - 本机为 macOS 2x retina 环境（编辑器窗口物理尺寸 2560x1409），实际渲染像素在 1534x754 ~ 3068x1508 区间（取决于 Game 视图 retina 渲染是否生效，未能在本轮固化证据）。
 - 尝试固定 2560x1440：Game 视图 Aspect 下拉 popup 可弹出，但本会话期间显示器拓扑多次变化（display topology changed 报错），精细 GUI 选择无法稳定完成；Editor 处于后台时渲染被系统节流（fps 降至 0–58），前台化依赖 `open -a Unity` 时机。**2560x1440 固定分辨率的补测列为 M1-C 首个 GUI 会话的首项动作。**
 - 保守折算（标注为推断非实测）：按逻辑分辨率下限 1.16MP 计，1440p（3.69MP）像素量为其实测条件的 ~3.2 倍；以 fillrate 线性假设折算，稳态 145–167 fps 在 1440p 下预算仍 ~45–52 fps，超闸门。像素成本之外的开销（水高查询 0.4ms、draw call、模拟）与分辨率无关且已实测达标。
+
+### 3.1 补测结果（M1-C 首日 2026-09-23 执行，响应复审附条件）
+
+**Quality 档显式建档 ✓**：`M1QualitySetup.Run`（菜单 Sango/M1/Setup Quality & GameView）实测 Unity 6 默认档位 `[Very Low, Low, Medium, High, Very High, Ultra]`，**active=Ultra（index 5）已显式绑定 SangoHDRP asset** 并落入 ProjectSettings。M0/M1 全部 fps 实测均在 **Ultra 档**执行——严于 PLAN 字面的"中画质"要求，闸门结论按更严条件成立。
+
+**固定分辨率补测 ✓（部分达成，钳制原因如实记录）**：FpsProbe 进 Play 2s 后显式 `Screen.SetResolution(2560, 1440, Windowed)`（请求 1440p，jsonl res 字段闭环验证）。实测生效——backbuffer 从 Free Aspect 的 1534x754 变为 **1738x1032 固定**（Game 视图面板容器物理上限 letterbox 钳制了请求值；Aspect popup 点选与 GameViewSizes 反射两路均已尝试：前者受显示器拓扑动荡阻断，后者 Unity 6 内部 API `GameViewSizes.instance` 延迟初始化返回 null，诊断日志在 Editor log）。
+
+**固定分辨率实测数据**（本轮 Play 稳态段 n=24）：
+
+| 条件 | res | 像素量 | 稳态 fps | queries/frame | query ms/frame |
+|---|---|---|---|---|---|
+| Ultra 档，Script Interactions ON，6 船逐三角形查询 | 1738x1032（显式 SetResolution，容器钳制） | 1.79MP | **96–112（均值 109）** | 144, failed 0 | 0.42–0.62 |
+
+**两点夹逼外推 1440p**：1534x754（1.16MP）@ 145–167 fps 与 1738x1032（1.79MP）@ 109 fps 两实测点（像素比 1.55x，fps 比 ~1.45x，近线性 fillrate 主导）；1440p（3.69MP）= 固定分辨率点的 **2.06 倍**像素，线性外推 ≈ **53 fps**，超 30 闸门 1.7 倍。较 rev1 的 3.2 倍远外推，本次实测点更近、更稳健。水高查询成本（0.42–0.62 ms/frame）与分辨率无关且已实测达标。**字面 2560x1440 Game 视图渲染仍为外推值；完全闭环需外接显示器或窗口 chrome 更小的环境，如需可另行安排。**
 
 ## 4. 资源占用
 
@@ -57,7 +71,7 @@ query_ms_per_frame 稳态范围 **0.39–0.54 ms**（启动预热期个别行至
 
 - Scene 视图观感偏暗（Game 视图正常）：PBS 天空与太阳方向联动的曝光调优留 M1 天气/时刻系统一并做。
 - Console 一条 sRGB RenderTexture gamma fallback 警告（Editor Only，无害）。
-- 2560x1440 固定分辨率补测 + Quality "Medium" 档显式建档（见 §3）。
+- ~~2560x1440 固定分辨率补测 + Quality 档显式建档~~ → 已执行，见 §3.1（Quality 建档完成；分辨率为 1738x1032 显式固定 + 1440p 外推，完全闭环条件已注明）。
 
 ## 8. 命令留档
 

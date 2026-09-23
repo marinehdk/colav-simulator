@@ -35,6 +35,15 @@ namespace Sango
         void Awake()
         {
             Instance = this;
+            StartCoroutine(RequestFixedRes());
+        }
+
+        // M0 复审补测：进 Play 后请求固定 2560x1440 backbuffer（Editor 下 Screen.SetResolution
+        // 会 resize Game 视图；是否生效以 jsonl res 字段实测为准，不生效则如实记录实际值）。
+        System.Collections.IEnumerator RequestFixedRes()
+        {
+            yield return new WaitForSecondsRealtime(2f);
+            Screen.SetResolution(2560, 1440, FullScreenMode.Windowed);
         }
 
         void OnDestroy()
