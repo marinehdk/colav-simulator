@@ -28,3 +28,9 @@ test('absent, stale or wrong-generation assessment keeps range but never invents
   assert.equal(m.blocks[2].value,'—');assert.equal(m.metrics[3].value,'—');assert.equal(m.relation,null);
  }
 });
+test('outside the detection range stays white even if an old risk vector remains',()=>{
+ const p=fixture('HEAD_ON','GIVE_WAY','HIGH');
+ const far={...ship,x:2001,y:0};
+ assert.deepEqual(targetPresentation(p,far).alert.state,'unchecked');
+ assert.deepEqual(targetPresentation(p,far).alert.color,'#FFFFFF');
+});

@@ -56,3 +56,14 @@ test('canonical risk colors respect generation and unavailable evidence without 
   p.raw.obstacles[0].psi = NaN;
   assert.equal(buildSceneCompass(p).targets[0].heading, null, 'missing target heading is not invented');
 });
+
+test('profile qualification does not hide an available threat level and unchecked targets are white', () => {
+  const p = projection(0, [target(1, 0, 0), target(2, 45, 0), target(3, 90, 0)]);
+  p.risk.targets = [
+    {targetId: 1, generation: 1, displayClass: 'CLEAR', unavailableReasons: ['PROFILE_UNQUALIFIED']},
+    {targetId: 2, generation: 1, displayClass: 'HIGH', unavailableReasons: ['PROFILE_UNQUALIFIED']},
+  ];
+  const model = buildSceneCompass(p).targets;
+  assert.deepEqual(model.map(item => item.state), ['checked', 'alarm', 'unchecked']);
+  assert.deepEqual(model.map(item => item.color), ['#16804B', '#D82828', '#FFFFFF']);
+});

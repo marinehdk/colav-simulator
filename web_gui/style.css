@@ -3811,8 +3811,8 @@ canvas#simCanvas.route-pick-mode { cursor: crosshair; }
 .scene3d-compass-own::before { content: ''; position: absolute; top: -20px; left: 50%; height: 17px; border-left: 1px solid #185995; }
 .scene3d-compass-targets { position: relative; max-height: 180px; overflow-y: auto; overflow-x: clip; margin: 0 -20px; padding: 0 20px; box-sizing: content-box; pointer-events: auto; }
 .scene3d-compass-target { position: absolute; transform: translateX(-50%); width: 44px; height: 43px; padding: 0; border: 0; background: transparent; display: grid; justify-items: center; align-content: start; gap: 1px; cursor: pointer; }
-.scene3d-compass-target svg, .scene3d-compass-own svg { width: 24px; height: 28px; display: block; transform-origin: center; filter: drop-shadow(0 0 1px #fff); }
-.scene3d-compass-target span { font: 600 10px/12px sans-serif; }
+.scene3d-compass-target svg, .scene3d-compass-own svg { width: 24px; height: 28px; display: block; transform-origin: center; filter: drop-shadow(0 1px 1px #173047); }
+.scene3d-compass-target span { font: 600 10px/12px sans-serif; text-shadow: 0 1px 2px #173047; }
 .scene3d-compass-target:hover, .scene3d-compass-target:focus-visible { outline: 2px solid currentColor; outline-offset: -1px; border-radius: 4px; background: #ffffff88; }
 .scene3d-card { position: absolute; right: 16px; top: 150px; max-width: calc(100% - 32px); max-height: calc(100% - 210px); overflow-y: auto; z-index: 7; }
 .scene3d-card[hidden] { display: none; }

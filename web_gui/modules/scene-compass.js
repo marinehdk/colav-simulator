@@ -1,5 +1,5 @@
 import { targetsForDisplay, RADAR_DETECTION_RANGE_M } from './situation-display.js?v=20260920-3d-v1';
-import { targetAlert, targetKey } from './scene-geography.js?v=20260921-poi-v1';
+import { targetAlert, targetKey } from './scene-geography.js?v=20260923-follow-v1';
 
 const DEG = 180 / Math.PI;
 const normalize = value => ((value % 360) + 360) % 360;

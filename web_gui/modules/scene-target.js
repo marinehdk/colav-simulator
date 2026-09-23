@@ -1,4 +1,4 @@
-import { NM, riskForTarget, targetAlert } from './scene-geography.js?v=20260921-poi-v1';
+import { NM, riskForTarget, targetAlert } from './scene-geography.js?v=20260923-follow-v1';
 
 const metric = (value, digits = 1) => Number.isFinite(value) ? value.toFixed(digits) : '—';
 const degrees = value => Number.isFinite(value) ? (value * 180 / Math.PI + 360) % 360 : null;
