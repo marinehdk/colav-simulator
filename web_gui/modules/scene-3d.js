@@ -1,9 +1,9 @@
 import { chooseVesselAsset, vesselModelMatrix, VESSEL_ASSETS } from './vessel-models.js?v=20260921-fcb-v1';
-import { createGeography, NM, targetKey, riskForTarget, frameIdentity, predictionMarkers, offscreenDirection } from './scene-geography.js?v=20260921-poi-v1';
+import { createGeography, NM, targetKey, riskForTarget, targetAlert, frameIdentity, predictionMarkers, offscreenDirection } from './scene-geography.js?v=20260923-follow-v1';
 import { targetsForDisplay, RADAR_DETECTION_RANGE_M } from './situation-display.js?v=20260920-3d-v1';
 import { createRoute3D } from './route-3d.js?v=20260921-route-ar-v1';
-import { createSceneCompass } from './scene-compass.js?v=20260921-poi-v1';
-import { targetPresentation, applyTargetAppearance, updateTargetPoi, renderTargetCard } from './scene-target.js?v=20260921-poi-v1';
+import { createSceneCompass } from './scene-compass.js?v=20260923-follow-v1';
+import { targetPresentation, applyTargetAppearance, updateTargetPoi, renderTargetCard } from './scene-target.js?v=20260923-follow-v1';
 
 let enginePromise;
 export function loadCesium() {
@@ -169,6 +169,7 @@ export async function createScene3D({ host, info, camera = 'bridge', chart, onSe
       record.ship = ship;
       record.assignment = choice.reason;
       record.marker.position = position(ship.x, ship.y, 1);
+      if (record.marker.billboard) record.marker.billboard.color = C.Color.fromCssColorString(targetAlert(projection, ship).color);
       record.marker.show = chart.getLayerState().ships?.visible !== false
         && (String(ship.id) !== '0' || !record.model?.ready);
       if (record.model?.ready) record.model.modelMatrix = vesselMatrix(ship, record.asset);
@@ -213,9 +214,11 @@ export async function createScene3D({ host, info, camera = 'bridge', chart, onSe
       const eye = position(ship.x - Math.cos(ship.psi) * length * 0.2, ship.y - Math.sin(ship.psi) * length * 0.2, Math.max(9, (ship.width || 10) * 1.1));
       viewer.camera.setView({ destination: eye, orientation: { heading, pitch: -0.025, roll: 0 } });
     } else {
-      const range = preset === 'top' ? 2500 : Math.max(120, Math.min(700, length * 12));
-      const tilt = preset === 'top' ? -Math.PI / 2 + 0.001 : -0.38;
-      viewer.camera.lookAt(position(ship.x, ship.y), new C.HeadingPitchRange(heading, tilt, range));
+      const range = preset === 'top' ? 2500 : Math.max(120, Math.min(700, length * 9));
+      const tilt = preset === 'top' ? -Math.PI / 2 + 0.001 : -0.41;
+      const lookAhead = preset === 'chase' ? length * 1.35 : 0;
+      viewer.camera.lookAt(position(ship.x + Math.cos(ship.psi) * lookAhead,
+        ship.y + Math.sin(ship.psi) * lookAhead), new C.HeadingPitchRange(heading, tilt, range));
       viewer.camera.lookAtTransform(C.Matrix4.IDENTITY);
     }
     // The bridge eyepoint is illustrative; hide its hull to avoid a false occlusion.
@@ -294,6 +297,7 @@ export async function createScene3D({ host, info, camera = 'bridge', chart, onSe
   function projectPois() {
     if (disposed || !projection) return;
     const width = canvasHost.clientWidth, height = canvasHost.clientHeight;
+    const layerHeight = layer.getBoundingClientRect().height;
     const wanted = new Set(), edgeLabels = [];
     const frustum = viewer.camera.frustum.computeCullingVolume(viewer.camera.positionWC, viewer.camera.directionWC, viewer.camera.upWC);
     const occluder = new C.EllipsoidalOccluder(C.Ellipsoid.WGS84, viewer.camera.positionWC);
@@ -336,11 +340,12 @@ export async function createScene3D({ host, info, camera = 'bridge', chart, onSe
       const blocks = available >= 320 ? model.blocks : available >= 180 ? [model.blocks[1]] : [];
       if (updateTargetPoi(poi, { ...model, blocks })) poi.updateComplete.then(() => requestAnimationFrame(() => { if (!disposed) viewer.scene.requestRender(); }));
       const cardHeight = poi.getVisualRect('size').height || (blocks.length ? blocks.length * 64 + 80 : 48);
-      const top = Math.max(12, Math.min(point.y - cardHeight - 24, Math.max(topInset, height * 0.22)));
-      // The native pointer begins below the full data card, not its top edge.
+      const lineLength = Math.min(72, Math.max(0, point.y - topInset - cardHeight - 12));
+      // OpenBridge offsets targets by its layer height. Keep the native pointer
+      // on the same projected point as the vessel's Cesium position marker.
       poi.x = Math.round(point.x * 2) / 2;
-      poi.y = Math.round(Math.max(0, point.y - top - cardHeight) * 2) / 2;
-      poi.buttonY = Math.round(top * 2) / 2;
+      poi.y = Math.round(lineLength * 2) / 2;
+      poi.buttonY = Math.round((point.y - layerHeight - lineLength) * 2) / 2;
       poi.selected = String(selected) === String(ship.id);
       poi.relativeDirection = degrees(ship.psi - projection.raw.os.psi) ?? 0;
       const title = `TS${ship.id} · ${risk?.displayClass || '不可用'} · DCPA ${metric(risk?.dcpaM)} m / TCPA ${metric(risk?.tcpaS)} s`;

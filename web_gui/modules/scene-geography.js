@@ -1,5 +1,5 @@
 import proj4 from '../vendor/proj4/proj4.mjs';
-import { TARGET_RISK_STYLES } from './situation-display.js?v=20260920-3d-v1';
+import { TARGET_RISK_STYLES, RADAR_DETECTION_RANGE_M } from './situation-display.js?v=20260920-3d-v1';
 
 export const NM = 1852;
 const finite = Number.isFinite;
@@ -42,7 +42,8 @@ export function riskForTarget(projection, target) {
 }
 
 export function poiState(risk) {
-  if (!risk || risk.unavailableReasons?.length || String(risk.observationHealth).toUpperCase() === 'STALE') return 'unchecked';
+  if (!risk || risk.unavailableReasons?.some(reason => reason !== 'PROFILE_UNQUALIFIED')
+    || String(risk.observationHealth).toUpperCase() === 'STALE') return 'unchecked';
   return { HIGH: 'alarm', LOW: 'caution', CLEAR: 'checked' }[risk.displayClass] ?? 'unchecked';
 }
 
@@ -50,11 +51,14 @@ const TARGET_ALERTS = {
   checked: { name: '安全', color: TARGET_RISK_STYLES.safe.color, poiState: 'enabled' },
   caution: { name: '监控', color: TARGET_RISK_STYLES.warn.color, poiState: 'caution' },
   alarm: { name: '紧急', color: TARGET_RISK_STYLES.danger.color, poiState: 'alarm' },
-  unchecked: { name: '态势未知', color: '#64717b', poiState: 'enabled' },
+  unchecked: { name: '态势未知', color: '#FFFFFF', poiState: 'enabled' },
 };
 
 export function targetAlert(projection, ship) {
-  const state = poiState(riskForTarget(projection, ship));
+  const os = projection?.raw?.os;
+  const inRange = [os?.x, os?.y, ship?.x, ship?.y].every(finite)
+    && Math.hypot(ship.x - os.x, ship.y - os.y) <= RADAR_DETECTION_RANGE_M;
+  const state = inRange ? poiState(riskForTarget(projection, ship)) : 'unchecked';
   return { state, ...TARGET_ALERTS[state] };
 }
 
