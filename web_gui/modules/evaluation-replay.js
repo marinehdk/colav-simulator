@@ -759,7 +759,7 @@ export function createEvaluationReplayController({
       replayView = createDeploymentView({
         chart: display,
         createScene: async options => {
-          const createScene = sceneFactory ?? (await import('./scene-3d.js?v=20260923-vo-sea-v1')).createScene3D;
+          const createScene = sceneFactory ?? (await import('./scene-3d.js?v=20260923-vo-primitive-v1')).createScene3D;
           return createScene({ ...options, chart: display, host: el('replayScene3dHost'),
             onSelect: id => display.selectTarget(id),
             getPlannerSurface: () => replayVODecisionSpace ? { type: 'vo', vo: replayVODecisionSpace } : null });

@@ -136,7 +136,7 @@ const radarMiniMap = createRadarMiniMap({ canvas: document.getElementById('liveR
 deploymentView = createDeploymentView({
   chart: situationDisplay,
   createScene: async options => {
-    const { createScene3D } = await import('./modules/scene-3d.js?v=20260923-vo-sea-v1');
+    const { createScene3D } = await import('./modules/scene-3d.js?v=20260923-vo-primitive-v1');
     return createScene3D({ ...options, chart: situationDisplay,
       host: document.getElementById('scene3dHost'),
       onSelect: id => situationDisplay.selectTarget(id),
