@@ -1,6 +1,6 @@
 import { chooseVesselAsset, vesselModelMatrix, VESSEL_ASSETS } from './vessel-models.js?v=20260921-fcb-v1';
 import { createGeography, NM, targetKey, riskForTarget, targetAlert, frameIdentity, predictionMarkers, offscreenDirection } from './scene-geography.js?v=20260923-follow-v1';
-import { targetsForDisplay, RADAR_DETECTION_RANGE_M } from './situation-display.js?v=20260920-3d-v1';
+import { targetsForDisplay, RADAR_DETECTION_RANGE_M, drawVODecisionDisc } from './situation-display.js?v=20260923-vo-disc-v1';
 import { createRoute3D } from './route-3d.js?v=20260921-route-ar-v1';
 import { createSceneCompass } from './scene-compass.js?v=20260923-follow-v1';
 import { targetPresentation, applyTargetAppearance, updateTargetPoi, renderTargetCard } from './scene-target.js?v=20260923-follow-v1';
@@ -40,7 +40,7 @@ function waitForAsset(promise, signal, label) {
   });
 }
 
-export async function createScene3D({ host, info, camera = 'bridge', chart, onSelect, onFailure, onCamera, signal, modelOverrides = new Map(), pixelRatio = null }) {
+export async function createScene3D({ host, info, camera = 'bridge', chart, onSelect, onFailure, onCamera, getPlannerSurface = () => null, requestVODecisionSpace = () => {}, signal, modelOverrides = new Map(), pixelRatio = null }) {
   const C = await waitForAsset(loadCesium(), signal, 'Cesium');
   const geo = createGeography(info);
   // OpenBridge is loaded by the existing shell; no second registration/bundle.
@@ -50,6 +50,9 @@ export async function createScene3D({ host, info, camera = 'bridge', chart, onSe
   const canvasHost = document.createElement('div'); canvasHost.className = 'scene3d-canvas';
   const toolbar = document.createElement('div'); toolbar.className = 'scene3d-toolbar';
   toolbar.setAttribute('role', 'group'); toolbar.setAttribute('aria-label', '三维机位');
+  const voDisc = document.createElement('canvas'); voDisc.className = 'scene3d-vo-disc';
+  voDisc.width = 480; voDisc.height = 480; voDisc.hidden = true;
+  voDisc.setAttribute('role', 'img'); voDisc.setAttribute('aria-label', 'VO 候选航向与航速决策空间，非海面距离');
   const layer = document.createElement('obc-poi-layer'); layer.className = 'scene3d-pois'; layer.overlapMode = 'grouping';
   const edges = document.createElement('div'); edges.className = 'scene3d-edges';
   const card = document.createElement('obc-poi-card'); card.className = 'scene3d-card'; card.hidden = true;
@@ -59,7 +62,7 @@ export async function createScene3D({ host, info, camera = 'bridge', chart, onSe
   card.hasCloseButton = true;
   card.addEventListener('close-click', () => choose(null));
   const credits = document.createElement('div'); credits.className = 'scene3d-credits';
-  root.append(canvasHost, layer, edges, toolbar, card, credits); host.append(root);
+  root.append(canvasHost, voDisc, layer, edges, toolbar, card, credits); host.append(root);
   C.CreditDisplay.cesiumCredit = undefined;
   let viewer;
   try {
@@ -83,7 +86,7 @@ export async function createScene3D({ host, info, camera = 'bridge', chart, onSe
   applyResolution();
   let disposed = false, projection = null, preset = camera, follow = true;
   let selected = chart.getSelectedTargetId(), selectedKey = null, encPrimitive = null;
-  let lastGeometryKey = null, lastRingCenter = null;
+  let lastGeometryKey = null, lastRingCenter = null, lastVODiscKey = null;
   const vessels = new Map(), pois = new Map(), geometry = new Map(), linePoints = new Map();
   const disposers = [];
   function listen(el, event, fn) { el.addEventListener(event, fn); disposers.push(() => el.removeEventListener(event, fn)); }
@@ -302,6 +305,37 @@ export async function createScene3D({ host, info, camera = 'bridge', chart, onSe
     const frustum = viewer.camera.frustum.computeCullingVolume(viewer.camera.positionWC, viewer.camera.directionWC, viewer.camera.upWC);
     const occluder = new C.EllipsoidalOccluder(C.Ellipsoid.WGS84, viewer.camera.positionWC);
     routeDisplay.project(frustum, occluder, width, height);
+    const plannerSurface = getPlannerSurface();
+    const vo = plannerSurface?.type === 'vo' ? plannerSurface.vo : null;
+    const ownship = projection.raw.os;
+    const ownWorld = ownship && [ownship.x, ownship.y].every(Number.isFinite)
+      ? position(ownship.x, ownship.y, 3) : null;
+    const ownDelta = ownWorld ? C.Cartesian3.subtract(ownWorld, viewer.camera.positionWC, new C.Cartesian3()) : null;
+    const ownAhead = ownDelta && C.Cartesian3.dot(ownDelta, viewer.camera.directionWC) > viewer.camera.frustum.near;
+    const ownPoint = ownAhead ? C.SceneTransforms.worldToWindowCoordinates(viewer.scene, ownWorld) : null;
+    voDisc.hidden = preset === 'bridge' || !vo || !ownPoint
+      || ownPoint.x < 120 || ownPoint.x > width - 120
+      || ownPoint.y < 120 || ownPoint.y > height - 120;
+    if (!voDisc.hidden) {
+      const key = `${info.run_id}:${vo.solve_id}`;
+      if (key !== lastVODiscKey) {
+        const surface = voDisc.getContext('2d');
+        surface.setTransform(2, 0, 0, 2, 0, 0);
+        surface.clearRect(0, 0, 240, 240);
+        if (drawVODecisionDisc(surface, vo, 120, 120, 110, ownship.psi, 0)) {
+          surface.save();
+          surface.globalCompositeOperation = 'destination-out';
+          surface.beginPath(); surface.arc(120, 120, 25, 0, Math.PI * 2); surface.fill();
+          surface.restore();
+          voDisc.title = `VO 决策速度空间 · 求解 #${vo.solve_id} · 非海面距离`;
+          lastVODiscKey = key;
+        } else {
+          voDisc.hidden = true;
+        }
+      }
+      voDisc.style.left = `${ownPoint.x - 120}px`;
+      voDisc.style.top = `${ownPoint.y - 120}px`;
+    }
     for (const [key, record] of vessels) {
       const ship = record.ship; if (String(ship.id) === '0' || chart.getLayerState().ships?.visible === false) continue;
       const world = position(ship.x, ship.y, 3);
@@ -409,6 +443,7 @@ export async function createScene3D({ host, info, camera = 'bridge', chart, onSe
       projection = value;
       const ships = [value.raw.os, ...targetsForDisplay(value.raw)];
       updateVessels(ships); updatePaths(); updateCamera(); updateRings(); updateCard();
+      requestVODecisionSpace();
       compass.render(value, preset, chart.getLayerState().ships?.visible !== false);
       const frame = frameIdentity(value.raw);
       root.dataset.frame = JSON.stringify(frame);
