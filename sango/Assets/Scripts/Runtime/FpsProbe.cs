@@ -83,12 +83,15 @@ namespace Sango
             try
             {
                 Directory.CreateDirectory(dir);
+                // 显式 ToString 而非 string.Format：复合格式串尾部 {5:F3}}} 在 .NET 解析下曾输出字面 "F3"。
                 // InvariantCulture：避免小数点被本地化成逗号破坏 JSON。
-                string line = string.Format(
-                    CultureInfo.InvariantCulture,
-                    "{{\"t\":{0:F2},\"fps\":{1:F2},\"frame_ms_avg\":{2:F3},\"frame_ms_max\":{3:F3},\"queries_per_frame\":{4},\"query_ms_per_frame\":{5:F3}}}",
-                    Time.unscaledTimeAsDouble, LastFps, LastFrameMsAvg, LastFrameMsMax,
-                    LastQueriesPerFrame, LastQueryMsPerFrame);
+                string I(double v, string f) => v.ToString(f, CultureInfo.InvariantCulture);
+                string line = "{\"t\":" + I(Time.unscaledTimeAsDouble, "F2")
+                    + ",\"fps\":" + I(LastFps, "F2")
+                    + ",\"frame_ms_avg\":" + I(LastFrameMsAvg, "F3")
+                    + ",\"frame_ms_max\":" + I(LastFrameMsMax, "F3")
+                    + ",\"queries_per_frame\":" + LastQueriesPerFrame
+                    + ",\"query_ms_per_frame\":" + I(LastQueryMsPerFrame, "F3") + "}";
                 File.AppendAllText(path, line + "\n");
             }
             catch (System.Exception e)
