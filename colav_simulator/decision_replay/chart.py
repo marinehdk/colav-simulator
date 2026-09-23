@@ -132,6 +132,13 @@ def pack_chart_record(record: dict[str, Any], known: set[str], encode: Callable[
             planner["prediction_render"] = render
     if record.get("threat_management") is not None:
         record["threat_management"] = reference(record["threat_management"])
+    balance = record.get("gnc_balance")
+    if isinstance(balance, dict):
+        balance = dict(balance)
+        record["gnc_balance"] = balance
+        for key in ("constraints", "environment", "route_admission"):
+            if balance.get(key) is not None:
+                balance[key] = reference(balance[key])
     record["storage_schema"] = CHART_STORAGE_SCHEMA
     record["chart_blocks"] = definitions
     return set(definitions)

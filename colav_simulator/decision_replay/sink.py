@@ -48,6 +48,7 @@ REASON_TRACE_WRITE_FAILED = "TRACE_WRITE_FAILED"
 REASON_TRACE_SERIALIZE_FAILED = "TRACE_SERIALIZE_FAILED"
 REASON_VO_DECISION_CAPTURE_FAILED = "VO_DECISION_CAPTURE_FAILED"
 REASON_THREAT_CAPTURE_FAILED = "THREAT_SNAPSHOT_CAPTURE_FAILED"
+REASON_GNC_BALANCE_CAPTURE_FAILED = "GNC_BALANCE_CAPTURE_FAILED"
 
 WORKER_POLL_S = 0.05
 
@@ -144,12 +145,13 @@ class TraceSink:
         *,
         vo_decision_space: dict[str, Any] | None = None,
         threat_management: dict[str, Any] | None = None,
+        gnc_balance: dict[str, Any] | None = None,
     ) -> None:
         """Admit one immutable frame record. Never raises; typed on failure."""
         with self._lock:
             if self._closed or self._state != STATE_CAPTURING:
                 return
-            record = self._serialize(snapshot, vo_decision_space, threat_management)
+            record = self._serialize(snapshot, vo_decision_space, threat_management, gnc_balance)
             if record is None:
                 self._enter_failure_locked(REASON_TRACE_SERIALIZE_FAILED)
                 return
@@ -194,6 +196,7 @@ class TraceSink:
         snapshot: Any,
         vo_decision_space: dict[str, Any] | None = None,
         threat_management: dict[str, Any] | None = None,
+        gnc_balance: dict[str, Any] | None = None,
     ) -> bytes | None:
         try:
             record = {
@@ -208,6 +211,8 @@ class TraceSink:
                 record["vo_decision_space"] = vo_decision_space
             if threat_management is not None and threat_management.get("status") == "AVAILABLE":
                 record["threat_management"] = threat_management
+            if gnc_balance is not None:
+                record["gnc_balance"] = gnc_balance
             if self._policy.capture_profile == "chart":
                 record["payload"] = chart_payload(snapshot.payload)
                 record["events"] = chart_events(snapshot.events)
