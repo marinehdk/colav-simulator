@@ -17,7 +17,11 @@ from pathlib import Path
 from typing import Any
 
 from colav_simulator.decision_replay.bundle import TRACE_SCHEMA  # re-exported for compatibility
-from colav_simulator.decision_replay.sink import TraceSink
+from colav_simulator.decision_replay.sink import (
+    REASON_VO_DECISION_CAPTURE_FAILED,
+    TraceSink,
+    vo_decision_space_for_snapshot,
+)
 from colav_simulator.experiment.contracts import RunSpec, SessionState
 from colav_simulator.experiment.runner import ExperimentRunError, ExperimentRunner, PreparedRun
 
@@ -41,7 +45,13 @@ def record(spec: RunSpec, *, runner: ExperimentRunner | None = None) -> RecordRe
         session = prepared.session
         session.start()
         while session.state == SessionState.RUNNING:
-            writer.append(session.advance())
+            snapshot = session.advance()
+            try:
+                decision = vo_decision_space_for_snapshot(snapshot, session.ship_list)
+            except Exception:
+                writer.fail(REASON_VO_DECISION_CAPTURE_FAILED)
+                decision = None
+            writer.append(snapshot, vo_decision_space=decision)
         result = runner.finalize(prepared)
         writer.close(events=prepared.session.events)
         return RecordResult(

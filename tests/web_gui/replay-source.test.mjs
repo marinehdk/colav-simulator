@@ -164,6 +164,19 @@ const WINDOW_DOC = {
   after: null,
 };
 
+test('replay keeps the latest sealed VO decision grid across held frames and direct seeks', () => {
+  const decision = { solve_id: 7, sim_time_s: 10.0, shape: [1, 1], candidate_state_bits: [4] };
+  const withSolve = { ...WINDOW_DOC, frames: [{ ...FRAME_A, vo_decision_space: decision }, FRAME_B] };
+  assert.deepEqual(projectReplayFrame({ descriptor: DESCRIPTOR, context: CONTEXT,
+    windowDoc: withSolve, playhead: 10.5 }).decisionSpace, decision);
+  const directSeek = { ...WINDOW_DOC, frames: [FRAME_B], before: null,
+    decision_space_before: decision };
+  assert.deepEqual(projectReplayFrame({ descriptor: DESCRIPTOR, context: CONTEXT,
+    windowDoc: directSeek, playhead: 10.5 }).decisionSpace, decision);
+  assert.equal(projectReplayFrame({ descriptor: DESCRIPTOR, context: CONTEXT,
+    windowDoc: { ...directSeek, decision_space_before: null }, playhead: 10.5 }).decisionSpace, null);
+});
+
 function runtimeSnapshot(envelope) {
   return { session: { session_id: envelope.run_id, state: envelope.state }, telemetry: { envelope } };
 }

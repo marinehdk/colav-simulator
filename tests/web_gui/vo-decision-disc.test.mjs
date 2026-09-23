@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { drawVODecisionDisc } from '../../web_gui/modules/situation-display.js';
+import { voDiscRadiusM } from '../../web_gui/modules/scene-3d.js';
 
 function recordingContext() {
   const fills = [];
@@ -33,4 +34,10 @@ test('shared VO disc uses the solver candidate states and rejects incomplete gri
   assert.ok(fills.some(color => color.startsWith('rgba(47,191,113,')), 'available cells are green');
   const invalid = { ...snapshot, candidate_state_bits: [1] };
   assert.equal(drawVODecisionDisc(context, invalid, 120, 120, 110, 0, 0), false);
+});
+
+test('3D VO surface has vessel-scaled metres, independent of camera zoom', () => {
+  assert.equal(voDiscRadiusM(44.1), 132.3);
+  assert.equal(voDiscRadiusM(60), 180);
+  assert.equal(voDiscRadiusM(null), null);
 });

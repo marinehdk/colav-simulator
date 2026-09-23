@@ -9,10 +9,10 @@
  * only and never mutates an Active Session.
  */
 
-import { createSituationDisplay } from './situation-display.js?v=20260918-replay-placard';
+import { createSituationDisplay } from './situation-display.js?v=20260923-vo-sea-v1';
 import { createDeploymentView } from './deployment-view.js';
 import { createTelemetryProjection } from './telemetry-projection.js';
-import { projectReplayFrame, REPLAY_PRESENTATION_MODE } from './replay-source.js';
+import { projectReplayFrame, REPLAY_PRESENTATION_MODE } from './replay-source.js?v=20260923-vo-sea-v1';
 import { createReplayClock, ReplayPlayState } from './replay-clock.js?v=20260918-buffering';
 // Keep the URL identical to the shell's standalone module tag. Native ESM
 // treats query-string variants as different module instances; without this
@@ -58,6 +58,7 @@ export function createEvaluationReplayController({
   let descriptor = null;
   let context = null;
   let windowDoc = null;
+  let replayVODecisionSpace = null;
   let playhead = null;
   let selectedTargetId = null;
   let vesselPositions = null;
@@ -402,6 +403,11 @@ export function createEvaluationReplayController({
       return false;
     }
     const envelope = result.envelope;
+    const hadVODecisionSpace = Boolean(replayVODecisionSpace);
+    replayVODecisionSpace = envelope.executed_algorithm === 'vo' ? result.decisionSpace : null;
+    if (hadVODecisionSpace !== Boolean(replayVODecisionSpace)) {
+      display?.setPlannerSurfaceAttached?.(Boolean(replayVODecisionSpace));
+    }
     lastSourceSequence = envelope.presentation.source_sequence;
     lastSourceSimTime = envelope.presentation.source_sim_time_s;
     const snapshot = projection.project({
@@ -577,6 +583,8 @@ export function createEvaluationReplayController({
 
   async function open(nextRunId) {
     runId = String(nextRunId);
+    replayVODecisionSpace = null;
+    display?.setPlannerSurfaceAttached?.(false);
     generation += 1;
     const gen = generation;
     stopPlaybackTimer();
@@ -738,16 +746,17 @@ export function createEvaluationReplayController({
         ...displayOptions,
         getScenarioId: () => context?.scenario_id ?? null,
         getResponseRange: () => null,
-        getPlannerSurface: () => null,
+        getPlannerSurface: () => replayVODecisionSpace ? { type: 'vo', vo: replayVODecisionSpace } : null,
       });
     }
     if (display?.renderFrame) {
       replayView = createDeploymentView({
         chart: display,
         createScene: async options => {
-          const createScene = sceneFactory ?? (await import('./scene-3d.js?v=20260921-replay-v1')).createScene3D;
+          const createScene = sceneFactory ?? (await import('./scene-3d.js?v=20260923-vo-sea-v1')).createScene3D;
           return createScene({ ...options, chart: display, host: el('replayScene3dHost'),
-            onSelect: id => display.selectTarget(id) });
+            onSelect: id => display.selectTarget(id),
+            getPlannerSurface: () => replayVODecisionSpace ? { type: 'vo', vo: replayVODecisionSpace } : null });
         },
         onState: state => {
           const active = state.mode === '3d';
@@ -896,6 +905,8 @@ export function createEvaluationReplayController({
 
   function close() {
     exitReplay3D();
+    replayVODecisionSpace = null;
+    display?.setPlannerSurfaceAttached?.(false);
     selectTarget(null);
     generation += 1;
     stopPlaybackTimer();

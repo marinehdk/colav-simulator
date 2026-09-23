@@ -37,7 +37,14 @@ from shapely.geometry import Point
 from colav_simulator.cli import _load_algorithm_config
 from colav_simulator.common import map_functions as mapf
 from colav_simulator.core.colav.diagnostics import ColavExecutionError, PlanStatus
-from colav_simulator.decision_replay.sink import STATE_CAPTURING, STATE_INCOMPLETE, TraceSink, TraceSinkPolicy
+from colav_simulator.decision_replay.sink import (
+    REASON_VO_DECISION_CAPTURE_FAILED,
+    STATE_CAPTURING,
+    STATE_INCOMPLETE,
+    TraceSink,
+    TraceSinkPolicy,
+    vo_decision_space_for_snapshot,
+)
 from colav_simulator.experiment.busy_water import (
     ACCEPTANCE_SCENARIO_ID,
     DEFAULT_SEED,
@@ -672,7 +679,13 @@ class WebSessionManager:
             return
         capture = self._capture_for(self.prepared)
         if capture is not None:
-            capture.append(snapshot)
+            try:
+                decision = vo_decision_space_for_snapshot(snapshot, self.prepared.session.ship_list)
+            except Exception:
+                capture.fail(REASON_VO_DECISION_CAPTURE_FAILED)
+                log.exception("VO decision-space replay capture failed")
+                return
+            capture.append(snapshot, vo_decision_space=decision)
 
     def replay_status_for(self, run_id: str | None) -> dict[str, Any] | None:
         """Read capture state without waiting for an unrelated active solver.

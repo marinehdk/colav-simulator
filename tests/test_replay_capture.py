@@ -300,11 +300,43 @@ def test_product_run_records_full_trace_without_any_browser(finished_vo_run: dic
     assert index["trace_schema"] == "colav.decision-replay.v2"
     assert index["capture_profile"] == "colav.chart-replay.v1"
     assert index["tick_count"] > 0
+    assert index["vo_decision_count"] > 0
     assert index["truncated"] is False
 
     bundle = TraceBundle(run_dir)
     assert bundle.evidence_level == "full"
     assert bundle.tick_count == index["tick_count"]
+    decisions = [frame["vo_decision_space"] for frame in bundle.frames() if "vo_decision_space" in frame]
+    assert len(decisions) == index["vo_decision_count"]
+    assert decisions[0]["shape"][0] * decisions[0]["shape"][1] == len(decisions[0]["candidate_state_bits"])
+
+
+def test_vo_decision_capture_failure_marks_replay_incomplete_without_failing_simulation(manager: Any) -> None:
+    reasons = []
+
+    class BrokenShip:
+        def get_colav_decision_space(self) -> dict:
+            raise RuntimeError("decision snapshot unavailable")
+
+    capture = SimpleNamespace(fail=reasons.append, append=lambda *_args, **_kwargs: None)
+    manager.prepared = SimpleNamespace(
+        manifest=SimpleNamespace(run_id="run-vo"),
+        session=SimpleNamespace(ship_list=[BrokenShip()]),
+    )
+    manager._trace_captures["run-vo"] = capture
+    snapshot = FakeSnapshot(
+        sequence=1,
+        sim_time=1.0,
+        payload={
+            "Ship0": {
+                "colav": {
+                    "planner": {"algorithm_id": "vo", "solver_executed": True, "solve_id": 1},
+                }
+            }
+        },
+    )
+    manager._append_trace_capture(snapshot)
+    assert reasons == ["VO_DECISION_CAPTURE_FAILED"]
 
 
 def test_product_run_persists_static_replay_context(finished_vo_run: dict[str, Any]) -> None:
