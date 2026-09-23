@@ -38,6 +38,7 @@ from colav_simulator.cli import _load_algorithm_config
 from colav_simulator.common import map_functions as mapf
 from colav_simulator.core.colav.diagnostics import ColavExecutionError, PlanStatus
 from colav_simulator.decision_replay.sink import (
+    REASON_GNC_BALANCE_CAPTURE_FAILED,
     REASON_THREAT_CAPTURE_FAILED,
     REASON_VO_DECISION_CAPTURE_FAILED,
     STATE_CAPTURING,
@@ -692,7 +693,13 @@ class WebSessionManager:
                 capture.fail(REASON_THREAT_CAPTURE_FAILED)
                 log.exception("Threat snapshot replay capture failed")
                 return
-            capture.append(snapshot, vo_decision_space=decision, threat_management=threat)
+            try:
+                balance = balance_telemetry(self.prepared.session, frame=snapshot.payload)
+            except Exception:
+                capture.fail(REASON_GNC_BALANCE_CAPTURE_FAILED)
+                log.exception("GNC balance replay capture failed")
+                return
+            capture.append(snapshot, vo_decision_space=decision, threat_management=threat, gnc_balance=balance)
 
     def replay_status_for(self, run_id: str | None) -> dict[str, Any] | None:
         """Read capture state without waiting for an unrelated active solver.

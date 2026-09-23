@@ -50,12 +50,13 @@ export function createReplaySidebars(documentRef = document) {
   }
   const get = id => documentRef.getElementById(`replay-${id}`);
   const set = (id, value) => { const node = get(id); if (node) node.textContent = value; };
-  for (const page of layout.querySelectorAll('[data-replay-ownship-page="2"], [data-replay-ownship-page="3"], [data-replay-ownship-page="4"]')) {
+  let displayedBalance = Symbol('initial');
+  for (const page of layout.querySelectorAll('[data-replay-ownship-page="4"]')) {
     const notice = documentRef.createElement('section');
     notice.className = 'config-obc-card balance-card';
     const title = documentRef.createElement('div');
     title.className = 'live-detail-title';
-    title.textContent = ({ 2: 'BALANCE', 3: 'PROPULSION', 4: 'AIS' })[page.dataset.replayOwnshipPage];
+    title.textContent = 'AIS';
     const detail = documentRef.createElement('p');
     detail.className = 'balance-note';
     detail.textContent = '此项未写入封存回放';
@@ -63,6 +64,31 @@ export function createReplaySidebars(documentRef = document) {
     page.replaceChildren(notice);
   }
   for (const value of layout.querySelectorAll('.operations-algo-page .algorithm-data-row dd')) value.textContent = '—';
+
+  function renderFactPage(pageNumber, sections) {
+    const page = layout.querySelector(`[data-replay-ownship-page="${pageNumber}"]`);
+    if (!page) return;
+    const cards = sections.map(([heading, facts]) => {
+      const card = documentRef.createElement('section');
+      card.className = 'config-obc-card balance-card';
+      const title = documentRef.createElement('div');
+      title.className = 'live-detail-title';
+      title.textContent = heading;
+      card.append(title);
+      for (const [label, value] of facts) {
+        const row = documentRef.createElement('div');
+        row.className = 'balance-limit';
+        const caption = documentRef.createElement('span');
+        const reading = documentRef.createElement('strong');
+        caption.textContent = label;
+        reading.textContent = value;
+        row.append(caption, reading);
+        card.append(row);
+      }
+      return card;
+    });
+    page.replaceChildren(...cards);
+  }
 
   function pagination(kind, selector, positionId, previousId, nextId) {
     const position = get(positionId);
@@ -159,6 +185,42 @@ export function createReplaySidebars(documentRef = document) {
     readout('liveSafeDepthReadout', raw.enc_navigation_area?.minimum_depth_m, 'm');
     const depth = get('liveDepthActual');
     if (depth) depth.hidden = !Number.isFinite(own.floor_depth_m);
+
+    const balance = raw.gnc_balance;
+    if (balance !== displayedBalance) {
+      displayedBalance = balance;
+      if (!balance) {
+        renderFactPage(2, [['BALANCE', [['Status', '此项未写入封存回放']]]]);
+        renderFactPage(3, [['PROPULSION', [['Status', '此项未写入封存回放']]]]);
+      } else {
+        const environment = balance.environment ?? {};
+        renderFactPage(2, [
+          ['ROLL', [['Roll', `${fixed(balance.roll_deg)}°`], ['Rate', `${fixed(balance.roll_rate_deg_s)}°/s`]]],
+          ['WIND', [['Speed', `${fixed(environment.wind_speed_mps)} m/s`], ['From', `${fixed(environment.wind_from_deg, 0)}°`]]],
+          ['WAVES', [['Height', `${fixed(environment.wave_hs_m)} m`], ['Period', `${fixed(environment.wave_tz_s ?? environment.wave_tp_s)} s`]]],
+          ['CURRENT', [['Speed', `${fixed(environment.current_speed_mps)} m/s`], ['To', `${fixed(environment.current_to_deg, 0)}°`]]],
+        ]);
+        const speed = balance.speed_contract ?? {};
+        const execution = [
+          ['Admission', balance.route_admission?.status ?? '—'],
+          ['Mode', [speed.input_kind, speed.mode, speed.state].filter(Boolean).join(' · ') || '—'],
+          ['Mission', `${fixed(speed.mission_speed_mps, 2)} m/s`],
+          ['Planner', `${fixed(speed.planner_speed_mps, 2)} m/s`],
+          ['Admitted', `${fixed(speed.admitted_speed_mps, 2)} m/s`],
+          ['Actual', `${fixed(speed.actual_speed_mps, 2)} m/s`],
+        ];
+        if (balance.route_admission?.reason) execution.push(['Reason', String(balance.route_admission.reason)]);
+        const actuators = (balance.propulsion ?? []).map(item => [
+          String(item.id ?? 'Actuator'),
+          item.kind === 'rudder' ? `${fixed(item.angle_deg)}°` : `${fixed(Number.isFinite(item.actual_n) ? item.actual_n / 1000 : null)} kN`,
+        ]);
+        renderFactPage(3, [
+          ['GNC EXECUTION', execution],
+          ['PROPULSION', actuators.length ? actuators : [['Status', balance.propulsion_status ?? '—']]],
+          ['CONSTRAINTS', (balance.constraints ?? []).map(item => [String(item.label), `${fixed(item.value)} ${item.unit ?? ''}`])],
+        ]);
+      }
+    }
 
     const risk = snapshot?.risk;
     const list = get('liveRiskTargetList');

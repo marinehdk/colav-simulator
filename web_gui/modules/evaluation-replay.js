@@ -12,13 +12,13 @@
 import { createSituationDisplay } from './situation-display.js?v=20260923-vo-sea-v1';
 import { createDeploymentView } from './deployment-view.js';
 import { createTelemetryProjection } from './telemetry-projection.js';
-import { projectReplayFrame, REPLAY_PRESENTATION_MODE } from './replay-source.js?v=20260923-vo-sea-v1';
+import { projectReplayFrame, REPLAY_PRESENTATION_MODE } from './replay-source.js?v=20260923-replay-gnc-v2';
 import { createReplayClock, ReplayPlayState } from './replay-clock.js?v=20260918-buffering';
 // Keep the URL identical to the shell's standalone module tag. Native ESM
 // treats query-string variants as different module instances; without this
 // pin the catalog and replay host would own different opener registries.
 import { setReplayRunOpener } from './replay-runs.js?v=20260916-replay-layout-v4';
-import { createReplaySidebars } from './replay-sidebars.js?v=20260923-replay-sidebars-v1';
+import { createReplaySidebars } from './replay-sidebars.js?v=20260923-replay-gnc-v2';
 
 // Scrub windows stay small and bounded; the backend enforces the frozen caps.
 const SEEK_WINDOW_HALF_SPAN_S = 0.5;

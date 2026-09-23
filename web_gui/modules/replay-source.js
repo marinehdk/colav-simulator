@@ -292,6 +292,7 @@ function buildEnvelope({ descriptor, context, sourceFrame, upperFrame, alpha, in
     },
     enc_navigation_area: context?.enc_navigation_area ?? null,
     threat_management: sourceFrame.threat_management,
+    gnc_balance: sourceFrame.gnc_balance ?? null,
     planner,
     latest_planner_solve: latestSolvePlanner,
     active_planner_plan: activePlan,

@@ -117,10 +117,18 @@ def test_runtime_threat_snapshot_is_recorded_once_and_replayed_without_reclassif
         "unavailable_reason": None,
     }
     sink = TraceSink.open(tmp_path, policy=TraceSinkPolicy(capture_profile="chart", worker=False))
+    balance = {
+        "tick": 1,
+        "roll_deg": 0.5,
+        "environment": {"wind_speed_mps": 5.0},
+        "constraints": [{"label": "Max rudder", "value": 30.0, "unit": "°"}],
+        "route_admission": {"status": "Accepted"},
+        "propulsion": [{"id": "t1", "actual_n": 5000.0}],
+    }
     for sequence in (1, 2):
         row = deepcopy(source)
         row.update(sequence=sequence, sim_time=(sequence - 1) * 0.1)
-        sink.append(SimpleNamespace(**row), threat_management=threat)
+        sink.append(SimpleNamespace(**row), threat_management=threat, gnc_balance=balance)
     sink.close(events=[])
     raw = [json.loads(line) for line in gzip.decompress((tmp_path / "decision/frames.jsonl.gz").read_bytes()).splitlines()]
     assert raw[0]["threat_management"] == raw[1]["threat_management"]
@@ -128,3 +136,5 @@ def test_runtime_threat_snapshot_is_recorded_once_and_replayed_without_reclassif
     bundle = TraceBundle(tmp_path)
     assert bundle.frame(1)["threat_management"] == threat
     assert bundle.frame(2)["threat_management"] == threat
+    assert bundle.frame(1)["gnc_balance"] == balance
+    assert bundle.frame(2)["gnc_balance"] == balance

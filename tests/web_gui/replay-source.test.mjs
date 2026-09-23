@@ -177,6 +177,14 @@ test('replay keeps the latest sealed VO decision grid across held frames and dir
     windowDoc: { ...directSeek, decision_space_before: null }, playhead: 10.5 }).decisionSpace, null);
 });
 
+test('recorded GNC instruments follow the sealed source frame at a scrubbed playhead', () => {
+  const first = { ...FRAME_A, gnc_balance: { tick: 100, roll_deg: 1.5, propulsion: [{ id: 't1', actual_n: 5000 }] } };
+  const second = { ...FRAME_B, gnc_balance: { tick: 105, roll_deg: 2.0, propulsion: [{ id: 't1', actual_n: 7000 }] } };
+  const windowDoc = { ...WINDOW_DOC, frames: [first, second] };
+  assert.equal(projectReplayFrame({ descriptor: DESCRIPTOR, context: CONTEXT, windowDoc, playhead: 10.25 }).envelope.gnc_balance.roll_deg, 1.5);
+  assert.equal(projectReplayFrame({ descriptor: DESCRIPTOR, context: CONTEXT, windowDoc, playhead: 10.5 }).envelope.gnc_balance.roll_deg, 2.0);
+});
+
 function runtimeSnapshot(envelope) {
   return { session: { session_id: envelope.run_id, state: envelope.state }, telemetry: { envelope } };
 }
