@@ -1666,16 +1666,9 @@ class VO:
         else:
             commitment = body_velocities[..., 1] < -self._params.crossing_commitment_deadband_mps
             commitment |= body_velocities[..., 0] <= 0.0
-            # Crossing candidates may reduce an earlier alteration while staying
-            # starboard of the entry course and satisfying collision/COLREG masks.
-            # A monotonically increasing angle can trap recovery into a full turn.
-            if was_active and VOCOLREGSSituation.HO in self._give_way_commitment_rules:
-                candidate_progress = np.arctan2(
-                    np.sin(self._heading_set - commitment_frame),
-                    np.cos(self._heading_set - commitment_frame),
-                )
-                previous_progress = _wrap_angle(self._selected_heading - commitment_frame)
-                commitment |= candidate_progress[None, :] < previous_progress - 1e-12
+            # Keep a safe reduction of an earlier head-on alteration available.
+            # A monotonic course lock beyond the beam conflicts with forward
+            # progress and leaves only the zero-speed row executable.
         if (getattr(self, "_execution_speed_policy", None) or {}).get("supports_stop", False):
             # Stopping has no port/backward course; keep physical collision and
             # COLREG masks, but do not demand positive progress while yielding.
@@ -1920,9 +1913,13 @@ class VO:
             )
             cost_reference = progress_speed * target_along
         elif (
-            self._give_way_commitment_active
+            self._target_count_current == 1
+            and self._give_way_commitment_active
             and self._crossing_commitment_frame_heading is not None
         ):
+            # One encounter can hold its established alteration. With several
+            # targets, copying the last command into the cost reference ratchets
+            # the course farther starboard before a slow ship can execute it.
             reference_speed = float(np.linalg.norm(v_ref))
             if reference_speed > 1e-12:
                 commitment_frame = self._crossing_commitment_frame_heading

@@ -30,6 +30,19 @@ test('H/N/C/3D changes only display state and preserves chart framing over 20 sw
   h.view.recenter(); assert.equal(h.pan, 0);
 });
 
+test('each session enters 3D from the chase camera', async () => {
+  const cameras = [];
+  let selectCamera;
+  const h = harness(async options => {
+    cameras.push(options.camera); selectCamera = options.onCamera;
+    return h.makeScene();
+  });
+  assert.equal(h.view.state().camera, 'chase');
+  h.push(); await h.view.toggle();
+  selectCamera('bridge'); h.view.toggle(); await h.view.toggle();
+  assert.deepEqual(cameras, ['chase', 'chase']);
+});
+
 test('same sequence motion frames reach both display boundaries with the identical immutable data', async () => {
   const h = harness(); h.push(); await h.view.toggle();
   h.push(1, 0.025); h.push(1, 0.05);
@@ -51,7 +64,7 @@ test('replacement invalidates pending resources, frames and camera state', async
   let resolve;
   const h = harness(() => new Promise(r => { resolve = r; })); h.push();
   const pending = h.view.toggle(); h.view.beginSession('b'); resolve(h.makeScene()); await pending;
-  assert.equal(h.destroyed.length, 1); assert.equal(h.view.state().camera, 'bridge');
+  assert.equal(h.destroyed.length, 1); assert.equal(h.view.state().camera, 'chase');
   h.push(); assert.equal(h.view.state().frame, null);
   assert.ok(h.view.state().unavailable);
 });

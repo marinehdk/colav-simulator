@@ -45,7 +45,7 @@ function waitForAsset(promise, signal, label) {
   });
 }
 
-export async function createScene3D({ host, info, camera = 'bridge', chart, onSelect, onFailure, onCamera, getPlannerSurface = () => null, requestVODecisionSpace = () => {}, signal, modelOverrides = new Map(), pixelRatio = null }) {
+export async function createScene3D({ host, info, camera = 'chase', chart, onSelect, onFailure, onCamera, getPlannerSurface = () => null, requestVODecisionSpace = () => {}, signal, modelOverrides = new Map(), pixelRatio = null }) {
   const C = await waitForAsset(loadCesium(), signal, 'Cesium');
   const geo = createGeography(info);
   // OpenBridge is loaded by the existing shell; no second registration/bundle.

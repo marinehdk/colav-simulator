@@ -406,6 +406,23 @@ def test_imminent_target_preempts_remote_committed_target() -> None:
     assert debug["stand_on_emergency_active"]
 
 
+def test_head_on_commitment_can_reduce_a_past_beam_avoiding_course() -> None:
+    """A T=117-style course beyond 90 degrees must not force a long stop."""
+    planner = VO(VOParams(velocity_uncertainty_vertices_mps=[[0.0, 0.0]]))
+    planner._active_rules = {4: {VOCOLREGSSituation.HO}}
+    planner._give_way_commitment_active = True
+    planner._crossing_commitment_frame_heading = 0.0
+    planner._selected_heading = np.deg2rad(126.5625)
+    planner._execution_speed_policy = {"supports_stop": True}
+    candidates = planner._candidate_velocities()
+
+    planner._apply_give_way_commitment(candidates, np.deg2rad(120.0))
+
+    ahead_starboard = (candidates[..., 0] > 0.0) & (candidates[..., 1] > 0.0)
+    assert np.any(~planner._hard_constraint_mask & ahead_starboard)
+    assert np.all(planner._hard_constraint_mask[candidates[..., 1] < -planner._params.crossing_commitment_deadband_mps])
+
+
 def test_crossing_commitment_blocks_port_candidates_until_rule_releases() -> None:
     planner = VO(
         VOParams(
@@ -539,6 +556,27 @@ def test_give_way_commitment_preserves_speed_when_route_reference_points_port() 
     assert debug["give_way_rule_locks"] == {"1": "HO"}
     assert debug["selected_heading_rad"] >= committed_heading - 1e-12
     assert debug["selected_speed_mps"] >= 4.5
+
+
+def test_multitarget_give_way_keeps_mission_reference_without_starboard_ratchet() -> None:
+    planner = VO(VOParams(velocity_uncertainty_vertices_mps=[[0.0, 0.0]]))
+    head_on = _track(1, (600.0, 0.0), (-5.0, 0.0))
+    bystander = _track(2, (4000.0, 3000.0), (5.0, 0.0))
+    planner.plan(0.0, np.array([5.0, 0.0]), _own_state(), [head_on, bystander])
+    committed_heading = planner.get_debug_data()["selected_heading_rad"]
+
+    route_return = 5.0 * np.array([np.cos(-0.8), np.sin(-0.8)])
+    planner.plan(
+        1.0, route_return, _own_state(heading=committed_heading),
+        [_track(1, (590.0, 0.0), (-5.0, 0.0)), bystander],
+    )
+
+    debug = planner.get_debug_data()
+    assert debug["give_way_rule_locks"] == {"1": "HO"}
+    assert 0.0 < debug["selected_heading_rad"] < committed_heading
+    assert debug["selected_speed_mps"] > 0.0
+    assert not debug["selected_in_base_vo"]
+    assert not debug["selected_in_colregs_v1"]
 
 
 def test_give_way_commitment_releases_only_after_target_passes_clear(
