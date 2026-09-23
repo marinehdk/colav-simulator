@@ -18,6 +18,7 @@ import { createReplayClock, ReplayPlayState } from './replay-clock.js?v=20260918
 // treats query-string variants as different module instances; without this
 // pin the catalog and replay host would own different opener registries.
 import { setReplayRunOpener } from './replay-runs.js?v=20260916-replay-layout-v4';
+import { createReplaySidebars } from './replay-sidebars.js?v=20260923-replay-sidebars-v1';
 
 // Scrub windows stay small and bounded; the backend enforces the frozen caps.
 const SEEK_WINDOW_HALF_SPAN_S = 0.5;
@@ -78,6 +79,7 @@ export function createEvaluationReplayController({
   // #73 event journal: recorded evidence, loaded once per open. Filtering is
   // presentation state; recorded identity/time/order are never rewritten.
   let eventJournal = null;
+  let replaySidebars = null;
   let eventFilter = 'ALL';
   let selectedEventId = null;
 
@@ -418,6 +420,7 @@ export function createEvaluationReplayController({
     });
     if (replayView) replayView.render(snapshot);
     else display?.render?.(snapshot.raw);
+    replaySidebars?.render(snapshot, eventJournal, playhead);
     const levels = {};
     for (const target of snapshot.risk?.targets ?? []) {
       if (target.targetId === null || target.targetId === undefined) continue;
@@ -634,6 +637,9 @@ export function createEvaluationReplayController({
     setReplayControlsEnabled(false);
     const panel = el('evaluationReplayPanel');
     if (panel) panel.hidden = false;
+    panel?.closest?.('.evaluation-workface')?.classList.add('replay-active');
+    replaySidebars ??= createReplaySidebars(documentRef);
+    globalThis.dispatchEvent?.(new Event('replay-sidebar-visibility-changed'));
     const runsPanel = el('replayRunsPanel');
     if (runsPanel) runsPanel.hidden = true;
     el('replayStatusLine').textContent = 'LOADING RECORDED EVIDENCE';
@@ -915,6 +921,8 @@ export function createEvaluationReplayController({
     setReplayControlsEnabled(false);
     const panel = el('evaluationReplayPanel');
     if (panel) panel.hidden = true;
+    panel?.closest?.('.evaluation-workface')?.classList.remove('replay-active');
+    globalThis.dispatchEvent?.(new Event('replay-sidebar-visibility-changed'));
     const runsPanel = el('replayRunsPanel');
     if (runsPanel) runsPanel.hidden = false;
   }

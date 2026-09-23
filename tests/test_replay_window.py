@@ -28,7 +28,19 @@ from gui_server.replay import (
     RUNS_ROOT_ENV,
     RunReplayStore,
     build_replay_router,
+    project_window_threat_documents,
 )
+
+
+def test_recorded_runtime_threat_is_used_before_legacy_planner_fallback():
+    recorded = {
+        "schema_version": "colav.threat-management.projection@1",
+        "status": "AVAILABLE",
+        "vectors": [{"target_id": 2}],
+    }
+    frame = {"payload": {"Ship0": {"colav": {"planner": {}}}}, "threat_management": recorded}
+    document = {"frames": [frame], "before": None, "after": None}
+    assert project_window_threat_documents(document)["frames"][0]["threat_management"] == recorded
 
 RUN_WINDOW = "11111111-1111-4111-8111-111111111111"
 RUN_DENSE = "12121212-1212-4212-8212-121212121212"

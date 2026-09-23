@@ -1082,11 +1082,13 @@ def project_window_threat_documents(document: dict[str, Any]) -> dict[str, Any]:
             return None
         ownship = (frame.get("payload") or {}).get("Ship0") or {}
         colav = ownship.get("colav") or {}
-        frame["threat_management"] = canonical_threat_projection(
-            colav,
-            colav.get("planner") or {},
-            normalize=lambda value: value,
-        )
+        recorded = frame.get("threat_management")
+        if not isinstance(recorded, dict) or recorded.get("status") != "AVAILABLE":
+            frame["threat_management"] = canonical_threat_projection(
+                colav,
+                colav.get("planner") or {},
+                normalize=lambda value: value,
+            )
         return frame
 
     for frame in document["frames"]:

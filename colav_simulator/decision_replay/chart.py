@@ -118,12 +118,20 @@ def pack_chart_record(record: dict[str, Any], known: set[str], encode: Callable[
         planner = ship["colav"]["planner"]
         if "threat_management" in planner:
             planner["threat_management"] = reference(planner["threat_management"])
+        # Legacy planners repeat their diagnostics and prediction geometry on
+        # every physics tick, while solving only every few seconds. Keep one
+        # immutable definition per distinct value for the whole trace.
+        for key in ("algorithm_details", "predicted_trajectory", "target_predictions"):
+            if planner.get(key) is not None:
+                planner[key] = reference(planner[key])
         if isinstance(planner.get("prediction_render"), dict):
             render = dict(planner["prediction_render"])
             for key in ("ownship", "targets", "history", "planner_l4", "authority", "quality"):
                 if render.get(key) is not None:
                     render[key] = reference(render[key])
             planner["prediction_render"] = render
+    if record.get("threat_management") is not None:
+        record["threat_management"] = reference(record["threat_management"])
     record["storage_schema"] = CHART_STORAGE_SCHEMA
     record["chart_blocks"] = definitions
     return set(definitions)

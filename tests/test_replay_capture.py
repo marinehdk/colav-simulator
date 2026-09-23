@@ -309,6 +309,7 @@ def test_product_run_records_full_trace_without_any_browser(finished_vo_run: dic
     decisions = [frame["vo_decision_space"] for frame in bundle.frames() if "vo_decision_space" in frame]
     assert len(decisions) == index["vo_decision_count"]
     assert decisions[0]["shape"][0] * decisions[0]["shape"][1] == len(decisions[0]["candidate_state_bits"])
+    assert any(frame.get("threat_management", {}).get("status") == "AVAILABLE" for frame in bundle.frames())
 
 
 def test_vo_decision_capture_failure_marks_replay_incomplete_without_failing_simulation(manager: Any) -> None:

@@ -362,15 +362,19 @@ let leftSidebarCollapsed = false;
 let rightSidebarCollapsed = false;
 
 function syncDeploymentSidebarControls() {
-  const layout = document.querySelector('.live-layout');
-  const leftSidebar = document.getElementById('liveInfoSidebar');
-  const rightSidebar = document.getElementById('liveOperationsSidebar');
+  const replayActive = !document.getElementById('evaluationReplayPanel')?.hidden
+    && !document.querySelector('.evaluation-workface')?.hidden;
+  const layout = document.getElementById(replayActive ? 'replayViewerMain' : 'liveChartCard')?.closest('.live-layout');
+  const leftSidebar = document.getElementById(replayActive ? 'replay-liveInfoSidebar' : 'liveInfoSidebar');
+  const rightSidebar = document.getElementById(replayActive ? 'replay-liveOperationsSidebar' : 'liveOperationsSidebar');
   if (!layout) return;
 
-  layout.classList.toggle('left-sidebar-collapsed', leftSidebarCollapsed);
-  layout.classList.toggle('right-sidebar-collapsed', rightSidebarCollapsed);
-  leftSidebar?.setAttribute('aria-hidden', String(leftSidebarCollapsed));
-  rightSidebar?.setAttribute('aria-hidden', String(rightSidebarCollapsed));
+  document.querySelectorAll('.live-layout').forEach(item => {
+    item.classList.toggle('left-sidebar-collapsed', leftSidebarCollapsed);
+    item.classList.toggle('right-sidebar-collapsed', rightSidebarCollapsed);
+  });
+  for (const sidebar of [document.getElementById('liveInfoSidebar'), document.getElementById('replay-liveInfoSidebar')]) sidebar?.setAttribute('aria-hidden', String(leftSidebarCollapsed));
+  for (const sidebar of [document.getElementById('liveOperationsSidebar'), document.getElementById('replay-liveOperationsSidebar')]) sidebar?.setAttribute('aria-hidden', String(rightSidebarCollapsed));
 
   if (mainTopBar) {
     mainTopBar.menuButtonActivated = leftSidebarCollapsed;
@@ -379,8 +383,8 @@ function syncDeploymentSidebarControls() {
       const leftToggle = mainTopBar.shadowRoot?.querySelector('.menu-button > obc-icon-button');
       const rightToggle = mainTopBar.shadowRoot?.querySelector('.apps-button');
       const toggles = [
-        [leftToggle, leftSidebarCollapsed, '左侧栏', 'liveInfoSidebar'],
-        [rightToggle, rightSidebarCollapsed, '右侧栏', 'liveOperationsSidebar'],
+        [leftToggle, leftSidebarCollapsed, '左侧栏', leftSidebar?.id ?? 'liveInfoSidebar'],
+        [rightToggle, rightSidebarCollapsed, '右侧栏', rightSidebar?.id ?? 'liveOperationsSidebar'],
       ];
       toggles.forEach(([button, collapsed, label, controls]) => {
         if (!button) return;
@@ -419,6 +423,9 @@ function setupDeploymentSidebarToggles() {
 }
 
 setupDeploymentSidebarToggles();
+window.addEventListener('replay-sidebar-visibility-changed', syncDeploymentSidebarControls);
+const evaluationWorkface = document.querySelector('.evaluation-workface');
+if (evaluationWorkface) new MutationObserver(syncDeploymentSidebarControls).observe(evaluationWorkface, { attributes: true, attributeFilter: ['hidden'] });
 customElements.whenDefined('obc-top-bar').then(syncDeploymentSidebarControls);
 
 // Brilliance-menu ships inside the same locally-bundled module config-shell.js
