@@ -1036,7 +1036,8 @@ test('Rate controls retain accessible terminology without redundant deployment l
 
 test('Historical AIS Open Replay routes through the shared player without a second player', async () => {
   const workbenchSource = await readFile(new URL('../../web_gui/modules/historical-ais-workbench.js', import.meta.url), 'utf8');
-  assert.match(workbenchSource, /import \{ openReplayForRun \} from '\.\/evaluation-replay\.js\?v=20260921-replay-controls-v2'/);
+  const sharedModule = html.match(/src="\/static\/modules\/(evaluation-replay\.js[^"]*)"/)?.[1];
+  assert.ok(sharedModule && workbenchSource.includes(`from './${sharedModule}'`));
   assert.match(workbenchSource, /replayable = state === 'READY' \|\| state === 'INCOMPLETE'/);
   assert.match(html, /id="historicalAISOpenReplay"/);
 
@@ -1183,13 +1184,17 @@ test('Replay sends recorded projections to shared 3D on entry and seek, and rele
   assert.equal(options.info.tile_url, CONTEXT.enc.image_url);
   assert.equal(options.info.run_id, RUN_ID);
   assert.equal(sceneFrames.at(-1).raw.run_id, RUN_ID);
+  assert.equal(options.getPlannerSurface(), null, 'old traces do not invent a VO grid');
   const seeking = parts.controller.seek(20);
-  await parts.network.respondNext(windowDoc(19.5,20.5));
+  const decision = { solve_id: 19, sim_time_s: 19, shape: [1, 1], candidate_state_bits: [4] };
+  await parts.network.respondNext({ ...windowDoc(19.5,20.5), decision_space_before: decision });
   await seeking;
   assert.equal(sceneFrames.at(-1).raw.sim_time, 20);
+  assert.deepEqual(options.getPlannerSurface(), { type: 'vo', vo: decision });
   assert.equal(parts.frames.at(-1).raw, sceneFrames.at(-1).raw);
   assert.equal(parts.frames.at(-1).visible, false);
   parts.controller.close();
+  assert.equal(options.getPlannerSurface(), null);
   assert.equal(destroyed, 1);
   assert.equal(button.getAttribute('aria-pressed'), 'false');
   assert.ok(parts.network.calls.every(call => call.method === 'GET' && call.url.startsWith('/api/runs/')));

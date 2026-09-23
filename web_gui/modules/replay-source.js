@@ -173,6 +173,10 @@ export function projectReplayFrame({ descriptor, context, windowDoc, playhead })
   if (sourceIndex === -1) return { ok: false, reason: 'NO_RECORDED_FRAME', playhead };
 
   const sourceFrame = bracket[sourceIndex];
+  let decisionSpace = windowDoc.decision_space_before ?? null;
+  for (const frame of bracket.slice(0, sourceIndex + 1)) {
+    if (frame.vo_decision_space) decisionSpace = frame.vo_decision_space;
+  }
   let upperFrame = sourceIndex + 1 < bracket.length ? bracket[sourceIndex + 1] : null;
   if (upperFrame === null && afterFrame !== null && Number(afterFrame.sim_time) >= Number(sourceFrame.sim_time)) {
     upperFrame = afterFrame;
@@ -206,7 +210,7 @@ export function projectReplayFrame({ descriptor, context, windowDoc, playhead })
     priorFrames: bracket.slice(0, sourceIndex + 1),
     history: Array.isArray(windowDoc.history) ? windowDoc.history : [],
   });
-  return { ok: true, envelope, sourceFrame, upperFrame, interpolated };
+  return { ok: true, envelope, sourceFrame, upperFrame, interpolated, decisionSpace };
 }
 
 function buildEnvelope({ descriptor, context, sourceFrame, upperFrame, alpha, interpolated, playhead, priorFrames, history }) {

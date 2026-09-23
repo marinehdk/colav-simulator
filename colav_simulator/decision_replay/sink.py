@@ -46,8 +46,20 @@ REASON_TRACE_GAP = "TRACE_GAP"
 REASON_TRACE_BUDGET_EXCEEDED = "TRACE_BUDGET_EXCEEDED"
 REASON_TRACE_WRITE_FAILED = "TRACE_WRITE_FAILED"
 REASON_TRACE_SERIALIZE_FAILED = "TRACE_SERIALIZE_FAILED"
+REASON_VO_DECISION_CAPTURE_FAILED = "VO_DECISION_CAPTURE_FAILED"
 
 WORKER_POLL_S = 0.05
+
+
+def vo_decision_space_for_snapshot(snapshot: Any, ships: list[Any]) -> dict[str, Any] | None:
+    """Capture the exact VO solve grid only on its executing frame."""
+    planner = snapshot.payload.get("Ship0", {}).get("colav", {}).get("planner", {})
+    if planner.get("algorithm_id") != "vo" or not planner.get("solver_executed") or not ships:
+        return None
+    decision = ships[0].get_colav_decision_space()
+    if decision is None or decision.get("solve_id") != planner.get("solve_id"):
+        raise ValueError("VO decision-space snapshot does not match the executed solve")
+    return decision
 
 
 @dataclass(frozen=True)
@@ -88,6 +100,7 @@ class TraceSink:
         self._t_start: float | None = None
         self._t_end: float | None = None
         self._produced_bytes = 0
+        self._vo_decision_count = 0
         self._chart_block_ids: set[str] = set()
         self._pending_block_ids: set[str] = set()
         self._worker = threading.Thread(target=self._write_loop, name="decision-trace", daemon=True)
@@ -124,12 +137,12 @@ class TraceSink:
         with self._lock:
             return self._produced_bytes
 
-    def append(self, snapshot: Any) -> None:
+    def append(self, snapshot: Any, *, vo_decision_space: dict[str, Any] | None = None) -> None:
         """Admit one immutable frame record. Never raises; typed on failure."""
         with self._lock:
             if self._closed or self._state != STATE_CAPTURING:
                 return
-            record = self._serialize(snapshot)
+            record = self._serialize(snapshot, vo_decision_space)
             if record is None:
                 self._enter_failure_locked(REASON_TRACE_SERIALIZE_FAILED)
                 return
@@ -144,6 +157,8 @@ class TraceSink:
                 self._enter_failure_locked(REASON_TRACE_GAP)
                 return
             self._produced_bytes += size
+            if vo_decision_space is not None:
+                self._vo_decision_count += 1
             self._chart_block_ids.update(self._pending_block_ids)
 
     def fail(self, reason: str) -> None:
@@ -167,7 +182,7 @@ class TraceSink:
 
     # -- internals ---------------------------------------------------------
 
-    def _serialize(self, snapshot: Any) -> bytes | None:
+    def _serialize(self, snapshot: Any, vo_decision_space: dict[str, Any] | None) -> bytes | None:
         try:
             record = {
                 "sequence": snapshot.sequence,
@@ -177,6 +192,8 @@ class TraceSink:
                 "payload": snapshot.payload,
                 "events": snapshot.events,
             }
+            if vo_decision_space is not None:
+                record["vo_decision_space"] = vo_decision_space
             if self._policy.capture_profile == "chart":
                 record["payload"] = chart_payload(snapshot.payload)
                 record["events"] = chart_events(snapshot.events)
@@ -309,6 +326,7 @@ class TraceSink:
                 "trace_schema": CHART_TRACE_SCHEMA if self._policy.capture_profile == "chart" else TRACE_SCHEMA,
                 "capture_profile": CHART_PROFILE if self._policy.capture_profile == "chart" else "full",
                 "tick_count": self._tick_count,
+                "vo_decision_count": self._vo_decision_count,
                 "t_start": self._t_start,
                 "t_end": self._t_end,
                 "frames_sha256": digest.hexdigest(),

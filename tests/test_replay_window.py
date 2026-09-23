@@ -36,6 +36,7 @@ RUN_REDUCED = "22222222-2222-4222-8222-222222222222"
 RUN_TAMPER = "32323232-3232-4232-8232-323232323232"
 RUN_CRASH = "42424242-4242-4242-8442-424242424242"
 RUN_UNKNOWN = "00000000-0000-0000-0000-000000000000"
+RUN_VO_SURFACE = "56565656-5656-4656-8656-565656565656"
 
 DT = 0.1
 TICKS = 400  # 400 sealed ticks -> 40.0 s of recorded simulation time
@@ -95,6 +96,24 @@ def append_frame(sink: TraceSink, sequence: int, dt: float = DT) -> None:
             ),
         )
     )
+
+
+def test_replay_window_retains_last_recorded_vo_decision_space(tmp_path: Path) -> None:
+    run_dir = tmp_path / RUN_VO_SURFACE
+    run_dir.mkdir()
+    write_manifest(run_dir)
+    write_static_context(run_dir)
+    decision = {"solve_id": 1, "sim_time_s": 1.0, "shape": [1, 1], "candidate_state_bits": [4]}
+    sink = TraceSink.open(run_dir)
+    for sequence in range(1, 31):
+        sink.append(
+            FakeSnapshot(sequence=sequence, sim_time=sequence * DT, state="RUNNING", payload=frame_payload(sequence)),
+            vo_decision_space=decision if sequence == 10 else None,
+        )
+    assert sink.close()["vo_decision_count"] == 1
+    window = RunReplayStore(tmp_path).window(RUN_VO_SURFACE, 1.5, 2.5)
+    assert window["decision_space_before"] == decision
+    assert window["frames"][0]["sim_time"] == pytest.approx(1.5)
 
 
 def record_window_trace(run_dir: Path, *, ticks: int = TICKS, dt: float = DT) -> None:  # noqa: FURB110

@@ -6,6 +6,11 @@ import { createSceneCompass } from './scene-compass.js?v=20260923-follow-v1';
 import { targetPresentation, applyTargetAppearance, updateTargetPoi, renderTargetCard } from './scene-target.js?v=20260923-follow-v1';
 
 let enginePromise;
+export function voDiscRadiusM(length) {
+  // Display scale for velocity space; it is not a safety or detection radius.
+  return Number.isFinite(length) && length > 0 ? length * 3 : null;
+}
+
 export function loadCesium() {
   if (!enginePromise) {
     enginePromise = new Promise((resolve, reject) => {
@@ -50,9 +55,7 @@ export async function createScene3D({ host, info, camera = 'bridge', chart, onSe
   const canvasHost = document.createElement('div'); canvasHost.className = 'scene3d-canvas';
   const toolbar = document.createElement('div'); toolbar.className = 'scene3d-toolbar';
   toolbar.setAttribute('role', 'group'); toolbar.setAttribute('aria-label', '三维机位');
-  const voDisc = document.createElement('canvas'); voDisc.className = 'scene3d-vo-disc';
-  voDisc.width = 480; voDisc.height = 480; voDisc.hidden = true;
-  voDisc.setAttribute('role', 'img'); voDisc.setAttribute('aria-label', 'VO 候选航向与航速决策空间，非海面距离');
+  const voTexture = document.createElement('canvas'); voTexture.width = 720; voTexture.height = 720;
   const layer = document.createElement('obc-poi-layer'); layer.className = 'scene3d-pois'; layer.overlapMode = 'grouping';
   const edges = document.createElement('div'); edges.className = 'scene3d-edges';
   const card = document.createElement('obc-poi-card'); card.className = 'scene3d-card'; card.hidden = true;
@@ -62,7 +65,7 @@ export async function createScene3D({ host, info, camera = 'bridge', chart, onSe
   card.hasCloseButton = true;
   card.addEventListener('close-click', () => choose(null));
   const credits = document.createElement('div'); credits.className = 'scene3d-credits';
-  root.append(canvasHost, voDisc, layer, edges, toolbar, card, credits); host.append(root);
+  root.append(canvasHost, layer, edges, toolbar, card, credits); host.append(root);
   C.CreditDisplay.cesiumCredit = undefined;
   let viewer;
   try {
@@ -86,7 +89,7 @@ export async function createScene3D({ host, info, camera = 'bridge', chart, onSe
   applyResolution();
   let disposed = false, projection = null, preset = camera, follow = true;
   let selected = chart.getSelectedTargetId(), selectedKey = null, encPrimitive = null;
-  let lastGeometryKey = null, lastRingCenter = null, lastVODiscKey = null;
+  let lastGeometryKey = null, lastRingCenter = null, lastVODiscKey = null, voEntity = null, voRadiusM = null, voCenter = null;
   const vessels = new Map(), pois = new Map(), geometry = new Map(), linePoints = new Map();
   const disposers = [];
   function listen(el, event, fn) { el.addEventListener(event, fn); disposers.push(() => el.removeEventListener(event, fn)); }
@@ -184,6 +187,7 @@ export async function createScene3D({ host, info, camera = 'bridge', chart, onSe
   }
   function setCamera(value) {
     preset = value; follow = true; lastRingCenter = null; onCamera(value); updateCamera(); updateRings();
+    if (voEntity) voEntity.ellipse.material.color = new C.Color(1, 1, 1, value === 'bridge' ? 0.28 : 0.42);
     compass.render(projection, preset, chart.getLayerState().ships?.visible !== false);
     toolbar.querySelectorAll('[data-camera]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.camera === preset)));
     viewer.scene.requestRender();
@@ -297,6 +301,48 @@ export async function createScene3D({ host, info, camera = 'bridge', chart, onSe
         label: { text: `+${marker.elapsed.toFixed(0)}s`, font: '12px sans-serif', fillColor: C.Color.WHITE, showBackground: true, pixelOffset: new C.Cartesian2(0, -15) } }));
     }
   }
+  function updateVODecisionSea() {
+    const ship = projection?.raw?.os;
+    const plannerSurface = getPlannerSurface();
+    const vo = plannerSurface?.type === 'vo' ? plannerSurface.vo : null;
+    if (!vo || !ship || ![ship.x, ship.y].every(Number.isFinite)) {
+      if (voEntity) voEntity.show = false;
+      return;
+    }
+    const radiusM = voDiscRadiusM(ship.length);
+    if (radiusM === null) {
+      if (voEntity) voEntity.show = false;
+      return;
+    }
+    const key = `${info.run_id}:${vo.solve_id}`;
+    if (key !== lastVODiscKey) {
+      const surface = voTexture.getContext('2d');
+      surface.setTransform(3, 0, 0, 3, 0, 0);
+      surface.clearRect(0, 0, 240, 240);
+      const heading = Number(vo.ownship_heading_rad) || 0;
+      if (!drawVODecisionDisc(surface, vo, 120, 120, 110, heading, heading)) {
+        if (voEntity) voEntity.show = false;
+        return;
+      }
+      const material = new C.ImageMaterialProperty({ image: voTexture.toDataURL('image/png'),
+        transparent: true, color: new C.Color(1, 1, 1, preset === 'bridge' ? 0.28 : 0.42) });
+      if (voEntity) voEntity.ellipse.material = material;
+      else voEntity = viewer.entities.add({ position: position(ship.x, ship.y, 0.8),
+        ellipse: { semiMajorAxis: radiusM, semiMinorAxis: radiusM, height: 0.8,
+          material, outline: false }, show: true });
+      lastVODiscKey = key;
+    }
+    if (!voCenter || voCenter.x !== ship.x || voCenter.y !== ship.y) {
+      voEntity.position = position(ship.x, ship.y, 0.8);
+      voCenter = { x: ship.x, y: ship.y };
+    }
+    if (voRadiusM !== radiusM) {
+      voEntity.ellipse.semiMajorAxis = radiusM;
+      voEntity.ellipse.semiMinorAxis = radiusM;
+      voRadiusM = radiusM;
+    }
+    voEntity.show = true;
+  }
   function projectPois() {
     if (disposed || !projection) return;
     const width = canvasHost.clientWidth, height = canvasHost.clientHeight;
@@ -305,37 +351,6 @@ export async function createScene3D({ host, info, camera = 'bridge', chart, onSe
     const frustum = viewer.camera.frustum.computeCullingVolume(viewer.camera.positionWC, viewer.camera.directionWC, viewer.camera.upWC);
     const occluder = new C.EllipsoidalOccluder(C.Ellipsoid.WGS84, viewer.camera.positionWC);
     routeDisplay.project(frustum, occluder, width, height);
-    const plannerSurface = getPlannerSurface();
-    const vo = plannerSurface?.type === 'vo' ? plannerSurface.vo : null;
-    const ownship = projection.raw.os;
-    const ownWorld = ownship && [ownship.x, ownship.y].every(Number.isFinite)
-      ? position(ownship.x, ownship.y, 3) : null;
-    const ownDelta = ownWorld ? C.Cartesian3.subtract(ownWorld, viewer.camera.positionWC, new C.Cartesian3()) : null;
-    const ownAhead = ownDelta && C.Cartesian3.dot(ownDelta, viewer.camera.directionWC) > viewer.camera.frustum.near;
-    const ownPoint = ownAhead ? C.SceneTransforms.worldToWindowCoordinates(viewer.scene, ownWorld) : null;
-    voDisc.hidden = preset === 'bridge' || !vo || !ownPoint
-      || ownPoint.x < 120 || ownPoint.x > width - 120
-      || ownPoint.y < 120 || ownPoint.y > height - 120;
-    if (!voDisc.hidden) {
-      const key = `${info.run_id}:${vo.solve_id}`;
-      if (key !== lastVODiscKey) {
-        const surface = voDisc.getContext('2d');
-        surface.setTransform(2, 0, 0, 2, 0, 0);
-        surface.clearRect(0, 0, 240, 240);
-        if (drawVODecisionDisc(surface, vo, 120, 120, 110, ownship.psi, 0)) {
-          surface.save();
-          surface.globalCompositeOperation = 'destination-out';
-          surface.beginPath(); surface.arc(120, 120, 25, 0, Math.PI * 2); surface.fill();
-          surface.restore();
-          voDisc.title = `VO 决策速度空间 · 求解 #${vo.solve_id} · 非海面距离`;
-          lastVODiscKey = key;
-        } else {
-          voDisc.hidden = true;
-        }
-      }
-      voDisc.style.left = `${ownPoint.x - 120}px`;
-      voDisc.style.top = `${ownPoint.y - 120}px`;
-    }
     for (const [key, record] of vessels) {
       const ship = record.ship; if (String(ship.id) === '0' || chart.getLayerState().ships?.visible === false) continue;
       const world = position(ship.x, ship.y, 3);
@@ -420,6 +435,7 @@ export async function createScene3D({ host, info, camera = 'bridge', chart, onSe
     root.dataset.sceneState = JSON.stringify({ models: vessels.size, readyModels: [...vessels.values()].filter(v => v.model?.ready).length,
       pois: pois.size, primitives: viewer.scene.primitives.length, camera: preset, frames: framesTotal,
       cameraRangeM: projection?.raw?.os ? C.Cartesian3.distance(viewer.camera.positionWC, position(projection.raw.os.x, projection.raw.os.y)) : null,
+      voDecision: voEntity?.show ? { solveId: Number(lastVODiscKey?.split(':').at(-1)), radiusM: voRadiusM } : null,
       modelDimensions: [...vessels.values()].map(v => ({id: v.ship.id, length:v.ship.length, beam:v.ship.width, asset:v.asset.id, radius:v.model?.ready?v.model.boundingSphere.radius:null})),
       renderP95Ms });
   });
@@ -442,7 +458,7 @@ export async function createScene3D({ host, info, camera = 'bridge', chart, onSe
       if (disposed || !value || value.raw.run_id !== info.run_id) return;
       projection = value;
       const ships = [value.raw.os, ...targetsForDisplay(value.raw)];
-      updateVessels(ships); updatePaths(); updateCamera(); updateRings(); updateCard();
+      updateVessels(ships); updatePaths(); updateCamera(); updateRings(); updateVODecisionSea(); updateCard();
       requestVODecisionSpace();
       compass.render(value, preset, chart.getLayerState().ships?.visible !== false);
       const frame = frameIdentity(value.raw);
