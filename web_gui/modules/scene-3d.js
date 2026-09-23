@@ -215,8 +215,8 @@ export async function createScene3D({ host, info, camera = 'bridge', chart, onSe
       viewer.camera.setView({ destination: eye, orientation: { heading, pitch: -0.025, roll: 0 } });
     } else {
       const range = preset === 'top' ? 2500 : Math.max(120, Math.min(700, length * 9));
-      const tilt = preset === 'top' ? -Math.PI / 2 + 0.001 : -0.41;
-      const lookAhead = preset === 'chase' ? length * 1.35 : 0;
+      const tilt = preset === 'top' ? -Math.PI / 2 + 0.001 : -0.25;
+      const lookAhead = preset === 'chase' ? length * 3.4 : 0;
       viewer.camera.lookAt(position(ship.x + Math.cos(ship.psi) * lookAhead,
         ship.y + Math.sin(ship.psi) * lookAhead), new C.HeadingPitchRange(heading, tilt, range));
       viewer.camera.lookAtTransform(C.Matrix4.IDENTITY);
