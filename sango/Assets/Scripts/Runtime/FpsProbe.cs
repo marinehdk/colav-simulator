@@ -86,7 +86,9 @@ namespace Sango
                 // 显式 ToString 而非 string.Format：复合格式串尾部 {5:F3}}} 在 .NET 解析下曾输出字面 "F3"。
                 // InvariantCulture：避免小数点被本地化成逗号破坏 JSON。
                 string I(double v, string f) => v.ToString(f, CultureInfo.InvariantCulture);
+                // res = 实际渲染 backbuffer（闸门条件 1440p 的直接证据，随每行落盘）
                 string line = "{\"t\":" + I(Time.unscaledTimeAsDouble, "F2")
+                    + ",\"res\":\"" + Screen.width + "x" + Screen.height + "\""
                     + ",\"fps\":" + I(LastFps, "F2")
                     + ",\"frame_ms_avg\":" + I(LastFrameMsAvg, "F3")
                     + ",\"frame_ms_max\":" + I(LastFrameMsMax, "F3")

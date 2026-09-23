@@ -10,8 +10,12 @@ Game 视图 fps，验收线 **≥30 fps @ 1440p 中画质（Mac M3）**。裸海
 ```
 gitignore-template                        → 复制为 sango/.gitignore
 Assets/Scripts/Runtime/TriangleBuoyancyProbe.cs   逐三角形水高查询负载（含每帧查询计数/耗时统计）
-Assets/Scripts/Runtime/FpsProbe.cs                fps 聚合、左上角覆盖层、Logs/fps-report.jsonl
+Assets/Scripts/Runtime/FpsProbe.cs                fps 聚合、左上角覆盖层、Logs/fps-report.jsonl（含 res 字段）
 Assets/Scripts/Editor/M0SceneBootstrapper.cs      菜单 Sango/M0/Build Water Smoke Scene（一键建场景）
+Assets/Scripts/Editor/M0SetupPipeline.cs          batch 入口 Sango.Editor.M0SetupPipeline.Setup：
+                                                  空工程先建 HDRP Asset 并挂 default pipeline 再建场景
+                                                  （实际执行走此批处理路径， wizard 非必经；Quality 槽位
+                                                  未分档，跟随 default pipeline）
 ```
 
 ---
