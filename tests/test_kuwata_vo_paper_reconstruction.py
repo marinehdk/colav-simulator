@@ -1410,3 +1410,27 @@ def test_beyond_horizon_wvo_cost_does_not_turn_port_before_crossing_activation()
     assert not debug["active_rules"]
     assert debug["track_metrics"][2]["preferred_domain_toc_s"] > 60.0
     assert abs(result[2, 0] - reference_course) < np.deg2rad(3.0)
+
+
+@pytest.mark.parametrize(("target_north", "feasible"), [
+    (6957147.152141912, True),
+    (6957127.152141912, False),
+])
+def test_original_gnc_t78_crossing_keeps_executable_hull_clearance_candidate(
+    target_north: float, feasible: bool,
+) -> None:
+    """The live ten-ship run's TS2 alone must not exhaust the VO grid at t=78."""
+    planner = VO(VOParams(length_os=44.1, width_os=8.0, t_max=60.0, d_min=190.0,
+                          hard_hull_clearance_m=182.0, preferred_hull_clearance_m=190.0))
+    own = np.array([6956935.029756433, 39896.80860800398, 1.3030468888502826,
+                    3.16253207272451, -0.48045598792871097, 0.02176742851990161])
+    target = (2, np.array([target_north, 39903.971277383556,
+                           0.0983377339305196, -4.114376982580645]), np.zeros((4, 4)), 12.0, 4.0)
+    reference = np.array([5.05405657503579, -3.2336530636939855])
+    planner.plan(78.0, reference, own, [target], os_length=44.1, os_width=8.0,
+                 os_course_time_constant_s=39.42557115667648,
+                 os_speed_time_constant_s=12.505448902388483,
+                 os_max_turn_rate_radps=0.020943951023931952,
+                 os_avoidance_speed_cap_mps=8.0, os_min_steerage_speed_mps=3.0)
+    assert planner.feasible is feasible
+    assert bool(planner._hard_constraint_mask.all()) is (not feasible)

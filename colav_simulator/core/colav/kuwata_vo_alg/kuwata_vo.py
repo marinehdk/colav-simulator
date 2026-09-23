@@ -846,6 +846,7 @@ class VO:
                     v_do,
                     target_length_m=float(length_do),
                     target_width_m=float(width_do),
+                    max_turn_rate_radps=os_max_turn_rate_radps,
                 )
             self._dynamic_hazard_count += 1
 
@@ -1203,6 +1204,7 @@ class VO:
         *,
         target_length_m: float,
         target_width_m: float,
+        max_turn_rate_radps: float,
     ) -> None:
         prediction_step_s = self._horizon_s / (candidate_positions.shape[0] - 1)
         times = prediction_step_s * np.arange(candidate_positions.shape[0])
@@ -1226,16 +1228,63 @@ class VO:
             segment_starts + closest_fractions[..., None] * segment_deltas
         )
         center_distances = np.linalg.norm(closest_positions, axis=-1)
-        combined_hull_radius = 0.5 * np.hypot(
-            self._ownship_length_m,
-            self._ownship_width_m,
-        ) + 0.5 * np.hypot(target_length_m, target_width_m)
-        hard_center_distance = (
-            combined_hull_radius
-            + self._params.hard_hull_clearance_m
+        own_radius = 0.5 * np.hypot(self._ownship_length_m, self._ownship_width_m)
+        target_radius = 0.5 * np.hypot(target_length_m, target_width_m)
+        violations = center_distances < (
+            own_radius + target_radius + self._params.hard_hull_clearance_m
             + _DYNAMICS_INTEGRATION_MARGIN_M
         )
-        violations = center_distances < hard_center_distance
+        if np.all(self._hard_constraint_mask | np.any(violations, axis=0)):
+            # The circumscribed circles can eliminate every candidate when
+            # long, narrow hulls pass side-on. Use a conservative projection
+            # bound only at that otherwise infeasible boundary.
+            separation_axis = np.divide(
+                closest_positions,
+                center_distances[..., None],
+                out=np.zeros_like(closest_positions),
+                where=center_distances[..., None] > 0.0,
+            )
+            own_displacements = np.diff(candidate_positions, axis=0)
+            own_displacement_norms = np.linalg.norm(own_displacements, axis=-1)
+            own_directions = np.divide(
+                own_displacements,
+                own_displacement_norms[..., None],
+                out=np.zeros_like(own_displacements),
+                where=own_displacement_norms[..., None] > 0.0,
+            )
+            own_along = np.abs(np.einsum("...i,...i->...", separation_axis, own_directions))
+            own_across = np.abs(
+                separation_axis[..., 0] * own_directions[..., 1]
+                - separation_axis[..., 1] * own_directions[..., 0]
+            )
+            own_support = (
+                0.5 * self._ownship_length_m * own_along
+                + 0.5 * self._ownship_width_m * own_across
+                + own_radius * max_turn_rate_radps * prediction_step_s
+            )
+            own_support = np.where(own_displacement_norms > 0.0, own_support, own_radius)
+            target_speed = float(np.linalg.norm(v_do))
+            if target_speed >= self._params.colregs_min_target_speed_mps:
+                target_direction = v_do / target_speed
+                target_along = np.abs(separation_axis @ target_direction)
+                target_across = np.abs(
+                    separation_axis[..., 0] * target_direction[1]
+                    - separation_axis[..., 1] * target_direction[0]
+                )
+                target_support = (
+                    0.5 * target_length_m * target_along
+                    + 0.5 * target_width_m * target_across
+                )
+            else:
+                # A slow target may retain an older heading.
+                target_support = target_radius
+            # Projection onto the closest-center axis bounds actual rectangle
+            # clearance from below for the whole segment. The turn-rate term
+            # bounds ownship rotation between prediction samples.
+            clearance_lower_bound = center_distances - own_support - target_support
+            violations = clearance_lower_bound < (
+                self._params.hard_hull_clearance_m + _DYNAMICS_INTEGRATION_MARGIN_M
+            )
         dynamics_hard = np.any(violations, axis=0)
         first_violation = np.argmax(violations, axis=0) * prediction_step_s
         dynamics_ttc = np.where(dynamics_hard, first_violation, np.inf)
