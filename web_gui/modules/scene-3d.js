@@ -55,7 +55,6 @@ export async function createScene3D({ host, info, camera = 'bridge', chart, onSe
   const canvasHost = document.createElement('div'); canvasHost.className = 'scene3d-canvas';
   const toolbar = document.createElement('div'); toolbar.className = 'scene3d-toolbar';
   toolbar.setAttribute('role', 'group'); toolbar.setAttribute('aria-label', '三维机位');
-  const voTexture = document.createElement('canvas'); voTexture.width = 720; voTexture.height = 720;
   const layer = document.createElement('obc-poi-layer'); layer.className = 'scene3d-pois'; layer.overlapMode = 'grouping';
   const edges = document.createElement('div'); edges.className = 'scene3d-edges';
   const card = document.createElement('obc-poi-card'); card.className = 'scene3d-card'; card.hidden = true;
@@ -89,7 +88,8 @@ export async function createScene3D({ host, info, camera = 'bridge', chart, onSe
   applyResolution();
   let disposed = false, projection = null, preset = camera, follow = true;
   let selected = chart.getSelectedTargetId(), selectedKey = null, encPrimitive = null;
-  let lastGeometryKey = null, lastRingCenter = null, lastVODiscKey = null, voEntity = null, voRadiusM = null, voCenter = null;
+  let lastGeometryKey = null, lastRingCenter = null, lastVODiscKey = null, voPrimitive = null, voRadiusM = null, voCenter = null;
+  let voMaterial = null, voAnchor = null;
   const vessels = new Map(), pois = new Map(), geometry = new Map(), linePoints = new Map();
   const disposers = [];
   function listen(el, event, fn) { el.addEventListener(event, fn); disposers.push(() => el.removeEventListener(event, fn)); }
@@ -306,42 +306,63 @@ export async function createScene3D({ host, info, camera = 'bridge', chart, onSe
     const plannerSurface = getPlannerSurface();
     const vo = plannerSurface?.type === 'vo' ? plannerSurface.vo : null;
     if (!vo || !ship || ![ship.x, ship.y].every(Number.isFinite)) {
-      if (voEntity) voEntity.show = false;
+      if (voPrimitive) voPrimitive.show = false;
       return;
     }
     const radiusM = voDiscRadiusM(ship.length);
     if (radiusM === null) {
-      if (voEntity) voEntity.show = false;
+      if (voPrimitive) voPrimitive.show = false;
       return;
     }
     const key = `${info.run_id}:${vo.solve_id}`;
-    if (key !== lastVODiscKey) {
-      const surface = voTexture.getContext('2d');
+    if (key !== lastVODiscKey || voRadiusM !== radiusM) {
+      const texture = document.createElement('canvas');
+      texture.width = 720;
+      texture.height = 720;
+      const surface = texture.getContext('2d');
       surface.setTransform(3, 0, 0, 3, 0, 0);
       surface.clearRect(0, 0, 240, 240);
       const heading = Number(vo.ownship_heading_rad) || 0;
       if (!drawVODecisionDisc(surface, vo, 120, 120, 110, heading, heading)) {
-        if (voEntity) voEntity.show = false;
+        if (voPrimitive) voPrimitive.show = false;
         return;
       }
-      const material = new C.ImageMaterialProperty({ image: voTexture.toDataURL('image/png'),
-        transparent: true, color: new C.Color(1, 1, 1, preset === 'bridge' ? 0.28 : 0.42) });
-      if (voEntity) voEntity.ellipse.material = material;
-      else voEntity = viewer.entities.add({ position: position(ship.x, ship.y, 0.8),
-        ellipse: { semiMajorAxis: radiusM, semiMinorAxis: radiusM, height: 0.8,
-          material, outline: false }, show: true });
+      if (!voPrimitive || voRadiusM !== radiusM) {
+        if (voPrimitive) viewer.scene.primitives.remove(voPrimitive);
+        voAnchor = position(ship.x, ship.y, 0.8);
+        voCenter = { x: ship.x, y: ship.y };
+        voMaterial = C.Material.fromType('Image', {
+          image: texture,
+          color: new C.Color(1, 1, 1, preset === 'bridge' ? 0.28 : 0.42),
+        });
+        // A stable primitive avoids the entity ellipse's asynchronous rebatch
+        // on every VO solve; only its texture and transform change afterwards.
+        voPrimitive = viewer.scene.primitives.add(new C.Primitive({
+          geometryInstances: new C.GeometryInstance({ geometry: new C.EllipseGeometry({
+            center: voAnchor, semiMajorAxis: radiusM, semiMinorAxis: radiusM, height: 0.8,
+            vertexFormat: C.MaterialAppearance.VERTEX_FORMAT,
+          }) }),
+          appearance: new C.MaterialAppearance({ material: voMaterial, translucent: true, closed: false }),
+          asynchronous: false,
+          allowPicking: false,
+        }));
+        voRadiusM = radiusM;
+      } else {
+        // Update the primitive's texture without invalidating its geometry.
+        voMaterial.uniforms.image = texture;
+      }
       lastVODiscKey = key;
     }
     if (!voCenter || voCenter.x !== ship.x || voCenter.y !== ship.y) {
-      voEntity.position = position(ship.x, ship.y, 0.8);
+      const delta = C.Cartesian3.subtract(position(ship.x, ship.y, 0.8), voAnchor, new C.Cartesian3());
+      voPrimitive.modelMatrix = C.Matrix4.fromTranslation(delta);
       voCenter = { x: ship.x, y: ship.y };
     }
-    if (voRadiusM !== radiusM) {
-      voEntity.ellipse.semiMajorAxis = radiusM;
-      voEntity.ellipse.semiMinorAxis = radiusM;
-      voRadiusM = radiusM;
+    const opacity = preset === 'bridge' ? 0.28 : 0.42;
+    if (voMaterial.uniforms.color.alpha !== opacity) {
+      voMaterial.uniforms.color = new C.Color(1, 1, 1, opacity);
     }
-    voEntity.show = true;
+    voPrimitive.show = true;
   }
   function projectPois() {
     if (disposed || !projection) return;
@@ -435,7 +456,7 @@ export async function createScene3D({ host, info, camera = 'bridge', chart, onSe
     root.dataset.sceneState = JSON.stringify({ models: vessels.size, readyModels: [...vessels.values()].filter(v => v.model?.ready).length,
       pois: pois.size, primitives: viewer.scene.primitives.length, camera: preset, frames: framesTotal,
       cameraRangeM: projection?.raw?.os ? C.Cartesian3.distance(viewer.camera.positionWC, position(projection.raw.os.x, projection.raw.os.y)) : null,
-      voDecision: voEntity?.show ? { solveId: Number(lastVODiscKey?.split(':').at(-1)), radiusM: voRadiusM } : null,
+      voDecision: voPrimitive?.show ? { solveId: Number(lastVODiscKey?.split(':').at(-1)), radiusM: voRadiusM } : null,
       modelDimensions: [...vessels.values()].map(v => ({id: v.ship.id, length:v.ship.length, beam:v.ship.width, asset:v.asset.id, radius:v.model?.ready?v.model.boundingSphere.radius:null})),
       renderP95Ms });
   });
