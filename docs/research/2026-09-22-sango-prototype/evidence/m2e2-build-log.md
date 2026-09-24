@@ -44,7 +44,7 @@
 | Bridge | 固定 (0, 12, −40)（M1 既有机位，零观感变化） | yaw 0°、pitch −0.52°（望岛群中心） | 否 | 透视 60° |
 | Bow | 艏向单位向量 × 8 m + 上 4.5 m（艏部上空） | 沿艏向、pitch −8° | 是 | 透视 60° |
 | Chase | −艏向 × 30 m + 上 18 m（艉后上方） | 沿艏向、pitch −26.6°（望船） | 是 | 透视 60° |
-| TopDown | 船正上空 300 m | pitch −90°、yaw 0（北向上，海图方向） | 是 | 正交半高 150 m |
+| TopDown | 船正上空 150 m | pitch −90°、yaw 0（北向上，海图方向） | 是 | 正交半高 70 m |
 
 切换：位置 Lerp + 旋转 Slerp，smoothstep 1 s；跟船视图过渡完成后逐帧贴实时目标（demo 航行中跟得上）。**documented 偏离**：透视⇄正交投影类型不可插值，切 TopDown 时投影在过渡开始瞬间瞬切。艏向含烘焙补偿？相机用船根 euler.y（bow/chase 贴渲染艏；demo 船 bowYaw=0 无差）。
 
@@ -106,12 +106,20 @@ Apply 语义：仅销毁重建 `Islands` 根（船/天气/相机/水面不动）
 - 键位规模超出"至多一键"先例（E1 同样超且被验收追认）：本机 CUA 鼠标不可靠为既定约束，键盘是唯一可编程精确输入——10 键全部有 hint 行与日志行。
 - `Environment count / agents-per-env` 占位行照 plan 措辞落地为只读标注文本（非功能）。
 
+## 验收修正轮（2026-09-24，编排方反馈两项 + 一项核查）
+
+**Gate 复跑**：EditMode `-testResults /tmp/m2e2-tests-fix.xml` exit 0 **108 / 108 / 0**（TopDown 测试常数更新）；M1 / M2E 重建双 exit 0；M1 / M2E 播放器重建双 exit 0；M1 真机烟测 50 s **0 exceptions**（fps 稳态 37.4，高于 30 闸门；本轮机器负载高于此前 65-105 轮，如实记录）。
+
+1. **[P2] TopDown 看不见船** → `CameraViews.TopDownHeightM 300→150`、`TopDownOrthoSizeM 150→70`（`CameraViewsTests.TopDown_OrthographicAboveShipNorthUp` 同步钉死数值）。理由：原参数下 12 m 小船仅 ~30 px 且 300 m 海雾光程洗掉对比度；新参数正交窗口 140 m 高，900 px 屏上小船 ~77 px、haze 光程减半，FollowsShip 恒画面正中——验收线"跟随船一眼可辨"。
+2. **[cosmetic] Apply 按钮压住 "RADAR" 标题** → 根因诊断：**面板×面板列冲突，非面板内行推进漏项**——两画布同一 1920×1080 参考系，Simulation 面板（高 804 ref px）右列 x∈[1500,1900] 下探到 256-from-bottom，与右下角雷达盘（顶 392-from-bottom）纵向交叠，Apply 恰落在盘 "RADAR" 标题上。修复：RadarOverlay 根 `anchoredPosition (-20,20)→(-460,20)`（盘占 x∈[1176,1480]，与面板列 x≥1500 无横向交集 → 分辨率无关不重叠）；Apply 行内另加显式 16 px 上间隙（行进完整：预览 → +8 → Apply 44 → 54 推进）。
+3. **[核查] chase 视角矢量不可辨** → 排查结论：**无 hide-condition bug**——可见条件仅 `V 开 && DemoRunning && 视图≠TopDown`，chase/bow 不在排除列。几何解释：chase 相机沿艏向望前，蓝色速度箭头（沿艏向指前）在该视角透视收缩近乎端点（几何必然）；绿色航点箭头（斜方位）承担 chase 可读性。已将杆 0.25→0.35 m、头底径 0.8→1.0 m（40 m 距离 ≈7 px 杆宽 + 发光头，桥楼/bow/chase 三视角更易读）。
+
 ## Orchestrator 视觉验收清单（本批交付态）
 
 - **Bridge（默认）**：M1 既有机位不变，望岛群；左上天气面板、右上 SANGO SIMULATION 面板（4 滑条 + 3 class 按钮 + 深底预览窗内慢旋小渔船 + Apply + 占位行 + 三行 hint）、左下 AUTONOMOUS CONTROL（Start 按钮 + "G / A toggle"）、右下 RADAR 圆盘（双环 + 十字 + 外缘 + 扫描线旋转 + 琥珀 blip 随邮轮位置 + 盘心白点）。
 - **C → Bow**：1 s 平滑过渡到小渔船艏部上空，随艏向 20° 指向东北，海面迎面而来。
 - **C → Chase**：小渔船艉后上方跟拍；按 `A`（或 G/按钮）起航后船走清水走廊，相机逐帧跟随。
-- **C → TopDown**：正交北向上俯视，跟船平移（encounter 场同款海图方向）。
+- **C → TopDown**：正交北向上俯视（150 m 高 / 半高 70 m），小渔船 ~77 px 恒在画面正中、随船平移（encounter 场同款海图方向）。
 - **矢量（航行中）**：蓝色速度箭头自甲板沿艏向（长度随加减速伸缩）、绿色航点箭头指当前航点；暂停即消失（demo 未跑 → 隐藏）；TopDown 下不显示。
 - **Apply**：改 Island count 滑条（如 12）→ 按 Enter/Apply → 原地重建 12 岛群岛（同 seed 同形状语言、同比布局），船仍在原位、天气不动，面板状态行 `applied: 12 islands x1.00`；雷达量程滑条拖动 → 圆盘上邮轮 blip 随量程收缩/展开。
 - **预览**：class 按钮或 `P` 切档 → 预览窗换 Small/Medium/Large 模型慢旋，`LOA` 读数随档位。
