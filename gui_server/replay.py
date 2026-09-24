@@ -46,6 +46,8 @@ EVENTS_SCHEMA = "colav.run-replay.events@1"
 CONTEXT_SCHEMA = "colav.run-replay.context@1"
 STATIC_CONTEXT_SCHEMA = "colav.run-replay.static-context@1"
 STATIC_CONTEXT_FILENAME = "static_context.json"
+NAVIGATION_PROFILE_SCHEMA = "colav.run-replay.ownship-navigation@1"
+NAVIGATION_PROFILE_FILENAME = "decision/ownship_navigation.json"
 RUNS_ROOT_ENV = "COLAV_RUNS_ROOT"
 RETENTION_BUDGET_ENV = "COLAV_REPLAY_RETENTION_BUDGET_BYTES"
 
@@ -382,6 +384,30 @@ class RunReplayStore:
             return False
         return math.isfinite(numeric) and numeric >= 0.0
 
+    @staticmethod
+    def _navigation_profile(run_dir: Path, bundle: TraceBundle) -> dict[int, float | None]:
+        """Read only the depth sidecar bound to this trace and ENC identity."""
+        path = run_dir / NAVIGATION_PROFILE_FILENAME
+        if not path.is_file():
+            return {}
+        try:
+            document = json.loads(path.read_text(encoding="utf-8"))
+            index = bundle.index()
+            manifest = bundle.manifest()
+            if (
+                document.get("schema_version") != NAVIGATION_PROFILE_SCHEMA
+                or document.get("run_id") != run_dir.name
+                or document.get("source") != "ENC_MATCHED_DERIVED"
+                or document.get("enc_hash") != manifest.get("enc_hash")
+                or document.get("frames_sha256") != index.get("frames_sha256")
+                or len(document.get("samples", [])) != index.get("tick_count")
+            ):
+                return {}
+            return {int(sequence): depth for sequence, depth in document["samples"]}
+        except (OSError, TypeError, ValueError, KeyError):
+            _log.warning("Ignoring invalid Replay depth sidecar for %s", run_dir.name)
+            return {}
+
     def window(self, run_id: str, from_s: float, to_s: float) -> dict[str, Any]:
         """Bounded recorded frame window with explicit predecessor/successor."""
         self._validate_window_range(from_s, to_s)
@@ -439,6 +465,19 @@ class RunReplayStore:
                     decision_space_before = candidate["vo_decision_space"]
                     break
                 sequence -= 1
+        depth_by_sequence = self._navigation_profile(run_dir, bundle)
+
+        def with_navigation(frame: dict[str, Any] | None) -> dict[str, Any] | None:
+            if frame is None or frame.get("sequence") not in depth_by_sequence:
+                return frame
+            return {
+                **frame,
+                "ownship_navigation": {
+                    "floor_depth_m": depth_by_sequence[frame["sequence"]],
+                    "source": "ENC_MATCHED_DERIVED",
+                },
+            }
+
         return {
             "history": bundle.position_history(int((before or (frames[0] if frames else after) or {}).get("sequence", 1))),
             "schema_version": WINDOW_SCHEMA,
@@ -447,9 +486,9 @@ class RunReplayStore:
             "state": facts.get("state"),
             "trusted_t_end": facts.get("trusted_t_end"),
             "truncated": facts.get("truncated"),
-            "frames": frames,
-            "before": before,
-            "after": after,
+            "frames": [with_navigation(frame) for frame in frames],
+            "before": with_navigation(before),
+            "after": with_navigation(after),
             "decision_space_before": decision_space_before,
         }
 
@@ -619,6 +658,7 @@ class RunReplayStore:
                     "image_url": image_url,
                 },
                 "enc_navigation_area": persisted.get("enc_navigation_area"),
+                "navigation_profile_available": bool(self._navigation_profile(run_dir, TraceBundle(run_dir))),
                 "ships": persisted.get("ships"),
             }
         # Legacy Runs: degrade to episode-derived static facts; anything the
@@ -645,6 +685,7 @@ class RunReplayStore:
                 "image_url": image_url,
             },
             "enc_navigation_area": None,
+            "navigation_profile_available": bool(self._navigation_profile(run_dir, TraceBundle(run_dir))),
             "ships": ships,
         }
 

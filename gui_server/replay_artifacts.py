@@ -2,24 +2,118 @@
 
 from __future__ import annotations
 
+import gzip
 import json
 import logging
+import math
+import os
+import threading
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
 from matplotlib.backends.backend_agg import FigureCanvasAgg
 from matplotlib.figure import Figure
+from shapely.geometry import Point
 
 from colav_simulator.common import map_functions as mapf
 from colav_simulator.experiment.persistence import jsonable
-from gui_server.replay import STATIC_CONTEXT_FILENAME, STATIC_CONTEXT_SCHEMA
+from gui_server.replay import (
+    NAVIGATION_PROFILE_FILENAME,
+    NAVIGATION_PROFILE_SCHEMA,
+    STATIC_CONTEXT_FILENAME,
+    STATIC_CONTEXT_SCHEMA,
+)
 
 if TYPE_CHECKING:
     from colav_simulator.experiment.runner import PreparedRun
 
 
 log = logging.getLogger(__name__)
+
+
+def _enc_depth_bin_at(enc: Any, *, east: float, north: float) -> float | None:
+    """Return the deepest charted minimum-depth bin covering a UTM position."""
+    point = Point(float(east), float(north))
+    for depth in sorted(enc.seabed, key=float, reverse=True):
+        geometry = enc.seabed[depth].geometry
+        if geometry is not None and not geometry.is_empty and geometry.covers(point):
+            return float(depth)
+    return None
+
+
+def persist_navigation_profile(run_dir: Path, enc: Any, enc_hash: str) -> Path:
+    """Derive a depth bin for each sealed ownship frame using its exact ENC."""
+    run_dir = Path(run_dir)
+    manifest = json.loads((run_dir / 'manifest.json').read_text(encoding='utf-8'))
+    index = json.loads((run_dir / 'decision' / 'index.json').read_text(encoding='utf-8'))
+    if not enc_hash or manifest.get('enc_hash') != enc_hash or not index.get('frames_sha256'):
+        raise ValueError('Replay ENC or trace identity mismatch')
+    frames_path = run_dir / 'decision' / 'frames.jsonl.gz'
+    if not frames_path.is_file():
+        frames_path = run_dir / 'decision' / 'frames.jsonl'
+    opener = gzip.open if frames_path.suffix == '.gz' else open
+    samples = []
+    with opener(frames_path, 'rt', encoding='utf-8') as stream:
+        for line in stream:
+            if not line.strip():
+                continue
+            frame = json.loads(line)
+            state = (frame.get('payload', {}).get('Ship0') or {}).get('state') or []
+            depth = None
+            if len(state) >= 2 and all(isinstance(value, (int, float)) and math.isfinite(value) for value in state[:2]):
+                depth = _enc_depth_bin_at(enc, north=state[0], east=state[1])
+            samples.append([frame['sequence'], depth])
+    if len(samples) != index.get('tick_count'):
+        raise ValueError('Replay depth profile does not cover the sealed trace')
+    document = {
+        'schema_version': NAVIGATION_PROFILE_SCHEMA,
+        'run_id': run_dir.name,
+        'enc_hash': enc_hash,
+        'frames_sha256': index['frames_sha256'],
+        'source': 'ENC_MATCHED_DERIVED',
+        'samples': samples,
+    }
+    path = run_dir / NAVIGATION_PROFILE_FILENAME
+    temporary = path.with_name(f'.{path.name}.{os.getpid()}.{threading.get_ident()}.tmp')
+    temporary.write_text(json.dumps(document, separators=(',', ':')), encoding='utf-8')
+    os.replace(temporary, path)
+    return path
+
+
+def ensure_navigation_profile(run_dir: Path) -> Path:
+    """Backfill an older sealed Run only from its unchanged local ENC source."""
+    from colav_simulator.common import paths  # noqa: PLC0415
+    from colav_simulator.experiment.runner import _enc_hash  # noqa: PLC0415
+    from colav_simulator.scenario_config import ScenarioConfig  # noqa: PLC0415
+    from colav_simulator.scenario_generator import ScenarioGenerator  # noqa: PLC0415
+
+    run_dir = Path(run_dir)
+    path = run_dir / NAVIGATION_PROFILE_FILENAME
+    manifest = json.loads((run_dir / 'manifest.json').read_text(encoding='utf-8'))
+    index = json.loads((run_dir / 'decision' / 'index.json').read_text(encoding='utf-8'))
+    if path.is_file():
+        document = json.loads(path.read_text(encoding='utf-8'))
+        if (document.get('enc_hash') == manifest.get('enc_hash')
+                and document.get('frames_sha256') == index.get('frames_sha256')
+                and document.get('schema_version') == NAVIGATION_PROFILE_SCHEMA
+                and document.get('run_id') == run_dir.name
+                and len(document.get('samples', [])) == index.get('tick_count')):
+            return path
+    episode = json.loads((run_dir / 'episode.json').read_text(encoding='utf-8'))
+    raw = episode['config']
+    sources = tuple(raw['map_data_files'])
+    enc_root = paths.enc_data.resolve()
+    if not sources or any(not Path(source).resolve().is_relative_to(enc_root) for source in sources):
+        raise ValueError('Replay ENC source is outside the configured chart directory')
+    # Bypass the runner's path-only cache: chart files may change after the
+    # original Run, and a stale digest must never qualify derived depth.
+    actual_hash = _enc_hash.__wrapped__(sources)
+    if actual_hash != manifest.get('enc_hash'):
+        raise ValueError('Replay ENC source has changed since capture')
+    config = ScenarioConfig.from_dict({key: value for key, value in raw.items() if value is not None})
+    enc = ScenarioGenerator(seed=episode.get('seed'))._configure_enc(config)
+    return persist_navigation_profile(run_dir, enc, actual_hash)
 
 
 def _draw_geometry(ax: Any, geometry: Any, color: str, alpha: float = 1.0) -> None:

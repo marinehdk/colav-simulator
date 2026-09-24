@@ -32,7 +32,6 @@ from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
-from shapely.geometry import Point
 
 from colav_simulator.cli import _load_algorithm_config
 from colav_simulator.common import map_functions as mapf
@@ -73,7 +72,14 @@ from gui_server.replay import (
     replay_retention_budget_bytes,
     runs_root,
 )
-from gui_server.replay_artifacts import build_enc_navigation_area, persist_static_context, render_enc
+from gui_server.replay_artifacts import (
+    _enc_depth_bin_at,
+    build_enc_navigation_area,
+    ensure_navigation_profile,
+    persist_navigation_profile,
+    persist_static_context,
+    render_enc,
+)
 
 log = logging.getLogger("gui_server")
 logging.basicConfig(level=logging.INFO)
@@ -532,16 +538,6 @@ def list_busy_water_drafts() -> list[dict[str, Any]]:
     return output
 
 
-def _enc_depth_bin_at(enc: Any, *, east: float, north: float) -> float | None:
-    """Return the deepest charted minimum-depth bin covering a UTM position."""
-    point = Point(float(east), float(north))
-    for depth in sorted(enc.seabed, key=float, reverse=True):
-        geometry = enc.seabed[depth].geometry
-        if geometry is not None and not geometry.is_empty and geometry.covers(point):
-            return float(depth)
-    return None
-
-
 class WebSessionManager:
     """Single active research session with background execution."""
 
@@ -736,6 +732,10 @@ class WebSessionManager:
             log.exception("Replay trace finalization failed for run %s", prepared.manifest.run_id)
             self._capture_finalize_errors[prepared.manifest.run_id] = REPLAY_REASON_CAPTURE_FINALIZE_FAILED
             return
+        try:
+            persist_navigation_profile(prepared.run_dir, prepared.session.enc, prepared.manifest.enc_hash)
+        except (OSError, TypeError, ValueError, KeyError):
+            log.exception("Replay depth profile unavailable for run %s", prepared.manifest.run_id)
         self._enforce_replay_retention(prepared)
 
     @staticmethod
@@ -1693,6 +1693,18 @@ app.include_router(
         replay_store, active_replay_status=manager.replay_status_for, active_run_id=lambda: manager.session_id
     )
 )
+
+
+@app.get("/api/runs/{run_id}/replay/navigation-profile")
+def api_replay_navigation_profile(run_id: str) -> dict[str, str]:
+    """Materialize optional chart-depth readouts without changing sealed frames."""
+    try:
+        run_dir = replay_store.run_dir(run_id)
+        ensure_navigation_profile(run_dir)
+    except Exception as exc:
+        log.warning("Replay chart-depth derivation unavailable for %s: %s", run_id, exc)
+        raise HTTPException(status_code=409, detail="Matching recorded ENC depth is unavailable") from exc
+    return {"run_id": run_id, "status": "READY"}
 if GUI_DIR.exists():
     app.mount("/static", StaticFiles(directory=str(GUI_DIR)), name="static")
 

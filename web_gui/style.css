@@ -2826,10 +2826,14 @@ canvas#simCanvas.route-pick-mode { cursor: crosshair; }
   --border-outline-color: var(--ob-border);
 }
 
-.ownship-sensor-page > [data-od-id="live-compass-card"] { height: 338px; flex: 0 0 338px; }
-.ownship-sensor-page > [data-od-id="live-speed-card"] { height: 282px; flex: 0 0 282px; }
-.ownship-sensor-page > [data-od-id="live-radar-card"] { height: 282px; flex: 0 0 282px; }
-.ownship-sensor-page > [data-od-id="live-depth-actual-card"] { height: 282px; }
+.ownship-sensor-page > [data-od-id="live-compass-card"],
+.ownship-sensor-page > [data-replay-od-id="live-compass-card"] { height: 338px; flex: 0 0 338px; }
+.ownship-sensor-page > [data-od-id="live-speed-card"],
+.ownship-sensor-page > [data-replay-od-id="live-speed-card"] { height: 282px; flex: 0 0 282px; }
+.ownship-sensor-page > [data-od-id="live-radar-card"],
+.ownship-sensor-page > [data-replay-od-id="live-radar-card"] { height: 282px; flex: 0 0 282px; }
+.ownship-sensor-page > [data-od-id="live-depth-actual-card"],
+.ownship-sensor-page > [data-replay-od-id="live-depth-actual-card"] { height: 282px; }
 
 .ownship-sensor-page .live-compass-mode {
   --ui-components-button-touch-target-size: 26px;
@@ -2924,6 +2928,19 @@ canvas#simCanvas.route-pick-mode { cursor: crosshair; }
   width: 100%;
   height: 100%;
 }
+
+.replay-depth-fallback { color: var(--ob-subtle); font-size: 12px; }
+.replay-depth-instrument-fallback {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  padding: var(--s-3);
+  color: var(--ob-subtle);
+  font-size: 11px;
+  text-align: center;
+}
+.replay-depth-instrument-fallback[hidden] { display: none; }
 
 .ownship-sensor-page .live-speed-content {
   width: 100%;

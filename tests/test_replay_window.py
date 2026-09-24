@@ -15,11 +15,13 @@ import subprocess
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from shapely.geometry import box
 
 from colav_simulator.decision_replay.sink import TraceSink, TraceSinkPolicy
 from gui_server.replay import (
@@ -30,6 +32,7 @@ from gui_server.replay import (
     build_replay_router,
     project_window_threat_documents,
 )
+from gui_server.replay_artifacts import ensure_navigation_profile, persist_navigation_profile
 
 
 def test_recorded_runtime_threat_is_used_before_legacy_planner_fallback():
@@ -126,6 +129,38 @@ def test_replay_window_retains_last_recorded_vo_decision_space(tmp_path: Path) -
     window = RunReplayStore(tmp_path).window(RUN_VO_SURFACE, 1.5, 2.5)
     assert window["decision_space_before"] == decision
     assert window["frames"][0]["sim_time"] == pytest.approx(1.5)
+
+
+def test_replay_depth_requires_matching_enc_and_trace_identity(tmp_path: Path) -> None:
+    run_dir = tmp_path / RUN_WINDOW
+    run_dir.mkdir()
+    write_manifest(run_dir)
+    manifest = json.loads((run_dir / "manifest.json").read_text())
+    manifest["enc_hash"] = "chart-a"
+    (run_dir / "manifest.json").write_text(json.dumps(manifest))
+    record_window_trace(run_dir, ticks=4)
+    enc = SimpleNamespace(seabed={20: SimpleNamespace(geometry=box(-100, 0, 0, 200))})
+    path = persist_navigation_profile(run_dir, enc, "chart-a")
+    store = RunReplayStore(tmp_path)
+    frame = store.window(RUN_WINDOW, 0.1, 0.2)["frames"][0]
+    assert frame["ownship_navigation"] == {"floor_depth_m": 20.0, "source": "ENC_MATCHED_DERIVED"}
+
+    document = json.loads(path.read_text())
+    document["frames_sha256"] = "different-trace"
+    path.write_text(json.dumps(document))
+    assert "ownship_navigation" not in store.window(RUN_WINDOW, 0.1, 0.2)["frames"][0]
+
+
+def test_replay_depth_backfill_rejects_chart_source_outside_data_directory(tmp_path: Path) -> None:
+    run_dir = tmp_path / RUN_WINDOW
+    (run_dir / "decision").mkdir(parents=True)
+    write_manifest(run_dir)
+    (run_dir / "decision" / "index.json").write_text(json.dumps({"frames_sha256": "trace"}))
+    (run_dir / "episode.json").write_text(json.dumps({
+        "config": {"map_data_files": [str(tmp_path / "outside.gdb")]},
+    }))
+    with pytest.raises(ValueError, match="outside the configured chart directory"):
+        ensure_navigation_profile(run_dir)
 
 
 def record_window_trace(run_dir: Path, *, ticks: int = TICKS, dt: float = DT) -> None:  # noqa: FURB110
