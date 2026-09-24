@@ -11,7 +11,7 @@ namespace Sango.Editor
     /// <summary>
     /// M1 海况环境与天气场景生成器（幂等：NewScene 重建 + 旧 profile 资产先删后建，学 M0SceneBootstrapper）。
     /// 场景：Water Surface(Ocean, Script Interactions) + Global Volume(PBS 天空/体积云/Fog/Water Rendering)
-    /// + 太阳方向光 + 2 艘装饰船 + Perlin 岛屿(5 岛 seed 42) + WeatherController + WeatherGUI + 桥楼视角相机。
+    /// + 太阳方向光 + 2 艘编目船模(M2-A) + Perlin 岛屿(5 岛 seed 42) + WeatherController + WeatherGUI + 桥楼视角相机。
     /// 保存 Assets/Scenes/M1-Weather.unity 与 Assets/Settings/M1-GlobalVolumeProfile.asset。
     /// </summary>
     public static class M1SceneBootstrapper
@@ -30,15 +30,24 @@ namespace Sango.Editor
         public static void Build()
         {
             M0SceneBootstrapper.ConfigureHdrpAssets(); // plan A applied: M0 版已改 public，避免两处同步维护
+            VesselAssetPipeline.EnsureBuilt(); // M2-A：干净克隆时自动补建船模 prefab/编目（齐全则零开销跳过）
             var profile = CreateVolumeProfileAsset();
             BuildScene(profile);
         }
 
-        // HDRP/Lit 材质实例染色（占位物剪影用，M2 换 CC0 资产时替换）
-        static void Tint(GameObject go, Color c)
+        // M2-A：从编目实例化一艘船到指定平面位置/航向，y 用编目水线偏移（约 15% 船体高没入水下）。
+        static void PlaceCatalogShip(VesselCatalog catalog, VesselClass vesselClass, Vector2 xz, float headingDeg, Transform parent)
         {
-            var r = go.GetComponent<Renderer>();
-            r.sharedMaterial = new Material(r.sharedMaterial.shader) { color = c };
+            var prefab = catalog.GetPrefab(vesselClass);
+            if (prefab == null)
+            {
+                Debug.LogError($"[Sango.M1] no prefab in catalog for {vesselClass}, ship skipped");
+                return;
+            }
+            var ship = (GameObject)PrefabUtility.InstantiatePrefab(prefab);
+            ship.transform.SetParent(parent, true);
+            ship.transform.position = new Vector3(xz.x, catalog.GetEntry(vesselClass).waterlineOffsetY, xz.y);
+            ship.transform.rotation = Quaternion.Euler(0f, headingDeg, 0f);
         }
 
         static Material TintedLit(Color c) => new Material(Shader.Find("HDRP/Lit")) { color = c };
@@ -124,28 +133,19 @@ namespace Sango.Editor
             lightGo.AddComponent<HDAdditionalLightData>();
             light.intensity = 100000f; // 正午量级 lux；Apply() 会按时刻滑条覆盖
 
-            // d. 2 艘装饰船（M1 简化：不做浮力查询，纯占位看海况尺度；M2 再换真船模+浮力）
-            var shipsRoot = new GameObject("Ships");
-            for (int i = 0; i < 2; i++)
+            // d. 2 艘编目船模（M2-A 替换占位方块船；M1 不做浮力查询，纯看海况尺度）：
+            //    小渔船近桥（原 Ship-0 位 (14,-6)，艏向 20°），邮轮中距 ((-30,30)，艏向 -35°)。
+            //    ship-large 编目在册但本场景不摆（留给 M2-E 遭遇场景）。
+            var catalog = AssetDatabase.LoadAssetAtPath<VesselCatalog>(VesselAssetPipeline.CatalogAssetPath);
+            if (catalog == null)
             {
-                var ship = new GameObject($"Ship-{i}");
-                ship.transform.SetParent(shipsRoot.transform, false);
-                ship.transform.position = new Vector3(i == 0 ? 14f : -18f, 0f, i == 0 ? -6f : 10f);
-                ship.transform.rotation = Quaternion.Euler(0f, i == 0 ? 20f : -35f, 0f);
-
-                var hull = GameObject.CreatePrimitive(PrimitiveType.Cube);
-                hull.name = "Hull";
-                hull.transform.SetParent(ship.transform, false);
-                hull.transform.localPosition = new Vector3(0f, -1.5f, 0f); // 吃水一半在水面下
-                hull.transform.localScale = new Vector3(12f, 3f, 4f);
-                Tint(hull, new Color(0.16f, 0.19f, 0.23f)); // 深蓝灰船体：默认 Lit 白色在截图里像白沫堆积
-
-                var superstructure = GameObject.CreatePrimitive(PrimitiveType.Cube);
-                superstructure.name = "Superstructure";
-                superstructure.transform.SetParent(ship.transform, false);
-                superstructure.transform.localPosition = new Vector3(-2f, 1.25f, 0f);
-                superstructure.transform.localScale = new Vector3(3f, 2.5f, 2.5f);
-                Tint(superstructure, new Color(0.62f, 0.64f, 0.66f));
+                Debug.LogError($"[Sango.M1] vessel catalog missing at {VesselAssetPipeline.CatalogAssetPath}");
+            }
+            else
+            {
+                var shipsRoot = new GameObject("Ships");
+                PlaceCatalogShip(catalog, VesselClass.Small, new Vector2(14f, -6f), 20f, shipsRoot.transform);
+                PlaceCatalogShip(catalog, VesselClass.Medium, new Vector2(-30f, 30f), -35f, shipsRoot.transform);
             }
 
             // e. Perlin 岛屿：5 岛 seed 42（PLAN §5 M1；程序化 mesh 生成器见 PerlinIslandGenerator）
