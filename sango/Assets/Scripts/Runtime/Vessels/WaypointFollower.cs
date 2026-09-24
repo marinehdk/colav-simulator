@@ -32,6 +32,9 @@ namespace Sango
         [Tooltip("响应 G 键启停 demo（默认 false）：每个实例各持开关，M2-E 多跟随器互不串扰；仅 M1 演示船接线为 true。")]
         public bool demoHotkeysEnabled = false;
 
+        [Tooltip("烘焙艏向补偿（度，M2-E）：prefab 根原生艏 ≠ +Z 的档位（Medium 180）。导航艏向 psi 写回为 rotation.y = psi + 本值；初始化捕获反解 psi = euler.y − 本值。默认 0 = M1/M2-C 行为逐位不变。")]
+        public float bowYawDegOffset = 0f;
+
         [Tooltip("巡航速度（m/s）。小渔船演示档：12 m 船 ~10 kn 量级。")]
         public float cruiseSpeedMps = 5f;
 
@@ -89,6 +92,20 @@ namespace Sango
             }
         }
 
+        /// <summary>
+        /// M2-E1 reset 缝：清运行状态（索引/到达/初始化/速度 0）。reset 流程 = 先摆位姿、
+        /// 换航点表，再调本方法；下一次 StepOnce 即从当前 transform 位姿重新初始化起跑。
+        /// 与 Toggle 不同：不改变运行态语义、可从任意状态强制重置（EncounterDirector reset 用）。
+        /// </summary>
+        public void ResetToTransform()
+        {
+            m_Initialized = false;
+            m_Arrived = false;
+            m_DemoRunning = false;
+            m_Index = 0;
+            m_State = default;
+        }
+
         /// <summary>推进一帧（引擎无关，EditMode 测试直接调用）。</summary>
         public void StepOnce(float dt)
         {
@@ -102,7 +119,9 @@ namespace Sango
                 {
                     X = pos.x,
                     Z = pos.z,
-                    Psi = transform.eulerAngles.y * Mathf.Deg2Rad, // 钉死约定：rotation.y = +psi·Rad2Deg
+                    // M2-E1：反解烘焙艏向补偿——导航艏向 psi = 根 euler.y − bowYawDegOffset
+                    // （放置层组合约定 rotation.y = heading + offset；offset 0 时与旧契约逐位一致）。
+                    Psi = (transform.eulerAngles.y - bowYawDegOffset) * Mathf.Deg2Rad,
                     Speed = 0f,
                 };
                 m_Initialized = true;
@@ -135,6 +154,8 @@ namespace Sango
         }
 
         // 合成契约：只写 x/z/yaw；y/roll/pitch 是 VesselBuoyancy 的独占写（M2-B）。
+        // M2-E1：yaw 写回组合烘焙艏向补偿（rotation.y = psi·Rad2Deg + offset），渲染艏 = 导航艏向；
+        // offset 0（默认/Small/Large）时数值与旧契约逐位一致。
         void WriteTransform()
         {
             var pos = transform.position;
@@ -142,7 +163,7 @@ namespace Sango
             pos.z = m_State.Z;
             transform.position = pos;
             var eul = transform.eulerAngles;
-            transform.rotation = Quaternion.Euler(eul.x, m_State.Psi * Mathf.Rad2Deg, eul.z);
+            transform.rotation = Quaternion.Euler(eul.x, m_State.Psi * Mathf.Rad2Deg + bowYawDegOffset, eul.z);
         }
     }
 }

@@ -170,6 +170,88 @@ namespace Sango.Tests
     }
 
     /// <summary>
+    /// M2-E1 艏向合成缝：prefab 根烘焙艏向 ≠ 0 的档位（Medium liner 180°），跟随器写回的
+    /// rotation.y = 导航艏向 psi + bowYawDegOffset，初始化捕获反解 psi = euler.y − offset。
+    /// 渲染艏 = Q(0, euler.y, 0)·原生艏向量（原生艏：offset 0 → +Z，offset 180 → −Z）。
+    /// offset 默认 0 = M1/M2-C 行为逐位不变。
+    /// </summary>
+    public class WaypointFollowerBowYawTests
+    {
+        [Test]
+        public void StepOnce_BowYawOffset180_PlacedHeadingNorth_KeepsRenderedBowNorth()
+        {
+            // 放置层组合约定：heading 0 + 烘焙 180 → 根 euler.y = 180（渲染艏朝北）。
+            var go = new GameObject("liner");
+            go.transform.position = new Vector3(0f, -0.5f, 0f);
+            go.transform.rotation = Quaternion.Euler(0f, 180f, 0f);
+            var f = go.AddComponent<WaypointFollower>();
+            f.bowYawDegOffset = 180f;
+            f.waypoints = new[] { new Vector2(0f, 200f) }; // 正北航点
+
+            f.StepOnce(0.1f);
+
+            // 导航艏向捕获必须反解烘焙：psi = 180 − 180 = 0（北），不是把 180 当成南行。
+            float eulerY = go.transform.eulerAngles.y;
+            Assert.That(eulerY, Is.EqualTo(180f).Within(0.1f), "psi(0) + offset(180) 写回 180（渲染艏保持朝北）");
+            // 位移沿导航艏向（北）前进，而不是把船体朝"内部以为的南"开。
+            Assert.That(go.transform.position.z, Is.GreaterThan(0f), "沿导航艏向（北）前进");
+            // 渲染艏（世界系）= Q(0, euler.y, 0)·原生艏(0,0,−1)（180° 档）→ 必须指北。
+            var renderedBow = Quaternion.Euler(0f, eulerY, 0f) * Vector3.back;
+            Assert.That(renderedBow.z, Is.GreaterThan(0.99f), "渲染艏指北（艏向 = 航向，无 +180 陷阱）");
+            Assert.That(go.transform.position.y, Is.EqualTo(-0.5f).Within(1e-6f), "y 仍归浮力");
+        }
+
+        [Test]
+        public void StepOnce_BowYawOffsetZero_DefaultBehaviorUnchanged()
+        {
+            // offset 0（默认）：捕获 euler.y 原样作 psi——M2-C 既有契约逐位不变。
+            var go = new GameObject("cargo");
+            go.transform.position = Vector3.zero;
+            go.transform.rotation = Quaternion.Euler(0f, 90f, 0f); // 朝东
+            var f = go.AddComponent<WaypointFollower>();
+            Assert.That(f.bowYawDegOffset, Is.EqualTo(0f), "默认 0（老场景零行为变更）");
+            f.waypoints = new[] { new Vector2(200f, 0f) }; // 正东航点
+
+            f.StepOnce(0.1f);
+
+            Assert.That(go.transform.eulerAngles.y, Is.EqualTo(90f).Within(0.01f), "朝东捕获、不打舵");
+            Assert.That(go.transform.position.x, Is.GreaterThan(0f), "沿东前进");
+        }
+    }
+
+    /// <summary>M2-E1 reset 缝：ResetToTransform 清运行状态、从当前 transform 位姿重跑。</summary>
+    public class WaypointFollowerResetTests
+    {
+        [Test]
+        public void ResetToTransform_AfterArrival_RepositionsAndRerunsFromNewPose()
+        {
+            var go = new GameObject("follower");
+            go.transform.position = new Vector3(0f, -0.33f, 0f);
+            var f = go.AddComponent<WaypointFollower>();
+            f.waypoints = new[] { new Vector2(0f, 6f) }; // 终点在到达半径内 → 一步到达
+
+            f.StepOnce(0.1f);
+            Assert.That(f.IsArrived, Is.True, "前置：已到达");
+
+            // reset 流程：先摆新位姿，再 ResetToTransform，随后可从新位姿重跑。
+            go.transform.position = new Vector3(100f, -0.5f, 100f);
+            go.transform.rotation = Quaternion.Euler(0f, 0f, 0f);
+            f.waypoints = new[] { new Vector2(100f, 200f) }; // 新表正北
+            f.ResetToTransform();
+
+            Assert.That(f.IsArrived, Is.False, "到达态被清除");
+            Assert.That(f.DemoRunning, Is.False, "不处于 demo 运行态（驱动权归 EncounterDirector）");
+            Assert.That(f.ActiveWaypointIndex, Is.EqualTo(0), "索引归零");
+
+            f.StepOnce(0.1f);
+            Assert.That(go.transform.position.z, Is.GreaterThan(100f), "从新位姿朝新终点前进");
+            Assert.That(go.transform.position.x, Is.EqualTo(100f).Within(1e-4f), "x 不漂移（正北航向）");
+            Assert.That(go.transform.position.y, Is.EqualTo(-0.5f).Within(1e-6f), "y 仍归浮力");
+            Assert.That(f.IsArrived, Is.False, "新表未到终点");
+        }
+    }
+
+    /// <summary>
     /// 薄适配器缝：StepOnce 只写 position.x/z 与 rotation.y（y/roll/pitch 归浮力，M2-B 契约），
     /// 到达半径内推进航点索引，终点到达即停。EditMode 直接手动步进，无 player loop。
     /// </summary>
