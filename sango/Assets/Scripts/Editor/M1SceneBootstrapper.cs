@@ -134,7 +134,9 @@ namespace Sango.Editor
             light.intensity = 100000f; // 正午量级 lux；Apply() 会按时刻滑条覆盖
 
             // d. 2 艘编目船模（M2-A 替换占位方块船；M1 不做浮力查询，纯看海况尺度）：
-            //    小渔船近桥（原 Ship-0 位 (14,-6)，艏向 20°），邮轮中距 ((-30,30)，艏向 -35°)。
+            //    小渔船近桥（原 Ship-0 位 (14,-6)，艏向 20°），邮轮中距 ((30,90)，艏向 -35°)。
+            //    泊位复算：seed-42 岛5 中心 (-30.9,51.6) 可视岸线 ~0.8R=61m，旧位 (-30,30) 距岛心仅 22m 搁浅，
+            //    新位 (30,90) 距岛5/岛3 可视岸线均 ≥17m（艏艉端投影 ≥15m，PerlinIslandGenerator 确定性复算）。
             //    ship-large 编目在册但本场景不摆（留给 M2-E 遭遇场景）。
             var catalog = AssetDatabase.LoadAssetAtPath<VesselCatalog>(VesselAssetPipeline.CatalogAssetPath);
             if (catalog == null)
@@ -145,7 +147,7 @@ namespace Sango.Editor
             {
                 var shipsRoot = new GameObject("Ships");
                 PlaceCatalogShip(catalog, VesselClass.Small, new Vector2(14f, -6f), 20f, shipsRoot.transform);
-                PlaceCatalogShip(catalog, VesselClass.Medium, new Vector2(-30f, 30f), -35f, shipsRoot.transform);
+                PlaceCatalogShip(catalog, VesselClass.Medium, new Vector2(30f, 90f), -35f, shipsRoot.transform);
             }
 
             // e. Perlin 岛屿：5 岛 seed 42（PLAN §5 M1；程序化 mesh 生成器见 PerlinIslandGenerator）

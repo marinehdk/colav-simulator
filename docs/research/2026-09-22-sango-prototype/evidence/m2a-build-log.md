@@ -102,3 +102,25 @@ bundle exists on disk (183 MB).
   center at (14,−6), 60 m liner mid-distance left at (−30,30); hulls should sit
   with ~15% of hull height in the water (no floating/sunk look), colormap
   textures (not magenta/white).
+
+## Orchestrator visual acceptance (2026-09-24)
+
+- Player screenshots (Standalone, windowed 1600x900, CUA capture; JPEG bytes):
+  `m2a-b3-default.jpg` (B3 Moderate 4.5 m/s), `m2a-b0-calm.jpg` (B0 Calm 0.5 m/s,
+  near-mirror sea), `m2a-b6-rough.jpg` (B6 Rough 12.5 m/s, wave texture visible).
+- Keyboard hotkeys 0/6 driven through the accessibility path on the UNFOCUSED
+  player; panel readouts match `BeaufortToWindSpeedMs` in all three states.
+- Ships: liner + fishing boat textured from the kit colormap (no magenta/white),
+  plausible draft (red anti-fouling band visible), plausible scale vs islands.
+- Acceptance fix 1 — liner grounding: initial berth (-30,30) placed the liner
+  22 m from seed-42 Island-5 center (visible shoreline ~0.8R ≈ 61 m) — aground.
+  Deterministic re-derivation of the five island placements (PerlinIslandGenerator
+  placement RNG is fully seed-determined) picked berth (30,90): ≥17 m clear of
+  Island-5/Island-3 visible shorelines, bow/stern tip projections ≥15 m clear,
+  azimuth separated from the fishing boat. Rebuilt scene + player, verified afloat.
+- Acceptance fix 2 — unfocused rendering: the player never painted a frame when
+  it could not take foreground focus (automation capture); `runInBackground` is
+  now set at build time (ProjectSettings) and runtime (WeatherGUI.Awake), and
+  captures are launched under `caffeinate` with per-app App Sleep disabled.
+- Deferred to M2-E review: `ship-large` is a tall sailing ship (kit's only large
+  model), not a cargo vessel as the spec prose suggested; not placed in this scene.

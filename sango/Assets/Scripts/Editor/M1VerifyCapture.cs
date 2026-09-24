@@ -271,6 +271,7 @@ namespace Sango.Editor
         public static void BuildStandalonePlayer()
         {
             PlayerSettings.SetScriptingBackend(NamedBuildTarget.Standalone, ScriptingImplementation.Mono2x);
+            PlayerSettings.runInBackground = true; // 播放器失焦（自动化采集）不停渲染
             var report = BuildPipeline.BuildPlayer(
                 new[] { "Assets/Scenes/M1-Weather.unity" },
                 "Builds/M1-Standalone.app",

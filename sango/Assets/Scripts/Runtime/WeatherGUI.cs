@@ -32,6 +32,8 @@ namespace Sango
 
         void Awake()
         {
+            // 证据/演示采集时播放器窗口不在前台（CUA 自动化拿不到焦点），失焦也要继续渲染。
+            Application.runInBackground = true;
             if (controller == null) controller = GetComponent<WeatherController>();
             _font = LoadBuiltinFont();
             BuildUI();
