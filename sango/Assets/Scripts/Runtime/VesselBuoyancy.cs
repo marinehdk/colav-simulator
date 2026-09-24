@@ -91,21 +91,34 @@ namespace Sango
 
             // 先数总三角数（跨 filter 统一编号），再按步进均匀抽样。
             int totalTriangles = 0;
+            int usableFilters = 0;
+            int nullMeshFilters = 0;
+            int unreadableMeshes = 0;
             foreach (var filter in filters)
             {
                 var mesh = filter != null ? filter.sharedMesh : null;
-                if (mesh == null) continue;
+                if (mesh == null)
+                {
+                    nullMeshFilters++;
+                    continue;
+                }
+                usableFilters++;
+                // 玩家构建上 mesh 未开 Read/Write 时 triangles 返回空并报 "not readable"
+                //（GUI editor 恒可读，此坑只在真机暴露——见 m2b-build-log.md 根因节）。
+                if (!mesh.isReadable) unreadableMeshes++;
                 totalTriangles += mesh.triangles.Length / 3;
             }
             if (totalTriangles == 0)
             {
-                Debug.LogWarning($"[{nameof(VesselBuoyancy)}] {name}: no MeshFilter with a mesh found, buoyancy disabled.", this);
+                Debug.LogWarning($"[{nameof(VesselBuoyancy)}] {name}: no usable hull mesh " +
+                                 $"(filters={filters.Length} usable={usableFilters} nullMesh={nullMeshFilters} unreadable={unreadableMeshes}) — " +
+                                 $"unreadable => enable Read/Write in FBX import (VesselAssetPipeline), buoyancy disabled.", this);
                 enabled = false;
                 return;
             }
 
             int stride = Mathf.Max(1, Mathf.CeilToInt(totalTriangles / (float)Mathf.Max(1, maxSamplesPerHull)));
-            // 设计吃水基线：PlaceCatalogShip 放的根 y（= 编目 waterlineOffsetY）。先取，样点基线依赖它。
+            // 设计吃水基线：PlaceCatalogShip 放的根 y（= 编目 waterlineOffsetY），heave 施加的参照点。
             m_BaselineY = transform.position.y;
             var rootInverse = transform.worldToLocalMatrix;
             var samples = new System.Collections.Generic.List<HullTriangle>(maxSamplesPerHull);
@@ -122,15 +135,23 @@ namespace Sango
                 {
                     if (globalTriangle % stride != 0) continue;
                     Vector3 centroid = (verts[idx[t]] + verts[idx[t + 1]] + verts[idx[t + 2]]) / 3f;
-                    Vector3 rootLocal = filterToRoot.MultiplyPoint3x4(centroid);
                     samples.Add(new HullTriangle
                     {
-                        RootLocalCentroid = rootLocal,
-                        BaselineSubmersion = -(m_BaselineY + rootLocal.y), // 静水(y=0)下 + = 没入
+                        // 根"局部"空间含烘焙的统一缩放（模型单位，非米！）——只用于运行时 TransformPoint。
+                        // 基线浸没不能用它混算世界米（M2-B 修复：曾致 heave 目标偏差 ≈(scale-1)·mean(modelY)），
+                        // 改在收集后用世界坐标统一推导（船此时在设计位姿）。
+                        RootLocalCentroid = filterToRoot.MultiplyPoint3x4(centroid),
                     });
                 }
             }
             m_RootLocalCentroids = samples.ToArray();
+            // 基线浸没（米，世界尺度）：OnEnable 时船在设计位姿（水线偏移 + yaw），静水(y=0)下
+            // 基线浸没 = 0 − 设计世界高度。
+            for (int i = 0; i < m_RootLocalCentroids.Length; i++)
+            {
+                Vector3 designWorld = transform.TransformPoint(m_RootLocalCentroids[i].RootLocalCentroid);
+                m_RootLocalCentroids[i].BaselineSubmersion = -designWorld.y;
+            }
 
             m_Stopwatch = new Stopwatch();
             m_SearchParams.error = k_SearchError;

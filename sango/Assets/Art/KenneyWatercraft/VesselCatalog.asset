@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 71c649598fdb0446ead3ab951ef9b389, type: 3}
   m_Name: VesselCatalog
   m_EditorClassIdentifier: Sango.Vessels::Sango.VesselCatalog
-  pipelineVersion: 2
+  pipelineVersion: 3
   entries:
   - vesselClass: 0
     prefab: {fileID: 9163801143775574186, guid: 12f9ec1eab4e5436fa253881312756cf, type: 3}

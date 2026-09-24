@@ -21,8 +21,11 @@ namespace Sango.Editor
         public const string CatalogAssetPath = RootDir + "/VesselCatalog.asset";
 
         // 编目版本戳：换源模型/改归一化规则时 +1；EnsureBuilt 见版本不符即整跑重建
-        // （否则干净克隆之外的场景重建只会零开销跳过）。历史：1=首版(ship-large 大型档)，2=大型档换 ship-cargo-a + 编目持久化艏/艉端细度。
-        const int k_PipelineVersion = 2;
+        // （否则干净克隆之外的场景重建只会零开销跳过）。历史：1=首版(ship-large 大型档)，
+        // 2=大型档换 ship-cargo-a + 编目持久化艏/艉端细度，
+        // 3=M2-B 修复：FBX 开 Read/Write —— 玩家构建默认剥离 CPU 网格数据（isReadable=false），
+        //   浮力采样 mesh.triangles 读到空并触发 "not readable" 错误（GUI editor 永远可读，故仅真机暴露）。
+        const int k_PipelineVersion = 3;
 
         const string k_ModelsDir = RootDir + "/Models";
         const string k_ColormapPath = k_ModelsDir + "/Textures/colormap.png";
@@ -144,13 +147,17 @@ namespace Sango.Editor
                     continue;
                 }
                 // 只在需要时 SaveAndReimport，保幂等（重复跑不再触发导入）
+                // isReadable：M2-B 浮力采样要 CPU 读 triangles/vertices；玩家构建默认剥离（GUI editor 恒可读，只在真机暴露）。
+                // 内存代价：三模型 ~1.2 万三角的 CPU 副本，MB 量级，可忽略。
                 if (importer.importCameras || importer.importLights || importer.importAnimation
-                    || importer.meshCompression != ModelImporterMeshCompression.Medium)
+                    || importer.meshCompression != ModelImporterMeshCompression.Medium
+                    || !importer.isReadable)
                 {
                     importer.importCameras = false;
                     importer.importLights = false;
                     importer.importAnimation = false;
                     importer.meshCompression = ModelImporterMeshCompression.Medium;
+                    importer.isReadable = true;
                     importer.SaveAndReimport();
                 }
             }
