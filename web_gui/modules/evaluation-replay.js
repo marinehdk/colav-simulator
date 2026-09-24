@@ -18,7 +18,8 @@ import { createReplayClock, ReplayPlayState } from './replay-clock.js?v=20260918
 // treats query-string variants as different module instances; without this
 // pin the catalog and replay host would own different opener registries.
 import { setReplayRunOpener } from './replay-runs.js?v=20260916-replay-layout-v4';
-import { createReplaySidebars } from './replay-sidebars.js?v=20260924-replay-sidebar-v2';
+import { createReplaySidebars } from './replay-sidebars.js?v=20260924-replay-events-v1';
+import { visibleMonitorEvents } from './monitor-event-presentation.js?v=20260924-replay-events-v1';
 
 // Scrub windows stay small and bounded; the backend enforces the frozen caps.
 const SEEK_WINDOW_HALF_SPAN_S = 0.5;
@@ -88,7 +89,6 @@ export function createEvaluationReplayController({
   }
 
   const EVENT_GLYPHS = {
-    PLANNER: 'P',
     RISK_LIFECYCLE: '▲',
     SAFETY_FAILURE: '✕',
     MISSION: '◎',
@@ -101,7 +101,8 @@ export function createEvaluationReplayController({
 
   function visibleEvents() {
     if (!eventJournal) return [];
-    const rows = eventJournal.events ?? [];
+    const rows = visibleMonitorEvents(eventJournal.events ?? [])
+      .filter(event => event.category !== 'PLANNER');
     if (eventFilter === 'ALL') return rows;
     return rows.filter(event => event.category === eventFilter);
   }
@@ -119,9 +120,8 @@ export function createEvaluationReplayController({
     const rows = visibleEvents();
     if (!rows.length) {
       strip.replaceChildren();
-      strip.textContent = eventJournal && (eventJournal.events ?? []).length
-        ? 'NO EVENTS IN THIS FILTER'
-        : 'NO RECORDED EVENTS';
+      strip.textContent = !eventJournal || !(eventJournal.events ?? []).length
+        ? 'NO RECORDED EVENTS' : 'NO DISPLAY EVENTS IN THIS FILTER';
       return;
     }
     strip.textContent = '';
@@ -685,7 +685,9 @@ export function createEvaluationReplayController({
       allOption.value = 'ALL';
       allOption.textContent = 'ALL EVENTS';
       filter.append(allOption);
-      for (const category of eventJournal?.categories ?? []) {
+      const displayCategories = new Set(visibleMonitorEvents(eventJournal?.events ?? [])
+        .filter(event => event.category !== 'PLANNER').map(event => event.category));
+      for (const category of (eventJournal?.categories ?? []).filter(value => displayCategories.has(value))) {
         const option = documentRef.createElement('option');
         option.value = category;
         option.textContent = category;

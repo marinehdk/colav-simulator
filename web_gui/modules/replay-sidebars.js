@@ -2,6 +2,7 @@
  * sealed frame facts and the separate event journal at the current playhead. */
 import { buildRadarModel, createRadarMiniMap } from './radar-mini-map.js';
 import { RADAR_DETECTION_RANGE_M } from './situation-display.js';
+import { renderMonitorEventItems, visibleMonitorEvents } from './monitor-event-presentation.js?v=20260924-replay-events-v1';
 
 const NM = 1852;
 const degrees = value => Number.isFinite(value) ? ((value * 180 / Math.PI) % 360 + 360) % 360 : null;
@@ -325,17 +326,12 @@ export function createReplaySidebars(documentRef = document) {
         card.append(headingRow, metrics, facts); list.append(card);
       }
     }
-    const events = (journal?.events ?? []).filter(event => Number(event.sim_time) <= playhead + 1e-6);
-    set('liveEventCount', String(events.length));
+    const events = (journal?.events ?? [])
+      .filter(event => Number(event.sim_time) <= playhead + 1e-6)
+      .map(event => ({ ...event, simTime: Number(event.sim_time) }));
+    set('liveEventCount', String(visibleMonitorEvents(events).length));
     const eventList = get('liveEvents');
-    if (eventList) {
-      eventList.showHeader = false;
-      eventList.events = events.slice(-40).reverse().map(event => ({
-        title: `${String(event.type ?? 'Event').replaceAll('_', ' ')}${event.details?.target_id == null ? '' : ` · TS${event.details.target_id}`}`,
-        description: duration(Number(event.sim_time)), startTime: duration(Number(event.sim_time)),
-        endTime: '', eventItemType: 'doubleLine', hasTime: false, hasEndTime: false, hasArrow: false, colorCoded: false,
-      }));
-    }
+    if (eventList) renderMonitorEventItems(eventList, events, duration, documentRef, 'No recorded operational events');
     const planner = snapshot?.planner ?? {};
     set('plannerSolveState', planner.feasible ? 'SUCCESS' : planner.status ?? '—');
     set('topRunState', snapshot?.state ?? '—');
