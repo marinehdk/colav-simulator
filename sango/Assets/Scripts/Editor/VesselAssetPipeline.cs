@@ -75,6 +75,19 @@ namespace Sango.Editor
             },
         };
 
+        /// <summary>
+        /// k_Specs 艏向字面量的唯一查表口（M2-D 航行灯锚点映射用）：原生艏 → +Z 所需根 yaw，
+        /// 即 prefab 根 localRotation 烘焙值。未编入 k_Specs 的档位返回 0（+Z 原生艏）。
+        /// </summary>
+        public static float BowYawDeg(VesselClass vesselClass)
+        {
+            foreach (var spec in k_Specs)
+            {
+                if (spec.vesselClass == vesselClass) return spec.bowYawDeg;
+            }
+            return 0f;
+        }
+
         [MenuItem("Sango/M2/Build Vessel Assets")]
         public static void BuildAll()
         {

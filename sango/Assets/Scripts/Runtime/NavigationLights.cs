@@ -49,6 +49,7 @@ namespace Sango
         float[] m_StreakHalfLenM;     // 拖尾世界半长（localScale 已被根缩放换算，半长须存世界值）
         float m_WaterLocalY;          // 构建时的水面高度换算到根局部 y
         bool? m_LastLoggedState;
+        bool m_WarnedNoWeather;       // weather 缺失一次性告警（OnEnable 重置）
 
         const string k_RigName = "NavigationLightsRig";
         const string k_LogTag = "[Sango.M2D]";
@@ -60,11 +61,22 @@ namespace Sango
         {
             BuildRig();
             m_LastLoggedState = null; // 重启用（域重载/手动）重记一条状态行
+            m_WarnedNoWeather = false;
         }
 
         void Update()
         {
-            bool on = weather != null && NavigationLightsCore.IsLightsOn(weather.timeOfDayHours);
+            if (weather == null)
+            {
+                if (!m_WarnedNoWeather) // 一次性告警（同 hull-mesh 缺失告警模式），不刷屏
+                {
+                    m_WarnedNoWeather = true;
+                    Debug.LogWarning($"{k_LogTag} {name}: no WeatherController injected — navigation lights stay off (day semantics).", this);
+                }
+                ApplyState(false);
+                return;
+            }
+            bool on = NavigationLightsCore.IsLightsOn(weather.timeOfDayHours);
             ApplyState(on);
             if (on) UpdateStreaks();
         }

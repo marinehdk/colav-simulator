@@ -36,7 +36,9 @@ namespace Sango
         /// 与 WeatherController.ApplySun 逐字同式（滑条 [0,24] 同一时刻语义，改公式须两处同步）。
         /// 仰角 ≤ 0 开灯：地平线恰好 0°（6h/18h）时直射日光贡献为 0（ApplySun 强度落到 0.1 lux
         /// 地板），归夜侧。COLREGs 语义 = 日落点灯：昼窗 (6,18) 开区间内灭灯（17.5h 傍晚档
-        /// 仰角 +7.8°，仍属日落前）。
+        /// 仰角 +7.8°，仍属日落前）。边界注意：h=6/18 时参数为 ±π/2 的 float 近似，cos 算出
+        /// ~−7e-8 量级的非零值而非精确 0，恰在 6.0/18.0 的判定落侧依赖此舍入——由
+        /// IsLightsOn_HorizonBoundaries6hAnd18h_ReturnsOn 在本平台钉死。
         /// </summary>
         public static bool IsLightsOn(float timeOfDayHours)
         {
@@ -79,5 +81,6 @@ namespace Sango
                 Masthead = ToNative(new Vector3(c.x, c.y + e.y, c.z + k_MastheadForwardFrac * e.z)),
                 SternLight = ToNative(new Vector3(c.x, c.y + k_SternHeightFrac * e.y, c.z - e.z)),
             };
-        }    }
+        }
+    }
 }
