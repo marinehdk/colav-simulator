@@ -83,3 +83,19 @@ Demo 航线（挂小渔船，泊位 (14,-6) yaw 20°，桥楼相机最近）：`
 - 参数比 spec 命名的三个多暴露一个 `MaxAccelMps2`：spec 的"speed ramps to cruise / decelerates to zero"需要有界速率才是确定性可测的（回放/对齐也要求它入参）。默认档四参数一体记录于本文件。
 - G 停止是硬暂停（不步进，浮力照常）；优雅减速停船只属于终点到达。demo 语义下按 G 即走即停，不为此加第三种核心模式。
 - 场景 rebuild 会连带重生成 M1-GlobalVolumeProfile.asset（幂等 builder 先删后建，子资产 fileID 全变）——与场景同 commit 保持 GUID 一致，属 builder 既有行为非本次引入。
+
+## Orchestrator visual acceptance (2026-09-24)
+
+- Player (windowed 1600x900), G pressed via accessibility keyboard path
+  (after one window-offscreen retry — known topology flake; note: double-G
+  = start+freeze, single-G resumes, semantics as documented).
+- `m2c-route-strip.png` — four frames across the run: heading changes
+  gradually (rate-limited turns, no snap), position migrates along the
+  route, hull stays in clear water the whole way (no island grounding).
+- `m2c-arrived.jpg` vs `m2c-arrived-plus5s.jpg` — end of route: boat at
+  rest near the final waypoint; the two frames differ only in wave
+  shimmer, position/heading identical (vessel stop confirmed).
+- Buoyancy composition while under way: visible wave heel in moving
+  frames; live `[VesselBuoyancy]` lines during sailing show failed 0,
+  124 queries/frame, ~0.38-0.58 ms (unchanged budget).
+- Verdict: PASS.
