@@ -97,3 +97,24 @@ API：`Solve(HullSample[] samples, in BuoyancyParams p) -> BuoyancyAttitude`；`
 3. 极端 B11：船不倾覆（roll ≤ 10°、pitch ≤ 6° 钳制）。
 4. 船位与艏向不漂：Small (14,−6) yaw 20°、Medium (30,90) yaw −35° 全程保持（浮力只动 y/r/p）。
 5. 播放器日志每 10s 有 `[VesselBuoyancy] ... (failed 0)` 行 = 查询在真机生效（本轮已自证，见上节逐字日志）；若再现 failed>0 持续或 "no usable hull mesh" 警告请回报——后者现在会带 filters/usable/nullMesh/unreadable 计数，直接指向根因。
+
+## Orchestrator visual acceptance (2026-09-24, post-fix build)
+
+- First acceptance attempt was REJECTED: player log showed both ships'
+  buoyancy self-disabled (mesh collection failure) — the apparent motion in
+  B9 stills was wave occlusion over static hulls. Root causes and fixes in
+  commit ae0beaf6 (FBX Read/Write + world-space draft baselines).
+- Re-acceptance on the fixed player (windowed 1600x900, CUA captures):
+  - `m2b-b9-fishing-3frames.png` — fishing boat in three consecutive B9
+    frames: level → port-heeled → starboard-heeled + heaved on a crest
+    (real attitude change; a static ship cannot heel).
+  - `m2b-b9-liner-2frames.png` — liner pitch/waterline differs clearly
+    between frames.
+  - Positions/heading identical across all frames (no drift; buoyancy
+    writes only y/roll/pitch as contracted).
+  - `m2b-b0-calm.jpg` — after returning from B9, both ships settle exactly
+    back to the M2-A baseline level attitude on mirror sea; no residual
+    heel or jitter.
+  - Live-player `[VesselBuoyancy]` lines: 124 queries/frame, failed 0,
+    0.355–0.380 ms/frame (measured, see §root-cause section above).
+- Verdict: PASS.
