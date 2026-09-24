@@ -44,9 +44,12 @@ namespace Sango
         public const float ChaseHeightM = 18f;
         public const float ChasePitchDeg = -26.6f;
 
-        // 俯视：船上空 300 m 正交、北向上（forward=下、up=北），半高 150 m。
-        public const float TopDownHeightM = 300f;
-        public const float TopDownOrthoSizeM = 150f;
+        // 俯视：船上空 150 m 正交、北向上（forward=下、up=北），半高 70 m。
+        // （验收修正 2026-09-24：原 300 m / 半高 150 m 下 12 m 小船仅 ~30 px 且被海雾洗掉——
+        //   降半高度减 haze 光程、缩窗口放大船体：正交窗口 140 m 高，900 px 屏上小船 ~77 px，
+        //   恒在画面正中（FollowsShip），验收线 = 跟随船一眼可辨。）
+        public const float TopDownHeightM = 150f;
+        public const float TopDownOrthoSizeM = 70f;
 
         public static CameraPose Resolve(CameraView view, Vector3 shipPos, float shipHeadingDeg)
         {

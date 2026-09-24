@@ -140,10 +140,13 @@ namespace Sango
             scaler.referenceResolution = new Vector2(1920f, 1080f);
             scaler.matchWidthOrHeight = 0.5f;
 
-            // 右下角根（天气面板左上，Simulation 面板右上，Autonomous 左下——四角不重叠）。
+            // 右下角簇，但横向避让 Simulation 面板列（验收修正 2026-09-24：1600×900 下面板
+            // 底行（Apply）压住本盘 "RADAR" 标题——同一 1920×1080 参考系内两面板分列即
+            // 分辨率无关不重叠）：Simulation 面板占 x ∈ [1500,1900]，本盘宽 304，右缘挪到
+            // x=1480（anchoredPosition.x = −460），占 x ∈ [1176,1480]。
             var root = NewRect("RadarRoot", canvasGo.transform);
             root.anchorMin = root.anchorMax = root.pivot = new Vector2(1f, 0f);
-            root.anchoredPosition = new Vector2(-20f, 20f);
+            root.anchoredPosition = new Vector2(-460f, 20f);
             root.sizeDelta = new Vector2(k_DiscUiSize + 24f, k_DiscUiSize + 92f);
 
             var title = CreateLabel(root, "Title", "RADAR", 18, TextAnchor.MiddleLeft, new Color(0.75f, 0.95f, 0.8f));

@@ -74,16 +74,16 @@ namespace Sango.Tests
             Assert.That(p.YawDeg, Is.EqualTo(180f).Within(k_AngleTolDeg), "视线朝南（与船同向望船）");
         }
 
-        // ── TopDown：正上方、正交、北向上 ───────────────────────────────────────────
+        // ── TopDown：正上方、正交、北向上（验收修正：150 m / 半高 70 m，船 ~77 px 可辨）──
         [Test]
         public void TopDown_OrthographicAboveShipNorthUp()
         {
             var p = CameraViews.Resolve(CameraView.TopDown, k_Ship, 0f);
-            Assert.That(p.Position, Is.EqualTo(new Vector3(100f, 300f, 50f)).Within(k_PosTol), "船正上空 300 m（随船平移）");
+            Assert.That(p.Position, Is.EqualTo(new Vector3(100f, 150f, 50f)).Within(k_PosTol), "船正上空 150 m（随船平移）");
             Assert.That(p.PitchDeg, Is.EqualTo(-90f).Within(k_AngleTolDeg), "垂直向下");
             Assert.That(p.YawDeg, Is.EqualTo(0f).Within(k_AngleTolDeg), "北向上（海图方向约定）");
             Assert.That(p.Orthographic, Is.True, "正交俯视");
-            Assert.That(p.OrthoSizeM, Is.GreaterThan(0f), "正交半高非零");
+            Assert.That(p.OrthoSizeM, Is.EqualTo(70f).Within(k_PosTol), "正交半高 70 m（12 m 小船 ~77 px，验收线：跟随船可辨）");
             Assert.That(p.FollowsShip, Is.True);
         }
 

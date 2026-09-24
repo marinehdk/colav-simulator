@@ -29,11 +29,14 @@ namespace Sango
         Transform m_VelocityShaft, m_VelocityHead, m_WaypointShaft, m_WaypointHead;
 
         // 箭头离水线高度：速度箭头贴甲板 (~3 m)，航点箭头更高一层 (~5 m) 防同高穿插。
+        // 宽度按追随视角 30-50 m 距离校验（FOV 60°：40 m 处 ~19 px/m——杆 0.35 m ≈ 7 px、
+        // 头 1.0×1.5 m 可辨）；速度箭头在 chase 内正对相机指向（前向）透视收缩成亮点属
+        // 几何必然，绿色航点箭头（斜方位）承担该视角的可读性。
         const float k_VelocityHeightM = 3f;
         const float k_WaypointHeightM = 5f;
-        const float k_ShaftWidthM = 0.25f;
+        const float k_ShaftWidthM = 0.35f;
         const float k_HeadLengthM = 1.5f;   // 锥头长（沿指向）
-        const float k_HeadWidthM = 0.8f;    // 锥头底径
+        const float k_HeadWidthM = 1.0f;    // 锥头底径
 
         void OnEnable()
         {

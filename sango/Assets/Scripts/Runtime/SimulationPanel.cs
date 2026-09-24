@@ -182,6 +182,9 @@ namespace Sango
             y -= 158f;
 
             // ── Apply + 占位字段 + 键位提示 ────────────────────────────────────────────
+            // Apply 独占一行（上 16 px 间隙 + 44 高 + 下 10 px 间隙）；与雷达盘的纵向重叠
+            // 另由 RadarOverlay 横向避让解决（同参考系分列，见 RadarOverlay.BuildUI 注）。
+            y -= 8f;
             CreateButton("ApplyButton", "Apply", 16f, y, k_PanelWidth - 32f, 44f, ApplyNow);
             y -= 54f;
             _applyStatus = CreateLabel(_panel, "ApplyStatus", "", 14, TextAnchor.MiddleLeft, new Color(0.6f, 0.9f, 0.65f));
