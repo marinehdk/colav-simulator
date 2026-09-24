@@ -8,8 +8,14 @@ namespace Sango
     /// <summary>
     /// M2-E1 遭遇面板（WeatherGUI idiom：深色半透明 UGUI 运行时构建、legacy uGUI Text、
     /// 零场景资产依赖）。屏幕右上角（天气面板占左上）：模式选择（dropdown）、Start/Pause、
-    /// 时间倍率循环（1×/2×/4×）、Reset、仿真时钟读数。无新键位（spec：面板按钮驱动，
-    /// 不与 0-9/T/F/G 冲突）。
+    /// 时间倍率循环（1×/2×/4×）、Reset、仿真时钟读数。
+    /// 键位（验收/演示正式输入，CUA 鼠标点击在本机不可靠——坐标被忽略、事件落在物理光标，
+    /// 与 M1 结论同源；键位在本类 Update 处理，不经 WeatherGUI）：
+    ///   Space = Start ⇄ Pause · R = Reset · 1/2/3 = 选模式（对遇/交叉/追越）· X = 倍率循环。
+    /// 冲突处理：同屏 WeatherGUI 的数字键 0-9（直设蒲福级）由 bootstrapper 关闭
+    /// （WeatherGUI.digitHotkeysEnabled=false），1/2/3 归本面板、T/F 仍归天气；
+    /// G 为 per-instance 门控、遭遇船未启用。键鼠状态经 Update 镜像同步（dropdown 选中项、
+    /// Start⇄Pause、×N、时钟读数）。
     /// </summary>
     public class EncounterPanel : MonoBehaviour
     {
@@ -85,6 +91,7 @@ namespace Sango
                 if (director != null) director.ApplyPattern((EncounterType)i);
                 MirrorState();
             });
+            _cursorY -= 40f; // dropdown 本体高 34 + 间隙 6：描述行自占一行，不与选中项标题重叠
 
             _patternDesc = CreateLabel(_panel, "PatternDesc", "", 15, TextAnchor.UpperLeft, new Color(0.75f, 0.85f, 0.95f));
             var drt = _patternDesc.rectTransform;
@@ -121,7 +128,7 @@ namespace Sango
             trt.sizeDelta = new Vector2(k_PanelWidth - 32f, 26f);
             _cursorY -= 40f;
 
-            var hint = CreateLabel(_panel, "Hint", "panel buttons only (no hotkeys)", 14, TextAnchor.MiddleLeft, new Color(0.6f, 0.65f, 0.7f));
+            var hint = CreateLabel(_panel, "Hint", "Space start/pause · R reset · 1/2/3 pattern · X speed", 14, TextAnchor.MiddleLeft, new Color(0.6f, 0.65f, 0.7f));
             var hrt = hint.rectTransform;
             hrt.anchorMin = new Vector2(0f, 1f);
             hrt.pivot = new Vector2(0f, 1f);
@@ -131,11 +138,49 @@ namespace Sango
             _panel.sizeDelta = new Vector2(k_PanelWidth, -_cursorY + 12f);
         }
 
-        // 每帧镜像 director 状态（WeatherGUI applyEveryFrame 镜像同款纪律）。
+        // 每帧镜像 director 状态（WeatherGUI applyEveryFrame 镜像同款纪律）+ 键盘热键。
+        // 键位是验收/演示的正式输入（CUA 鼠标在本机不可靠）；键鼠同路：都改 director 状态，
+        // 再经同一 MirrorState 回读面板（dropdown 选中项、Start⇄Pause、×N、时钟）。
         void Update()
         {
             if (director == null) return;
+            HandleHotkeys();
             MirrorState();
+        }
+
+        // 键位冲突账本：同屏 WeatherGUI 占 T/F（数字 0-9 在遭遇场景被 bootstrapper 关闭，
+        // 1/2/3 归本面板）；G 是 per-instance 门控且遭遇船未启用。Space/R/X 无主。
+        // Space 另有 UI 焦点双触发坑：鼠标点过按钮后该按钮持有 UI 焦点，StandaloneInputModule
+        // 会把 Space/Enter 再派发给它 —— 每帧清空选中，保证 Space 只走本处理器。
+        void HandleHotkeys()
+        {
+            var es = EventSystem.current;
+            if (es != null && es.currentSelectedGameObject != null) es.SetSelectedGameObject(null);
+
+            if (Input.GetKeyDown(KeyCode.Space))
+            {
+                director.ToggleRun();
+                Debug.Log($"[Sango.M2E] hotkey Space -> {(director.Running ? "run" : "pause")} t={director.SimTime:F1}s");
+            }
+            if (Input.GetKeyDown(KeyCode.R))
+            {
+                director.ResetEncounter();
+                Debug.Log("[Sango.M2E] hotkey R -> reset");
+            }
+            for (int i = 0; i < k_PatternOptions.Length; i++)
+            {
+                if (Input.GetKeyDown((KeyCode)((int)KeyCode.Alpha1 + i)))
+                {
+                    var type = (EncounterType)i;
+                    director.ApplyPattern(type);
+                    Debug.Log($"[Sango.M2E] hotkey {(i + 1)} -> pattern {type}");
+                }
+            }
+            if (Input.GetKeyDown(KeyCode.X))
+            {
+                director.CycleTimeScale();
+                Debug.Log($"[Sango.M2E] hotkey X -> timescale x{director.TimeScale:0}");
+            }
         }
 
         void MirrorState()

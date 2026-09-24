@@ -211,7 +211,11 @@ namespace Sango.Editor
             weather.sunLight = light;
             weather.applyEveryFrame = true;
             var guiGo = new GameObject("Weather GUI", typeof(WeatherGUI));
-            guiGo.GetComponent<WeatherGUI>().controller = weather;
+            var gui = guiGo.GetComponent<WeatherGUI>();
+            gui.controller = weather;
+            // M2-E：关数字键 0-9（直设蒲福级）——同屏 EncounterPanel 用 1/2/3 选模式，避免一键双义；
+            // T/F 时刻/雾距预设保留给天气侧。M1 场景默认档不变（digitHotkeysEnabled = true）。
+            gui.digitHotkeysEnabled = false;
 
             // e. 两艘编目船：own = Medium liner / target = Large cargo（spec Implementation Decisions）。
             //    初始位姿 = 对遇模式生成几何（EncounterDirector.Awake 会重摆，此处给场景一个合理默认态）。

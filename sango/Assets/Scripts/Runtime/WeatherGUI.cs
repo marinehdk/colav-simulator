@@ -18,6 +18,9 @@ namespace Sango
         [Tooltip("拖 WeatherController 引用；留空则取同对象上的组件")]
         public WeatherController controller;
 
+        [Tooltip("数字键 0-9 直设蒲福级（M1 场景默认开）。M2-E 遭遇场景同屏挂 EncounterPanel（1/2/3 选模式），由该场景 bootstrapper 关闭数字档避免一键双义；T/F 时刻/雾距预设不受影响。")]
+        public bool digitHotkeysEnabled = true;
+
         Text _windReadout;
         Text _beaufortValue, _windDirValue, _timeValue, _cloudValue, _fogValue;
         Font _font;
@@ -153,17 +156,20 @@ namespace Sango
         void HandleHotkeys()
         {
             if (controller == null) return;
-            for (int k = 0; k <= 9; k++)
+            if (digitHotkeysEnabled) // M2-E：遭遇场景关数字档（1/2/3 归 EncounterPanel 选模式）
             {
-                if (Input.GetKeyDown((KeyCode)((int)KeyCode.Alpha0 + k)))
+                for (int k = 0; k <= 9; k++)
                 {
-                    controller.beaufort = k;
-                    // 文档默认分配（beaufort-water-mapping.md）：B0-1 Calm、B2-4 Moderate、B5-7 Rough、B8-11 VeryRough
-                    controller.spectrumTier = k <= 1 ? JsPmTier.Calm : k <= 4 ? JsPmTier.Moderate
-                                            : k <= 7 ? JsPmTier.Rough : JsPmTier.VeryRough;
-                    controller.Apply();
-                    RefreshReadout();
-                    Debug.Log($"[Sango.M1] hotkey beaufort=B{k} tier={controller.TierName()}");
+                    if (Input.GetKeyDown((KeyCode)((int)KeyCode.Alpha0 + k)))
+                    {
+                        controller.beaufort = k;
+                        // 文档默认分配（beaufort-water-mapping.md）：B0-1 Calm、B2-4 Moderate、B5-7 Rough、B8-11 VeryRough
+                        controller.spectrumTier = k <= 1 ? JsPmTier.Calm : k <= 4 ? JsPmTier.Moderate
+                                                : k <= 7 ? JsPmTier.Rough : JsPmTier.VeryRough;
+                        controller.Apply();
+                        RefreshReadout();
+                        Debug.Log($"[Sango.M1] hotkey beaufort=B{k} tier={controller.TierName()}");
+                    }
                 }
             }
             if (Input.GetKeyDown(KeyCode.T))
