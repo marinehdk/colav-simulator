@@ -50,16 +50,34 @@ namespace Sango
         /// </summary>
         public static NavigationLightLayout DeriveAnchors(Bounds hullBounds)
         {
+            return DeriveAnchors(hullBounds, 0f);
+        }
+
+        /// <summary>
+        /// 带艏向修正的锚点推导。bowYawDeg = 编目 prefab 根上烘焙的"原生艏向 → +Z"根 yaw
+        /// （VesselAssetPipeline：root.localRotation = Euler(0, bowYawDeg, 0)，模型子节点保持原生轴）。
+        /// 锚点先按艏 +Z 舷框架计算，再映射回根局部（原生）空间：native = R(−bowYawDeg)·(bowFrame − center)
+        /// + center（由 root 旋转 R(yaw)·native = corrected 反解）。编目 yaw 仅 0/180，
+        /// 180° 下 AABB 对中心旋转不变 → 映射精确；未来引入非 90° 倍数 yaw 需改用 OBB 推导。
+        /// </summary>
+        public static NavigationLightLayout DeriveAnchors(Bounds hullBounds, float bowYawDeg)
+        {
             var c = hullBounds.center;
             var e = hullBounds.extents;
             float deckY = c.y + k_SidelightHeightFrac * e.y;
+            float rad = -bowYawDeg * Mathf.Deg2Rad; // native = R(−yaw)·corrected（Unity yaw：x' = x cosθ + z sinθ, z' = −x sinθ + z cosθ）
+            float cos = Mathf.Cos(rad), sin = Mathf.Sin(rad);
+            Vector3 ToNative(Vector3 p)
+            {
+                var d = p - c;
+                return c + new Vector3(cos * d.x + sin * d.z, d.y, -sin * d.x + cos * d.z);
+            }
             return new NavigationLightLayout
             {
-                PortSidelight = new Vector3(c.x - e.x, deckY, c.z + k_SidelightForwardFrac * e.z),
-                StarboardSidelight = new Vector3(c.x + e.x, deckY, c.z + k_SidelightForwardFrac * e.z),
-                Masthead = new Vector3(c.x, c.y + e.y, c.z + k_MastheadForwardFrac * e.z),
-                SternLight = new Vector3(c.x, c.y + k_SternHeightFrac * e.y, c.z - e.z),
+                PortSidelight = ToNative(new Vector3(c.x - e.x, deckY, c.z + k_SidelightForwardFrac * e.z)),
+                StarboardSidelight = ToNative(new Vector3(c.x + e.x, deckY, c.z + k_SidelightForwardFrac * e.z)),
+                Masthead = ToNative(new Vector3(c.x, c.y + e.y, c.z + k_MastheadForwardFrac * e.z)),
+                SternLight = ToNative(new Vector3(c.x, c.y + k_SternHeightFrac * e.y, c.z - e.z)),
             };
-        }
-    }
+        }    }
 }

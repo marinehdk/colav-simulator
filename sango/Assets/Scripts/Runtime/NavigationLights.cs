@@ -17,6 +17,9 @@ namespace Sango
         [Tooltip("时刻真值源（场景构建器注入；空则恒灭并告警一次）。")]
         public WeatherController weather;
 
+        [Tooltip("编目 prefab 根烘焙的艏向修正 yaw（原生艏 → +Z；Medium=180 其余 0）。根局部空间是原生轴，锚点推导需此值映射，否则 −Z 原生艏的船会被静默镜像。")]
+        public float bowYawDeg = 0f;
+
         [Header("Night-tuned params (recorded in evidence m2d-build-log.md)")]
         [Tooltip("舷灯/艉灯点光范围 m（场景尺度：数十米）。")]
         public float sidelightRangeM = 50f;
@@ -128,7 +131,7 @@ namespace Sango
                 return;
             }
 
-            var layout = NavigationLightsCore.DeriveAnchors(bounds);
+            var layout = NavigationLightsCore.DeriveAnchors(bounds, bowYawDeg);
             float loa = bounds.size.z; // 艏向 +Z：LOA = 包围盒 z 边
             float lampSize = Mathf.Max(0.15f, loa * lampSizeFractionOfLoa);
 
@@ -170,7 +173,7 @@ namespace Sango
             BuildLamp("Masthead", layout.Masthead, new Color(1f, 0.98f, 0.92f), lampSize, mastheadRangeM, mastheadIntensityLm);
             BuildLamp("SternLight", layout.SternLight, new Color(1f, 0.98f, 0.92f), lampSize, sidelightRangeM, sternIntensityLm);
 
-            Debug.Log($"{k_LogTag} {name}: rig built loa={loa:F1}m lamp={lampSize:F2}m streak={streakLength:F1}x{streakWidth:F1}m " +
+            Debug.Log($"{k_LogTag} {name}: rig built bowYaw={bowYawDeg:0}° loa={loa:F1}m lamp={lampSize:F2}m streak={streakLength:F1}x{streakWidth:F1}m " +
                       $"port={layout.PortSidelight} stbd={layout.StarboardSidelight} mast={layout.Masthead} stern={layout.SternLight}", this);
         }
 

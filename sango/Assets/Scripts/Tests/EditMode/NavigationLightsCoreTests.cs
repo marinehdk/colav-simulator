@@ -145,5 +145,61 @@ namespace Sango.Tests
             Assert.That(stubby.StarboardSidelight.x, Is.GreaterThan(0f));
             Assert.That(stubby.SternLight.z, Is.LessThan(stubby.Masthead.z));
         }
+
+        // ── 缝 b 扩展（M2-D 验收 P2）：−Z 原生艏（bowYawDeg=180 根烘焙）不得静默镜像 ──
+        // 编目 prefab 的艏向修正烘焙在根 localRotation 上，模型子节点保持原生轴
+        // （VesselAssetPipeline：root.rotation = Euler(0, bowYawDeg, 0)；VesselMedium = 180°）。
+        // 锚点在根局部（原生）空间产出时必须补偿：艏框架锚点绕包围盒中心旋 −(−yaw)…
+        // 即 native = R(−bowYawDeg)·bowFrame。worked example：对称例 A + yaw 180，
+        // 手算 = 艏框架锚点对中心 (0,·,0) 的 (x,z) 双取反：port(5,7.5,−9) stbd(−5,7.5,−9)
+        // mast(0,10,−12) stern(0,7.5,30)。
+
+        [Test]
+        public void DeriveAnchors_WithBowYaw180_MapsAnchorsToNativeSpace()
+        {
+            var l = NavigationLightsCore.DeriveAnchors(ExampleA(), 180f);
+            // 逐分量标量断言（Vector3 Within 走精确比较，见前）。
+            Assert.That(l.PortSidelight.x, Is.EqualTo(5f).Within(k_Tol), "180: bow-frame port(-X) lands on native +X (vessel port when bow = -Z)");
+            Assert.That(l.PortSidelight.y, Is.EqualTo(7.5f).Within(k_Tol));
+            Assert.That(l.PortSidelight.z, Is.EqualTo(-9f).Within(k_Tol), "forward station must map toward native bow (-Z)");
+            Assert.That(l.StarboardSidelight.x, Is.EqualTo(-5f).Within(k_Tol));
+            Assert.That(l.StarboardSidelight.z, Is.EqualTo(-9f).Within(k_Tol));
+            Assert.That(l.Masthead.x, Is.EqualTo(0f).Within(k_Tol), "centerline stays centerline under yaw");
+            Assert.That(l.Masthead.y, Is.EqualTo(10f).Within(k_Tol), "height untouched by yaw");
+            Assert.That(l.Masthead.z, Is.EqualTo(-12f).Within(k_Tol), "masthead maps toward native bow (-Z)");
+            Assert.That(l.SternLight.z, Is.EqualTo(30f).Within(k_Tol), "stern maps to native +Z (visual stern)");
+        }
+
+        [Test]
+        public void DeriveAnchors_WithBowYaw180_KeepsVesselSideAndForeAftFacts()
+        {
+            // 船体归性（以渲染出的船为准，bow = 原生 −Z）：船右舷 = 原生 −X、船左舷 = 原生 +X；
+            // 艏灯位在原生 −Z 半段、艉灯位在原生 +Z 半段。
+            var l = NavigationLightsCore.DeriveAnchors(ExampleA(), 180f);
+            Assert.That(l.PortSidelight.x, Is.GreaterThan(0f), "port (RED) on vessel port = native +X");
+            Assert.That(l.StarboardSidelight.x, Is.LessThan(0f), "starboard (GREEN) on vessel starboard = native -X");
+            Assert.That(l.Masthead.z, Is.LessThan(0f), "masthead on the bow half (native -Z)");
+            Assert.That(l.SternLight.z, Is.GreaterThan(l.Masthead.z), "stern aft of masthead in vessel terms");
+            Assert.That(Mathf.Abs(l.PortSidelight.x), Is.EqualTo(Mathf.Abs(l.StarboardSidelight.x)).Within(k_Tol), "sidelights mirror");
+            Assert.That(l.PortSidelight.z, Is.EqualTo(l.StarboardSidelight.z).Within(k_Tol), "sidelights share station");
+        }
+
+        [Test]
+        public void DeriveAnchors_WithBowYaw180_OffCenterBounds_RotatesAboutCenter()
+        {
+            // 非对称例 B center(2,3,−4) + yaw 180：绕中心旋转（非绕原点）——
+            // 艏框架 port(−2,4.5,2) → native (6,4.5,−10)；mast (2,6,4) → (2,6,−12)；
+            // stern (2,4.5,−24) → (2,4.5,16)。钉死"绕包围盒中心"而非绕世界原点。
+            var l = NavigationLightsCore.DeriveAnchors(ExampleB(), 180f);
+            Assert.That(l.PortSidelight.x, Is.EqualTo(6f).Within(k_Tol));
+            Assert.That(l.PortSidelight.y, Is.EqualTo(4.5f).Within(k_Tol));
+            Assert.That(l.PortSidelight.z, Is.EqualTo(-10f).Within(k_Tol));
+            Assert.That(l.StarboardSidelight.x, Is.EqualTo(-2f).Within(k_Tol));
+            Assert.That(l.StarboardSidelight.z, Is.EqualTo(-10f).Within(k_Tol));
+            Assert.That(l.Masthead.x, Is.EqualTo(2f).Within(k_Tol));
+            Assert.That(l.Masthead.z, Is.EqualTo(-12f).Within(k_Tol));
+            Assert.That(l.SternLight.x, Is.EqualTo(2f).Within(k_Tol));
+            Assert.That(l.SternLight.z, Is.EqualTo(16f).Within(k_Tol));
+        }
     }
 }

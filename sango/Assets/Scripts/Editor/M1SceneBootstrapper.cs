@@ -57,6 +57,15 @@ namespace Sango.Editor
 
         static Material TintedLit(Color c) => new Material(Shader.Find("HDRP/Lit")) { color = c };
 
+        // M2-D 航行灯接线：bowYawDeg 由调用方按 pipeline k_Specs 字面量传入（见 BuildScene 注释）。
+        static void AttachNavigationLights(GameObject ship, VesselClass vesselClass, float bowYawDeg, WeatherController weather)
+        {
+            if (ship == null) return;
+            var nav = ship.AddComponent<NavigationLights>();
+            nav.weather = weather;
+            nav.bowYawDeg = bowYawDeg;
+        }
+
         static VolumeProfile CreateVolumeProfileAsset()
         {
             // 幂等：旧 profile 资产先删再建（M1 用独立资产，不与 M0 共用：M0 重跑会整建删重建其资产）
@@ -201,11 +210,11 @@ namespace Sango.Editor
 
             // M2-D 航行灯（spec #83）：两船各挂 NavigationLights，时刻真值注入 WeatherController。
             // 明灭随既有 T 循环/时刻滑条（纯阈值 NavigationLightsCore.IsLightsOn），无新键位。
-            foreach (var ship in new[] { small, medium })
-            {
-                if (ship == null) continue;
-                ship.AddComponent<NavigationLights>().weather = weather;
-            }
+            // bowYawDeg 与 VesselAssetPipeline.k_Specs 字面量同步（编目资产未持久化该列，Medium 根烘焙
+            // 180°）：根局部空间是原生轴，锚点推导必须按它映射回原生轴，否则 −Z 原生艏的 Medium
+            // 艏艉/左右静默镜像（M2-D 验收 P2 实锤）。
+            AttachNavigationLights(small, VesselClass.Small, 0f, weather);
+            AttachNavigationLights(medium, VesselClass.Medium, 180f, weather);
             Debug.Log("[Sango.M1] M2-D navigation lights wired on both ships (on/off follows time-of-day; port RED / starboard GREEN / white masthead + stern)");
 
             // g. 相机：桥楼高度视角 (0,12,-40) 望岛群
