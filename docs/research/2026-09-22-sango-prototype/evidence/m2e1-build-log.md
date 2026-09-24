@@ -113,3 +113,27 @@
 - **面板（右上角）**：模式 dropdown 三项（切换即重摆+清轨迹）、Start⇄Pause（完局后再按=重跑）、×1/×2/×4 循环、Reset、仿真时钟读数 `t = N s (paused)`；**键盘为正式操作输入**：`Space` start/pause、`R` reset、`1/2/3` 选模式、`X` 倍率；天气侧 `T/F` 仍有效，遭遇场景数字键归模式选择（蒲福数字档已关），遭遇船不响应 G。键鼠状态经镜像恒同步。
 - **标签/比例尺**：各轨迹起点 "Start OWN / Start TARGET"、终点 "WP OWN / WP TARGET"（色随船、平铺水面、向东北偏 30 m 不压轨迹）；画面南缘白色 50 m 比例尺线 + "50 m" 标签。俯视正交相机北向上（模式切换自动缩放视野 520/520/720 m）。
 - **健康线**：暂停时船随浪起伏（浮力照常）、×4 下轨迹拉伸速率 ×4；天气面板（左上）仍可调风浪。
+
+## Orchestrator visual acceptance (2026-09-24)
+
+- First acceptance attempt was BLOCKED at the controls: CUA mouse clicks
+  cannot drive UGUI buttons on this machine (coordinates ignored, events land
+  at the physical cursor — re-confirmed; keyboard is the only reliable
+  programmatic input). Fixed by the hotkey round (abb92476): Space/R/1-2-3/X
+  on the panel, weather digit hotkeys gated off in this scene
+  (digitHotkeysEnabled=0), dropdown overlap fixed.
+- Driven run on M2E-Standalone (windowed 1600x900), ×4 time scale:
+  - `m2e1-initial-topdown.jpg` — north-up top-down orthographic, two ships at
+    spawns with correct rendered headings (placement fix visible: liner bow
+    north), ENCOUNTER panel (pattern row + own-row description + Start/×1/Reset),
+    weather panel, 50 m scale bar, deep-blue no-island sea.
+  - `m2e1-headon-converging.jpg` / `m2e1-headon-passed-paused.jpg` — amber
+    (cargo) and cyan (liner) tracks with evenly spaced time balls; right-hand
+    lanes → port-to-port pass; Space pause freezes mid-run, ships still bob
+    (buoyancy), Start label restored while paused.
+  - `m2e1-crossing.jpg` — cargo entering from east heading west, liner
+    northbound: target on own starboard hand (rule-15 picture).
+  - `m2e1-overtaking.jpg` — cargo ahead slower, liner overtaking from astern,
+    both heading north (rule-13 picture).
+- Verdict: PASS (all three patterns, tracks/balls/labels/scale-bar/panel
+  controls verified).
