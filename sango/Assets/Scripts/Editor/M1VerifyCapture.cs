@@ -281,6 +281,23 @@ namespace Sango.Editor
                       $"size={report.summary.totalSize / (1024 * 1024)}MB out={report.summary.outputPath}");
         }
 
+        // M2-E1：遭遇场景独立播放器（单场景构建，scene 0 = M2E-Encounter）。与 M1 分开成 app：
+        // M1 播放器流程（scene 0 = M1-Weather，历批验收路径）保持不变；M2-E 验收（orchestrator
+        // 驱动）跑本 app——面板选模式 → Start → 会遇 → 轨迹/时间球/标签/比例尺 → Pause/2×。
+        [MenuItem("Sango/M2/Build Encounter Standalone Player (Mono)")]
+        public static void BuildEncounterStandalonePlayer()
+        {
+            PlayerSettings.SetScriptingBackend(NamedBuildTarget.Standalone, ScriptingImplementation.Mono2x);
+            PlayerSettings.runInBackground = true;
+            var report = BuildPipeline.BuildPlayer(
+                new[] { "Assets/Scenes/M2E-Encounter.unity" },
+                "Builds/M2E-Standalone.app",
+                BuildTarget.StandaloneOSX,
+                BuildOptions.None);
+            Debug.Log($"[Sango.M2E] player build: {report.summary.result} " +
+                      $"size={report.summary.totalSize / (1024 * 1024)}MB out={report.summary.outputPath}");
+        }
+
         // ── 通用 ────────────────────────────────────────────────────────────────────────
 
         static string MiniJson(Dictionary<string, object> dict)

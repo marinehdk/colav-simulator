@@ -38,7 +38,11 @@ namespace Sango.Editor
         // M2-A：从编目实例化一艘船到指定平面位置/航向，y 用编目水线偏移（约 15% 船体高没入水下）。
         // M2-B：挂 VesselBuoyancy 并注入 Water Surface（heave/roll/pitch 由求解器驱动，x/z/yaw 仍归放置脚本）。
         // M2-C：x/z/yaw 的所有权移交 WaypointFollower（合成契约的另一半）。
-        static GameObject PlaceCatalogShip(VesselCatalog catalog, VesselClass vesselClass, Vector2 xz, float headingDeg, Transform parent, WaterSurface waterSurface)
+        // M2-E1（spec #84 授权的放置层修复）：组合烘焙艏向——root.rotation = Euler(0,heading,0)·Euler(0,bowYaw,0)。
+        // 此前的绝对赋值把 prefab 根上"原生艏→+Z"的烘焙覆盖掉，Medium（bowYaw 180°）以"艉朝 heading"
+        // 渲染（视觉艏 = heading+180°，M2-D 验收遗留）。组合后渲染艏 = heading，对全部编目档位成立。
+        // public static：M2ESceneBootstrapper 复用同一放置路径（单一修复点）。
+        public static GameObject PlaceCatalogShip(VesselCatalog catalog, VesselClass vesselClass, Vector2 xz, float headingDeg, Transform parent, WaterSurface waterSurface)
         {
             var entry = catalog.GetEntry(vesselClass);
             if (entry?.prefab == null)
@@ -49,7 +53,16 @@ namespace Sango.Editor
             var ship = (GameObject)PrefabUtility.InstantiatePrefab(entry.prefab);
             ship.transform.SetParent(parent, true);
             ship.transform.position = new Vector3(xz.x, entry.waterlineOffsetY, xz.y);
-            ship.transform.rotation = Quaternion.Euler(0f, headingDeg, 0f);
+            float bowYawDeg = VesselAssetPipeline.BowYawDeg(vesselClass);
+            ship.transform.rotation = Quaternion.Euler(0f, headingDeg, 0f) * Quaternion.Euler(0f, bowYawDeg, 0f);
+            // 放置自证（batchmode 日志取证）：渲染艏（世界）= rotation·原生艏向量，必须等于 heading 方向。
+            // 原生艏向量 = (0,0,cos bowYaw)（编目 yaw 仅 0/180：0→+Z、180→−Z，见 VesselAssetPipeline.k_Specs）。
+            var nativeBow = new Vector3(0f, 0f, Mathf.Cos(bowYawDeg * Mathf.Deg2Rad));
+            var renderedBow = ship.transform.rotation * nativeBow;
+            float rad = headingDeg * Mathf.Deg2Rad;
+            Debug.Log($"[Sango.M1] placed {vesselClass} @ ({xz.x:F0},{xz.y:F0}) heading {headingDeg:0}° + bowYaw {bowYawDeg:0}° " +
+                      $"-> root eulerY {Mathf.Repeat(headingDeg + bowYawDeg, 360f):0}°, rendered bow ({renderedBow.x:F2},0,{renderedBow.z:F2}) " +
+                      $"expect heading dir ({Mathf.Sin(rad):F2},0,{Mathf.Cos(rad):F2})");
             var buoyancy = ship.AddComponent<VesselBuoyancy>();
             buoyancy.waterSurface = waterSurface;
             return ship;
@@ -66,12 +79,16 @@ namespace Sango.Editor
             nav.bowYawDeg = VesselAssetPipeline.BowYawDeg(vesselClass);
         }
 
-        static VolumeProfile CreateVolumeProfileAsset()
+        static VolumeProfile CreateVolumeProfileAsset() => CreateVolumeProfileAsset(k_ProfileAsset);
+
+        // M2-E1：路径参数化。遭遇场景必须用独立 profile 资产——本构建器对 M1 profile 是
+        // "先删后建"（GUID 会变），共享路径会让遭遇场景的引用在 M1 重建后静默失效。
+        public static VolumeProfile CreateVolumeProfileAsset(string profileAsset)
         {
             // 幂等：旧 profile 资产先删再建（M1 用独立资产，不与 M0 共用：M0 重跑会整建删重建其资产）
-            if (AssetDatabase.LoadAssetAtPath<VolumeProfile>(k_ProfileAsset) != null)
+            if (AssetDatabase.LoadAssetAtPath<VolumeProfile>(profileAsset) != null)
             {
-                AssetDatabase.DeleteAsset(k_ProfileAsset);
+                AssetDatabase.DeleteAsset(profileAsset);
             }
             if (!AssetDatabase.IsValidFolder(k_ProfileDir))
             {
@@ -79,7 +96,7 @@ namespace Sango.Editor
             }
 
             var profile = ScriptableObject.CreateInstance(typeof(VolumeProfile)) as VolumeProfile;
-            AssetDatabase.CreateAsset(profile, k_ProfileAsset);
+            AssetDatabase.CreateAsset(profile, profileAsset);
 
             // VisualEnvironment + Physical Sky：同 M0（SkyManager 按 skyType 取天空，PBS 太阳由场景方向光驱动）。
             // https://docs.unity3d.com/Packages/com.unity.render-pipelines.high-definition@17.3/api/UnityEngine.Rendering.HighDefinition.PhysicallyBasedSky.html
