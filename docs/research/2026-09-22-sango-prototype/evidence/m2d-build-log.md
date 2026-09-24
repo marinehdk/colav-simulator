@@ -99,3 +99,28 @@
 - 夜景（T 循环第 3 档 h=0）：两船 port 红 / starboard 绿 / 白桅灯（艏部上方）/ 白艉灯，灯下水面有色拖尾拉向观者；Medium（135 m）灯组可辨。
 - 昼景（h=12）：零光晕（rig 整树关闭）；T 循环切换 h=12→17.5→0 时 17.5 仍灭灯、0 亮灯（`[Sango.M2D] ... ON at h=0.0` 日志行可核对）。
 - 拖尾应从船体向相机一侧延伸并随艏向/浮力姿态跟随；站桥楼机位 (0,12,−40) 小渔船拖尾最明显（G 航行中应随船移动）。
+
+## Orchestrator visual acceptance (2026-09-24)
+
+- First acceptance PASS with one P2: night/B0 shots showed correct lights on
+  the Small (+Z-native), but the Medium liner's masthead read aft-of-center and
+  the red sidelight showed on the viewer-visible side — suspected −Z-native
+  mirror. Confirmed numerically by the implementer (masthead local z +4.26 =
+  native stern; red on vessel starboard) and fixed in 1a17748d
+  (DeriveAnchors maps bow-frame → native via catalog bowYawDeg; 3 new 180°
+  tests, 58/58).
+- Post-fix re-acceptance (`m2d-night-b0-after-fix.jpg`, midnight + B0 calm):
+  - Small: port red / starboard green / white masthead + stern, textbook
+    pattern; red/green/white reflection streaks on mirror water.
+  - Medium: masthead now forward-of-center on the foremast, white stern light
+    at the aft extreme, green sidelight on the visible starboard side (port
+    correctly facing away), streaks under the ship.
+  - Day (h=12): zero glow (`m2d-day-noon.jpg`, earlier frames too).
+  - B6 night variant (`m2d-night-b6.jpg`): lamps visible, streaks broken by
+    waves — consistent with the fallback design.
+- Placement-layer caveat for M2-E (documented, unfixed here): PlaceCatalogShip
+  assigns absolute rotation, dropping the baked 180° — the liner renders
+  stern-toward-heading (visual bow = heading+180°). Heading-consuming code
+  (encounter scripts, M2-E) must account for the offset or the placement layer
+  gets fixed with a pipelineVersion bump.
+- Verdict: PASS.
