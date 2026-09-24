@@ -16,12 +16,13 @@ namespace Sango.Tests
         const string k_CatalogPath = "Assets/Art/KenneyWatercraft/VesselCatalog.asset";
         const string k_ColormapPath = "Assets/Art/KenneyWatercraft/Models/Textures/colormap.png";
 
-        // 艏向字面量（艏 → +Z 所需的根 yaw）：ship-large 原生艏 +Z → 0°；
+        // 艏向字面量（艏 → +Z 所需的根 yaw）：ship-cargo-a 原生艏 +Z（龙骨在 +Z 端收成尖点、甲板面 +Z 端收窄）→ 0°；
         // ship-ocean-liner 原生艏 -Z（龙骨点在 -Z 端、+Z 端船底上收=巡洋舰艉）→ 180°；
         // boat-fishing-small 原生艏 +Z（龙骨在 +Z 端收成尖点、艏驾驶台）→ 0°。
+        // 字面量与几何的耦合由 Catalog_TaperTowardPinnedBow_IsStrictlyFiner_ThanStern 用流水线实测宽度把关。
         static readonly TestCaseData[] k_ClassExpectations =
         {
-            new TestCaseData(VesselClass.Large, 100f, 0f).SetName("Large (ship-large, LOA 100 m, yaw 0)"),
+            new TestCaseData(VesselClass.Large, 100f, 0f).SetName("Large (ship-cargo-a, LOA 100 m, yaw 0)"),
             new TestCaseData(VesselClass.Medium, 60f, 180f).SetName("Medium (ship-ocean-liner, LOA 60 m, yaw 180)"),
             new TestCaseData(VesselClass.Small, 12f, 0f).SetName("Small (boat-fishing-small, LOA 12 m, yaw 0)"),
         };
@@ -131,6 +132,22 @@ namespace Sango.Tests
                 $"{vesselClass}: catalog LOA {entry.loaMeters} outside ±10% of {targetLoa}");
             Assert.That(entry.waterlineOffsetY, Is.LessThan(0f),
                 $"{vesselClass}: waterline offset must submerge (negative), got {entry.waterlineOffsetY}");
+        }
+
+        /// <summary>
+        /// 艏向 pin 的几何把关（反翻转）：流水线建 prefab 时实测的 ±Z 两端近端 hull 宽度随编目持久化，
+        /// "被 pinned yaw 转到 +Z 的那一端"必须严格更细（艏尖艉肥）。若有人翻转 yaw pin 而几何不变，
+        /// 艏/艉端宽度对调，本测试即红——期望值来自网格测量而非 yaw 字面量回声。
+        /// </summary>
+        [Test, TestCaseSource(nameof(k_ClassExpectations))]
+        public void Catalog_TaperTowardPinnedBow_IsStrictlyFiner_ThanStern(VesselClass vesselClass, float targetLoa, float bowYawDeg)
+        {
+            var entry = LoadCatalog().GetEntry(vesselClass);
+            Assert.That(entry.bowEndWidth, Is.GreaterThan(0f), $"{vesselClass}: bow end width not measured");
+            Assert.That(entry.sternEndWidth, Is.GreaterThan(0f), $"{vesselClass}: stern end width not measured");
+            Assert.That(entry.bowEndWidth, Is.LessThan(entry.sternEndWidth),
+                $"{vesselClass}: pinned yaw {bowYawDeg}° contradicts measured taper — " +
+                $"bow end {entry.bowEndWidth:F2} should be finer than stern end {entry.sternEndWidth:F2}");
         }
     }
 }

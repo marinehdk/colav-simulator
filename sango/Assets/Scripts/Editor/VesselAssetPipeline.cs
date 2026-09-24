@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Text;
 using UnityEditor;
 using UnityEngine;
@@ -19,6 +20,10 @@ namespace Sango.Editor
         public const string RootDir = "Assets/Art/KenneyWatercraft";
         public const string CatalogAssetPath = RootDir + "/VesselCatalog.asset";
 
+        // 编目版本戳：换源模型/改归一化规则时 +1；EnsureBuilt 见版本不符即整跑重建
+        // （否则干净克隆之外的场景重建只会零开销跳过）。历史：1=首版(ship-large 大型档)，2=大型档换 ship-cargo-a + 编目持久化艏/艉端细度。
+        const int k_PipelineVersion = 2;
+
         const string k_ModelsDir = RootDir + "/Models";
         const string k_ColormapPath = k_ModelsDir + "/Textures/colormap.png";
         const string k_MaterialsDir = RootDir + "/Materials";
@@ -30,12 +35,15 @@ namespace Sango.Editor
         const float k_TargetLoaMedium = 60f;
         const float k_TargetLoaSmall = 12f;
 
-        // 水线解析规则：吃水 = 15% × 船体主甲板高。主甲板高按 OBJ 顶点逐层分析取
-        // “船壳侧板顶”高度，再除以模型总高存成比例常量（与导入单位无关）：
-        //   ship-large         甲板 y=2.10  / 总高 9.964 → 0.2108
-        //   ship-ocean-liner   主甲板 y=3.04 / 总高 8.934 → 0.3403
-        //   boat-fishing-small 船壳顶 y=0.70 / 总高 2.600 → 0.2692
-        struct Spec
+        // 水线解析规则：吃水 = 15% × 船体主甲板高（spec #80 "submerge ~15% of hull height below y=0"）
+        const float k_DraftFraction = 0.15f;
+
+        // 每型船的归一化规格。主甲板高按 OBJ 顶点逐层分析取“船壳侧板顶/主甲板边”高度，
+        // 再除以模型总高存成比例常量（与导入单位无关）：
+        //   ship-cargo-a       主甲板 y=0.966 / 总高 3.380 → 0.2858（2026-09-24 review 换入，替 tall-ship ship-large）
+        //   ship-ocean-liner   主甲板 y=3.040 / 总高 8.934 → 0.3403
+        //   boat-fishing-small 船壳顶 y=0.700 / 总高 2.600 → 0.2692
+        struct VesselBuildSpec
         {
             public VesselClass vesselClass;
             public string model;             // FBX 文件名（不含扩展名）
@@ -45,19 +53,19 @@ namespace Sango.Editor
             public float hullHeightFraction; // 主甲板高 / 模型总高（见上表）
         }
 
-        static readonly Spec[] k_Specs =
+        static readonly VesselBuildSpec[] k_Specs =
         {
-            new Spec
+            new VesselBuildSpec
             {
-                vesselClass = VesselClass.Large, model = "ship-large", prefabName = "VesselLarge",
-                targetLoa = k_TargetLoaLarge, bowYawDeg = 0f, hullHeightFraction = 2.1f / 9.964f,
+                vesselClass = VesselClass.Large, model = "ship-cargo-a", prefabName = "VesselLarge",
+                targetLoa = k_TargetLoaLarge, bowYawDeg = 0f, hullHeightFraction = 0.966f / 3.380f,
             },
-            new Spec
+            new VesselBuildSpec
             {
                 vesselClass = VesselClass.Medium, model = "ship-ocean-liner", prefabName = "VesselMedium",
                 targetLoa = k_TargetLoaMedium, bowYawDeg = 180f, hullHeightFraction = 3.04f / 8.934f,
             },
-            new Spec
+            new VesselBuildSpec
             {
                 vesselClass = VesselClass.Small, model = "boat-fishing-small", prefabName = "VesselSmall",
                 targetLoa = k_TargetLoaSmall, bowYawDeg = 0f, hullHeightFraction = 0.7f / 2.6f,
@@ -70,11 +78,13 @@ namespace Sango.Editor
             BuildAllInternal();
         }
 
-        /// <summary>干净克隆一键重建前置检查：编目 + 三 prefab 齐全则跳过，否则整跑流水线。</summary>
+        /// <summary>
+        /// 干净克隆一键重建前置检查：编目存在、版本戳相符且三 prefab 齐全则跳过，否则整跑流水线。
+        /// </summary>
         public static void EnsureBuilt()
         {
             var catalog = AssetDatabase.LoadAssetAtPath<VesselCatalog>(CatalogAssetPath);
-            if (catalog != null)
+            if (catalog != null && catalog.pipelineVersion == k_PipelineVersion)
             {
                 var complete = true;
                 foreach (var spec in k_Specs)
@@ -111,12 +121,13 @@ namespace Sango.Editor
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
 
-            var sb = new StringBuilder("[Sango.M2] vessel assets built:\n");
+            var sb = new StringBuilder($"[Sango.M2] vessel assets built (pipelineVersion {k_PipelineVersion}):\n");
             foreach (var spec in k_Specs)
             {
                 var entry = catalog.GetEntry(spec.vesselClass);
-                sb.AppendFormat("  {0,-7} {1,-20} LOA={2:F1} m (target {3:F0})  waterlineOffsetY={4:F2} m  bowYaw={5}°\n",
-                    spec.vesselClass, spec.model, entry.loaMeters, spec.targetLoa, entry.waterlineOffsetY, spec.bowYawDeg);
+                sb.AppendFormat("  {0,-7} {1,-20} LOA={2:F1} m (target {3:F0})  waterlineOffsetY={4:F2} m  bowYaw={5}°  bowEndW={6:F2} sternEndW={7:F2}\n",
+                    spec.vesselClass, spec.model, entry.loaMeters, spec.targetLoa, entry.waterlineOffsetY,
+                    spec.bowYawDeg, entry.bowEndWidth, entry.sternEndWidth);
             }
             Debug.Log(sb.ToString());
         }
@@ -176,6 +187,7 @@ namespace Sango.Editor
                 catalog = ScriptableObject.CreateInstance<VesselCatalog>();
                 AssetDatabase.CreateAsset(catalog, CatalogAssetPath);
             }
+            catalog.pipelineVersion = k_PipelineVersion;
             catalog.entries = new VesselCatalog.Entry[k_Specs.Length];
 
             for (int i = 0; i < k_Specs.Length; i++)
@@ -192,11 +204,17 @@ namespace Sango.Editor
                 // 场景里以恒等姿态实例化，实测世界包围盒（含 FBX 导入自身缩放，单位无关）
                 var instance = (GameObject)PrefabUtility.InstantiatePrefab(source);
                 var bounds = EncapsulatingRendererBounds(instance);
-                LogBowTaperEvidence(spec, instance); // 艏向 Unity 侧证据（窄端=艏）
+                // 艏向几何证据：原生坐标下 ±Z 两端近端宽度，随编目持久化（测试据它反查 pinned yaw 是否与几何一致）
+                var (negEndWidth, posEndWidth) = MeasureEndTaper(instance, out var taperLog);
+                // pinned yaw 把原生哪一端转到 +Z：yaw 0 → +Z 端为艏；yaw 180 → -Z 端为艏
+                bool negEndIsBow = Mathf.Approximately(Mathf.DeltaAngle(spec.bowYawDeg, 180f), 0f);
+                float bowEndWidth = negEndIsBow ? negEndWidth : posEndWidth;
+                float sternEndWidth = negEndIsBow ? posEndWidth : negEndWidth;
+                Debug.Log($"[Sango.M2] bow evidence {spec.model}: {taperLog} native bow {(negEndIsBow ? "-Z" : "+Z")} per pinned yaw {spec.bowYawDeg}°");
 
                 float extent = Mathf.Max(bounds.size.x, bounds.size.z);
                 float scale = spec.targetLoa / extent; // 统一缩放：最大水平边 → 目标 LOA
-                float draft = 0.15f * spec.hullHeightFraction * bounds.size.y * scale;
+                float draft = k_DraftFraction * spec.hullHeightFraction * bounds.size.y * scale;
                 float loa = extent * scale;
 
                 // 根节点：yaw 定艏向 + 统一缩放烘焙；根原点对中船体、吃水沉到根局部 -draft
@@ -228,6 +246,8 @@ namespace Sango.Editor
                     prefab = AssetDatabase.LoadAssetAtPath<GameObject>($"{k_PrefabsDir}/{spec.prefabName}.prefab"),
                     loaMeters = loa,
                     waterlineOffsetY = -draft,
+                    bowEndWidth = bowEndWidth,
+                    sternEndWidth = sternEndWidth,
                 };
             }
 
@@ -243,13 +263,14 @@ namespace Sango.Editor
             return bounds;
         }
 
-        // 艏向 Unity 侧证据：导入后网格按 z 切 10 片统计 x 宽度，窄端应与 k_Specs 艏向字面量一致
-        //（独立于 kit OBJ 分析的交叉验证；两端皆窄的中段结构只影响中段片宽，不影响首末片）。
-        static void LogBowTaperEvidence(Spec spec, GameObject instance)
+        // 艏向几何证据：导入姿态（恒等）下按 z 切 10 片统计 x 宽度，-Z/+Z 两端各取首末两片平均。
+        // 窄端即艏（艏尖艉肥）；中段结构（桅杆/吊杆/舱口缝）只影响中段片宽，不影响首末片。
+        // 返回 (−Z 端宽度, +Z 端宽度)，并产出人类可读日志串。
+        static (float negEndWidth, float posEndWidth) MeasureEndTaper(GameObject instance, out string logLine)
         {
             const int slices = 10;
+            var points = new List<Vector3>();
             float zMin = float.MaxValue, zMax = float.MinValue;
-            var points = new System.Collections.Generic.List<Vector3>();
             foreach (var filter in instance.GetComponentsInChildren<MeshFilter>(true))
             {
                 var mesh = filter.sharedMesh;
@@ -257,32 +278,33 @@ namespace Sango.Editor
                 var l2w = filter.transform.localToWorldMatrix;
                 foreach (var v in mesh.vertices) points.Add(l2w.MultiplyPoint3x4(v));
             }
-            if (points.Count == 0) return;
-            foreach (var p in points)
-            {
-                if (p.z < zMin) zMin = p.z;
-                if (p.z > zMax) zMax = p.z;
-            }
             var sliceWidth = new float[slices];
-            for (int s = 0; s < slices; s++)
+            if (points.Count > 0)
             {
-                float lo = zMin + (zMax - zMin) * s / slices;
-                float hi = zMin + (zMax - zMin) * (s + 1) / slices;
-                float wMin = float.MaxValue, wMax = float.MinValue;
                 foreach (var p in points)
                 {
-                    if (p.z < lo || p.z >= hi) continue;
-                    if (p.x < wMin) wMin = p.x;
-                    if (p.x > wMax) wMax = p.x;
+                    if (p.z < zMin) zMin = p.z;
+                    if (p.z > zMax) zMax = p.z;
                 }
-                sliceWidth[s] = wMax >= wMin ? wMax - wMin : 0f;
+                for (int s = 0; s < slices; s++)
+                {
+                    float lo = zMin + (zMax - zMin) * s / slices;
+                    float hi = zMin + (zMax - zMin) * (s + 1) / slices;
+                    float wMin = float.MaxValue, wMax = float.MinValue;
+                    foreach (var p in points)
+                    {
+                        if (p.z < lo || p.z >= hi) continue;
+                        if (p.x < wMin) wMin = p.x;
+                        if (p.x > wMax) wMax = p.x;
+                    }
+                    sliceWidth[s] = wMax >= wMin ? wMax - wMin : 0f;
+                }
             }
-            // 首末 20% 范围内取平均片宽作两端特征（抗单片空洞）
-            float negEnd = 0f, posEnd = 0f;
-            for (int s = 0; s < 2; s++) negEnd += sliceWidth[s];
-            for (int s = slices - 2; s < slices; s++) posEnd += sliceWidth[s];
-            string bowAt = negEnd < posEnd ? "-Z" : "+Z";
-            Debug.Log($"[Sango.M2] bow evidence {spec.model}: -Z end width {negEnd:F2}, +Z end width {posEnd:F2} → native bow {bowAt}, pinned yaw {spec.bowYawDeg}° maps it to +Z");
+            // 首末各两片取平均，抗单片空洞
+            float negEnd = sliceWidth[0] + sliceWidth[1];
+            float posEnd = sliceWidth[slices - 2] + sliceWidth[slices - 1];
+            logLine = $"-Z end width {negEnd:F2}, +Z end width {posEnd:F2}";
+            return (negEnd, posEnd);
         }
 
         static void EnsureFolder(string parent, string name)

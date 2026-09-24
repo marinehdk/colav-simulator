@@ -38,15 +38,15 @@ namespace Sango.Editor
         // M2-A：从编目实例化一艘船到指定平面位置/航向，y 用编目水线偏移（约 15% 船体高没入水下）。
         static void PlaceCatalogShip(VesselCatalog catalog, VesselClass vesselClass, Vector2 xz, float headingDeg, Transform parent)
         {
-            var prefab = catalog.GetPrefab(vesselClass);
-            if (prefab == null)
+            var entry = catalog.GetEntry(vesselClass);
+            if (entry?.prefab == null)
             {
                 Debug.LogError($"[Sango.M1] no prefab in catalog for {vesselClass}, ship skipped");
                 return;
             }
-            var ship = (GameObject)PrefabUtility.InstantiatePrefab(prefab);
+            var ship = (GameObject)PrefabUtility.InstantiatePrefab(entry.prefab);
             ship.transform.SetParent(parent, true);
-            ship.transform.position = new Vector3(xz.x, catalog.GetEntry(vesselClass).waterlineOffsetY, xz.y);
+            ship.transform.position = new Vector3(xz.x, entry.waterlineOffsetY, xz.y);
             ship.transform.rotation = Quaternion.Euler(0f, headingDeg, 0f);
         }
 
@@ -137,7 +137,7 @@ namespace Sango.Editor
             //    小渔船近桥（原 Ship-0 位 (14,-6)，艏向 20°），邮轮中距 ((30,90)，艏向 -35°)。
             //    泊位复算：seed-42 岛5 中心 (-30.9,51.6) 可视岸线 ~0.8R=61m，旧位 (-30,30) 距岛心仅 22m 搁浅，
             //    新位 (30,90) 距岛5/岛3 可视岸线均 ≥17m（艏艉端投影 ≥15m，PerlinIslandGenerator 确定性复算）。
-            //    ship-large 编目在册但本场景不摆（留给 M2-E 遭遇场景）。
+            //    ship-cargo-a 编目在册但本场景不摆（留给 M2-E 遭遇场景）。
             var catalog = AssetDatabase.LoadAssetAtPath<VesselCatalog>(VesselAssetPipeline.CatalogAssetPath);
             if (catalog == null)
             {

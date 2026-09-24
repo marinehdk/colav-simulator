@@ -33,7 +33,16 @@ namespace Sango
 
             [Tooltip("水线偏移（米，负值）：把 prefab 根放到 y=offset 让约 15% 船体高没入 y=0 水面。")]
             public float waterlineOffsetY;
+
+            [Tooltip("实测艏端细度：模型原生坐标里、被 pinned yaw 映射到 +Z 那一端近端的 hull 宽度（导入尺度）。")]
+            public float bowEndWidth;
+
+            [Tooltip("实测艉端宽度：与 bowEndWidth 同一次测量的对端（艉）。几何上应严格大于 bowEndWidth（艏尖艉肥）。")]
+            public float sternEndWidth;
         }
+
+        [Tooltip("流水线版本戳：Spec 变更（换源模型/改归一化规则）时递增；EnsureBuilt 见版本不符即整跑重建。")]
+        public int pipelineVersion;
 
         [Tooltip("三个尺寸档各一条；由流水线整表重写。")]
         public Entry[] entries = Array.Empty<Entry>();

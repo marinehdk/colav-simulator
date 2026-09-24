@@ -12,16 +12,23 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 71c649598fdb0446ead3ab951ef9b389, type: 3}
   m_Name: VesselCatalog
   m_EditorClassIdentifier: Sango.Vessels::Sango.VesselCatalog
+  pipelineVersion: 2
   entries:
   - vesselClass: 0
     prefab: {fileID: 9163801143775574186, guid: 12f9ec1eab4e5436fa253881312756cf, type: 3}
     loaMeters: 100
-    waterlineOffsetY: -2.4044936
+    waterlineOffsetY: -1.3738428
+    bowEndWidth: 5.311784
+    sternEndWidth: 7.6122684
   - vesselClass: 1
     prefab: {fileID: 4107976017558317156, guid: 434f3755d5b7a456499aeabfe5d297c5, type: 3}
     loaMeters: 60
     waterlineOffsetY: -1.2857398
+    bowEndWidth: 5.7175293
+    sternEndWidth: 6.7546597
   - vesselClass: 2
     prefab: {fileID: 2120040287910415500, guid: e3d87d98346e34c86873ce386fc7a4f9, type: 3}
     loaMeters: 12
     waterlineOffsetY: -0.3255871
+    bowEndWidth: 2.7614818
+    sternEndWidth: 3.5700107
