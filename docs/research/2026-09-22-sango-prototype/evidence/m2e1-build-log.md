@@ -54,7 +54,7 @@
 - **Bootstrapper**（`Sango.Editor.M2ESceneBootstrapper.Build`，幂等）：深蓝开阔水面（Ocean + Script Interactions，**无岛**）+ 独立 `M2E-GlobalVolumeProfile.asset`（不与 M1 共享：M1 重建先删后建换 GUID，共享会静默断引用）+ 方向光 + WeatherController/WeatherGUI（复用，面板左上）+ 两编目船（放置修复路径）+ WaypointFollower×2（**enabled=false**，demoHotkeysEnabled=false）+ EncounterDirector + EncounterPanel（右上角）+ 北向上正交俯视相机（`LookRotation(down, north)`：屏上=北、屏右=东，海图方向）。
 - **EncounterDirector**（纯编排零运动代码）：仿真时钟（累积 `min(Time.deltaTime, 0.1)·timeScale`；暂停/倍速只作用于此时钟，天气/浮力照常）→ `follower.StepOnce(simDt)`；Start/Pause（完局再按=重跑）、×1/×2/×4 循环、Reset；每 tick 追加双船轨迹点（3 m 抽稀）+ 按 TrackClock 对账落时间球（默认 10 s）；模式切换按 `ExtentM` 重设正交视野（520/520/720 m）。
 - **EncounterView**：双轨迹 LineRenderer（own 青 (0.25,0.85,1)、target 琥珀 (1,0.72,0.15)，宽 2.5 m 贴水面 y=0.4）、时间球（直径 7 m 贴水小球、色随船）、Start/WP 标签 ×4（TMP 世界文本，平铺水面字头朝北；偏东北 30 m 防压轨迹）、50 m 比例尺（白线 + "50 m" 标签，视野南缘）。材质 = 运行时 HDRP/Unlit（M2-D 同款，真机已验证路径）。
-- **EncounterPanel**（WeatherGUI idiom：深色半透明 UGUI 运行时构建、legacy Text、零资产依赖、右上角 400 px）：模式 dropdown（3 选项 + 双船 spawn/hdg/speed 描述行）、Start⇄Pause、×1/×2/×4、Reset、仿真时钟读数。**无新键位**（面板按钮驱动；0-9/T/F/G 均未占用）。
+- **EncounterPanel**（WeatherGUI idiom：深色半透明 UGUI 运行时构建、legacy Text、零资产依赖、右上角 400 px）：模式 dropdown（3 选项 + 双船 spawn/hdg/speed 描述行，描述自占一行）、Start⇄Pause、×1/×2/×4、Reset、仿真时钟读数；键盘 Space/R/1-3/X（见验收后修复轮）。
 
 ## TMP Essentials（spec 要求，所需手工步骤 = 零；有实现曲折）
 
@@ -67,17 +67,49 @@
 
 ## 偏离与说明
 
+- spec "at most one new key if genuinely needed" → 落地为四键（Space/R/1-3/X）：编排验收在本机被 CUA 鼠标不可靠卡死后追加（与 M1 天气热键 / M2-C G 键同级的正式演示输入）；冲突以 WeatherGUI 数字档门控收敛（见验收后修复轮）。
 - 任务书说追越"target astern"——按 rule-13 与"target slower / own faster"自洽解读为：**own 自 target 艉后追上**（target 在前、在 own 正前扇区；own 在 target 艉后扇区 >135°）。测试按此钉死（`Overtaking_OwnAsternFasterOnSameGeneralTrack`）。
 - 追越模式无"超车并回"腿（见上节几何表注）：几何上无法 while-keep-safe 并回，时机决策留给 phase 2。终态为双车并行 150 m，非串线排队。
 - 世界标签阅读方向用了 TMP 负缩放镜像技巧（`rotation = Euler(0,180,0)·Euler(−90,0,0)` + `localScale.x = −0.2`，SDF shader Cull Off 安全）——俯视北向上可读。若编排验收发现字面镜像，一行回退：去掉 localScale 的负号（标签变为字头朝南）。
 - 场景重建连带重生 `M1-GlobalVolumeProfile.asset` / 新建 `M2E-GlobalVolumeProfile.asset`（builder 既有幂等行为，与场景同 commit）。
 - `Assets/Resources/PerformanceTestRun*.json` 为 test framework 运行产物，未纳入提交。
 
+## 验收后修复轮（键盘操作 affordance + 面板布局，spec #84 追加）
+
+**背景**：编排方视觉验收被操作输入卡死 —— 本机 CUA 鼠标点击不可靠（UGUI 点击坐标被忽略、事件落在物理光标位置，与 M1 结论同源，当日复核）；键盘（accessibility 注入）是唯一可靠的程序化输入。遭遇面板补齐与 M1 天气热键 / M2-C G 键同级的正式键位。
+
+**键位（EncounterPanel.Update 自持 HandleHotkeys，不经 WeatherGUI）**：
+
+| 键 | 动作 |
+|---|---|
+| `Space` | Start ⇄ Pause（完局后再按 = 重跑） |
+| `R` | Reset（回当前模式初始几何） |
+| `1` / `2` / `3` | 选模式：head-on / crossing / overtaking |
+| `X` | 时间倍率循环 ×1 → ×2 → ×4 |
+
+**键位冲突账本**（同屏 WeatherGUI + EncounterPanel + WaypointFollower）：
+
+- WeatherGUI 数字键 0-9（直设蒲福级）与 1/2/3 一键双义 → 新增 `WeatherGUI.digitHotkeysEnabled`（默认 true，M1 零变更），遭遇场景 bootstrapper 置 false —— 遭遇场景里 1/2/3 唯一归模式选择，0/4-9 空闲；**T/F（时刻/雾距预设）保留给天气侧**。
+- G 为 per-instance 门控（demoHotkeysEnabled），遭遇两船未启用。
+- Space 无主；另有 UI 焦点双触发坑（鼠标点过的按钮持有焦点，StandaloneInputModule 会把 Space/Enter 再派发给它）→ 面板每帧清空 EventSystem 选中，Space 只走面板处理器。
+
+**键鼠状态同步**：键盘与按钮走同一条路（改 director 状态 → 同一 MirrorState 回读）——dropdown 选中项 / Start⇄Pause 标签 / ×N 标签 / 时钟读数恒一致；每次键入都有 `[Sango.M2E] hotkey ...` 日志行（模式切换另打既有 pattern 全行）。
+
+**布局修复（验收截图发现）**：PatternDropdown 建立后 `_cursorY` 未推进，PatternDesc 与下拉框选中项标题同 y 重叠（截图中 "own liner 5 m/s from…" 压在 "head-on (port-to-port)" 上）——描述行自占一行（下移 34+6 px）。面板提示行同步改为键位清单 `Space start/pause · R reset · 1/2/3 pattern · X speed`。
+
+| Gate（修复轮） | Command | Result |
+|---|---|---|
+| EditMode suite | `-testResults /tmp/m2e1-tests-keys.xml`（无 -quit） | exit 0，**82 / 82 / 0**（键位是引擎 Input，非纯缝可测——按约不加测试） |
+| Headless M1 重建 | `M1SceneBootstrapper.Build`（带 -quit） | **exit 0**；放置自证行与上轮逐位一致 |
+| Headless M2E 重建 | `M2ESceneBootstrapper.Build`（带 -quit） | **exit 0**；Weather GUI 序列化 `digitHotkeysEnabled: 0` |
+| Mono player M1 | `BuildStandalonePlayer` | **exit 0** |
+| Mono player M2E | `BuildEncounterStandalonePlayer` | **exit 0** |
+
 ## Orchestrator 视觉验收清单
 
 - **Head-on**：两船从上/下边缘对开，各偏东西 100 m；交汇点在画面中部，各自左舷对对方（左舷对左舷通过），全程间距 ≥200 m；青线（liner，南→北）与琥珀线（cargo，北→南）平行对拉，时间球每 10 s 一颗对称分布。
 - **Crossing**：liner 自南正北直航，cargo 自右侧（东）横越航向正西，横越点在 liner 前方约 350 m；cargo 从 liner 右舷侧驶来（rule-15 形态）；时间球揭示 cargo 更慢（4 vs 5 m/s）。
 - **Overtaking**：双船同向北上；liner（青，6 m/s）自 cargo（琥珀，3 m/s）艉后追上，经东舷 150 m 车道完成动态超越后终点减速；t≈135 s 前后超越瞬间最直观；时间球间距对比呈现速度差。
-- **面板（右上角）**：模式 dropdown 三项（切换即重摆+清轨迹）、Start⇄Pause（完局后再按=重跑）、×1/×2/×4 循环、Reset、仿真时钟读数 `t = N s (paused)`；**键位零新增**（天气面板 0-9/T/F 与 G 均不冲突，遭遇船不响应 G）。
+- **面板（右上角）**：模式 dropdown 三项（切换即重摆+清轨迹）、Start⇄Pause（完局后再按=重跑）、×1/×2/×4 循环、Reset、仿真时钟读数 `t = N s (paused)`；**键盘为正式操作输入**：`Space` start/pause、`R` reset、`1/2/3` 选模式、`X` 倍率；天气侧 `T/F` 仍有效，遭遇场景数字键归模式选择（蒲福数字档已关），遭遇船不响应 G。键鼠状态经镜像恒同步。
 - **标签/比例尺**：各轨迹起点 "Start OWN / Start TARGET"、终点 "WP OWN / WP TARGET"（色随船、平铺水面、向东北偏 30 m 不压轨迹）；画面南缘白色 50 m 比例尺线 + "50 m" 标签。俯视正交相机北向上（模式切换自动缩放视野 520/520/720 m）。
 - **健康线**：暂停时船随浪起伏（浮力照常）、×4 下轨迹拉伸速率 ×4；天气面板（左上）仍可调风浪。
