@@ -89,6 +89,18 @@
 
 **连带发现（不在本批修，移交 M2-E）**：`PlaceCatalogShip` 用 `rotation = Euler(0, heading, 0)` 绝对赋值，会**覆盖** prefab 根烘焙的 180°——场景里的 Medium 实际以"艉朝 heading"渲染（视觉艏向 = heading+180）。M2-C 的合成契约（rotation.y = psi 绝对）同样内含"根局部 = 艏向 +Z"假设。修法属管线/放置层（根烘焙改烘焙进网格，或放置/跟随层复合 yaw），须动 `pipelineVersion`——超出本批"编目与 pipelineVersion 不动"约束。锚点修复后，灯具相对**渲染出的船体**是 COLREGs 正确的（红灯在船左舷、桅灯在视觉艏上方），与演示机位观感一致；遭遇脚本批次取 Medium 朝向时须注意此偏移。
 
+## 清理轮（review PASS 后三项，无行为变更）
+
+1. `AttachNavigationLights` 的 `bowYawDeg` 字面量参数删除——改由新增 `VesselAssetPipeline.BowYawDeg(vesselClass)` 查 k_Specs（字面量唯一公开口，未编入档位返回 0），两处调用点字面量与同步注释随之消失。
+2. `NavigationLights` 补上 weather 缺失的一次性告警（tooltip 既有承诺；OnEnable 重置，昼语义恒灭不变）。
+3. `NavigationLightsCore` 文件尾 `}    }` 括号风格修正；IsLightsOn 补 ±π/2 float 舍入边界注释（~−7e-8，平台钉死由 horizon-boundary 测试）。
+
+| Gate | Command | Result |
+|---|---|---|
+| EditMode suite | `-testResults /tmp/m2d3-tests.xml` | exit 0，**58 total / 58 pass / 0 fail** |
+| Headless scene rebuild | `M1SceneBootstrapper.Build`（带 `-quit`） | **exit 0**；"vessel assets built" 0 次 |
+| Mono player | `M1VerifyCapture.BuildStandalonePlayer` | **exit 0**，182MB |
+
 ## Orchestrator visual acceptance（2026-09-24，核心 PASS + P2 已修待复核）
 
 - **PASS（核心）**：夜景两船灯亮、小渔船颜色正确（B0 午夜放大核实 port 红 左 / starboard 绿 右）、静水面红/绿/白拖尾清晰、昼态零光晕、日志健康；证据已采集。
