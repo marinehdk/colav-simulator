@@ -47,9 +47,21 @@ brighter lights), the probe is kept for re-measurement:
 | Masthead | WHITE (1, 0.98, 0.92) | centerline, hull top, +0.4·half-length | 80 m, 600 lm | same |
 | Stern | WHITE | centerline, deck, aft extreme | 50 m, 200 lm | same |
 
-Anchors come from the pure function `NavigationLightsCore.DeriveAnchors(Bounds)` — no
-per-model hand placement, works for any future catalog entry. Roots of catalog prefabs
-carry a baked non-uniform scale (local units ≠ metres); anything sized in metres must be
-divided by `lossyScale` before use as a local scale (hit twice now — see M2-B evidence).
+Anchors come from the pure function `NavigationLightsCore.DeriveAnchors(Bounds, bowYawDeg)`
+— no per-model hand placement, works for any future catalog entry. **bowYawDeg is the
+bow-orientation yaw baked on the catalog prefab ROOT** (`VesselAssetPipeline.k_Specs`:
+Medium liner = 180°, others 0°; the value is injected by the scene bootstrapper since the
+catalog asset does not persist it). Catalog prefab roots carry the correction as a root
+localRotation while the model child keeps native axes, so anchors computed in root-local
+space must be mapped back with `native = R(−bowYawDeg)·(p − center) + center` — a −Z-native
+bow otherwise silently mirrors fore/aft and swaps port/starboard (hit for real on the
+liner, fixed after visual acceptance). Roots also carry a baked uniform scale (local units
+≠ metres); anything sized in metres must be divided by `lossyScale` before use as a local
+scale (hit twice now — see M2-B evidence).
+
+Known caveat for the encounter batch: `PlaceCatalogShip` assigns the root rotation
+absolutely (heading), which drops the baked 180° — the liner renders stern-toward-heading
+(visual bow = heading + 180°). Lights are placed relative to the vessel as rendered
+(COLREGs-correct), but scripts consuming the liner's heading must account for that offset.
 
 No new controls: on/off follows the existing **T** time-cycle hotkey and the time slider.

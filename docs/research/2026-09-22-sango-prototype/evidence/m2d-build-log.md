@@ -69,7 +69,32 @@
 - 场景 rebuild 连带重生成 M1-GlobalVolumeProfile.asset（builder 既有幂等行为，与场景同 commit）。
 - 无新键位：明灭只随既有 T 循环 / 时刻滑条；`demoHotkeysEnabled` 未触碰。
 
-## Orchestrator visual acceptance（待做）
+## 验收后修复轮（visual acceptance PASS with P2 — Medium 锚点镜像实锤与修复）
+
+编排 agent 验收：小渔船夜灯/颜色/拖尾全 PASS；**P2 发现 Medium（ship-ocean-liner）桅灯落在艉部烟囱区、红灯异常内缩**。假设：−Z 原生艏被静默镜像。查证 **属实**：
+
+- `VesselMedium.prefab` 根 `m_LocalRotation = (0,1,0,≈0)` = 180° yaw、均匀缩放 2.8195，模型子节点保持原生轴（`VesselAssetPipeline.BuildPrefabsAndCatalog`：`root.transform.rotation = Euler(0, spec.bowYawDeg, 0)`；k_Specs：Large 0 / **Medium 180** / Small 0——编目资产未持久化该列）。
+- 首轮 rig 日志：Medium 桅灯 local z **+4.26** = 指向原生 +Z = 该船**原生艉** → 渲染在视觉艉部（烟囱区）；port 在原生 −X，而 bow = 原生 −Z 时船右舷 = 原生 −X → **红灯落在船右舷**。小渔船 yaw=0 不受影响（与其 PASS 一致）。
+
+**修复**：`DeriveAnchors(Bounds, float bowYawDeg)`——锚点先按艏 +Z 舷框架计算，再按 native = R(−bowYawDeg)·(p−center)+center 映射回根局部原生轴（由 root 旋转 R(yaw)·native = corrected 反解；绕包围盒中心，180° 下 AABB 旋转不变 → 精确；编目 yaw 仅 {0,180}）。适配器新增 `bowYawDeg` 字段；bootstrapper 按 pipeline k_Specs 字面量注入（Small 0 / Medium 180；资产无此列，字面量同步注释钉在两处）。
+
+| Gate | Command | Result |
+|---|---|---|
+| EditMode suite（红，3 条 180° 测试） | `-testResults /tmp/m2d2-tests-red.xml` | exit 2，**58 total / 55 pass / 3 fail**（全部新 180° 锚点测试对忽略 yaw 的 stub 红） |
+| EditMode suite（绿，Gate 1''） | `/tmp/m2d2-tests.xml` | exit 0，**58 total / 58 pass / 0 fail**（55 + 3 新增：180° 对称例全表、船体侧性/艏艉事实、off-center 绕中心旋转例） |
+| Headless scene rebuild（Gate 2''） | `-executeMethod Sango.Editor.M1SceneBootstrapper.Build`（带 `-quit`） | **exit 0**；"vessel assets built" 0 次（编目未动） |
+| Mono player（Gate 3''） | `M1VerifyCapture.BuildStandalonePlayer` | **exit 0**，182MB |
+| batchmode 探针复跑（修后锚点取证） | `M2DLightsProbe.RunSpike` | Medium：`bowYaw=180° port=(2.38,6.70,−3.19) stbd=(−2.38,6.70,−3.19) mast=(0,8.93,−4.26) stern=(0,6.70,10.64)` —— 桅灯转原生 −Z（视觉艏）半段、艉灯原生 +Z、红灯原生 +X（船左舷）✓；Small 锚点逐位不变（无回归）；夜灯 ON 状态行正常 |
+| 真机播放器烟测 | 20 s Player.log | 修后 bowYaw 标注锚点两船各一行、昼态 OFF、0 exceptions |
+
+**连带发现（不在本批修，移交 M2-E）**：`PlaceCatalogShip` 用 `rotation = Euler(0, heading, 0)` 绝对赋值，会**覆盖** prefab 根烘焙的 180°——场景里的 Medium 实际以"艉朝 heading"渲染（视觉艏向 = heading+180）。M2-C 的合成契约（rotation.y = psi 绝对）同样内含"根局部 = 艏向 +Z"假设。修法属管线/放置层（根烘焙改烘焙进网格，或放置/跟随层复合 yaw），须动 `pipelineVersion`——超出本批"编目与 pipelineVersion 不动"约束。锚点修复后，灯具相对**渲染出的船体**是 COLREGs 正确的（红灯在船左舷、桅灯在视觉艏上方），与演示机位观感一致；遭遇脚本批次取 Medium 朝向时须注意此偏移。
+
+## Orchestrator visual acceptance（2026-09-24，核心 PASS + P2 已修待复核）
+
+- **PASS（核心）**：夜景两船灯亮、小渔船颜色正确（B0 午夜放大核实 port 红 左 / starboard 绿 右）、静水面红/绿/白拖尾清晰、昼态零光晕、日志健康；证据已采集。
+- **P2（已修复，待复核）**：Medium 桅灯在烟囱区/红灯内缩 → −Z 原生艏锚点镜像（见修复轮）。复核要点：放大 Medium 夜景——白桅灯应在**最前**（上层建筑前端之上）、白艉灯在最后、红灯在朝向行进方向的左手侧、拖尾从船体两舷与艏部拉向观者。
+
+## 原验收清单（首轮，供复核对照）
 
 - 夜景（T 循环第 3 档 h=0）：两船 port 红 / starboard 绿 / 白桅灯（艏部上方）/ 白艉灯，灯下水面有色拖尾拉向观者；Medium（135 m）灯组可辨。
 - 昼景（h=12）：零光晕（rig 整树关闭）；T 循环切换 h=12→17.5→0 时 17.5 仍灭灯、0 亮灯（`[Sango.M2D] ... ON at h=0.0` 日志行可核对）。
