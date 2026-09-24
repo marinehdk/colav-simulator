@@ -37,13 +37,14 @@ namespace Sango.Editor
 
         // M2-A：从编目实例化一艘船到指定平面位置/航向，y 用编目水线偏移（约 15% 船体高没入水下）。
         // M2-B：挂 VesselBuoyancy 并注入 Water Surface（heave/roll/pitch 由求解器驱动，x/z/yaw 仍归放置脚本）。
-        static void PlaceCatalogShip(VesselCatalog catalog, VesselClass vesselClass, Vector2 xz, float headingDeg, Transform parent, WaterSurface waterSurface)
+        // M2-C：x/z/yaw 的所有权移交 WaypointFollower（合成契约的另一半）。
+        static GameObject PlaceCatalogShip(VesselCatalog catalog, VesselClass vesselClass, Vector2 xz, float headingDeg, Transform parent, WaterSurface waterSurface)
         {
             var entry = catalog.GetEntry(vesselClass);
             if (entry?.prefab == null)
             {
                 Debug.LogError($"[Sango.M1] no prefab in catalog for {vesselClass}, ship skipped");
-                return;
+                return null;
             }
             var ship = (GameObject)PrefabUtility.InstantiatePrefab(entry.prefab);
             ship.transform.SetParent(parent, true);
@@ -51,6 +52,7 @@ namespace Sango.Editor
             ship.transform.rotation = Quaternion.Euler(0f, headingDeg, 0f);
             var buoyancy = ship.AddComponent<VesselBuoyancy>();
             buoyancy.waterSurface = waterSurface;
+            return ship;
         }
 
         static Material TintedLit(Color c) => new Material(Shader.Find("HDRP/Lit")) { color = c };
@@ -149,8 +151,25 @@ namespace Sango.Editor
             else
             {
                 var shipsRoot = new GameObject("Ships");
-                PlaceCatalogShip(catalog, VesselClass.Small, new Vector2(14f, -6f), 20f, shipsRoot.transform, water);
+                var small = PlaceCatalogShip(catalog, VesselClass.Small, new Vector2(14f, -6f), 20f, shipsRoot.transform, water);
                 PlaceCatalogShip(catalog, VesselClass.Medium, new Vector2(30f, 90f), -35f, shipsRoot.transform, water);
+
+                // M2-C demo 航线（spec #82）：小渔船按 G 起航/停船，走清水走廊后回到泊位附近停船。
+                // 航点对 seed-42 全部 5 岛的可视岸线（≈0.8R）逐一核过 ≥12 m 裕量（推演见 evidence m2c-build-log.md）；
+                // 全程 ≈120 m，巡航 5 m/s ≈ 30 s 演示（含 3 次转弯与终点减速）。
+                if (small != null)
+                {
+                    var follower = small.AddComponent<WaypointFollower>(); // 参数用组件默认档（5 m/s / 20°/s / 8 m / 2 m/s²）
+                    follower.waypoints = new[]
+                    {
+                        new Vector2(40f, 0f),
+                        new Vector2(60f, -20f),
+                        new Vector2(20f, -30f),
+                        new Vector2(5f, -12f),
+                    };
+                    Debug.Log("[Sango.M1] M2-C waypoint demo wired on Small ship: press G to sail/stop; " +
+                              "route (14,-6) -> (40,0) -> (60,-20) -> (20,-30) -> (5,-12), cruise 5 m/s");
+                }
             }
 
             // e. Perlin 岛屿：5 岛 seed 42（PLAN §5 M1；程序化 mesh 生成器见 PerlinIslandGenerator）
