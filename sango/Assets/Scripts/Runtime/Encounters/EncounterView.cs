@@ -126,8 +126,16 @@ namespace Sango
         // 标签文字向东北偏 30 m，压不到船与轨迹主线。
         void CreateLabel(string text, Vector2 xz, Color color)
         {
-            var go = new GameObject($"Label.{text}", typeof(TextMeshPro)); // RequireComponent 自动加 MeshRenderer
-            go.transform.SetParent(_labelRoot, false);
+            CreateWorldLabel(_labelRoot, text, text, color, new Vector2(xz.x + 30f, xz.y + 30f), new Vector2(800f, 160f), 0.2f);
+        }
+
+        // M2-E2 carry-in 去重（spec #85）：CreateLabel / CreateScaleLabel 的 TMP 世界标签
+        // 建构抽到单一入口（此前两份复制：字体/朝向/镜像缩放纪律只改过一处漏一处）。
+        static void CreateWorldLabel(Transform parent, string name, string text, Color color,
+            Vector2 xz, Vector2 sizeDelta, float scale)
+        {
+            var go = new GameObject($"Label.{name}", typeof(TextMeshPro)); // RequireComponent 自动加 MeshRenderer
+            go.transform.SetParent(parent, false);
             var tmp = go.GetComponent<TextMeshPro>();
             if (TMP_Settings.defaultFontAsset != null) tmp.font = TMP_Settings.defaultFontAsset;
             tmp.text = text;
@@ -137,13 +145,13 @@ namespace Sango
             tmp.overflowMode = TextOverflowModes.Overflow;
             tmp.raycastTarget = false;
             var rt = tmp.rectTransform;
-            rt.sizeDelta = new Vector2(800f, 160f);
+            rt.sizeDelta = sizeDelta;
             // 平铺水面（正面向上）、字头朝北（北向上俯视可读）：先绕 X −90° 立起正面向上，
             // 再绕世界 Y 180° 调字头方向，最后局部 X 负缩放把阅读方向镜像回正
-            // （TMP SDF shader Cull Off，负缩放安全）。字号 100 × 缩放 0.2 ≈ 20 m 字高。
+            // （TMP SDF shader Cull Off，负缩放安全）。
             go.transform.rotation = Quaternion.Euler(0f, 180f, 0f) * Quaternion.Euler(-90f, 0f, 0f);
-            go.transform.localScale = new Vector3(-0.2f, 0.2f, 0.2f);
-            go.transform.position = new Vector3(xz.x + 30f, 0.6f, xz.y + 30f);
+            go.transform.localScale = new Vector3(-scale, scale, scale);
+            go.transform.position = new Vector3(xz.x, 0.6f, xz.y);
             go.GetComponent<MeshRenderer>().shadowCastingMode = ShadowCastingMode.Off;
         }
 
@@ -173,22 +181,7 @@ namespace Sango
 
         void CreateScaleLabel(Vector2 xz)
         {
-            var go = new GameObject("Label.50 m", typeof(TextMeshPro));
-            go.transform.SetParent(_scaleBarRoot, false);
-            var tmp = go.GetComponent<TextMeshPro>();
-            if (TMP_Settings.defaultFontAsset != null) tmp.font = TMP_Settings.defaultFontAsset;
-            tmp.text = "50 m";
-            tmp.fontSize = 100f;
-            tmp.color = Color.white;
-            tmp.alignment = TextAlignmentOptions.Center;
-            tmp.overflowMode = TextOverflowModes.Overflow;
-            tmp.raycastTarget = false;
-            var rt = tmp.rectTransform;
-            rt.sizeDelta = new Vector2(400f, 160f);
-            go.transform.rotation = Quaternion.Euler(0f, 180f, 0f) * Quaternion.Euler(-90f, 0f, 0f);
-            go.transform.localScale = new Vector3(-0.15f, 0.15f, 0.15f); // ≈15 m 字高
-            go.transform.position = new Vector3(xz.x, 0.6f, xz.y);
-            go.GetComponent<MeshRenderer>().shadowCastingMode = ShadowCastingMode.Off;
+            CreateWorldLabel(_scaleBarRoot, "50 m", "50 m", Color.white, xz, new Vector2(400f, 160f), 0.15f); // ≈15 m 字高
         }
     }
 }

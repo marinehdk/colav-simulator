@@ -56,6 +56,9 @@ namespace Sango
         /// <summary>当前活动航点索引（到达半径内推进后 +1）。</summary>
         public int ActiveWaypointIndex => m_Index;
 
+        /// <summary>当前速度（m/s，运动学状态真值；初始化前为 0）。M2-E2 矢量箭头消费（spec #85）。</summary>
+        public float SpeedMps => m_State.Speed;
+
         /// <summary>终点已到达（位姿冻结；再次 Toggle 从当前位置重跑全程）。</summary>
         public bool IsArrived => m_Arrived;
 

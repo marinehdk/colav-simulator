@@ -78,6 +78,17 @@ namespace Sango
             var p = ship.position;
             ship.position = new Vector3(role.SpawnXZ.x, p.y, role.SpawnXZ.y);
             ship.rotation = Quaternion.Euler(0f, role.HeadingDeg + f.bowYawDegOffset, 0f);
+            // E1 review carry-in（spec #85）：组合约定此前 4 处仅注释背书——放置自证升为运行时断言：
+            // 渲染艏（世界）= rotation·原生艏向量（(0,0,cos bowYaw)，yaw 仅 0/180），必须等于航向单位向量。
+            var nativeBow = new Vector3(0f, 0f, Mathf.Cos(f.bowYawDegOffset * Mathf.Deg2Rad));
+            var renderedBow = ship.rotation * nativeBow;
+            float rad = role.HeadingDeg * Mathf.Deg2Rad;
+            var expect = new Vector3(Mathf.Sin(rad), 0f, Mathf.Cos(rad));
+            if ((renderedBow - expect).sqrMagnitude > 1e-6f)
+            {
+                Debug.LogError($"[Sango.M2E] place composition broken on {ship.name}: rendered bow {renderedBow} " +
+                               $"!= heading dir {expect} (heading {role.HeadingDeg:0}° + bowYaw {f.bowYawDegOffset:0}°)");
+            }
             f.waypoints = role.Waypoints;
             f.cruiseSpeedMps = role.CruiseSpeedMps;
             f.ResetToTransform();

@@ -170,6 +170,7 @@ namespace Sango.Editor
             //    新位 (30,90) 距岛5/岛3 可视岸线均 ≥17m（艏艉端投影 ≥15m，PerlinIslandGenerator 确定性复算）。
             //    ship-cargo-a 编目在册但本场景不摆（留给 M2-E 遭遇场景）。
             GameObject small = null, medium = null;
+            WaypointFollower smallFollower = null; // M2-E2：相机 rig/矢量箭头/Autonomous 按钮接线用
             var catalog = AssetDatabase.LoadAssetAtPath<VesselCatalog>(VesselAssetPipeline.CatalogAssetPath);
             if (catalog == null)
             {
@@ -186,9 +187,9 @@ namespace Sango.Editor
                 // 全程 ≈120 m，巡航 5 m/s ≈ 30 s 演示（含 3 次转弯与终点减速）。
                 if (small != null)
                 {
-                    var follower = small.AddComponent<WaypointFollower>(); // 参数用组件默认档（5 m/s / 20°/s / 8 m / 2 m/s²）
-                    follower.demoHotkeysEnabled = true; // 仅演示船响应 G；M2-E 多跟随器实例默认 false，互不串扰
-                    follower.waypoints = new[]
+                    smallFollower = small.AddComponent<WaypointFollower>(); // 参数用组件默认档（5 m/s / 20°/s / 8 m / 2 m/s²）
+                    smallFollower.demoHotkeysEnabled = true; // 仅演示船响应 G；M2-E 多跟随器实例默认 false，互不串扰
+                    smallFollower.waypoints = new[]
                     {
                         new Vector2(40f, 0f),
                         new Vector2(60f, -20f),
@@ -201,6 +202,8 @@ namespace Sango.Editor
             }
 
             // e. Perlin 岛屿：5 岛 seed 42（PLAN §5 M1；程序化 mesh 生成器见 PerlinIslandGenerator）
+            //    M2-E2：岛体材质提到局部变量——Simulation 面板 Apply 重建时从基线设置取同一材质。
+            var islandMaterial = TintedLit(new Color(0.22f, 0.30f, 0.22f)); // 岛体深绿灰：默认 Lit 白色远景像冰盖/白沫
             var islands = PerlinIslandGenerator.GenerateIslands(new IslandSettings
             {
                 count = 5,
@@ -209,7 +212,7 @@ namespace Sango.Editor
                 resolution = 96,
                 seed = 42,
                 clusterRadius = k_IslandClusterRadius,
-                material = TintedLit(new Color(0.22f, 0.30f, 0.22f)), // 岛体深绿灰：默认 Lit 白色远景像冰盖/白沫
+                material = islandMaterial,
                 vertexColors = false,
             });
             islands.transform.position = k_IslandCenter;
@@ -243,6 +246,40 @@ namespace Sango.Editor
             camera.nearClipPlane = 0.3f;
             camera.farClipPlane = 8000f; // 雾距滑条上限 8000m，far 需盖住
             cameraGo.AddComponent<HDAdditionalCameraData>();
+
+            // g2. M2-E2 相机切换 + 桥楼矢量 + 雷达 + Simulation 面板 + Autonomous 按钮（spec #85）。
+            //     键位账本：C 相机循环 · V 矢量开关 · A demo（G 既有）· Q/E 雷达量程 · Z/X 转速
+            //     · -/= 岛数 · ,/. 缩放 · Enter Apply · P 预览档（0-9/T/F 天气不动）。
+            var cameraRig = cameraGo.AddComponent<CameraRig>();
+            cameraRig.followShip = small != null ? small.transform : null;
+            cameraRig.controlledCamera = camera;
+
+            var radarGo = new GameObject("Radar Overlay", typeof(RadarOverlay));
+            var radar = radarGo.GetComponent<RadarOverlay>();
+            radar.ownShip = small != null ? small.transform : null;
+            radar.otherShips = medium != null ? new[] { medium.transform } : System.Array.Empty<Transform>();
+
+            if (smallFollower != null)
+            {
+                var arrows = small.AddComponent<VectorArrows>();
+                arrows.follower = smallFollower;
+                arrows.cameraRig = cameraRig;
+
+                var autoGo = new GameObject("Autonomous Control", typeof(AutonomousControlPanel));
+                autoGo.GetComponent<AutonomousControlPanel>().follower = smallFollower;
+            }
+
+            var simGo = new GameObject("Simulation GUI", typeof(SimulationPanel));
+            var sim = simGo.GetComponent<SimulationPanel>();
+            sim.radar = radar;
+            sim.catalog = catalog;
+            sim.islandCenter = k_IslandCenter;
+            var islandBaseline = IslandRebuild.M1Baseline();
+            islandBaseline.material = islandMaterial;
+            sim.islandBaseline = islandBaseline;
+            Debug.Log("[Sango.M2E2] wired: camera rig (C cycle bridge/bow/chase/top-down), vector arrows (V), " +
+                      "radar overlay (Q/E range, Z/X sweep), simulation panel (-/= count, ,/. scale, Enter apply, P model), " +
+                      "autonomous control (A, G unchanged)");
 
             // h. 保存场景（目录不存在先建）。
             // https://docs.unity3d.com/6000.3/Documentation/ScriptReference/SceneManagement.EditorSceneManager.SaveScene.html
