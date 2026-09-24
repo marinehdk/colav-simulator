@@ -143,6 +143,7 @@ namespace Sango.Editor
             //    泊位复算：seed-42 岛5 中心 (-30.9,51.6) 可视岸线 ~0.8R=61m，旧位 (-30,30) 距岛心仅 22m 搁浅，
             //    新位 (30,90) 距岛5/岛3 可视岸线均 ≥17m（艏艉端投影 ≥15m，PerlinIslandGenerator 确定性复算）。
             //    ship-cargo-a 编目在册但本场景不摆（留给 M2-E 遭遇场景）。
+            GameObject small = null, medium = null;
             var catalog = AssetDatabase.LoadAssetAtPath<VesselCatalog>(VesselAssetPipeline.CatalogAssetPath);
             if (catalog == null)
             {
@@ -151,8 +152,8 @@ namespace Sango.Editor
             else
             {
                 var shipsRoot = new GameObject("Ships");
-                var small = PlaceCatalogShip(catalog, VesselClass.Small, new Vector2(14f, -6f), 20f, shipsRoot.transform, water);
-                PlaceCatalogShip(catalog, VesselClass.Medium, new Vector2(30f, 90f), -35f, shipsRoot.transform, water);
+                small = PlaceCatalogShip(catalog, VesselClass.Small, new Vector2(14f, -6f), 20f, shipsRoot.transform, water);
+                medium = PlaceCatalogShip(catalog, VesselClass.Medium, new Vector2(30f, 90f), -35f, shipsRoot.transform, water);
 
                 // M2-C demo 航线（spec #82）：小渔船按 G 起航/停船，走清水走廊后回到泊位附近停船。
                 // 航点对 seed-42 全部 5 岛的可视岸线（≈0.8R）逐一核过 ≥12 m 裕量（推演见 evidence m2c-build-log.md）；
@@ -197,6 +198,15 @@ namespace Sango.Editor
 
             var guiGo = new GameObject("Weather GUI", typeof(WeatherGUI));
             guiGo.GetComponent<WeatherGUI>().controller = weather;
+
+            // M2-D 航行灯（spec #83）：两船各挂 NavigationLights，时刻真值注入 WeatherController。
+            // 明灭随既有 T 循环/时刻滑条（纯阈值 NavigationLightsCore.IsLightsOn），无新键位。
+            foreach (var ship in new[] { small, medium })
+            {
+                if (ship == null) continue;
+                ship.AddComponent<NavigationLights>().weather = weather;
+            }
+            Debug.Log("[Sango.M1] M2-D navigation lights wired on both ships (on/off follows time-of-day; port RED / starboard GREEN / white masthead + stern)");
 
             // g. 相机：桥楼高度视角 (0,12,-40) 望岛群
             var cameraGo = new GameObject("Main Camera", typeof(Camera));
