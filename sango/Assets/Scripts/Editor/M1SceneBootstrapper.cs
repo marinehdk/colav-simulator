@@ -36,7 +36,8 @@ namespace Sango.Editor
         }
 
         // M2-A：从编目实例化一艘船到指定平面位置/航向，y 用编目水线偏移（约 15% 船体高没入水下）。
-        static void PlaceCatalogShip(VesselCatalog catalog, VesselClass vesselClass, Vector2 xz, float headingDeg, Transform parent)
+        // M2-B：挂 VesselBuoyancy 并注入 Water Surface（heave/roll/pitch 由求解器驱动，x/z/yaw 仍归放置脚本）。
+        static void PlaceCatalogShip(VesselCatalog catalog, VesselClass vesselClass, Vector2 xz, float headingDeg, Transform parent, WaterSurface waterSurface)
         {
             var entry = catalog.GetEntry(vesselClass);
             if (entry?.prefab == null)
@@ -48,6 +49,8 @@ namespace Sango.Editor
             ship.transform.SetParent(parent, true);
             ship.transform.position = new Vector3(xz.x, entry.waterlineOffsetY, xz.y);
             ship.transform.rotation = Quaternion.Euler(0f, headingDeg, 0f);
+            var buoyancy = ship.AddComponent<VesselBuoyancy>();
+            buoyancy.waterSurface = waterSurface;
         }
 
         static Material TintedLit(Color c) => new Material(Shader.Find("HDRP/Lit")) { color = c };
@@ -146,8 +149,8 @@ namespace Sango.Editor
             else
             {
                 var shipsRoot = new GameObject("Ships");
-                PlaceCatalogShip(catalog, VesselClass.Small, new Vector2(14f, -6f), 20f, shipsRoot.transform);
-                PlaceCatalogShip(catalog, VesselClass.Medium, new Vector2(30f, 90f), -35f, shipsRoot.transform);
+                PlaceCatalogShip(catalog, VesselClass.Small, new Vector2(14f, -6f), 20f, shipsRoot.transform, water);
+                PlaceCatalogShip(catalog, VesselClass.Medium, new Vector2(30f, 90f), -35f, shipsRoot.transform, water);
             }
 
             // e. Perlin 岛屿：5 岛 seed 42（PLAN §5 M1；程序化 mesh 生成器见 PerlinIslandGenerator）
