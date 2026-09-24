@@ -112,6 +112,26 @@ namespace Sango.Tests
             Assert.That(a2.PitchDeg, Is.EqualTo(a1.PitchDeg));
         }
 
+        // ── 计数重载：与全量重载逐位一致，且 count 尾部残留被忽略（持久缓冲契约）────
+        [Test]
+        public void Solve_CountOverload_MatchesFullArray_AndIgnoresTailBeyondCount()
+        {
+            var samples = Grid((x, z) => k_Slope * (x - z));
+            var full = BuoyancyAttitudeSolver.Solve(samples, BuoyancyParams.Default);
+
+            var withTail = new HullSample[samples.Length + 3];
+            samples.CopyTo(withTail, 0);
+            for (int i = samples.Length; i < withTail.Length; i++)
+            {
+                withTail[i] = new HullSample { StarboardOffset = 999f, ForwardOffset = -999f, Submersion = 999f, BaselineSubmersion = -999f };
+            }
+            var counted = BuoyancyAttitudeSolver.Solve(withTail, samples.Length, BuoyancyParams.Default);
+
+            Assert.That(counted.HeaveOffset, Is.EqualTo(full.HeaveOffset));
+            Assert.That(counted.RollDeg, Is.EqualTo(full.RollDeg));
+            Assert.That(counted.PitchDeg, Is.EqualTo(full.PitchDeg));
+        }
+
         [Test]
         public void Solve_EmptySamples_ReturnsZeroAttitude()
         {

@@ -28,10 +28,10 @@ namespace Sango
         public float smoothingFrequencyHz = 0.8f;
 
         [Tooltip("横摇钳制上限（度，对称）：涌浪再大也不许倾覆观感。")]
-        public float maxRollDeg = 10f;
+        public float maxRollDeg = BuoyancyParams.Default.MaxRollDeg;
 
         [Tooltip("纵摇钳制上限（度，对称）。")]
-        public float maxPitchDeg = 6f;
+        public float maxPitchDeg = BuoyancyParams.Default.MaxPitchDeg;
 
         [Tooltip("每船水高查询抽样上限（hull 三角质心均匀步进抽取）。")]
         public int maxSamplesPerHull = 64;
@@ -70,6 +70,7 @@ namespace Sango
         }
 
         HullTriangle[] m_RootLocalCentroids;
+        HullSample[] m_SolverScratch; // 持久求解缓冲：LateUpdate 热循环零分配（复用 count 重载忽略尾部残留）
         float m_BaselineY;
         Stopwatch m_Stopwatch;
         WaterSearchParameters m_SearchParams; // 结构体复用（probe 模式：只初始化一次）
@@ -145,6 +146,7 @@ namespace Sango
                 }
             }
             m_RootLocalCentroids = samples.ToArray();
+            m_SolverScratch = new HullSample[m_RootLocalCentroids.Length];
             // 基线浸没（米，世界尺度）：OnEnable 时船在设计位姿（水线偏移 + yaw），静水(y=0)下
             // 基线浸没 = 0 − 设计世界高度。
             for (int i = 0; i < m_RootLocalCentroids.Length; i++)
@@ -182,7 +184,7 @@ namespace Sango
             var p = BuoyancyParams.Default;
             p.MaxRollDeg = maxRollDeg;
             p.MaxPitchDeg = maxPitchDeg;
-            var hullSamples = new HullSample[m_RootLocalCentroids.Length];
+            var hullSamples = m_SolverScratch;
             int validSamples = 0;
             int failedThisInstance = 0;
 
@@ -228,8 +230,8 @@ namespace Sango
             // 本帧查询全废（数据未就绪等）：保持上帧姿态，不用残缺数据解算。
             if (validSamples == 0) return;
 
-            var attitude = BuoyancyAttitudeSolver.Solve(
-                validSamples == hullSamples.Length ? hullSamples : hullSamples[..validSamples], p);
+            // count 重载：只消费前 validSamples 个有效样点，缓冲尾部残留被忽略，无需切割分配。
+            var attitude = BuoyancyAttitudeSolver.Solve(hullSamples, validSamples, p);
             m_TargetHeave = attitude.HeaveOffset;
             m_TargetRoll = attitude.RollDeg;
             m_TargetPitch = attitude.PitchDeg;

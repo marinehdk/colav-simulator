@@ -18,7 +18,11 @@ namespace Sango
         /// <summary>当前浸没深度 = 水面高 − 点高（+ = 点在水下）。</summary>
         public float Submersion;
 
-        /// <summary>静水基线浸没深度（设计水线/吃水，来自编目 waterlineOffsetY）。</summary>
+        /// <summary>
+        /// 静水基线浸没深度（米，+ = 设计吃水下入水）。引擎无关：求解器只按"当前浸没 − 基线浸没"
+        /// 取激励；基线值由适配器按挂载时设计位姿的样点世界高度推导（静水 y=0：baseline = −designWorld.y），
+        /// 不直接引用编目字段。
+        /// </summary>
         public float BaselineSubmersion;
     }
 
@@ -86,12 +90,22 @@ namespace Sango
         ///   横摇/纵摇 = 对 e 的去均值场做沿 +X / +Z 的最小二乘坡度，取坡角（atan）× 增益，
         ///   后按对称上限钳制。无状态；同输入逐位同输出。
         /// </summary>
+        /// <summary>全量求解：等价 <see cref="Solve(HullSample[],int,in BuoyancyParams)"/> 以 samples.Length 为 count。</summary>
         public static BuoyancyAttitude Solve(HullSample[] samples, in BuoyancyParams p)
         {
-            var attitude = default(BuoyancyAttitude);
-            if (samples == null || samples.Length == 0) return attitude;
+            return Solve(samples, samples?.Length ?? 0, p);
+        }
 
-            int n = samples.Length;
+        /// <summary>
+        /// 计数求解：只消费 samples 前 count 个样点（尾部残留被忽略）。
+        /// 供引擎适配器复用持久缓冲（热循环零分配）；count≤0 或 samples 为空返回零姿态。
+        /// </summary>
+        public static BuoyancyAttitude Solve(HullSample[] samples, int count, in BuoyancyParams p)
+        {
+            var attitude = default(BuoyancyAttitude);
+            if (samples == null || count <= 0) return attitude;
+
+            int n = Mathf.Min(count, samples.Length);
             float sum = 0f;
             for (int i = 0; i < n; i++) sum += samples[i].Submersion - samples[i].BaselineSubmersion;
             float meanExcursion = sum / n;
