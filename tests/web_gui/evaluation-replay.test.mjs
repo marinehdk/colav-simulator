@@ -812,7 +812,7 @@ test('event filtering is presentation-only; the complete journal stays unchanged
   assert.match(markers[0].getAttribute('aria-label'), /SAFETY_FAILURE/);
 });
 
-test('dense recorded events cluster visually; opening the cluster keeps the recorded selection local', async () => {
+test('planner events stay in the journal but never appear as playback markers or filters', async () => {
   const dense = JSON.parse(JSON.stringify(EVENTS));
   dense.events = [
     { sequence: 1, type: 'threat_schedule_update', sim_time: 5.0, details: {}, category: 'RISK_LIFECYCLE' },
@@ -826,8 +826,10 @@ test('dense recorded events cluster visually; opening the cluster keeps the reco
 
   const markers = eventMarkers(documentRef);
   assert.equal(markers.length, 1); // all within one 0.5% bucket
-  assert.equal(markers[0].dataset.cluster, '3');
-  assert.equal(markers[0].textContent, '≡');
+  assert.equal(markers[0].dataset.cluster, undefined); // PLANNER never reaches playback markers
+  assert.equal(markers[0].textContent, '▲');
+  const options = documentRef.getElementById('replayEventFilter').children.map(item => item.value);
+  assert.ok(!options.includes('PLANNER'));
   markers[0].click();
   assert.equal(documentRef.getElementById('replayEventFocus'), null);
   assert.equal(documentRef.getElementById('replayInspection'), null);

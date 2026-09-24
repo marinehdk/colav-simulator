@@ -8,6 +8,7 @@ const styles = await readFile(new URL('../../web_gui/style.css', import.meta.url
 const situationDisplay = await readFile(new URL('../../web_gui/modules/situation-display.js', import.meta.url), 'utf8');
 const lineGraph = await readFile(new URL('../../web_gui/modules/line-graph.js', import.meta.url), 'utf8');
 const vendorEntry = await readFile(new URL('../../web_gui/vendor/openbridge/entry-source.mjs', import.meta.url), 'utf8');
+const monitorEvents = await readFile(new URL('../../web_gui/modules/monitor-event-presentation.js', import.meta.url), 'utf8');
 
 test('simulation footer keeps rate controls stable and removes empty Cache status', () => {
   assert.match(html, /<span class="speed-status deployment-control-state" id="telemetryDelay"/);
@@ -190,27 +191,28 @@ test('EVENT LIST uses OpenBridge event-list with projected timeline data', () =>
   assert.match(html, /<obc-event-list[^>]*id="liveEvents"/);
   assert.match(vendorEntry, /components\/event-list\/event-list\.js/);
   assert.match(app, /renderMonitorEventList\(proj\.timeline\?\.events \|\| \[\]\)/);
-  assert.match(app, /MONITOR_HIDDEN_EVENT_TYPES = new Set\(\['planner_solved'\]\)/);
-  assert.match(app, /function visibleMonitorEvents\(events\)/);
-  assert.match(app, /const visibleEvents = visibleMonitorEvents\(latestMonitorTimelineEvents\)/);
+  assert.match(app, /from '\.\/modules\/monitor-event-presentation\.js\?/);
+  assert.match(monitorEvents, /MONITOR_HIDDEN_EVENT_TYPES = new Set\(\['planner_solved'\]\)/);
+  assert.match(monitorEvents, /function visibleMonitorEvents\(events\)/);
+  assert.match(app, /visibleMonitorEvents\(latestMonitorTimelineEvents\)/);
   assert.match(app, /const visibleEvents = visibleMonitorEvents\(events\)/);
-  assert.match(app, /case 'threat_entered':/);
-  assert.match(app, /case 'target_transition':/);
-  assert.match(app, /case 'avoidance_action_started':/);
-  assert.match(app, /case 'primary_switched':/);
-  assert.match(app, /case 'planner_failed':/);
-  assert.match(app, /case 'goal_reached':/);
-  assert.match(app, /function monitorEventTone\(event\)/);
-  assert.match(app, /item\.dataset\.eventTone = tone/);
-  assert.match(app, /item\.dataset\.eventStatusTone = statusTone/);
-  assert.match(app, /header\.className = 'event-title-line'/);
-  assert.match(app, /body\.className = 'event-body-line'/);
-  assert.match(app, /eventItemType: 'doubleLine'/);
-  assert.match(app, /description: startTime/);
-  assert.match(app, /decorateMonitorEventItems\(eventList, visibleEvents\)/);
+  assert.match(monitorEvents, /case 'threat_entered':/);
+  assert.match(monitorEvents, /case 'target_transition':/);
+  assert.match(monitorEvents, /case 'avoidance_action_started':/);
+  assert.match(monitorEvents, /case 'primary_switched':/);
+  assert.match(monitorEvents, /case 'planner_failed':/);
+  assert.match(monitorEvents, /case 'goal_reached':/);
+  assert.match(monitorEvents, /function monitorEventTone\(event\)/);
+  assert.match(monitorEvents, /item\.dataset\.eventTone = tone/);
+  assert.match(monitorEvents, /item\.dataset\.eventStatusTone = statusTone/);
+  assert.match(monitorEvents, /header\.className = 'event-title-line'/);
+  assert.match(monitorEvents, /body\.className = 'event-body-line'/);
+  assert.match(monitorEvents, /eventItemType: 'doubleLine'/);
+  assert.match(monitorEvents, /description: startTime/);
+  assert.match(monitorEvents, /decorateMonitorEventItems\(eventList, visibleEvents, documentRef\)/);
   assert.match(styles, /overflow-y: scroll/);
   assert.match(styles, /--global-typography-ui-label-font-size: 12px/);
-  assert.match(app, /colorCoded/);
+  assert.match(monitorEvents, /colorCoded/);
   assert.doesNotMatch(app, /eventList\.innerHTML/);
 });
 
