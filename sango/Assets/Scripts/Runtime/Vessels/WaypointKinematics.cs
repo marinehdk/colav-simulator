@@ -69,7 +69,7 @@ namespace Sango
             return dx * dx + dz * dz <= arrivalRadiusM * arrivalRadiusM;
         }
 
-        /// <summary>角差规约到 (−π, π]，取最短转向弧（跨 ±180 缝取短边）。</summary>
+        /// <summary>角差规约到 [−π, π)（Mathf.Repeat 语义；±π 处映射到 −π），取最短转向弧（跨 ±180 缝取短边）。</summary>
         static float WrapPi(float a)
         {
             return Mathf.Repeat(a + Mathf.PI, 2f * Mathf.PI) - Mathf.PI;

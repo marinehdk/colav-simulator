@@ -228,5 +228,25 @@ namespace Sango.Tests
             Assert.That(go.transform.rotation, Is.EqualTo(rot), "到达后姿态冻结");
             Assert.That(go.transform.position.y, Is.EqualTo(-0.33f).Within(1e-6f), "y 仍归浮力");
         }
+
+        [Test]
+        public void StepOnce_ShorterWaypointListSwappedMidRoute_NoThrow_ConsistentState()
+        {
+            // spec #82 User Story 3：航点表运行时可整体替换。中途换入更短的表
+            // （旧活动索引越界）不许抛异常，且解析到一致状态：索引钳入新表范围、
+            // 不误判到达、写回仍只碰 x/z/yaw。
+            var go = new GameObject("follower");
+            var f = go.AddComponent<WaypointFollower>();
+            go.transform.position = new Vector3(0f, -0.33f, 0f);
+            f.waypoints = new[] { new Vector2(0f, 5f), new Vector2(0f, 60f), new Vector2(40f, 60f) }; // wp0 在到达半径内
+            f.StepOnce(0.1f);
+            Assert.That(f.ActiveWaypointIndex, Is.EqualTo(1), "前置：已推进过航点 0");
+
+            f.waypoints = new[] { new Vector2(0f, 20f) }; // 换短表：旧索引 1 越界
+            Assert.DoesNotThrow(() => f.StepOnce(0.1f), "换短表后的下一步不许越界抛异常");
+            Assert.That(f.ActiveWaypointIndex, Is.EqualTo(0), "活动索引钳制到新表范围");
+            Assert.That(f.IsArrived, Is.False, "距新终点 ~20 m ≫ R 8，不得误判到达");
+            Assert.That(go.transform.position.y, Is.EqualTo(-0.33f).Within(1e-6f), "y 仍归浮力");
+        }
     }
 }

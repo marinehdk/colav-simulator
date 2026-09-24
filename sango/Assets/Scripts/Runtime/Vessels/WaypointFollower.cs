@@ -10,8 +10,27 @@ namespace Sango
     /// </summary>
     public class WaypointFollower : MonoBehaviour
     {
-        [Tooltip("航点表（东=x, 北=z, 米）。运行时可整体替换；空表/空引用 = 不动。")]
-        public Vector2[] waypoints;
+        [Tooltip("航点表（东=x, 北=z, 米）。运行时可整体替换（M2-E 遭遇脚本）：赋值即钳制活动索引到新表范围，防换短表越界；原地改元素不改长度。")]
+        [SerializeField]
+        Vector2[] m_Waypoints;
+
+        /// <summary>
+        /// 航点表（运行时可整体替换）。赋值即解析进度一致性：活动索引钳入 [0, len−1]（空表归 0）。
+        /// 已到达态不被赋值清除——到达后换表再按 G 即从当前位置重跑新表（Toggle 语义）。
+        /// </summary>
+        public Vector2[] waypoints
+        {
+            get => m_Waypoints;
+            set
+            {
+                m_Waypoints = value;
+                int len = m_Waypoints?.Length ?? 0;
+                if (m_Index >= len) m_Index = Mathf.Max(0, len - 1);
+            }
+        }
+
+        [Tooltip("响应 G 键启停 demo（默认 false）：每个实例各持开关，M2-E 多跟随器互不串扰；仅 M1 演示船接线为 true。")]
+        public bool demoHotkeysEnabled = false;
 
         [Tooltip("巡航速度（m/s）。小渔船演示档：12 m 船 ~10 kn 量级。")]
         public float cruiseSpeedMps = 5f;
@@ -50,7 +69,7 @@ namespace Sango
 
         void Update()
         {
-            if (Input.GetKeyDown(KeyCode.G)) Toggle(); // G 空闲键位（WeatherGUI 占 0-9/T/F）
+            if (demoHotkeysEnabled && Input.GetKeyDown(KeyCode.G)) Toggle(); // G 空闲键位（WeatherGUI 占 0-9/T/F）；按实例门控
             if (m_DemoRunning && !m_Arrived) StepOnce(Time.deltaTime);
         }
 
@@ -73,7 +92,9 @@ namespace Sango
         /// <summary>推进一帧（引擎无关，EditMode 测试直接调用）。</summary>
         public void StepOnce(float dt)
         {
-            if (waypoints == null || waypoints.Length == 0) return;
+            int len = waypoints?.Length ?? 0;
+            if (len == 0) return;
+            if (m_Index >= len) m_Index = len - 1; // 消费点兜底钳制（防旁路 setter 的换表路径）
             if (!m_Initialized)
             {
                 var pos = transform.position;

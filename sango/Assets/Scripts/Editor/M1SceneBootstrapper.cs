@@ -160,6 +160,7 @@ namespace Sango.Editor
                 if (small != null)
                 {
                     var follower = small.AddComponent<WaypointFollower>(); // 参数用组件默认档（5 m/s / 20°/s / 8 m / 2 m/s²）
+                    follower.demoHotkeysEnabled = true; // 仅演示船响应 G；M2-E 多跟随器实例默认 false，互不串扰
                     follower.waypoints = new[]
                     {
                         new Vector2(40f, 0f),
