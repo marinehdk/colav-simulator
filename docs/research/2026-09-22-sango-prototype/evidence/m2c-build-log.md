@@ -84,6 +84,20 @@ Demo 航线（挂小渔船，泊位 (14,-6) yaw 20°，桥楼相机最近）：`
 - G 停止是硬暂停（不步进，浮力照常）；优雅减速停船只属于终点到达。demo 语义下按 G 即走即停，不为此加第三种核心模式。
 - 场景 rebuild 会连带重生成 M1-GlobalVolumeProfile.asset（幂等 builder 先删后建，子资产 fileID 全变）——与场景同 commit 保持 GUID 一致，属 builder 既有行为非本次引入。
 
+## 验收后清理轮（visual acceptance PASS 后，review 三项）
+
+| Gate | Command | Result |
+|---|---|---|
+| EditMode suite（红，新钳制测试） | `-testResults /tmp/m2c-tests-red2.xml` | exit 2，44 total / 43 pass / **1 fail**：`StepOnce_ShorterWaypointListSwappedMidRoute_NoThrow_ConsistentState` 抛 `IndexOutOfRangeException`（review 预判复现） |
+| EditMode suite（绿，Gate 1'） | `/tmp/m2c-tests.xml` | exit 0，**44 total / 44 pass / 0 fail**（43 + 1 新增） |
+| Headless scene rebuild（Gate 2'） | `M1SceneBootstrapper.Build`（带 `-quit`） | **exit 0**；场景含 `m_Waypoints`（新序列化名）与 `demoHotkeysEnabled: 1`（仅小渔船） |
+| Mono player（Gate 3'） | `M1VerifyCapture.BuildStandalonePlayer` | **exit 0** |
+
+三项修复：
+1. **运行时换表钳制（M2-E 足枪）**：`waypoints` 由公共字段改为属性（序列化后备字段 `m_Waypoints`），赋值即把活动索引钳入 [0, len−1]（空表归 0）；`StepOnce` 消费点再加一道兜底钳制（防旁路 setter 的换表路径）。已到达态不被赋值清除——到达后换表按 G 即从当前位置重跑新表（Toggle 语义）。新测试钉死：换短表后下一步不抛异常、索引归 0、不误判到达、y 不动。
+2. **WrapPi 注释对齐实际契约**：`Mathf.Repeat(a+π, 2π)−π` 返回 **[−π, π)**（±π 处映射到 −π），注释由 (−π, π] 改正；行为不动（确定性、±180° 缝测试钉住）。
+3. **demo 热键按实例门控**：G 键轮询移到 `demoHotkeysEnabled`（serialized，默认 **false**）之后——M2-E 多跟随器实例"一按全动"消除；仅 M1SceneBootstrapper 的小渔船 wiring 置 true。M1 bootstrapper 日志行不变（小渔船仍响应 G）；G=启停/暂停/重跑语义不变。
+
 ## Orchestrator visual acceptance (2026-09-24)
 
 - Player (windowed 1600x900), G pressed via accessibility keyboard path
