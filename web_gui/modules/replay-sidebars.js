@@ -1,9 +1,13 @@
 /** Recorded Replay sidebars. Reuse Deployment's card DOM and CSS, but bind only
  * sealed frame facts and the separate event journal at the current playhead. */
+import { buildRadarModel, createRadarMiniMap } from './radar-mini-map.js';
+import { RADAR_DETECTION_RANGE_M } from './situation-display.js';
 
 const NM = 1852;
 const degrees = value => Number.isFinite(value) ? ((value * 180 / Math.PI) % 360 + 360) % 360 : null;
 const fixed = (value, digits = 1) => Number.isFinite(value) ? value.toFixed(digits) : '---';
+const coordinate = (value, positive, negative) => Number.isFinite(value)
+  ? `${Math.abs(value).toFixed(4)}° ${value >= 0 ? positive : negative}` : null;
 const duration = value => Number.isFinite(value) && value >= 0
   ? `${String(Math.floor(value / 3600)).padStart(2, '0')}:${String(Math.floor(value % 3600 / 60)).padStart(2, '0')}:${String(Math.floor(value % 60)).padStart(2, '0')}`
   : '--:--:--';
@@ -25,7 +29,10 @@ function cloneSidebar(documentRef, id) {
       element.setAttribute(attr, element.getAttribute(attr).split(' ').map(part => ids.get(part) ?? part).join(' '));
     }
   }
-  copy.querySelectorAll('[data-od-id]').forEach(element => element.removeAttribute('data-od-id'));
+  copy.querySelectorAll('[data-od-id]').forEach(element => {
+    element.dataset.replayOdId = element.dataset.odId;
+    element.removeAttribute('data-od-id');
+  });
   copy.querySelectorAll('[data-ownship-card-page]').forEach(element => {
     element.dataset.replayOwnshipPage = element.dataset.ownshipCardPage;
     delete element.dataset.ownshipCardPage;
@@ -50,6 +57,18 @@ export function createReplaySidebars(documentRef = document) {
   }
   const get = id => documentRef.getElementById(`replay-${id}`);
   const set = (id, value) => { const node = get(id); if (node) node.textContent = value; };
+  const radarCanvas = get('liveRadarMiniMap');
+  const radar = radarCanvas ? createRadarMiniMap({ canvas: radarCanvas }) : null;
+  const depthReadout = get('sidebarDepthReadout');
+  const depthFallback = documentRef.createElement('span');
+  depthFallback.className = 'replay-depth-fallback';
+  depthFallback.textContent = '未记录';
+  depthReadout?.parentElement?.append(depthFallback);
+  const depthInstrument = get('liveDepthActual');
+  const instrumentFallback = documentRef.createElement('span');
+  instrumentFallback.className = 'replay-depth-instrument-fallback';
+  instrumentFallback.textContent = '当前回放未记录船位 ENC 水深';
+  depthInstrument?.parentElement?.append(instrumentFallback);
   let displayedBalance = Symbol('initial');
   for (const page of layout.querySelectorAll('[data-replay-ownship-page="4"]')) {
     const notice = documentRef.createElement('section');
@@ -133,10 +152,15 @@ export function createReplaySidebars(documentRef = document) {
     readout('sidebarCogReadout', cog, '°');
     readout('sidebarStwReadout', speedKn, 'kn', 1);
     readout('sidebarDepthReadout', own.floor_depth_m, 'm');
+    get('sidebarHdgReadout')?.setAttribute('aria-label', heading === null ? '本船航向未记录' : `本船航向 ${fixed(heading, 0)} 度`);
+    get('sidebarCogReadout')?.setAttribute('aria-label', cog === null ? '本船对地航向未记录' : `本船对地航向 ${fixed(cog, 0)} 度`);
+    get('sidebarStwReadout')?.setAttribute('aria-label', speedKn === null ? '本船航速未记录' : `本船对水速度 ${fixed(speedKn)} 节`);
+    if (depthReadout) depthReadout.hidden = !Number.isFinite(own.floor_depth_m);
+    depthFallback.hidden = Number.isFinite(own.floor_depth_m);
     get('sidebarDepthReadout')?.setAttribute('aria-label', Number.isFinite(own.floor_depth_m)
       ? `船位 ENC 水深分层下限 ${own.floor_depth_m} 米` : 'ENC 水深未记录');
-    set('sidebarLatReadout', Number.isFinite(nav.latitude) ? `${fixed(nav.latitude, 4)}° N` : '位置未记录');
-    set('sidebarLonReadout', Number.isFinite(nav.longitude) ? `${fixed(nav.longitude, 4)}° E` : '');
+    set('sidebarLatReadout', coordinate(nav.latitude, 'N', 'S') ?? '位置未记录');
+    set('sidebarLonReadout', coordinate(nav.longitude, 'E', 'W') ?? '');
     set('liveRouteCourse', heading === null ? '---' : `${Math.round(heading)}°`);
     set('liveRouteRot', rot === null ? '---' : `${fixed(rot)}°/s`);
     set('liveRouteRadius', rot !== null && Math.abs(rot) >= 1 / 60 && Number.isFinite(nav.sog)
@@ -179,12 +203,43 @@ export function createReplaySidebars(documentRef = document) {
     readout('liveCogReadout', cog, '°');
     readout('liveRotReadout', rot, '°/s', 1);
     const gauge = get('liveSpeedGauge');
-    if (gauge) Object.assign(gauge, { speed: speedKn ?? 0, minSpeed: -5, maxSpeed: 25, needleType: 'full', showLabels: true, showReadout: true });
+    if (gauge) Object.assign(gauge, {
+      speed: speedKn ?? 0, minSpeed: -5, maxSpeed: 25, needleType: 'full',
+      priority: 'regular', showLabels: true, showReadout: true, tickmarkInterval: 5,
+      speedAdvices: [
+        { minSpeed: 15, maxSpeed: 18, type: 'advice', hinted: false },
+        { minSpeed: 20, maxSpeed: 25, type: 'caution', hinted: false },
+      ],
+    });
+    if (gauge) gauge.setAttribute('aria-label', `本船对水速度 ${fixed(speedKn)} 节`);
+    if (radar) {
+      const levels = Object.fromEntries((snapshot?.risk?.targets ?? [])
+        .filter(target => target.targetId !== null && target.targetId !== undefined)
+        .map(target => [String(target.targetId), {
+          HIGH: 'danger', LOW: 'warn', CLEAR: 'safe',
+        }[target.displayClass] ?? 'unknown']));
+      radar.render(buildRadarModel(raw, RADAR_DETECTION_RANGE_M, levels));
+    }
     readout('liveCurrentDepthReadout', own.floor_depth_m, 'm');
+    get('liveCurrentDepthReadout')?.setAttribute('aria-label', Number.isFinite(own.floor_depth_m)
+      ? `船位 ENC 水深分层下限 ${own.floor_depth_m} 米` : 'ENC 水深未记录');
     readout('liveDraftReadout', raw.enc_navigation_area?.vessel_draft_m, 'm', 1);
     readout('liveSafeDepthReadout', raw.enc_navigation_area?.minimum_depth_m, 'm');
     const depth = get('liveDepthActual');
-    if (depth) depth.hidden = !Number.isFinite(own.floor_depth_m);
+    if (depth) {
+      depth.hidden = !Number.isFinite(own.floor_depth_m);
+      instrumentFallback.hidden = !depth.hidden;
+      if (!depth.hidden) {
+        const instrumentRange = Math.max(50, 10 ** Math.ceil(Math.log10(Math.max(1, own.floor_depth_m))));
+        Object.assign(depth, {
+          depth: own.floor_depth_m,
+          draft: raw.enc_navigation_area?.vessel_draft_m ?? 0,
+          vesselScale: instrumentRange / 100,
+          instrumentRange,
+          priority: 'enhanced',
+        });
+      }
+    }
 
     const balance = raw.gnc_balance;
     if (balance !== displayedBalance) {

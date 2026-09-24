@@ -11,6 +11,7 @@
  */
 
 import { interpolateVesselKinematics } from './kinematics.js';
+import { createGeography } from './scene-geography.js';
 
 export const REPLAY_PRESENTATION_MODE = 'HISTORICAL_REPLAY';
 
@@ -21,6 +22,29 @@ const EVIDENCE_RECENT_EVENTS = 32;
 const MAX_TRAIL_POINTS = 120;
 
 const SHIP_KEYS = Object.keys;
+const geographyByContext = new WeakMap();
+
+function replayGeography(context) {
+  if (!context || typeof context !== 'object') return null;
+  if (geographyByContext.has(context)) return geographyByContext.get(context);
+  const enc = context.enc ?? {};
+  const zone = enc.utm_zone;
+  let geography = null;
+  if ([32, 33].includes(zone) && [enc.origin_east_m, enc.origin_north_m, enc.width_m, enc.height_m]
+    .every(value => typeof value === 'number' && Number.isFinite(value))) {
+    try {
+      geography = createGeography({
+        ready: true, run_id: context.run_id,
+        utm_zone: zone, horizontal_crs: `EPSG:${25800 + zone}`, hemisphere: 'north',
+        display_height_reference: 'ellipsoid-zero-visual-only',
+        origin_e: enc.origin_east_m, origin_n: enc.origin_north_m,
+        width: enc.width_m, height: enc.height_m,
+      });
+    } catch { /* Missing chart georeference stays unavailable. */ }
+  }
+  geographyByContext.set(context, geography);
+  return geography;
+}
 
 function localShips(payload, context) {
   const origin = context?.enc ?? {};
@@ -230,6 +254,17 @@ function buildEnvelope({ descriptor, context, sourceFrame, upperFrame, alpha, in
   });
 
   const own = ships[0] ?? null;
+  const geography = replayGeography(context);
+  if (own && geography && Number.isFinite(own.x) && Number.isFinite(own.y)) {
+    const [longitude, latitude] = geography.lonLat(own.x, own.y);
+    own.latitude = latitude;
+    own.longitude = longitude;
+  }
+  const depth = sourceFrame.ownship_navigation ?? {};
+  if (own) {
+    own.floor_depth_m = Number.isFinite(depth.floor_depth_m) ? depth.floor_depth_m : null;
+    own.floor_depth_source = depth.source ?? 'ENC_DEPTH_BIN_UNAVAILABLE';
+  }
   const obstacles = ships.slice(1);
   const ownRaw = payload.Ship0 ?? {};
   const planner = ownRaw.colav?.planner ?? null;
@@ -330,9 +365,8 @@ function buildEnvelope({ descriptor, context, sourceFrame, upperFrame, alpha, in
       buffered: false,
     },
     // Replay never presents live transport/session connectivity state: the
-    // `playback` live field is deliberately absent, and navigation.latitude /
-    // longitude (live UTM geodesy) stay unavailable rather than being
-    // re-derived by a second geodesy implementation in the browser.
+    // The live `playback` transport field is deliberately absent. Position
+    // uses the shared chart geodesy; depth comes only from matched ENC evidence.
   };
   return envelope;
 }

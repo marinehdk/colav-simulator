@@ -185,6 +185,18 @@ test('recorded GNC instruments follow the sealed source frame at a scrubbed play
   assert.equal(projectReplayFrame({ descriptor: DESCRIPTOR, context: CONTEXT, windowDoc, playhead: 10.5 }).envelope.gnc_balance.roll_deg, 2.0);
 });
 
+test('Replay projects recorded UTM position and matched ENC depth at the playhead', () => {
+  const source = { ...FRAME_A, ownship_navigation: { floor_depth_m: 20, source: 'ENC_MATCHED_DERIVED' } };
+  const windowDoc = { ...WINDOW_DOC, frames: [source, FRAME_B] };
+  const first = projectReplayFrame({ descriptor: DESCRIPTOR, context: CONTEXT, windowDoc, playhead: 10.0 }).envelope.os;
+  const midway = projectReplayFrame({ descriptor: DESCRIPTOR, context: CONTEXT, windowDoc, playhead: 10.25 }).envelope.os;
+  assert.ok(Number.isFinite(first.latitude) && Number.isFinite(first.longitude));
+  assert.ok(Number.isFinite(midway.latitude) && Number.isFinite(midway.longitude));
+  assert.notEqual(midway.latitude, first.latitude);
+  assert.equal(midway.floor_depth_m, 20);
+  assert.equal(midway.floor_depth_source, 'ENC_MATCHED_DERIVED');
+});
+
 function runtimeSnapshot(envelope) {
   return { session: { session_id: envelope.run_id, state: envelope.state }, telemetry: { envelope } };
 }
