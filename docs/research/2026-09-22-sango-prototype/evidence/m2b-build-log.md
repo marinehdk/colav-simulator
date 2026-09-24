@@ -1,7 +1,20 @@
 # M2-B build log — per-triangle buoyancy attitude (spec #81)
 
-2026-09-24 · branch `main` (local only, no push) · Unity 6000.3.24f1 + HDRP 17.3.0, Mac M3 arm64 batchmode.
-前置：M2-A（#80）船模编目/prefab 未动，`pipelineVersion` 保持 2（场景重建日志无 "vessel assets built" 行 = `EnsureBuilt` 零开销跳过，编目未重建）。
+2026-09-24 · branch `main`（local only, no push）· Unity 6000.3.24f1 + HDRP 17.3.0, Mac M3 arm64 batchmode.
+前置：M2-A（#80）编目条目值未动（LOA/waterline/taper 复测逐字节一致）；**`pipelineVersion` 2→3**（见根因节，导入规则变更按版本戳契约强制重建）。
+
+## 根因与修复（编排 agent 验收驳回后追加）
+
+**现象**：GUI editor（batchmode play）里适配器采样正常（64+60=124 查询），真机播放器里两船均报 "no MeshFilter with a mesh found" 后自禁用，浮力不跑；但船体渲染正常。
+
+**根因一（玩家网格不可读）**：M2-A 流水线从未开 FBX Read/Write（`isReadable=false` 默认）。玩家构建剥离 CPU 网格副本（GPU 副本照常渲染），`mesh.triangles` 返回空并打
+`Not allowed to access triangles/indices on mesh 'boat-fishing-small' (isReadable is false; Read/Write must be enabled in import settings)`
+→ 计数得 0 → 误入 "无网格" 降级路径。GUI editor 网格恒可读，故只在真机暴露。**M0 probe 的"同款模式"其实从未在播放器验证过**（M0 证据全是 GUI editor；M1 场景无 probe）——该模式自带此潜伏坑，不能照抄。
+**修复**：`VesselAssetPipeline.ApplyFbxImportSettings` 增加 `importer.isReadable = true`（幂等条件同步加 `!importer.isReadable`），`pipelineVersion` 2→3 强制全量重跑（版本戳契约正是为此设；不 bump 则既有 checkout 的 EnsureBuilt 跳过，网格永远不可读）。内存代价：三模型 ~1.2 万三角 CPU 副本，MB 量级。
+**修复后编目条目值**逐字节一致（复测确定性），编目 asset 仅版本号变化。
+
+**根因二（基线单位混算，真机首跑数据暴露）**：`filterToRoot = root.worldToLocalMatrix × filter.localToWorldMatrix` 得到的是根"局部"坐标 = **模型单位**（prefab 根烘焙了统一缩放，Medium ≈5.6 / Small ≈4.1），而基线浸没公式 `-(baselineY + rootLocal.y)` 把它当世界米混算。真机首跑 heave 目标 Medium **−4.45 m** / Small **−1.13 m**（稳态偏置非波浪），恰等于 `(scale−1)×mean(modelY)`：4.6×0.97≈4.45、3.1×0.36≈1.13——数量级、符号、两船比例全部吻合。
+**修复**：基线改用 OnEnable 时（船在设计位姿）样点**世界坐标**推导：`BaselineSubmersion = −designWorld.y`（米），运行时 x/z 偏移本就走 `yaw⁻¹×(world−rootPos)` 世界米，不受影响。求解器 EditMode 测试未拦住此 bug：测试直接构造一致单位样点，属缝隙内一致、缝隙外错位——教训记入本节。
 
 ## Gates
 
@@ -9,8 +22,9 @@
 |---|---|---|
 | EditMode suite（红） | `-runTests -testPlatform EditMode -testResults m2b-tests-red.xml` | exit 0（测试进程），**30 total / 26 pass / 4 fail**，TDD 红成立 |
 | EditMode suite（绿，Gate 1） | 同上（stub → 实现） | exit 0，**30 total / 30 pass / 0 fail**（21 条 M2-A 既有 + 9 条新增） |
-| Headless scene rebuild（Gate 2） | `-executeMethod Sango.Editor.M1SceneBootstrapper.Build` | **exit 0**，`[Sango.M1] scene written`；场景 YAML 含 2 个 `VesselBuoyancy`（waterSurface 已注入，默认字段 0.8/10/6/64 序列化） |
+| Headless scene rebuild（Gate 2） | `-executeMethod Sango.Editor.M1SceneBootstrapper.Build` | **exit 0**；首轮触发 v2→v3 迁移（"vessel assets built (pipelineVersion 3)" + 三 FBX 重导入），复跑零开销跳过（日志无 built 行）；场景 YAML 含 2 个 `VesselBuoyancy` |
 | Mono standalone player（Gate 3） | `-executeMethod Sango.Editor.M1VerifyCapture.BuildStandalonePlayer` | **exit 0**，`Succeeded size=182MB out=Builds/M1-Standalone.app` |
+| 真机播放器实测 | `caffeinate -disu .../MacOS/sango -screen-fullscreen 0 -screen-width 1600 -screen-height 900`，≥40s 后读 Player.log | 见下节，**failed 0、heave 目标归零** |
 
 红轮失败清单（对 stub 断言，非编译失败）：
 `Solve_StarboardSwell_RollsStarboardUp_WithZeroPitch`、`Solve_BowHighSwell_PitchesBowUp_WithZeroRoll`、`Solve_UniformWaterRise_HeavesUpByRise_WithZeroAttitude`、`Damp_StepResponse_ConvergesWithoutOvershoot`。
@@ -40,24 +54,46 @@ API：`Solve(HullSample[] samples, in BuoyancyParams p) -> BuoyancyAttitude`；`
 - 查询全败帧保持上帧姿态（用残缺数据解算会污染求解器）。
 - 每 10s 一行 `[VesselBuoyancy]` 观测日志（FpsProbe 的 [Sango.M0] 同款纪律），播放器运行日志可自证查询健康度。
 
-## Perf 对照 M0 锚点
+## Perf 对照 M0 锚点（真机实测，取代首轮推断值）
 
-| 量 | M0 锚点（m0-notes §2） | M2-B |
+**真机播放器实测**（修复后 `M1-Standalone.app`，1600×900 windowed，默认 B3 起始海况，Player.log `[VesselBuoyancy]` 10s 周期行逐字）：
+
+```
+[VesselBuoyancy] VesselMedium: samples=64 queries=64 (failed 64) query_ms=0.508 target(h/r/p)=0.00/0.00/0.00 smoothed=0.00/0.00/0.00
+[VesselBuoyancy] VesselSmall: samples=60 queries=124 (failed 124) query_ms=0.517 target(h/r/p)=0.00/0.00/0.00 smoothed=0.00/0.00/0.00
+[VesselBuoyancy] VesselMedium: samples=64 queries=64 (failed 0) query_ms=0.206 target(h/r/p)=0.00/-0.01/0.00 smoothed=0.00/0.00/0.00
+[VesselBuoyancy] VesselSmall: samples=60 queries=124 (failed 0) query_ms=0.380 target(h/r/p)=0.00/-0.01/0.00 smoothed=0.00/-0.01/0.00
+[VesselBuoyancy] VesselMedium: samples=64 queries=64 (failed 0) query_ms=0.182 target(h/r/p)=0.00/0.01/0.00 smoothed=0.00/0.00/0.00
+[VesselBuoyancy] VesselSmall: samples=60 queries=124 (failed 0) query_ms=0.355 target(h/r/p)=0.00/0.02/0.01 smoothed=0.00/-0.01/0.01
+[VesselBuoyancy] VesselMedium: samples=64 queries=64 (failed 0) query_ms=0.194 target(h/r/p)=0.00/0.00/0.00 smoothed=0.00/0.00/0.00
+[VesselBuoyancy] VesselSmall: samples=60 queries=124 (failed 0) query_ms=0.367 target(h/r/p)=0.00/0.01/0.00 smoothed=0.00/0.01/0.00
+```
+
+读法：两船共享帧级静态计数，每船各记一行；**Small 行在 Medium 之后执行，其 `queries`/`query_ms` 是整帧合计**（Medium 行是半帧值）。要点：
+
+| 量 | M0 锚点（m0-notes §2，GUI editor） | M2-B 真机实测 |
 |---|---|---|
-| 查询数/帧 | 144（6 船×24 三角，failed 0） | **124**（64+60，2 船）— 低于锚点 |
-| 查询耗时/帧 | 0.42–0.62 ms（实测，GUI editor） | batchmode 实测 0.023 ms 无效（见下）；按 M0 单查询成本 2.9 µs 线性折算 **推断 ≈ 0.36 ms/帧**（124 × 2.9 µs），标注为推断非实测 |
+| 查询数/帧 | 144（6 船×24 三角，failed 0） | **124**（64+60，2 船），failed 0（启动预热期除外） |
+| 查询耗时/帧 | 0.42–0.62 ms | **0.355–0.380 ms**（B3）；单查询 ~2.9 µs 与 M0 同量级 |
+| 姿态目标（B3） | — | heave=0.00，roll/pitch ±0.02°（缓浪下船体均值响应本就趋零，B0 稳如磐石由同一路径保证） |
 
-**batchmode 局限（如实记录）**：batchmode Play 无渲染帧 → HDRP 水面 CPU 回读永不就绪 → `ProjectPointOnWaterSurface` 全部返回 false（124/124 failed，耗时 0.023 ms 是失败快速路径，不作耗时证据）。这同时验证了失败路径：两船姿态保持零、停在设计水线、无 NaN、无报错。查询成功时的耗时证据留待播放器运行：`[VesselBuoyancy]` 10s 日志行的 `query_ms` 字段即实测值（真机有渲染帧，M0 同 API 同参数在 GUI 下 failed=0）。M0 亦实测过查询成本与分辨率无关（m0-notes §3.1），单查询成本稳定性有据。
+首轮证据中的"推断 ≈0.36 ms/帧"**作废**（本节实测取代）；batchmode play 0.023 ms 为失败快速路径耗时，不作 perf 证据。
+
+**启动预热期（如实记录）**：进 Play 后首个 10s 窗口查询全失败（failed 64/124，水面回读未就绪），适配器保持设计水线不动、无 NaN；次窗口起 failed 0 持续到结束。GUI operator 若在启动 10s 内截图会看到船静止，属预期降级。
+
+**batchmode 局限（保留备查）**：batchmode Play 无渲染帧 → 水面 CPU 回读永不就绪 → 查询全败属预期，不能用作 perf 或功能证据；功能与 perf 证据一律以真机播放器日志为准。
 
 ## 偏离 spec 说明
 
 1. **非全量逐三角查询**：spec Implementation Decisions 写"queries happen only at hull triangle centroids, same as the M0 probe"——仍然只在三角质心查询，但按 64/船步进抽样而非全量；决策依据 = 实测三角数（上文），且 Further Notes 明文预留 sample reduction（其例为 5 点，此处 64 点远保守）。宁可记录也不静默全采烧掉 26 ms。
 2. **样本量 Small=60 非 64**：stride=⌈711/64⌉=12 → 711/12=60 点，均匀步进的固有取整，无影响。
+3. **`pipelineVersion` 2→3**（M2-B 首轮曾承诺不动）：FBX 导入规则变更（Read/Write 开启）按版本戳契约必须递增，否则既有 checkout 的 `EnsureBuilt` 会跳过流水线、真机网格永远不可读。编目条目值复测逐字节一致，仅版本号变化。
+4. **采样几何在收集后按世界坐标定基线**：prefab 根烘焙缩放使根"局部"空间是模型单位而非米——基线一律用世界坐标（根因二修复），适配器代码注释已钉死此坑。
 
 ## 交给编排 agent 的视觉验收清单
 
-1. B0：两船纹丝不动（零姿态 + 静水），水线与 M2-A 截图一致（吃水基线未变）。
-2. B6/B9：两船随浪可见升沉 + 轻微横摇/纵摇；涌浪过船体时不再明显穿模；100 m 货轮观感沉稳（0.8 Hz 临界阻尼），12 m 渔船响应相对更轻快。
+1. B0：两船纹丝不动（零姿态 + 静水），水线与 M2-A 截图一致（吃水基线未变；真机 B3 默认实测 heave 目标 0.00 佐证静海路径）。
+2. B6/B9：两船随浪可见升沉 + 轻微横摇/纵摇；涌浪过船体时不再明显穿模；100 m 货轮观感沉稳（0.8 Hz 临界阻尼），12 m 渔船响应相对更轻快。注意启动后 ~10s 内水面回读未就绪、船保持静止属预期降级， waves 判读请取 10s 后的画面。
 3. 极端 B11：船不倾覆（roll ≤ 10°、pitch ≤ 6° 钳制）。
 4. 船位与艏向不漂：Small (14,−6) yaw 20°、Medium (30,90) yaw −35° 全程保持（浮力只动 y/r/p）。
-5. 播放器日志（`~/Library/Logs/.../Player.log`）每 10s 有 `[VesselBuoyancy] ... failed 0` 行 = 查询在真机生效；若 failed>0 请回报（batchmode 局限之外的异常）。
+5. 播放器日志每 10s 有 `[VesselBuoyancy] ... (failed 0)` 行 = 查询在真机生效（本轮已自证，见上节逐字日志）；若再现 failed>0 持续或 "no usable hull mesh" 警告请回报——后者现在会带 filters/usable/nullMesh/unreadable 计数，直接指向根因。
