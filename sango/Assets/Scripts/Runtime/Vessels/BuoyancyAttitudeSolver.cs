@@ -1,0 +1,142 @@
+using UnityEngine;
+
+namespace Sango
+{
+    /// <summary>
+    /// 单个船体浸没采样点：yaw-only 船体坐标系下的水平偏移与浸没深度（米）。
+    /// 由引擎适配器（VesselBuoyancy）按 M0 probe 模式逐三角质心采样填充；
+    /// 纯数据，求解器不接触任何引擎水面 API。
+    /// </summary>
+    public struct HullSample
+    {
+        /// <summary>右舷(+X)方向水平偏移（米，yaw-only 船体系）。</summary>
+        public float StarboardOffset;
+
+        /// <summary>艏(+Z)方向水平偏移（米，yaw-only 船体系）。</summary>
+        public float ForwardOffset;
+
+        /// <summary>当前浸没深度 = 水面高 − 点高（+ = 点在水下）。</summary>
+        public float Submersion;
+
+        /// <summary>静水基线浸没深度（设计水线/吃水，来自编目 waterlineOffsetY）。</summary>
+        public float BaselineSubmersion;
+    }
+
+    /// <summary>求解参数：增益为"波浪坡角响应比例"，钳制为可行姿态上限。</summary>
+    public struct BuoyancyParams
+    {
+        /// <summary>升沉增益（1 = 跟随局部平均水面）。</summary>
+        public float HeaveGain;
+
+        /// <summary>横摇增益（0.5 = 取波浪坡角的一半）。</summary>
+        public float RollGain;
+
+        /// <summary>纵摇增益。</summary>
+        public float PitchGain;
+
+        /// <summary>横摇钳制上限（度，对称）。</summary>
+        public float MaxRollDeg;
+
+        /// <summary>纵摇钳制上限（度，对称）。</summary>
+        public float MaxPitchDeg;
+
+        public static BuoyancyParams Default => new BuoyancyParams
+        {
+            HeaveGain = 1f,
+            RollGain = 0.5f,
+            PitchGain = 0.5f,
+            MaxRollDeg = 10f,
+            MaxPitchDeg = 6f,
+        };
+    }
+
+    /// <summary>
+    /// 求解输出（M2-B 姿态目标）。钉死符号约定：
+    ///   HeaveOffset：+ = 相对设计吃水向上（米）；
+    ///   RollDeg：Unity 本地欧拉 Z，+ = 右舷(+X)上浮；
+    ///   PitchDeg：Unity 本地欧拉 X，+ = 艏(+Z)下俯（Unity 正 X 欧拉压艏，故艏抬升输出负值）。
+    /// </summary>
+    public struct BuoyancyAttitude
+    {
+        public float HeaveOffset;
+        public float RollDeg;
+        public float PitchDeg;
+    }
+
+    /// <summary>临界阻尼标量弹簧状态（半隐式欧拉）。</summary>
+    public struct DampedScalar
+    {
+        public float Value;
+        public float Velocity;
+    }
+
+    /// <summary>
+    /// M2-B 纯浮力姿态求解器（spec #81）：输入 = 逐采样浸没数据（含吃水基线），
+    /// 输出 = 升沉偏移 + 横摇/纵摇角。无状态、确定性、不引用引擎水面 API——
+    /// 单点真值，供回放/对齐复用。引擎查询是 VesselBuoyancy 适配器的职责。
+    /// </summary>
+    public static class BuoyancyAttitudeSolver
+    {
+        const float k_Rad2Deg = 57.29578f;
+
+        /// <summary>
+        /// 纯求解：浸没激励 → 姿态目标。每样点取浸没激励 e_i = Submersion − BaselineSubmersion
+        /// （静水下 e≡0 → 全零姿态，B0 稳如磐石）。
+        ///   升沉 = HeaveGain × mean(e)（整体水位抬升直接上浮，短峰经船体均值自然衰减）；
+        ///   横摇/纵摇 = 对 e 的去均值场做沿 +X / +Z 的最小二乘坡度，取坡角（atan）× 增益，
+        ///   后按对称上限钳制。无状态；同输入逐位同输出。
+        /// </summary>
+        public static BuoyancyAttitude Solve(HullSample[] samples, in BuoyancyParams p)
+        {
+            var attitude = default(BuoyancyAttitude);
+            if (samples == null || samples.Length == 0) return attitude;
+
+            int n = samples.Length;
+            float sum = 0f;
+            for (int i = 0; i < n; i++) sum += samples[i].Submersion - samples[i].BaselineSubmersion;
+            float meanExcursion = sum / n;
+            attitude.HeaveOffset = p.HeaveGain * meanExcursion;
+
+            // 去均值一阶矩/二阶矩（去均值与升沉解耦：整体水位抬升只产生 heave，不产生假坡度）。
+            float xNum = 0f, zNum = 0f, xDen = 0f, zDen = 0f, maxX2 = 0f, maxZ2 = 0f;
+            for (int i = 0; i < n; i++)
+            {
+                float e = samples[i].Submersion - samples[i].BaselineSubmersion - meanExcursion;
+                float x = samples[i].StarboardOffset;
+                float z = samples[i].ForwardOffset;
+                xNum += x * e;
+                zNum += z * e;
+                xDen += x * x;
+                zDen += z * z;
+                if (x * x > maxX2) maxX2 = x * x;
+                if (z * z > maxZ2) maxZ2 = z * z;
+            }
+
+            // 退化护栏：样点横向/纵向展开趋零（如全部共线）则坡度无定义，姿态归零。
+            float xSpread = n * maxX2;
+            float zSpread = n * maxZ2;
+            float rollDeg = xSpread > 1e-6f ? p.RollGain * Mathf.Atan(xNum / xDen) * k_Rad2Deg : 0f;
+            float pitchDeg = zSpread > 1e-6f ? p.PitchGain * Mathf.Atan(zNum / zDen) * k_Rad2Deg : 0f;
+
+            // 水面右舷高（坡度>0）→ 右舷上浮 → RollDeg>0（钉死约定）；
+            // 水面艏高（坡度>0）→ 艏上浮 → Unity 正 X 欧拉是压艏 → 输出取负（钉死约定）。
+            attitude.RollDeg = Mathf.Clamp(rollDeg, -p.MaxRollDeg, p.MaxRollDeg);
+            attitude.PitchDeg = Mathf.Clamp(-pitchDeg, -p.MaxPitchDeg, p.MaxPitchDeg);
+            return attitude;
+        }
+
+        /// <summary>
+        /// 临界阻尼标量弹簧（半隐式欧拉，ω = 2πf）：阶跃无越冲、无谐振尾巴。
+        /// dt≤0 原样返回；frequencyHz≤0 视为配置错误，直接吸附目标（不卡死姿态）。
+        /// </summary>
+        public static DampedScalar Damp(DampedScalar s, float target, float frequencyHz, float dt)
+        {
+            if (dt <= 0f) return s;
+            if (frequencyHz <= 0f) return new DampedScalar { Value = target, Velocity = 0f };
+            float omega = 2f * Mathf.PI * frequencyHz;
+            s.Velocity += dt * (omega * omega * (target - s.Value) - 2f * omega * s.Velocity);
+            s.Value += dt * s.Velocity;
+            return s;
+        }
+    }
+}
