@@ -4,6 +4,12 @@ Spec: issue #80 (Sango M2-A). Date: 2026-09-24. All commands run headless on
 Unity 6000.3.24f1 at `/Applications/Unity/Hub/Editor/6000.3.24f1/Unity.app/Contents/MacOS/Unity`,
 project `/Users/marine/Code/Colav-Simulator/sango`.
 
+> **2026-09-24 review fixes (post code-review of d1bc4f17..HEAD): Large class
+> swapped ship-large → ship-cargo-a, catalog now persists measured end-taper
+> widths (anti-flip bow guard), PROVENANCE.txt added. The tables in the
+> original sections below reflect the FIRST build and are superseded by
+> §Review fixes at the bottom.**
+
 ## Asset provenance
 
 - Source: Kenney Watercraft Kit 2.1, License CC0 1.0.
@@ -124,3 +130,79 @@ bundle exists on disk (183 MB).
   captures are launched under `caffeinate` with per-app App Sleep disabled.
 - Deferred to M2-E review: `ship-large` is a tall sailing ship (kit's only large
   model), not a cargo vessel as the spec prose suggested; not placed in this scene.
+
+## Review fixes (2026-09-24, post code-review of d1bc4f17..HEAD)
+
+### 1. Large class model swap: ship-large → ship-cargo-a
+
+`ship-large` was the kit's only "large" model but is a tall SAILING ship;
+spec #80 pins "large cargo vessel". Swapped to `ship-cargo-a.fbx` (container
+feeder, aft bridge) at the same 100 m LOA target. `ship-large.fbx` and its
+material removed from the repo; committed models are now exactly the three
+class models (see `Assets/Art/KenneyWatercraft/PROVENANCE.txt`).
+
+Bow re-pinning, dual evidence, both agreeing on **native bow +Z → yaw 0°**:
+
+- Preview (`Previews/ship-cargo-a.png`, upscaled): containers fore, bridge
+  and funnels on the aft (stern) end.
+- OBJ vertex analysis: keel outline (y=0) runs flat to the −Z end (transom,
+  z=−4.974, width 1.685) and converges to a point at +Z (±0.37 at z=+3.337,
+  tip at z=+3.473); deck-plan width narrows toward the +Z tip (1.24/1.62 in
+  the last two 5%-slices vs 3.70/2.76 at the −Z end) → **bow +Z**.
+- Unity-side cross-check (pipeline measurement, 10 z-slices, outer-20%
+  average): −Z end 7.61 vs +Z end 5.31 → +Z finer → bow +Z. Consistent.
+
+Deck-height fraction re-derived: main deck edge at y=0.966 (full-length
+z-span level), total height 3.380 → fraction 0.966/3.380 = 0.2858.
+Draft = 0.15 × 0.2858 × height × scale → waterline offset −1.37 m at 100 m LOA.
+
+### 2. Anti-flip bow guard (catalog-persisted taper)
+
+The rotation test alone was a literal echo (a flipped pin passed all tests).
+`VesselCatalog.Entry` now carries `bowEndWidth` / `sternEndWidth` — the
+pipeline-measured near-end hull widths of the native ±Z ends, mapped
+bow/stern by the pinned yaw at build time. New test
+`Catalog_TaperTowardPinnedBow_IsStrictlyFiner_ThanStern` asserts
+`bowEndWidth < sternEndWidth` (geometry-derived, not an echo). Red-check
+performed: flipping the Large yaw literal to 180°, rebuilding the catalog and
+re-running tests → the taper test goes RED ("bow end 7.61 should be finer
+than stern end 5.31") while the literal-echo rotation test alone cannot see
+the geometry contradiction. Reverted to 0°, catalog rebuilt, all green.
+
+### 3. Provenance file
+
+`Assets/Art/KenneyWatercraft/PROVENANCE.txt` (TextAsset): kit name+version,
+upstream zip URL, source page, CC0 1.0 statement, verbatim-license pointer
+(`LICENSE.txt~`), and the three committed models. `LICENSE.txt~` kept as the
+verbatim license.
+
+### 4. Catalog version stamp
+
+`VesselCatalog.pipelineVersion` (currently 2) — `EnsureBuilt()` rebuilds
+unless the catalog's version matches, so spec changes force regeneration on
+the next scene build instead of being skipped by the "3 valid entries" check.
+
+### Post-fix catalog values (pipeline output, pipelineVersion 2)
+
+| Class  | Prefab       | Model              | LOA target → actual | Bow yaw (evidence)              | bowEndW / sternEndW | Waterline offset |
+| ------ | ------------ | ------------------ | ------------------- | ------------------------------- | ------------------- | ---------------- |
+| Large  | VesselLarge  | ship-cargo-a       | 100 → 100.0 m       | 0° (keel point + deck taper +Z) | 5.31 / 7.61         | −1.37 m          |
+| Medium | VesselMedium | ship-ocean-liner   | 60 → 60.0 m         | 180° (keel point −Z)            | 5.72 / 6.75         | −1.29 m          |
+| Small  | VesselSmall  | boat-fishing-small | 12 → 12.0 m         | 0° (keel point +Z)              | 2.76 / 3.57         | −0.33 m          |
+
+(End widths in import-scale units from the pipeline's 10-slice measurement;
+they are ratios-as-evidence, not physical meters.)
+
+### Post-fix gates
+
+- EditMode: `… -runTests -testPlatform EditMode -testResults
+  /tmp/m2a-tests-green3.xml` → exit 0, **21 passed / 0 failed / 0 skipped**
+  (18 original + 3 taper). Red-check run for the flip experiment:
+  /tmp/m2a-tests-flip.xml (19 pass / 2 fail, both expected).
+- Scene rebuild: `… -executeMethod Sango.Editor.M1SceneBootstrapper.Build`
+  → exit 0 (EnsureBuilt skips via matching pipelineVersion after the forced
+  regeneration during the swap; the scene re-berth (30,90) from f7a4b321
+  untouched).
+- Player build: `… -executeMethod Sango.Editor.M1VerifyCapture.BuildStandalonePlayer`
+  → exit 0 (see /tmp/m2a-player2.log).
+
