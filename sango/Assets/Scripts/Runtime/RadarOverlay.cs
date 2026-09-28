@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.UI;
+using static Sango.UiBuildHelpers;
 
 namespace Sango
 {
@@ -261,15 +262,7 @@ namespace Sango
             return Sprite.Create(tex, new Rect(0f, 0f, size, size), new Vector2(0.5f, 0.5f), size);
         }
 
-        // ── uGUI 小件（WeatherGUI 同款最小件，raycastTarget 全关：本面板无交互）────────
-
-        static RectTransform NewRect(string name, Transform parent)
-        {
-            var go = new GameObject(name, typeof(RectTransform));
-            var rt = (RectTransform)go.transform;
-            rt.SetParent(parent, false);
-            return rt;
-        }
+        // ── uGUI 小件：NewRect/LoadBuiltinFont 已收编 UiBuildHelpers（W1 review，同命名空间直用；本面板无交互件）
 
         static Text CreateLabel(Transform parent, string name, string content, int fontSize, TextAnchor align, Color color)
         {
@@ -284,14 +277,6 @@ namespace Sango
             text.verticalOverflow = VerticalWrapMode.Overflow;
             text.raycastTarget = false;
             return text;
-        }
-
-        static Font LoadBuiltinFont()
-        {
-            Font f = null;
-            try { f = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf"); } catch { }
-            if (f == null) { try { f = Resources.GetBuiltinResource<Font>("Arial.ttf"); } catch { } }
-            return f;
         }
     }
 }

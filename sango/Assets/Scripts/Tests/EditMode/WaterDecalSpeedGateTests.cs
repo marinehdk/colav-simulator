@@ -12,7 +12,7 @@ namespace Sango.Tests
     ///   低于阈值（静止/锢泊）→ 两块 decal 禁用、泡沫强度 0；
     ///   阈值以上 → 启用，泡沫/艏波幅度随航速线性爬坡到全强速度后钳 1。
     /// BoatWaterDecals 在 Assembly-CSharp（Runtime 根无 asmdef），经反射驱动
-    /// （先例 WeatherFogOverrideTests.FindAssemblyCSharpType）；WaterDecal 断言走 HDRP 公开 API。
+    /// （共享 TestReflection.FindAssemblyCSharpType）；WaterDecal 断言走 HDRP 公开 API。
     /// </summary>
     public class WaterDecalSpeedGateTests
     {
@@ -105,7 +105,7 @@ namespace Sango.Tests
         public void ApplySpeed_NullDecals_NoThrow()
         {
             // 编目缺失/构建器没接上的防御路径：空引用不抛
-            var adapterType = FindAssemblyCSharpType("Sango.BoatWaterDecals");
+            var adapterType = TestReflection.FindAssemblyCSharpType("Sango.BoatWaterDecals");
             var adapterGo = new GameObject("gate-test-adapter-bare");
             var adapter = (MonoBehaviour)adapterGo.AddComponent(adapterType);
             Assert.DoesNotThrow(() => InvokeApplySpeed(adapter, 5f));
@@ -115,7 +115,7 @@ namespace Sango.Tests
 #pragma warning disable IDE0051 // 适配器字段名反射查（编译期不可见）
         (MonoBehaviour adapter, WaterDecal bow, WaterDecal wake) CreateWired(float bowAmp = 0.4f)
         {
-            var adapterType = FindAssemblyCSharpType("Sango.BoatWaterDecals");
+            var adapterType = TestReflection.FindAssemblyCSharpType("Sango.BoatWaterDecals");
             var adapterComp = (MonoBehaviour)_boat.AddComponent(adapterType);
             adapterType.GetField("bowDecal").SetValue(adapterComp, _bowGo.AddComponent<WaterDecal>());
             adapterType.GetField("wakeDecal").SetValue(adapterComp, _wakeGo.AddComponent<WaterDecal>());
@@ -132,18 +132,5 @@ namespace Sango.Tests
             adapter.GetType().GetMethod("ApplySpeed").Invoke(adapter, new object[] { speedMps });
         }
 #pragma warning restore IDE0051
-
-        static System.Type FindAssemblyCSharpType(string fullName)
-        {
-            foreach (var asm in System.AppDomain.CurrentDomain.GetAssemblies())
-            {
-                if (asm.GetName().Name != "Assembly-CSharp") continue;
-                var t = asm.GetType(fullName);
-                Assert.That(t, Is.Not.Null, $"Assembly-CSharp 缺类型 {fullName}");
-                return t;
-            }
-            Assert.Fail("Assembly-CSharp 程序集未加载");
-            return null;
-        }
     }
 }

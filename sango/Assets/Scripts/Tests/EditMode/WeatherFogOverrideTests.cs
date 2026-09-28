@@ -37,7 +37,7 @@ namespace Sango.Tests
             volume.sharedProfile = ScriptableObject.CreateInstance<VolumeProfile>();
             volume.sharedProfile.Add<Fog>();
 
-            var ctrlType = FindAssemblyCSharpType("Sango.WeatherController");
+            var ctrlType = TestReflection.FindAssemblyCSharpType("Sango.WeatherController");
             _controllerGo = new GameObject("fog-test-controller");
             var controller = (MonoBehaviour)_controllerGo.AddComponent(ctrlType);
             ctrlType.GetField("globalVolume").SetValue(controller, volume);
@@ -53,19 +53,6 @@ namespace Sango.Tests
             Assert.That(fog.meanFreePath.overrideState, Is.True, "散射自由程 overrideState");
             Assert.That(fog.meanFreePath.value, Is.EqualTo(1234f), "自由程起调值 = 1× 雾距");
             Assert.That(fog.maximumHeight.overrideState, Is.True, "雾层顶高 overrideState");
-        }
-
-        static System.Type FindAssemblyCSharpType(string fullName)
-        {
-            foreach (var asm in System.AppDomain.CurrentDomain.GetAssemblies())
-            {
-                if (asm.GetName().Name != "Assembly-CSharp") continue;
-                var t = asm.GetType(fullName);
-                Assert.That(t, Is.Not.Null, $"Assembly-CSharp 缺类型 {fullName}");
-                return t;
-            }
-            Assert.Fail("Assembly-CSharp 程序集未加载");
-            return null;
         }
     }
 }
