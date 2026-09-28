@@ -42,10 +42,8 @@ namespace Sango
             if (cam == null) return;
             var boxes = CollectBoxes(cam, Screen.width, Screen.height);
             foreach (var box in boxes)
-            {
-                var rect = OverlayProjection.ViewportBoxToPixelRect(box.vpMin, box.vpMax, Screen.width, Screen.height, marginPx);
-                GUI.Box(rect, $"{box.label}  {OverlayProjection.ConfidenceLabel(1f, true)}");
-            }
+                GUI.Box(PixelRectFor(box, Screen.width, Screen.height),
+                    $"{box.label}  {OverlayProjection.ConfidenceLabel(1f, true)}");
         }
 
         /// <summary>
@@ -60,7 +58,7 @@ namespace Sango
             var detections = new DetectionResult.Box[boxes.Count];
             for (int i = 0; i < boxes.Count; i++)
             {
-                var rect = OverlayProjection.ViewportBoxToPixelRect(boxes[i].vpMin, boxes[i].vpMax, Screen.width, Screen.height, marginPx);
+                var rect = PixelRectFor(boxes[i], Screen.width, Screen.height);
                 detections[i] = new DetectionResult.Box
                 {
                     box_xyxy = new[] { rect.xMin, rect.yMin, rect.xMax, rect.yMax },
@@ -82,6 +80,12 @@ namespace Sango
         {
             public Vector2 vpMin, vpMax;
             public string label;
+        }
+
+        /// <summary>viewport AABB → 像素 xyxy（唯一换算点；OnGUI 与 ProvideGroundTruth 共用）。</summary>
+        Rect PixelRectFor(ScreenBox box, int screenW, int screenH)
+        {
+            return OverlayProjection.ViewportBoxToPixelRect(box.vpMin, box.vpMax, screenW, screenH, marginPx);
         }
 
         List<ScreenBox> CollectBoxes(Camera cam, int screenW, int screenH)

@@ -138,3 +138,24 @@ NEGATIVE_PROBE_EXIT=1
 - Verdict: PASS (probe + overlay + default-off; contracts/fixture tests in
   the 124/124 suite).
 - Review pending at time of writing; close-out of #86 follows the review.
+
+## 9. 评审轮（fixed point 2e3e006b^ → HEAD，两轴 code review）
+
+**Standards 轴**
+- [硬伤，已修] FramePublisher 发送路径可向渲染循环抛异常/阻塞——`SendMultipartMessage` 为阻塞语义，订阅端 HWM 满/socket 异常时会卡渲染协程或抛出。修复：`TrySendMultipartMessage(TimeSpan 100ms, message)`（签名对照 zeromq/netmq@master OutgoingSocketExtensions.cs:455 核实，timeout 在前）+ 丢帧告警；另补 `_pub` 空守卫与 0 尺寸屏面静默跳帧。
+- [硬伤，已修] 文档承诺的 Inspector 勾选启用路径在 Play 中无效（Start 后无任何钩子监听 runtimeEnabled）。修复：Update 闸每帧布尔同步启停（关闸成本 = 每帧一次布尔比较，验收故事 5 的"无可测成本"表述同步校准：类注释 + frame-publisher-v1.md §3）。
+- [判断项，顺手收] OnGUI 与 ProvideGroundTruth 的 viewport→像素换算重复 → 提取 `PixelRectFor` 单点共用。
+- 判断项保留：vpMin/vpMax/screenW/H 数据团（贴合 Unity 惯例）；OnGUI 默认 Box 样式（偏差 #7 已记录）。
+
+**Spec 轴**（issue #86 逐条核过）：四钉子对照 Implementation/Testing Decisions 全过；六项偏差均在 §8 有档；无 scope creep（fixture 捕获为 spec 明示的一次性动作，无运行时后端耦合）。
+
+**评审后全闸重跑**（发布器行为已变，探针双向重验）：
+| 闸 | exit |
+|---|---|
+| EditMode 套件（/tmp/m3r-tests.xml） | 0（**124/124**） |
+| M1 重建 / M2E 重建 | 0 / 0 |
+| M1 玩家 / M2E 玩家（Succeeded） | 0 / 0 |
+| 探针正向（--sango-publisher，新 TrySend 路径） | 0（30/30 帧，0.9s，`OK: received 30 valid frames (last seq=686)`） |
+| 探针反向对照（默认玩家） | FAIL: timeout after 30s with 0/30 frames（= 默认 OFF 成立） |
+
+场景/Volume profile 相对 HEAD 的再入库差异为闸门重跑的对称重序列化噪声（2578 插/2578 删，无新增对象），未随本修复提交（避免夹带并行中未完成的用户侧改动）；bootstrapper 重跑随时可再生。

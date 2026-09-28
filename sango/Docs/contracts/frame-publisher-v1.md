@@ -33,7 +33,7 @@ FrameMetadata（`Vessels/FramePublisherCore.cs`）：
 ## 3. 开关与零成本（验收故事 5）
 
 - **编译期总闸 `SangoSeamConfig.PublisherEnabled = false`**：默认一切构建 OFF。
-- OFF 成本：`FramePublisher.OnEnable` 早退——不建 socket、不起协程、Update 无逻辑，零每帧开销。
+- OFF 成本：不建 socket、不起协程，`Update` 仅一次布尔比较（无可测成本，验收故事 5）。
 - **启用路径（验收标准路径，不改编译期默认、无需重编译）**：
 
   ```bash
