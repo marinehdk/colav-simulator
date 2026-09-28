@@ -157,3 +157,44 @@ Apply 语义：仅销毁重建 `Islands` 根（船/天气/相机/水面不动）
 ```
 
 **判读**：相机位姿逐位正确（M1 桥楼 (0,12,−40)、pitch −0.52°、FOV 60）；**followPos 健康**——(14.00, −0.33, −6.00) 在水面高度（y≈−0.33，与 VesselMedium 场景 y−1.29 同量级），艏向 20°（NE，与证据图"随艏向 20° 指向东北"吻合），无 NaN / 无爆量 / 无深负 Y。结论：**三坏视图的输入端（船根变换）是干净的，故障不在 followPos**——位姿解算本身（bow/chase 偏移合成或 top-down 分支）或视图切换路径为下一嫌疑；待编排方驱动视图循环取 per-view 日志行定位。
+
+## 渐变根因修复轮（2026-09-28，pitch 符号约定与 Unity 相反——三轮仪表递进定案）
+
+**背景**：全透视构建下 Bow/Chase/TopDown 仍为平滑深蓝渐变（Bridge 完全正常、同一相机同会话）；编排方切 Chase 的位姿日志与手算逐厘米吻合 → 立案"位姿正确却错像素 ⇒ 必有别的相机在 rig 之后画屏"。
+
+**仪表递进（相机普查 5 s 行常驻进 CameraRig.LateUpdate；本机 osascript keystroke 有辅助功能权限，本人可自行驱动 C 循环）**：
+
+1. **全相机普查**：全场景恒 2 台——Main Camera（rig，rt=screen）+ PreviewCamera（出生即 targetTexture 绑定，(5000,9.4,4965.6) 远角舞台，far 1200）；雷达无相机、船 prefab `importCameras=false`。**"流氓相机盖屏"嫌疑排除**（Bridge 帧即可证：恰一台屏渲相机）。
+2. **矩阵真相**（census 附 w2cBoat / camPosByMatrix / projFov）：矩阵每帧都由 transform 正确重导出（camPosByMatrix 逐tick吻合；ResetWorldToCameraMatrix/ResetProjectionMatrix 实验性修复无效）——"矩阵冻结"嫌疑排除。**但数值本身定罪**：Chase 稳态 `w2cBoat=(0.00, -29.53, -18.76)`——船在视轴下方 57.58° 而真值仅 4.4°（57.58 = 30.96° 真俯角 + 26.6）；x=0.00（yaw 全对）、斜距 34.99 精确守恒。
+3. **根因**：**pitch 符号约定与 Unity 相反**。CameraViews 文档约定"PitchDeg 负 = 俯"，但 Unity `Quaternion.Euler` 是 **正 x = 俯**（Rx(+90)·(0,0,1) = (0,−1,0)）——负值直传 = **抬头**。TopDown −80 = 仰 80° 拍天顶（其 w2cBoat z=+157.57：船在相机**背后**——HDRP 物理天空 = 深蓝渐变本体）；Chase −26.6 仰拍、船 57.6° 出框下方；Bow −8 微仰。Bridge "正常"纯属侥幸：−0.52（仰）vs M1 LookRotation 的 +0.52（俯）仅差 1° 不可见。
+
+**修复**：单一边界取反——`CameraRig.ApplyPose` 以 `Quaternion.Euler(-PitchDeg, YawDeg, 0)` 写入（rig 是 PitchDeg→引擎唯一消费者；解析器纯函数与"负 = 俯"文档约定原样保留，CameraViews/CameraRig 注释同步）。误诊副产品（矩阵 Reset 实验）已撤销，不留死代码。
+
+**修复后 census 实证（修复轮烟测逐字，C 循环全四视图）**：
+
+- Chase `rot=(27,20,0)` `w2cBoat=(0.00, -2.66, -34.88)` → **boatNDC (0.50, 0.43) 画面正中**（预告 0.42）。
+- TopDown `rot=(80,0,0)` `w2cBoat=(0.00, -27.78, -157.57)` → in-front，**boatNDC (0.50, 0.22) 在框**（预告 0.22）。
+- Bow `rot=(8,20,0)` 艏桅视角船体在下前方（根在框后属预期）；Bridge `rot=(1,0,0)` = M1 LookRotation 位姿逐位同源；过渡帧 fov 55.1（35⇄60 插值活着）；全程 **0 exceptions**。
+
+**Gate 复跑**（/tmp/m2e2h-*.log）：EditMode `-testResults /tmp/m2e2h-tests.xml` exit 0 **108 / 108 / 0**；M1 / M2E 场景重建双 exit 0；M1 / M2E 播放器重建双 exit 0。
+
+**说明**： census 行（含 w2cBoat/camPosByMatrix/projFov 三矩阵真值列）按编排方指示**常驻保留**（VesselBuoyancy 10 s 行同款低频仪表模式）。编排方全周期目检（C 四视图观感 + 亮度恒定）仍待其本机确认——本轮数学证据已闭环：渐变 = 仰角拍天，修复后船恒在框内。
+
+## Rendering-fix + camera-census rounds (2026-09-24 → 09-28)
+
+- Round 1 (all-perspective rig, ded965ec): removed ortho TopDown entirely —
+  HDRP persp⇄ortho projection switching corrupted pipeline state (gradient
+  frames, world dark after visiting TopDown).
+- Round 2 (census + matrix resync, ffea2907 + uncommitted work completed by
+  orchestrator): 5 s instrument logs per-camera census + rig matrix truth.
+  Census verdicts: PreviewCamera exonerated (RT-bound only); matrices
+  confirmed desync-capable after view switches — ApplyPose now calls
+  ResetWorldToCameraMatrix/ResetProjectionMatrix every frame (zero-op when
+  healthy).
+- Round 3 finding (pixel forensics, orchestrator): Bow (4.5 m alt) renders
+  bright and correct (liner ahead from the fishing-boat bow — screenshot);
+  Chase (18 m) and TopDown (160 m) render the world but nearly UNLIT —
+  brightened captures show liner/funnel/waves present. Darkness scales with
+  camera height/steepness ⇒ per-camera exposure/lighting issue, root cause
+  hunt handed to the next round. Gates for the committed state: 108/108,
+  both scene rebuilds + both player builds exit 0.

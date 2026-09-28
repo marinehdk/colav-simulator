@@ -56,20 +56,15 @@ namespace Sango
                 return;
             }
             var target = CameraViews.Resolve(CurrentView, FollowPos(), FollowYawDeg());
-            var targetRot = Quaternion.Euler(target.PitchDeg, target.YawDeg, 0f);
             if (m_Blend < 1f)
             {
                 m_Blend = Mathf.Min(1f, m_Blend + (Time.deltaTime > 0f ? Time.deltaTime / Mathf.Max(0.01f, transitionSeconds) : 1f));
                 float t = Mathf.SmoothStep(0f, 1f, m_Blend);
-                controlledCamera.transform.position = Vector3.Lerp(m_FromPos, target.Position, t);
-                controlledCamera.transform.rotation = Quaternion.Slerp(m_FromRot, targetRot, t);
-                controlledCamera.fieldOfView = Mathf.Lerp(m_FromFov, target.FieldOfView, t);
+                ApplyPose(target.Position, target.PitchDeg, target.YawDeg, Mathf.Lerp(m_FromFov, target.FieldOfView, t));
             }
             else
             {
-                controlledCamera.transform.position = target.Position;
-                controlledCamera.transform.rotation = targetRot;
-                controlledCamera.fieldOfView = target.FieldOfView;
+                ApplyPose(target.Position, target.PitchDeg, target.YawDeg, target.FieldOfView);
             }
 
             // 验收诊断（常驻低频仪表，VesselBuoyancy 10 s 行同款模式）：相机真实运行态 +
@@ -78,7 +73,44 @@ namespace Sango
             {
                 m_LastStateLog = Time.time;
                 Debug.Log($"[Sango.M2E2] cam view={CurrentView} pos={controlledCamera.transform.position.ToString("F2")} rot={controlledCamera.transform.rotation.eulerAngles.ToString("F1")} fov={controlledCamera.fieldOfView:F1} followPos={FollowPos().ToString("F2")} followYaw={FollowYawDeg():F1}");
+
+                // 全场景相机普查（含未启用）：谁在渲染、渲到哪、小船在其视锥内吗——
+                // "位姿正确却渐变" ⇒ 必有别的相机在 rig 之后（或取而代之）画屏幕。
+                Vector3 boatPos = FollowPos();
+                var cams = Object.FindObjectsByType<Camera>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+                for (int i = 0; i < cams.Length; i++)
+                {
+                    var c = cams[i];
+                    var rt = c.targetTexture;
+                    string line = $"[Sango.M2E2] cam census #{i} name={c.name} on={c.enabled} act={c.gameObject.activeInHierarchy} depth={c.depth} disp={c.targetDisplay} rt={(rt != null ? rt.name + " " + rt.width + "x" + rt.height : "screen")} rect={c.rect} pos={c.transform.position.ToString("F1")} rot={c.transform.rotation.eulerAngles.ToString("F0")} near={c.nearClipPlane:0.##} far={c.farClipPlane:0} ortho={c.orthographic} boatNDC={c.WorldToViewportPoint(boatPos).ToString("F2")}";
+                    if (c == controlledCamera)
+                    {
+                        // 矩阵真相（区分"transform 错"与"渲染矩阵被冻结/被外部覆写"）：
+                        // w2cboat = 相机缓存 worldToCameraMatrix 下的船视空间坐标；
+                        // camPosByMatrix = 矩阵自报的相机世界位；projFov = 矩阵自报的垂直 FOV。
+                        Vector3 w2cBoat = c.worldToCameraMatrix.MultiplyPoint(boatPos);
+                        Vector3 camPosByMatrix = c.cameraToWorldMatrix.MultiplyPoint(Vector3.zero);
+                        float projFov = 2f * Mathf.Atan(1f / c.projectionMatrix.m11) * Mathf.Rad2Deg;
+                        line += $" w2cBoat={w2cBoat.ToString("F2")} camPosByMatrix={camPosByMatrix.ToString("F2")} projFov={projFov:F1}";
+                    }
+                    Debug.Log(line);
+                }
             }
+        }
+
+        /// <summary>
+        /// 位姿写入。**pitch 取负进 Unity**（根因修复 2026-09-28）：CameraViews 约定
+        /// "PitchDeg 负 = 俯"，但 Unity Quaternion.Euler 是 **正 x = 俯**（Rx(+90)·(0,0,1) =
+        /// (0,−1,0)）——此前 −26.6 直传 = 抬头 26.6°，Chase/TopDown/Bow 全在拍天海渐变
+        /// （cam census w2cBoat 逐字证据：Chase 船入视空间 (0,−29.53,−18.76)，57.6° 出框下方
+        /// = 30.96° 真俯角 + 26.6° 反向抬头）。取负后：桥楼 = Down 0.52°（= M1 LookRotation
+        /// 位姿逐位），Chase 船回画面中心，TopDown 真·俯视 80°。
+        /// </summary>
+        void ApplyPose(Vector3 pos, float pitchDeg, float yawDeg, float fov)
+        {
+            controlledCamera.transform.position = pos;
+            controlledCamera.transform.rotation = Quaternion.Euler(-pitchDeg, yawDeg, 0f);
+            controlledCamera.fieldOfView = fov;
         }
 
         /// <summary>C 键入口：循环到下一视图。</summary>
@@ -99,9 +131,7 @@ namespace Sango
         void SnapNow()
         {
             var target = CameraViews.Resolve(CurrentView, FollowPos(), FollowYawDeg());
-            controlledCamera.transform.position = target.Position;
-            controlledCamera.transform.rotation = Quaternion.Euler(target.PitchDeg, target.YawDeg, 0f);
-            controlledCamera.fieldOfView = target.FieldOfView;
+            ApplyPose(target.Position, target.PitchDeg, target.YawDeg, target.FieldOfView);
         }
 
         Vector3 FollowPos() => followShip != null ? followShip.position : Vector3.zero;
