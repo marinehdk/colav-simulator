@@ -139,3 +139,21 @@ Apply 语义：仅销毁重建 `Islands` 根（船/天气/相机/水面不动）
 **Gate 复跑**（/tmp/m2e2b-*.log）：EditMode `-testResults /tmp/m2e2b-tests.xml` exit 0 **108 / 108 / 0**；M1 场景重建 exit 0；M2E 场景重建 exit 0；M1 / M2E 播放器重建双 exit 0；M1 真机烟测 30 s **0 exceptions**（fps 76.9 → 109.0，gate ≥ 30）。场景 diff 复核：FOV 60 / orthographic 0 逐位不变，churn 为 bootstrapper 序列化重排。
 
 **遗留给视觉验收**：C 键循环四视图全透视观感（TopDown 160 m 战术档）、TopDown⇄其余视图过渡（1 s 含 FOV 变焦）、切回桥楼后亮度不再变暗——本轮无截图能力，由编排方全周期目检。
+
+## 诊断插桩轮（2026-09-28，全透视构建下 Bow/Chase/TopDown 仍渐变）
+
+**症状（编排方真机目检）**：全透视构建（上轮修复后）Bridge 渲染完全正常，Bow/Chase/TopDown 三视图为平滑深蓝渐变（无水面纹理、无船、无岛）——同一相机同一会话内。船本身正常（泊位可见、雷达几何一致、RT 预览健康、followShip 场景 YAML 接线到 VesselSmall 根已人工核实）。
+
+**插桩（常驻仪表，VesselBuoyancy 10 s 行同款低频模式）**：`CameraRig.LateUpdate` 5 s 节流一行——
+`[Sango.M2E2] cam view={view} pos={cam.position} rot={eulerAngles} fov={fov} followPos={FollowPos()} followYaw={FollowYawDeg()}`
+区分"位姿解算消费了垃圾输入"与"船根变换本身垃圾"的唯一现场证据；`view=` 随 C 键循环自动换值，下轮视图循环真机跑无需再改代码。
+
+**Gate 复跑**（/tmp/m2e2c-*.log）：EditMode `-testResults /tmp/m2e2c-tests.xml` exit 0 **108 / 108 / 0**；M1 / M2E 场景重建双 exit 0；M1 / M2E 播放器重建双 exit 0；M1 真机烟测 30 s（无按键，恒 Bridge）**0 exceptions**。
+
+**Bridge 态现场证据（Player.log 逐字，6 行同值）**：
+
+```
+[Sango.M2E2] cam view=Bridge pos=(0.00, 12.00, -40.00) rot=(359.5, 0.0, 0.0) fov=60.0 followPos=(14.00, -0.33, -6.00) followYaw=20.0
+```
+
+**判读**：相机位姿逐位正确（M1 桥楼 (0,12,−40)、pitch −0.52°、FOV 60）；**followPos 健康**——(14.00, −0.33, −6.00) 在水面高度（y≈−0.33，与 VesselMedium 场景 y−1.29 同量级），艏向 20°（NE，与证据图"随艏向 20° 指向东北"吻合），无 NaN / 无爆量 / 无深负 Y。结论：**三坏视图的输入端（船根变换）是干净的，故障不在 followPos**——位姿解算本身（bow/chase 偏移合成或 top-down 分支）或视图切换路径为下一嫌疑；待编排方驱动视图循环取 per-view 日志行定位。
