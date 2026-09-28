@@ -125,6 +125,24 @@ namespace Sango.Editor
             fog.enableVolumetricFog.value = true;
             AssetDatabase.AddObjectToAsset(fog, profile);
 
+            // Exposure override（E2 高视角欠曝根因修复 2026-09-28）：此前全项目无 Exposure
+            // override，HDRP 落到类默认 **Fixed 0 EV**——平掠水面（天空反射辐射）恰在色调曲线
+            // 亮段、陡视角水体（透射辐射，低 2-3 个数量级）掉进暗段 = Chase/TopDown 随俯角变暗
+            // （cam census `expMode=Fixed expFixed=0` 逐字证据）。Automatic 直方图逐帧归一到
+            // 中灰：四视图各自正确曝光、亮度不再随俯角/高度漂移。limitMin=0 = 夜航亮度地板
+            // 保持与旧 Fixed-0 夜景逐位同观感（M2-D 夜景验收不回退）；adaptationMode=Fixed =
+            // 逐帧即时无惯量（Exposure.cs "The exposure changes instantly"），切视图瞬间到位。
+            // **必须用 .Override()**：VolumeParameter.value setter 只写 m_Value 不置 overrideState
+            // （core VolumeParameter.cs:182）——本项目全部历史 .value 卷参数写入（雾/云/skyType）
+            // 因此从未激活（census fogEn=False 同源），此处不再重蹈。
+            var exposure = profile.Add<Exposure>();
+            exposure.active = true;
+            exposure.mode.Override(ExposureMode.Automatic);
+            exposure.adaptationMode.Override(AdaptationMode.Fixed);
+            exposure.limitMin.Override(0f);
+            exposure.limitMax.Override(14f);
+            AssetDatabase.AddObjectToAsset(exposure, profile);
+
             // Water Rendering override enable：水体渲染第二道闸（同 M0）。
             var waterRendering = profile.Add<WaterRendering>();
             waterRendering.active = true;

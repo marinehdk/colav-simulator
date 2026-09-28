@@ -198,3 +198,26 @@ Apply 语义：仅销毁重建 `Islands` 根（船/天气/相机/水面不动）
   camera height/steepness ⇒ per-camera exposure/lighting issue, root cause
   hunt handed to the next round. Gates for the committed state: 108/108,
   both scene rebuilds + both player builds exit 0.
+
+## 渐变终案 + 高视角欠曝根因修复轮（2026-09-28，pitch 符号 + Exposure 缺失，双根因一日闭环）
+
+**两段式真根因**（接上节；上节"矩阵 desync"解读被本轮矩阵真值列证伪——矩阵每帧都正确重导出，`Reset*` 实验无效后撤销）：
+
+1. **渐变根因 = pitch 符号约定与 Unity 相反**。CameraViews"负 = 俯"直传 `Quaternion.Euler`，而 Unity 正 x = 俯——TopDown 实际仰 80° 拍天顶（w2cBoat z=+157.57 船在背后）、Chase 仰 26.6°（船 57.6° 出框下方）、Bow 仰 8°；Bridge −0.52 侥幸只偏 1°。修复：`CameraRig.ApplyPose` 单点取负 `Euler(-PitchDeg, YawDeg, 0)`。修复后 census：Chase boatNDC (0.50, 0.43) 正中、TopDown (0.50, 0.22) 在框、Bridge `rot=(1,0,0)` 与 M1 LookRotation 逐位同源。
+2. **欠曝根因 = 全项目无 Exposure override，HDRP 落到类默认 Fixed 0 EV**。平掠水面（天空反射辐射）恰在色调曲线亮段、陡视角水体（透射辐射低 2-3 个数量级）掉进暗段 → 亮度随俯角单调变暗（census `expMode=Fixed expFixed=0` 逐字证据）。修复：`M1SceneBootstrapper.CreateVolumeProfileAsset`（M2E 同源调用）新增 Exposure 组件——**Automatic 直方图 + adaptationMode=Fixed（逐帧即时）+ limits [0,14]**（limitMin=0 = 夜航亮度地板，M2-D 夜景观感不回退）。**关键写法**：必须 `.Override()`——`VolumeParameter.value` setter 只写 m_Value 不置 overrideState（core VolumeParameter.cs:182），全项目历史 .value 卷参数写入（雾/云/skyType）因此从未激活——同族缺陷 census 逐字留证：`fogEn=True(ovr=False)`（雾滑条实为无效操作，另案处理）。
+
+**普查/审计仪表结论**（常驻）：全场景恒 2 台相机（rig + PreviewCamera RT 绑定）——"流氓相机盖屏"理论证伪；`VolumeManager.instance.stack` 是遗留共享栈不反映相机解析态（误导列已删），改为逐 Volume 真源审计。
+
+**亮度闭环（本机 screencapture + ffprobe signalstats YAVG，C 循环全四视图实测）**：
+
+| 视图 | 平均亮度 (0-255) |
+|---|---|
+| Bridge | 196.71 |
+| Bow | 196.73 |
+| Chase | **197.85** |
+| TopDown | **197.44** |
+| Bridge（循环回） | 196.71 |
+
+极差 ~1.1（0.6%）——四视图等亮，随俯角变暗清零。审计行逐字：`vol audit #0 name=Global Volume on=True act=True isGlobal=True layer=0 weight=1.0 profile=M1-GlobalVolumeProfile expActive=True expMode=Automatic(ovr=True) expLim=[0,14](ovr=True) expAdapt=Fixed(ovr=True)`。烟测 **0 exceptions**，fps 91.3-103.9（gate ≥ 30）。
+
+**Gate 复跑**（/tmp/m2e2n-*.log）：EditMode `-testResults /tmp/m2e2n-tests.xml` exit 0 **108 / 108 / 0**；M1 / M2E 场景重建双 exit 0；M1 / M2E 播放器重建双 exit 0。截图留档 /tmp/m2e2-shots/（会话临时目录）。

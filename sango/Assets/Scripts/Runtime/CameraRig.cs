@@ -86,12 +86,31 @@ namespace Sango
                     if (c == controlledCamera)
                     {
                         // 矩阵真相（区分"transform 错"与"渲染矩阵被冻结/被外部覆写"）：
-                        // w2cboat = 相机缓存 worldToCameraMatrix 下的船视空间坐标；
+                        // w2cBoat = 相机缓存 worldToCameraMatrix 下的船视空间坐标；
                         // camPosByMatrix = 矩阵自报的相机世界位；projFov = 矩阵自报的垂直 FOV。
                         Vector3 w2cBoat = c.worldToCameraMatrix.MultiplyPoint(boatPos);
                         Vector3 camPosByMatrix = c.cameraToWorldMatrix.MultiplyPoint(Vector3.zero);
                         float projFov = 2f * Mathf.Atan(1f / c.projectionMatrix.m11) * Mathf.Rad2Deg;
                         line += $" w2cBoat={w2cBoat.ToString("F2")} camPosByMatrix={camPosByMatrix.ToString("F2")} projFov={projFov:F1}";
+
+                        // 卷审计（真实来源枚举）：VolumeManager.instance.stack 是遗留共享栈，
+                        // 不反映相机实际解析态（实测恒类默认值，误导）；直接枚举场景 Volume +
+                        // 其 profile 组件 override 态 = 曝光/雾生效与否的可靠现场证据。
+                        var volumes = Object.FindObjectsByType<UnityEngine.Rendering.Volume>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+                        for (int v = 0; v < volumes.Length; v++)
+                        {
+                            var vol = volumes[v];
+                            var prof = vol.sharedProfile;
+                            string volLine = $"[Sango.M2E2] vol audit #{v} name={vol.name} on={vol.enabled} act={vol.gameObject.activeInHierarchy} isGlobal={vol.isGlobal} layer={vol.gameObject.layer} weight={vol.weight:0.0#} profile={(prof != null ? prof.name : "null")}";
+                            if (prof != null)
+                            {
+                                if (prof.TryGet<UnityEngine.Rendering.HighDefinition.Exposure>(out var exp))
+                                    volLine += $" expActive={exp.active} expMode={exp.mode.value}(ovr={exp.mode.overrideState}) expLim=[{exp.limitMin.value:0.#},{exp.limitMax.value:0.#}](ovr={exp.limitMin.overrideState}) expAdapt={exp.adaptationMode.value}(ovr={exp.adaptationMode.overrideState})";
+                                if (prof.TryGet<UnityEngine.Rendering.HighDefinition.Fog>(out var fog))
+                                    volLine += $" fogEn={fog.enabled.value}(ovr={fog.enabled.overrideState})";
+                            }
+                            Debug.Log(volLine);
+                        }
                     }
                     Debug.Log(line);
                 }

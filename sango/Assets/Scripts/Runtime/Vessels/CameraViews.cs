@@ -11,7 +11,9 @@ namespace Sango
         TopDown, // 北向上透视俯视战术档（encounter 同款方向约定）
     }
 
-    /// <summary>相机目标位姿（yaw/pitch 分量式：Euler(pitch, yaw, 0)，无 roll）+ 每视图 FOV。</summary>
+    /// <summary>相机目标位姿（yaw/pitch 分量式，无 roll）+ 每视图 FOV。
+    /// PitchDeg 约定 **负 = 俯**（几何直觉制）；消费者转 Unity 时须取负
+    /// （Unity Quaternion.Euler 正 x = 俯，CameraRig.ApplyPose 单点负责）。</summary>
     public struct CameraPose
     {
         public Vector3 Position;
