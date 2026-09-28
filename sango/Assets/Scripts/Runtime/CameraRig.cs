@@ -56,15 +56,18 @@ namespace Sango
                 return;
             }
             var target = CameraViews.Resolve(CurrentView, FollowPos(), FollowYawDeg());
+            // pitch 取负进 Unity（根因注释见 ApplyPose）：目标旋转在此单点构造。
+            var targetRot = Quaternion.Euler(-target.PitchDeg, target.YawDeg, 0f);
             if (m_Blend < 1f)
             {
                 m_Blend = Mathf.Min(1f, m_Blend + (Time.deltaTime > 0f ? Time.deltaTime / Mathf.Max(0.01f, transitionSeconds) : 1f));
                 float t = Mathf.SmoothStep(0f, 1f, m_Blend);
-                ApplyPose(target.Position, target.PitchDeg, target.YawDeg, Mathf.Lerp(m_FromFov, target.FieldOfView, t));
+                // spec #85：切换时位置 + 旋转 ~1 s smoothstep 插值（FOV 同步插值 = 变焦）。
+                ApplyPose(Vector3.Lerp(m_FromPos, target.Position, t), Quaternion.Slerp(m_FromRot, targetRot, t), Mathf.Lerp(m_FromFov, target.FieldOfView, t));
             }
             else
             {
-                ApplyPose(target.Position, target.PitchDeg, target.YawDeg, target.FieldOfView);
+                ApplyPose(target.Position, targetRot, target.FieldOfView);
             }
 
             // 验收诊断（常驻低频仪表，VesselBuoyancy 10 s 行同款模式）：相机真实运行态 +
@@ -118,17 +121,17 @@ namespace Sango
         }
 
         /// <summary>
-        /// 位姿写入。**pitch 取负进 Unity**（根因修复 2026-09-28）：CameraViews 约定
-        /// "PitchDeg 负 = 俯"，但 Unity Quaternion.Euler 是 **正 x = 俯**（Rx(+90)·(0,0,1) =
-        /// (0,−1,0)）——此前 −26.6 直传 = 抬头 26.6°，Chase/TopDown/Bow 全在拍天海渐变
-        /// （cam census w2cBoat 逐字证据：Chase 船入视空间 (0,−29.53,−18.76)，57.6° 出框下方
-        /// = 30.96° 真俯角 + 26.6° 反向抬头）。取负后：桥楼 = Down 0.52°（= M1 LookRotation
-        /// 位姿逐位），Chase 船回画面中心，TopDown 真·俯视 80°。
+        /// 位姿写入（位置 + 旋转 + FOV，一次写全）。**pitch 取负进 Unity**（根因修复
+        /// 2026-09-28）：CameraViews 约定 "PitchDeg 负 = 俯"，但 Unity Quaternion.Euler 是
+        /// **正 x = 俯**（Rx(+90)·(0,0,1) = (0,−1,0)）——此前 −26.6 直传 = 抬头 26.6°，
+        /// Chase/TopDown/Bow 全在拍天海渐变（cam census w2cBoat 逐字证据：Chase 船入视空间
+        /// (0,−29.53,−18.76)，57.6° 出框下方 = 30.96° 真俯角 + 26.6° 反向抬头）。取负后：
+        /// 桥楼 = Down 0.52°（= M1 LookRotation 位姿逐位），Chase 船回画面中心，TopDown 真·俯视 80°。
         /// </summary>
-        void ApplyPose(Vector3 pos, float pitchDeg, float yawDeg, float fov)
+        void ApplyPose(Vector3 pos, Quaternion rot, float fov)
         {
             controlledCamera.transform.position = pos;
-            controlledCamera.transform.rotation = Quaternion.Euler(-pitchDeg, yawDeg, 0f);
+            controlledCamera.transform.rotation = rot;
             controlledCamera.fieldOfView = fov;
         }
 
@@ -150,7 +153,7 @@ namespace Sango
         void SnapNow()
         {
             var target = CameraViews.Resolve(CurrentView, FollowPos(), FollowYawDeg());
-            ApplyPose(target.Position, target.PitchDeg, target.YawDeg, target.FieldOfView);
+            ApplyPose(target.Position, Quaternion.Euler(-target.PitchDeg, target.YawDeg, 0f), target.FieldOfView);
         }
 
         Vector3 FollowPos() => followShip != null ? followShip.position : Vector3.zero;

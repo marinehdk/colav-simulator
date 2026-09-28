@@ -68,23 +68,26 @@ namespace Sango
             // 导航艏向（ WaypointFollower 初始化捕获反解同式）：psi = 根 euler.y − 烘焙艏向补偿。
             float psi = transform.eulerAngles.y - follower.bowYawDegOffset;
 
-            // 速度箭头：origin = 船 + 甲板高，沿 psi；长度 ∝ 速度（零速 stub，纯函数）。
+            // 速度箭头：origin = 船 + 甲板高；端点 = 纯函数 VelocityArrowTip（长度 ∝ 速度，
+            // 零速 stub）；朝向/杆长由 origin→tip 矢量反推（纯函数拥有端点数学，测试即钉它）。
             var vOrigin = transform.position + Vector3.up * k_VelocityHeightM;
-            float vLen = VectorArrowMath.VelocityArrowLengthM(follower.SpeedMps);
-            m_VelocityArrow.SetPositionAndRotation(vOrigin, Quaternion.Euler(0f, psi, 0f));
-            LayoutArrow(m_VelocityShaft, m_VelocityHead, vLen);
+            var vTip = VectorArrowMath.VelocityArrowTip(vOrigin, psi, follower.SpeedMps);
+            var vDir = vTip - vOrigin;
+            m_VelocityArrow.SetPositionAndRotation(vOrigin, Quaternion.LookRotation(vDir, Vector3.up));
+            LayoutArrow(m_VelocityShaft, m_VelocityHead, vDir.magnitude);
 
-            // 航点箭头：origin = 船 + 更高一层，方位 = 指活动航点；无航点表时隐藏。
+            // 航点箭头：origin = 船 + 更高一层；端点 = 纯函数 WaypointArrowTip（定长 10 m，
+            // 零距退化回退艏向）；无航点表时隐藏。
             var wps = follower.waypoints;
             int idx = follower.ActiveWaypointIndex;
             if (wps != null && wps.Length > 0)
             {
                 var wp = wps[Mathf.Clamp(idx, 0, wps.Length - 1)];
-                var pos = transform.position;
-                float bearing = Mathf.Atan2(wp.x - pos.x, wp.y - pos.z) * Mathf.Rad2Deg;
-                m_WaypointArrow.SetPositionAndRotation(pos + Vector3.up * k_WaypointHeightM,
-                    Quaternion.Euler(0f, bearing, 0f));
-                LayoutArrow(m_WaypointShaft, m_WaypointHead, VectorArrowMath.WaypointArrowLengthM);
+                var wOrigin = transform.position + Vector3.up * k_WaypointHeightM;
+                var wTip = VectorArrowMath.WaypointArrowTip(wOrigin, wp, psi);
+                var wDir = wTip - wOrigin;
+                m_WaypointArrow.SetPositionAndRotation(wOrigin, Quaternion.LookRotation(wDir, Vector3.up));
+                LayoutArrow(m_WaypointShaft, m_WaypointHead, wDir.magnitude);
             }
             else
             {
@@ -123,7 +126,6 @@ namespace Sango
         static void LayoutArrow(Transform shaft, Transform head, float totalLen)
         {
             float shaftLen = Mathf.Max(0.05f, totalLen - k_HeadLengthM);
-            shaft.localPosition = Vector3.zero;
             shaft.localScale = new Vector3(k_ShaftWidthM, k_ShaftWidthM, shaftLen);
             shaft.localPosition = new Vector3(0f, 0f, shaftLen * 0.5f);
             head.localPosition = new Vector3(0f, 0f, shaftLen + k_HeadLengthM * 0.5f);

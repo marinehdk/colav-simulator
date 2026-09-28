@@ -256,3 +256,13 @@ Apply 语义：仅销毁重建 `Islands` 根（船/天气/相机/水面不动）
   `fogEn=True(ovr=False)`): the weather FOG slider is a no-op — `.value`
   never sets `overrideState` on the fog parameter (same VolumeParameter
   family defect as the exposure fix).
+
+## E2 收口轮（2026-09-28，评审两项 hard + 一 nit）
+
+1. **[hard, spec T1] 相机过渡插值回归修复**：`8f03b019`（不完整矩阵重同步编辑）把混合分支改成直贴目标位姿（仅 FOV 插值），`m_FromPos/m_FromRot` 沦为死字段。恢复：混合分支 `ApplyPose(Lerp(m_FromPos, target.Position, t), Slerp(m_FromRot, targetRot, t), Lerp(m_FromFov, target.FieldOfView, t))`——位置/旋转/FOV 三量同走 smoothstep，pitch 取负在 `targetRot` 单点构造处保持。**插值实证**（临时 0.25 s 节流构建，C 切换逐字，每步过渡 4 个采样点平滑单调、落位逐位精确）：Bridge→Bow `(1.54,11.28,−36.17)→(7.12,8.67,−22.33)→(13.20,5.83,−7.24)→(16.68,4.20,1.38)→(16.74,4.17,1.52) rot→(8.0,20.0,0.0)`；Bow→Chase `(15.90,5.04,−0.78)→(12.00,9.09,−11.49)→(7.12,14.16,−24.89)→(3.97,17.43,−33.55)→(3.74,17.67,−34.19) rot→(26.6,20.0,0.0)`。节流已还原 5 s。
+2. **[hard, standards] VectorArrows 收编进纯函数缝**：速度/航点端点改由 `VectorArrowMath.VelocityArrowTip/WaypointArrowTip` 反推朝向与杆长（origin→tip 矢量 + LookRotation），删除内联艏向/Atan2 方位副本——内联版漂移点（航点零距无回退）由纯函数既有守卫接管；被测纯函数现为运行时唯一数学来源。
+3. **[nit] LayoutArrow 死赋值**：`shaft.localPosition = Vector3.zero` 首写删除（下行真值覆盖）。
+
+**跳过（issue 收口记录，不修）**：雷达 live-vs-Apply 门控（装饰层，documented deviation）；播放器构建体去重（optional 未付）；岛基线字面量重复/数量上限分歧/uGUI 助手第 4 份/runInBackground 4×（backlog 判断项）。
+
+**Gate 复跑**（/tmp/m2e2q-*.log）：EditMode `-testResults /tmp/m2e2q-tests.xml` exit 0 **108 / 108 / 0**（无新增测试轮）；M1 / M2E 场景重建双 exit 0；M1 / M2E 播放器重建双 exit 0；最终播放器烟测 20 s **0 exceptions**（fps 76.6，gate ≥ 30；vol audit 逐字确认 Automatic [0,14] 生效）。
