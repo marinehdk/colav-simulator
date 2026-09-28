@@ -221,3 +221,38 @@ Apply 语义：仅销毁重建 `Islands` 根（船/天气/相机/水面不动）
 极差 ~1.1（0.6%）——四视图等亮，随俯角变暗清零。审计行逐字：`vol audit #0 name=Global Volume on=True act=True isGlobal=True layer=0 weight=1.0 profile=M1-GlobalVolumeProfile expActive=True expMode=Automatic(ovr=True) expLim=[0,14](ovr=True) expAdapt=Fixed(ovr=True)`。烟测 **0 exceptions**，fps 91.3-103.9（gate ≥ 30）。
 
 **Gate 复跑**（/tmp/m2e2n-*.log）：EditMode `-testResults /tmp/m2e2n-tests.xml` exit 0 **108 / 108 / 0**；M1 / M2E 场景重建双 exit 0；M1 / M2E 播放器重建双 exit 0。截图留档 /tmp/m2e2-shots/（会话临时目录）。
+
+## Orchestrator visual acceptance (2026-09-24 → 09-28, four rounds)
+
+- Round A (ortho build): chase bright, TopDown ortho = gradient + all views
+  dark after visiting it → ortho projection switching removed
+  (all-perspective rig, ded965ec).
+- Round B (perspective build): follower views STILL gradient. Camera census
+  (ffea2907 + 8f03b019) exposed the true root cause via w2cBoat z=+157
+  (boat BEHIND camera): **pitch sign convention** — negative-pitch-means-down
+  fed raw into Quaternion.Euler, so follower views flew pitched UP at the sky
+  (TopDown +80° at zenith). Fixed: ApplyPose negates once. (The earlier
+  "matrix desync" reading is superseded — matrices re-derive fine.)
+- Round C (exposure): with pitch fixed, high views rendered the world but
+  near-black; brightened captures proved geometry present ⇒ per-view lighting.
+  Volume audit: NO Exposure override authored anywhere (HDRP class default
+  Fixed 0 EV — steep-angle water radiance 2–3 orders dimmer than grazing).
+  Fixed: authored Automatic Exposure (histogram, instant adaptation,
+  limits [0,14]; limitMin 0 preserves the M2-D night look) in the global
+  volume profile (1297f610).
+- Final acceptance (this build, full C cycle, all views bright):
+  `m2e2-bridge-four-corners.jpg` — weather TL / Simulation TR (sliders,
+  class buttons, RT rotating preview, Apply) / Autonomous BL / radar disc
+  with sweep + liner blip; fishing boat and liner visible in frame.
+  `m2e2-bow-liner-ahead.jpg` — bow cam on the fishing boat: liner ahead,
+  own bow deck below. `m2e2-chase-sailing.jpg` — chase cam astern-above
+  while sailing. `m2e2-topdown-boat-center.jpg` — boat dead center from
+  160 m (census boatNDC (0.50,0.22) z=−157), liner at frame top, island
+  shoal visible.
+- Brightness bar (implementer, screencapture YAVG full cycle): 196.7–197.9
+  (0.6% spread). fps 91–120. 0 exceptions. 108/108 EditMode.
+- Verdict: PASS.
+- Documented defect carried to backlog (not fixed here, census evidence
+  `fogEn=True(ovr=False)`): the weather FOG slider is a no-op — `.value`
+  never sets `overrideState` on the fog parameter (same VolumeParameter
+  family defect as the exposure fix).
