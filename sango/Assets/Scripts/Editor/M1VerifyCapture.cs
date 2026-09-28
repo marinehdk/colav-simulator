@@ -274,7 +274,7 @@ namespace Sango.Editor
             PlayerSettings.runInBackground = true; // 播放器失焦（自动化采集）不停渲染
             var report = BuildPipeline.BuildPlayer(
                 new[] { "Assets/Scenes/M1-Weather.unity" },
-                "Builds/M1-Standalone.app",
+                "Builds/sango.app", // M2-F：demo 产物按 PLAN §5 M2 验收路径命名（双击可进四画面演示）
                 BuildTarget.StandaloneOSX,
                 BuildOptions.None);
             Debug.Log($"[Sango.M1] player build: {report.summary.result} " +
