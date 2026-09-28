@@ -79,6 +79,78 @@ namespace Sango.Editor
             nav.bowYawDeg = VesselAssetPipeline.BowYawDeg(vesselClass);
         }
 
+        // M4 spike：艏波+尾迹 WaterDecal 接线。材质来自 HDRP 17.3 WaterSamples 的
+        // CurrentWithSplines/"Sample Water Decal" 拷贝改造（Assets/Art/WaterDecals/，
+        // GUID 随 meta 保留）——真 WaterDecalSubTarget 图，CustomFunctionNode 直调
+        // WaterDecalUtilities.hlsl 的 EvaluateBowWaveAmplitude（抛物线 V 形 SDF）。
+        // 几何约定（WaterDecal.shader GetDecalVaryings + EvaluateBowWaveAmplitude 推导）：
+        // 图 UV.y=0 边是 V 尖顶（apex）侧 = decal 局部 −Z；故 decal 子物体 yaw 180°
+        // （decal −Z = 船 +Z 艏），apex 距区域中心 0.4·regionSize.y（uv.y=0.1 顶点 + 半径过渡）。
+        // scaleMode=ScaleInvariant：regionSize 直接是米，不被 prefab 根烘焙缩放放大；
+        // 子物体局部 z 需按 lossyScale 折算（局部单位 × s = 世界米）。
+        const string k_BowWaveMatPath = "Assets/Art/WaterDecals/M4_BowWave.mat";
+        const string k_WakeFoamMatPath = "Assets/Art/WaterDecals/M4_WakeFoam.mat";
+
+        static void AttachWaterDecals(GameObject ship, WaterSurface water, float loaMeters, WaypointFollower follower)
+        {
+            if (ship == null || follower == null) return;
+            var bowMat = AssetDatabase.LoadAssetAtPath<Material>(k_BowWaveMatPath);
+            var wakeMat = AssetDatabase.LoadAssetAtPath<Material>(k_WakeFoamMatPath);
+            if (bowMat == null || wakeMat == null)
+            {
+                Debug.LogError($"[Sango.M4] water decal materials missing ({k_BowWaveMatPath} / {k_WakeFoamMatPath}); decals skipped");
+                return;
+            }
+
+            float s = Mathf.Max(ship.transform.lossyScale.x, 1e-3f); // 均匀烘焙缩放：局部单位 × s = 米
+            float halfLoa = loaMeters * 0.5f;
+
+            // 艏波：V 尖顶落在艏柱（+loa/2），双臂向艉展开覆盖船身（12 m 小船量级）。
+            var bowGo = new GameObject("Bow Wave Decal");
+            bowGo.transform.SetParent(ship.transform, false);
+            bowGo.transform.localPosition = new Vector3(0f, 0f, (halfLoa - 0.4f * 12f) / s);
+            bowGo.transform.localRotation = Quaternion.Euler(0f, 180f, 0f);
+            var bow = bowGo.AddComponent<WaterDecal>();
+            bow.material = bowMat;
+            bow.scaleMode = DecalScaleMode.ScaleInvariant;
+            bow.regionSize = new Vector2(12f, 12f);
+            bow.amplitude = 0.4f;          // 全强航速 0.4 m 抬升（适配器按航速缩放）
+            bow.surfaceFoamDimmer = 0f;
+            bow.deepFoamDimmer = 0f;
+
+            // 尾迹泡沫：V 尖顶落船中，双臂向艉外扩 + 泡沫缓冲持久化拖出尾迹；变形走材质关闭（_AffectDeformation: 0）。
+            var wakeGo = new GameObject("Wake Foam Decal");
+            wakeGo.transform.SetParent(ship.transform, false);
+            wakeGo.transform.localPosition = new Vector3(0f, 0f, (0f - 0.4f * 28f) / s);
+            wakeGo.transform.localRotation = Quaternion.Euler(0f, 180f, 0f);
+            var wake = wakeGo.AddComponent<WaterDecal>();
+            wake.material = wakeMat;
+            wake.scaleMode = DecalScaleMode.ScaleInvariant;
+            wake.regionSize = new Vector2(14f, 28f);
+            wake.amplitude = 0f;
+            wake.surfaceFoamDimmer = 0f;   // 适配器按航速爬坡驱动
+            wake.deepFoamDimmer = 0.6f;
+
+            // 速度门限适配器：G 键 demo 同一航速真值（WaypointFollower.SpeedMps）。
+            var gate = ship.AddComponent<BoatWaterDecals>();
+            gate.bowDecal = bow;
+            gate.wakeDecal = wake;
+            gate.follower = follower;
+            gate.speedThresholdMps = 0.5f;
+            gate.fullEffectSpeedMps = 5f;
+            gate.bowAmplitudeM = 0.4f;
+
+            // 水面开关：deformation/foam 任一 false 时对应 pass 直接不可见（WaterSystem.Decals CullWaterDecals）。
+            // decal 区域锚到演示船：region 跟船走，64 m 方区在 512 res 下 ≈ 8 px/m（默认 200 m 只有 2.56）。
+            water.deformation = true;
+            water.foam = true;
+            water.decalRegionAnchor = ship.transform;
+            water.decalRegionSize = new Vector2(64f, 64f);
+
+            Debug.Log("[Sango.M4] water decals wired: bow V deformation (12x12 m, amp 0.4 m) + wake foam (14x28 m), " +
+                      "speed gate 0.5 m/s, full effect 5 m/s, decal region 64x64 m anchored to demo boat");
+        }
+
         static VolumeProfile CreateVolumeProfileAsset() => CreateVolumeProfileAsset(k_ProfileAsset);
 
         // M2-E1：路径参数化。遭遇场景必须用独立 profile 资产——本构建器对 M1 profile 是
@@ -216,6 +288,9 @@ namespace Sango.Editor
                     };
                     Debug.Log("[Sango.M1] M2-C waypoint demo wired on Small ship: press G to sail/stop; " +
                               "route (14,-6) -> (40,0) -> (60,-20) -> (20,-30) -> (5,-12), cruise 5 m/s");
+
+                    // M4 spike：艏波变形 + 尾迹泡沫 WaterDecal（编目 LOA 定 V 尖顶锚位，速度门限接跟随器真值）。
+                    AttachWaterDecals(small, water, catalog.GetEntry(VesselClass.Small)?.loaMeters ?? 12f, smallFollower);
                 }
             }
 
