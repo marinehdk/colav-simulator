@@ -123,3 +123,19 @@ Apply 语义：仅销毁重建 `Islands` 根（船/天气/相机/水面不动）
 - **矢量（航行中）**：蓝色速度箭头自甲板沿艏向（长度随加减速伸缩）、绿色航点箭头指当前航点；暂停即消失（demo 未跑 → 隐藏）；TopDown 下不显示。
 - **Apply**：改 Island count 滑条（如 12）→ 按 Enter/Apply → 原地重建 12 岛群岛（同 seed 同形状语言、同比布局），船仍在原位、天气不动，面板状态行 `applied: 12 islands x1.00`；雷达量程滑条拖动 → 圆盘上邮轮 blip 随量程收缩/展开。
 - **预览**：class 按钮或 `P` 切档 → 预览窗换 Small/Medium/Large 模型慢旋，`LOA` 读数随档位。
+
+## 渲染修复轮（2026-09-28，TopDown 花屏 + 全局变暗）
+
+**根因（视觉核实）**：ortho TopDown 触发 HDRP 透视⇄正交投影切换，破坏管线渲染状态——TopDown 自身渲染成无纹理渐变，且访问过 TopDown 之后任何视图全部变暗。HDRP 17.3 不支持运行时投影模式切换无损恢复。
+
+**修复（方案 A，已批准）**：投影切换彻底移除，四视图全透视。
+
+- `CameraPose` 结构：`+FieldOfView`，`−Orthographic/OrthoSizeM`（正交语义字段全部删除）。
+- TopDown = 船正上空 **160 m**、pitch **−80°**、yaw 0（北向上）、**FOV 35°**（地面足迹 ~100 m，12 m 小船 ~100+ px 恒在画面正中）。
+- Bridge/Bow/Chase = FOV 60（BaseFovDeg）；桥楼位姿 + FOV 与 M1 场景相机逐位同源（场景 YAML 复核 `field of view: 60` 不变）——桥楼渲染零变化。
+- `CameraRig`：`ApplyProjection` 整块删除；FOV 随位姿过渡插值（位置/旋转/FOV 三量 smoothstep，60⇄35 平滑变焦）；Awake/SnapNow 同步贴 FOV。全库无 `orthographic` 写入点残留（encounter 场景 pattern 顶视机位为天生正交、从不切换，不属本 rig）。
+- 测试：`TopDown_OrthographicAboveShipNorthUp` → `TopDown_PerspectiveAboveShipNorthUp`（钉死 160 m / pitch −80 / yaw 0 / FOV 35 / FollowsShip）；Bridge/Bow 断言由 `Orthographic==false` 改为 `FieldOfView==60`。
+
+**Gate 复跑**（/tmp/m2e2b-*.log）：EditMode `-testResults /tmp/m2e2b-tests.xml` exit 0 **108 / 108 / 0**；M1 场景重建 exit 0；M2E 场景重建 exit 0；M1 / M2E 播放器重建双 exit 0；M1 真机烟测 30 s **0 exceptions**（fps 76.9 → 109.0，gate ≥ 30）。场景 diff 复核：FOV 60 / orthographic 0 逐位不变，churn 为 bootstrapper 序列化重排。
+
+**遗留给视觉验收**：C 键循环四视图全透视观感（TopDown 160 m 战术档）、TopDown⇄其余视图过渡（1 s 含 FOV 变焦）、切回桥楼后亮度不再变暗——本轮无截图能力，由编排方全周期目检。
