@@ -1,6 +1,7 @@
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
+using static Sango.UiBuildHelpers;
 
 namespace Sango
 {
@@ -24,14 +25,6 @@ namespace Sango
             Application.runInBackground = true; // 采集/演示失焦不停渲染（WeatherGUI 同款）
             _font = LoadBuiltinFont();
             BuildUI();
-        }
-
-        static Font LoadBuiltinFont()
-        {
-            Font f = null;
-            try { f = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf"); } catch { }
-            if (f == null) { try { f = Resources.GetBuiltinResource<Font>("Arial.ttf"); } catch { } }
-            return f;
         }
 
         void BuildUI()
@@ -102,15 +95,7 @@ namespace Sango
             Debug.Log($"[Sango.M2E2] autonomous control -> {(follower.DemoRunning ? "RUNNING" : "STOPPED")} (A/button; G unchanged)");
         }
 
-        // ── uGUI 小件（WeatherGUI 同款最小件）────────────────────────────────────────
-
-        static RectTransform NewRect(string name, Transform parent)
-        {
-            var go = new GameObject(name, typeof(RectTransform));
-            var rt = (RectTransform)go.transform;
-            rt.SetParent(parent, false);
-            return rt;
-        }
+        // ── uGUI 小件（WeatherGUI 同款最小件；同构小件收编 UiBuildHelpers，using static 引入）──
 
         Text CreateLabel(Transform parent, string name, string content, int fontSize, TextAnchor align, Color color)
         {

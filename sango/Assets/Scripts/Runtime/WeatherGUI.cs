@@ -2,6 +2,7 @@ using UnityEngine;
 using UnityEngine.Events;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
+using static Sango.UiBuildHelpers;
 
 namespace Sango
 {
@@ -45,15 +46,6 @@ namespace Sango
                 controller.Apply();
                 RefreshReadout();
             }
-        }
-
-        // Unity 6000 内置字体资源名 LegacyRuntime.ttf（Arial.ttf 已于 2022+ 移除，留兜底）。
-        static Font LoadBuiltinFont()
-        {
-            Font f = null;
-            try { f = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf"); } catch { }
-            if (f == null) { try { f = Resources.GetBuiltinResource<Font>("Arial.ttf"); } catch { } }
-            return f;
         }
 
         void BuildUI()
@@ -233,6 +225,9 @@ namespace Sango
         }
 
         // ── uGUI 构建辅助 ───────────────────────────────────────────────────────────────
+        // 逐字同构小件（NewRect/NewImage/Stretch/LoadBuiltinFont）已收编 UiBuildHelpers
+        // （using static 引入，调用点零改动）。本类保留的 EnsureEventSystem 带证据日志
+        // （M1 采集账本），与共享静默版不同构；其余布局耦合函数见共享类头注。
 
         static void EnsureEventSystem()
         {
@@ -241,8 +236,6 @@ namespace Sango
                 Debug.Log($"[Sango.M1] EventSystem exists: {EventSystem.current.name}");
                 return;
             }
-            // StandaloneInputModule 在 com.unity.ugui 包内（Runtime/UGUI/EventSystem/InputModules/）；
-            // 工程未装 com.unity.inputsystem，走旧输入模块即可。
             var es = new GameObject("EventSystem", typeof(EventSystem), typeof(StandaloneInputModule));
             Debug.Log($"[Sango.M1] EventSystem created: {es != null}");
         }
@@ -266,14 +259,6 @@ namespace Sango
                 Debug.Log($"[Sango.M1] track click -> value={v:F2}");
                 slider.value = v;
             }
-        }
-
-        static RectTransform NewRect(string name, Transform parent)
-        {
-            var go = new GameObject(name, typeof(RectTransform));
-            var rt = (RectTransform)go.transform;
-            rt.SetParent(parent, false);
-            return rt;
         }
 
         /// <summary>面板内顶部横向拉伸的文本行（y 为自面板顶向下的偏移，写 _cursorY）。</summary>
@@ -449,23 +434,5 @@ namespace Sango
             return dropdown;
         }
 
-        static Image NewImage(string name, Transform parent, Color color)
-        {
-            var rt = NewRect(name, parent);
-            var img = rt.gameObject.AddComponent<Image>();
-            img.color = color; // 无 sprite：纯色矩形
-            // raycastTarget 必须开：EventSystem 射线命中 raycastable Graphic 才派发指针事件，
-            // 滑条 Background/Fill/Handle 全经此处创建，全关 = 滑条对鼠标完全失聪（M1-C UGUI 事故根因）
-            img.raycastTarget = true;
-            return img;
-        }
-
-        static void Stretch(RectTransform rt, float left, float top, float right, float bottom)
-        {
-            rt.anchorMin = Vector2.zero;
-            rt.anchorMax = Vector2.one;
-            rt.offsetMin = new Vector2(left, bottom);
-            rt.offsetMax = new Vector2(right, -top);
-        }
     }
 }

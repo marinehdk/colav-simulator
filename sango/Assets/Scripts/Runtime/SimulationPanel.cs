@@ -3,6 +3,7 @@ using UnityEngine.Events;
 using UnityEngine.EventSystems;
 using UnityEngine.Rendering.HighDefinition;
 using UnityEngine.UI;
+using static Sango.UiBuildHelpers;
 
 namespace Sango
 {
@@ -70,15 +71,6 @@ namespace Sango
         void Start()
         {
             SelectClass(m_SelectedClass); // 预览初档（Start：catalog 注入完成、Awake 时序无关）
-        }
-
-        // Unity 6000 内置字体资源名 LegacyRuntime.ttf（Arial.ttf 已于 2022+ 移除，留兜底）。
-        static Font LoadBuiltinFont()
-        {
-            Font f = null;
-            try { f = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf"); } catch { }
-            if (f == null) { try { f = Resources.GetBuiltinResource<Font>("Arial.ttf"); } catch { } }
-            return f;
         }
 
         void BuildUI()
@@ -389,21 +381,7 @@ namespace Sango
             if (m_PreviewRt != null) { m_PreviewRt.Release(); Destroy(m_PreviewRt); }
         }
 
-        // ── uGUI 构建辅助（WeatherGUI/EncounterPanel 同款最小件，第三份本地拷贝）────────
-
-        static void EnsureEventSystem()
-        {
-            if (EventSystem.current != null) return;
-            new GameObject("EventSystem", typeof(EventSystem), typeof(StandaloneInputModule));
-        }
-
-        static RectTransform NewRect(string name, Transform parent)
-        {
-            var go = new GameObject(name, typeof(RectTransform));
-            var rt = (RectTransform)go.transform;
-            rt.SetParent(parent, false);
-            return rt;
-        }
+        // ── uGUI 构建辅助（WeatherGUI/EncounterPanel 同款最小件；同构小件收编 UiBuildHelpers）──
 
         Text CreateLabel(Transform parent, string name, string content, int fontSize, TextAnchor align, Color color)
         {
@@ -484,15 +462,6 @@ namespace Sango
             t.rectTransform.anchorMax = Vector2.one;
             t.rectTransform.offsetMin = new Vector2(4f, 4f);
             t.rectTransform.offsetMax = new Vector2(-4f, -4f);
-        }
-
-        static Image NewImage(string name, Transform parent, Color color)
-        {
-            var rt = NewRect(name, parent);
-            var img = rt.gameObject.AddComponent<Image>();
-            img.color = color;
-            img.raycastTarget = true;
-            return img;
         }
     }
 }

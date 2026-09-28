@@ -161,7 +161,9 @@ namespace Sango
         // 运行时改 Volume 的方式：读 volume.profile（getter 把 sharedProfile Instantiate 成运行时副本，
         // 改副本不落盘；直接改 sharedProfile 会持久化进资产并影响所有引用该资产的 Volume——
         // core 包源码 Runtime/Volume/Volume.cs:55-63 注释、:77-87 实现）。TryGet：
-        // core 包 Runtime/Volume/VolumeProfile.cs:231。参数经 .value 赋值即写入 override。
+        // core 包 Runtime/Volume/VolumeProfile.cs:231。参数写入必须 .Override()：.value setter
+        // 只写 m_Value 不置 overrideState（core VolumeParameter.cs:182-186），HDRP 体积混合只认
+        // overrideState=True 的参数（Override 实现 :234-238；同 1297f610 曝光修复口径）。
         void ApplyCloudsAndFog()
         {
             if (globalVolume == null) return;
@@ -192,13 +194,16 @@ namespace Sango
             if (profile.TryGet<Fog>(out var fog))
             {
                 fog.active = true;
-                fog.enabled.value = true;
-                fog.enableVolumetricFog.value = true;
-                fog.maxFogDistance.value = Mathf.Max(0f, fogDistanceMeters);
-                fog.meanFreePath.value = Mathf.Max(1f, fogDistanceMeters); // 起调值修正：0.25×雾距在 3km 档自由程仅 750m，
-                                                                           // 数公里外全白且散射拖暗正午（M1-C 实测）；1× 保持
-                                                                           // 雾感同时目标可见（仍 TBD-实机微调）
-                fog.maximumHeight.value = 120f; // 雾层盖过桥楼视线（相机 y=12 + 余量），TBD-实机
+                // .Override() 而非 .value：value setter 只写 m_Value 不置 overrideState
+                // （VolumeParameter.cs:182-186），雾参数从未真正生效 = 雾距滑条 no-op
+                // （census fogEn=True(ovr=False) 逐字证据）；Override 一并置位（:234-238）。
+                fog.enabled.Override(true);
+                fog.enableVolumetricFog.Override(true);
+                fog.maxFogDistance.Override(Mathf.Max(0f, fogDistanceMeters));
+                fog.meanFreePath.Override(Mathf.Max(1f, fogDistanceMeters)); // 起调值修正：0.25×雾距在 3km 档自由程仅 750m，
+                                                                             // 数公里外全白且散射拖暗正午（M1-C 实测）；1× 保持
+                                                                             // 雾感同时目标可见（仍 TBD-实机微调）
+                fog.maximumHeight.Override(120f); // 雾层盖过桥楼视线（相机 y=12 + 余量），TBD-实机
             }
         }
     }

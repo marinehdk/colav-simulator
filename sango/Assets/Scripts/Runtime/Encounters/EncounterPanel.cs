@@ -2,6 +2,7 @@ using UnityEngine;
 using UnityEngine.Events;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
+using static Sango.UiBuildHelpers;
 
 namespace Sango
 {
@@ -44,15 +45,6 @@ namespace Sango
             _font = LoadBuiltinFont();
             BuildUI();
             MirrorState();
-        }
-
-        // Unity 6000 内置字体资源名 LegacyRuntime.ttf（Arial.ttf 已于 2022+ 移除，留兜底）。
-        static Font LoadBuiltinFont()
-        {
-            Font f = null;
-            try { f = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf"); } catch { }
-            if (f == null) { try { f = Resources.GetBuiltinResource<Font>("Arial.ttf"); } catch { } }
-            return f;
         }
 
         void BuildUI()
@@ -211,21 +203,7 @@ namespace Sango
                    $"target cargo {p.Target.CruiseSpeedMps:0.#} m/s from ({p.Target.SpawnXZ.x:0},{p.Target.SpawnXZ.y:0}) hdg {p.Target.HeadingDeg:0}°";
         }
 
-        // ── uGUI 构建辅助（WeatherGUI 同款最小件）──────────────────────────────────────
-
-        static void EnsureEventSystem()
-        {
-            if (EventSystem.current != null) return;
-            new GameObject("EventSystem", typeof(EventSystem), typeof(StandaloneInputModule));
-        }
-
-        static RectTransform NewRect(string name, Transform parent)
-        {
-            var go = new GameObject(name, typeof(RectTransform));
-            var rt = (RectTransform)go.transform;
-            rt.SetParent(parent, false);
-            return rt;
-        }
+        // ── uGUI 构建辅助（WeatherGUI 同款最小件；同构小件收编 UiBuildHelpers，using static 引入）──
 
         Text TopLabel(string name, string content, int fontSize, TextAnchor align, Color color)
         {
@@ -356,23 +334,6 @@ namespace Sango
             dropdown.RefreshShownValue();
             dropdown.onValueChanged.AddListener(onChanged);
             return dropdown;
-        }
-
-        static Image NewImage(string name, Transform parent, Color color)
-        {
-            var rt = NewRect(name, parent);
-            var img = rt.gameObject.AddComponent<Image>();
-            img.color = color;
-            img.raycastTarget = true;
-            return img;
-        }
-
-        static void Stretch(RectTransform rt, float left, float top, float right, float bottom)
-        {
-            rt.anchorMin = Vector2.zero;
-            rt.anchorMax = Vector2.one;
-            rt.offsetMin = new Vector2(left, bottom);
-            rt.offsetMax = new Vector2(right, -top);
         }
     }
 }
