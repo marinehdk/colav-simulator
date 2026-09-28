@@ -6,8 +6,9 @@ namespace Sango
     /// M2-E2 相机切换器（spec #85）：C 键循环 Bridge → Bow → Chase → TopDown，位姿过渡
     /// smoothstep ~1 s；bow/chase/top-down 每帧从船实时位姿重解目标（FollowsShip——demo 航行中
     /// 相机跟船）。位姿解析全在纯函数 CameraViews（spec Testing Decisions 缝），本类只做引擎薄壳。
-    /// 偏离（documented）：TopDown 的透视⇄正交投影切换无法插值，过渡开始瞬间瞬切。
-    /// 桥楼位姿 = M1 场景既有机位（解析器 Bridge 常数同源，零观感变化）。
+    /// **全透视 rig**（验收修正 2026-09-24：ortho TopDown 触发 HDRP 透视⇄正交投影切换、破坏管线
+    /// 渲染状态——TopDown 花屏、切回后全局变暗；投影切换彻底移除，过渡 = 位置/旋转/FOV 插值）。
+    /// 桥楼位姿 = M1 场景既有机位（解析器 Bridge 常数同源 + FOV 60，零观感变化）。
     /// </summary>
     public class CameraRig : MonoBehaviour
     {
@@ -25,6 +26,7 @@ namespace Sango
 
         Vector3 m_FromPos;
         Quaternion m_FromRot;
+        float m_FromFov;
         float m_Blend = 1f; // 1 = 过渡完成（直接贴目标位姿）
         bool m_WarnedNoCamera;
 
@@ -32,8 +34,7 @@ namespace Sango
         {
             Application.runInBackground = true; // 采集/演示失焦不停渲染（WeatherGUI 同款）
             if (controlledCamera == null) controlledCamera = GetComponent<Camera>();
-            ApplyProjection(CurrentView);
-            SnapNow(); // 起始即桥楼位姿（与 M1 场景相机默认位姿逐位同源）
+            SnapNow(); // 起始即桥楼位姿 + 基准 FOV 60（与 M1 场景相机逐位同源）
         }
 
         void Update()
@@ -61,34 +62,29 @@ namespace Sango
                 float t = Mathf.SmoothStep(0f, 1f, m_Blend);
                 controlledCamera.transform.position = Vector3.Lerp(m_FromPos, target.Position, t);
                 controlledCamera.transform.rotation = Quaternion.Slerp(m_FromRot, targetRot, t);
+                controlledCamera.fieldOfView = Mathf.Lerp(m_FromFov, target.FieldOfView, t);
             }
             else
             {
                 controlledCamera.transform.position = target.Position;
                 controlledCamera.transform.rotation = targetRot;
+                controlledCamera.fieldOfView = target.FieldOfView;
             }
         }
 
         /// <summary>C 键入口：循环到下一视图。</summary>
         public void CycleView() => SetView(CameraViews.Next(CurrentView));
 
-        /// <summary>切视图：捕获当前位姿 → 过渡计时归零 → 投影档随视图（正交瞬切，documented）。</summary>
+        /// <summary>切视图：捕获当前位姿/FOV → 过渡计时归零（全透视，无投影切换）。</summary>
         public void SetView(CameraView view)
         {
             if (view == CurrentView || controlledCamera == null) return;
             m_FromPos = controlledCamera.transform.position;
             m_FromRot = controlledCamera.transform.rotation;
+            m_FromFov = controlledCamera.fieldOfView;
             m_Blend = 0f;
             CurrentView = view;
-            ApplyProjection(view);
             Debug.Log($"[Sango.M2E2] camera view -> {view} (transition {transitionSeconds:0.0}s)");
-        }
-
-        void ApplyProjection(CameraView view)
-        {
-            bool ortho = view == CameraView.TopDown;
-            controlledCamera.orthographic = ortho;
-            if (ortho) controlledCamera.orthographicSize = CameraViews.TopDownOrthoSizeM;
         }
 
         void SnapNow()
@@ -96,6 +92,7 @@ namespace Sango
             var target = CameraViews.Resolve(CurrentView, FollowPos(), FollowYawDeg());
             controlledCamera.transform.position = target.Position;
             controlledCamera.transform.rotation = Quaternion.Euler(target.PitchDeg, target.YawDeg, 0f);
+            controlledCamera.fieldOfView = target.FieldOfView;
         }
 
         Vector3 FollowPos() => followShip != null ? followShip.position : Vector3.zero;
