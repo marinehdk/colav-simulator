@@ -1,6 +1,6 @@
 %YAML 1.1
 %TAG !u! tag:unity3d.com,2011:
---- !u!114 &-2953480709834787329
+--- !u!114 &-5494402346702790741
 MonoBehaviour:
   m_ObjectHideFlags: 3
   m_CorrespondingSourceObject: {fileID: 0}
@@ -316,29 +316,7 @@ MonoBehaviour:
   shadowOpacityFallback:
     m_OverrideState: 0
     m_Value: 0
---- !u!114 &-2907478899188536638
-MonoBehaviour:
-  m_ObjectHideFlags: 3
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 0}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: a76fd08475e21554b8f284f723dd7cf8, type: 3}
-  m_Name: WaterRendering
-  m_EditorClassIdentifier: Unity.RenderPipelines.HighDefinition.Runtime::UnityEngine.Rendering.HighDefinition.WaterRendering
-  active: 1
-  enable:
-    m_OverrideState: 0
-    m_Value: 1
-  triangleSize:
-    m_OverrideState: 0
-    m_Value: 30
-  ambientProbeDimmer:
-    m_OverrideState: 0
-    m_Value: 0.5
---- !u!114 &-610595406538261371
+--- !u!114 &-3372100899342524355
 MonoBehaviour:
   m_ObjectHideFlags: 3
   m_CorrespondingSourceObject: {fileID: 0}
@@ -429,6 +407,28 @@ MonoBehaviour:
   directionalLightsOnly:
     m_OverrideState: 0
     m_Value: 0
+--- !u!114 &-409092752434469759
+MonoBehaviour:
+  m_ObjectHideFlags: 3
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a76fd08475e21554b8f284f723dd7cf8, type: 3}
+  m_Name: WaterRendering
+  m_EditorClassIdentifier: Unity.RenderPipelines.HighDefinition.Runtime::UnityEngine.Rendering.HighDefinition.WaterRendering
+  active: 1
+  enable:
+    m_OverrideState: 0
+    m_Value: 1
+  triangleSize:
+    m_OverrideState: 0
+    m_Value: 30
+  ambientProbeDimmer:
+    m_OverrideState: 0
+    m_Value: 0.5
 --- !u!114 &11400000
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -442,12 +442,12 @@ MonoBehaviour:
   m_Name: M2E-GlobalVolumeProfile
   m_EditorClassIdentifier: Unity.RenderPipelines.Core.Runtime::UnityEngine.Rendering.VolumeProfile
   components:
-  - {fileID: 7506267272433921802}
-  - {fileID: 6579774042680935690}
-  - {fileID: -2953480709834787329}
-  - {fileID: -610595406538261371}
-  - {fileID: -2907478899188536638}
---- !u!114 &6579774042680935690
+  - {fileID: 5377474115340291905}
+  - {fileID: 4851019268874982194}
+  - {fileID: -5494402346702790741}
+  - {fileID: -3372100899342524355}
+  - {fileID: -409092752434469759}
+--- !u!114 &4851019268874982194
 MonoBehaviour:
   m_ObjectHideFlags: 3
   m_CorrespondingSourceObject: {fileID: 0}
@@ -590,7 +590,7 @@ MonoBehaviour:
   horizonZenithShift:
     m_OverrideState: 0
     m_Value: 0
---- !u!114 &7506267272433921802
+--- !u!114 &5377474115340291905
 MonoBehaviour:
   m_ObjectHideFlags: 3
   m_CorrespondingSourceObject: {fileID: 0}

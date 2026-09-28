@@ -29,6 +29,7 @@ namespace Sango
         float m_FromFov;
         float m_Blend = 1f; // 1 = 过渡完成（直接贴目标位姿）
         bool m_WarnedNoCamera;
+        float m_LastStateLog = -999f; // 运行时状态低频日志（5 s 节流，验收诊断常驻仪表）
 
         void Awake()
         {
@@ -69,6 +70,14 @@ namespace Sango
                 controlledCamera.transform.position = target.Position;
                 controlledCamera.transform.rotation = targetRot;
                 controlledCamera.fieldOfView = target.FieldOfView;
+            }
+
+            // 验收诊断（常驻低频仪表，VesselBuoyancy 10 s 行同款模式）：相机真实运行态 +
+            // 跟随目标真值——区分"位姿解算错"与"船根变换本身错"的唯一现场证据。
+            if (Time.time - m_LastStateLog >= 5f)
+            {
+                m_LastStateLog = Time.time;
+                Debug.Log($"[Sango.M2E2] cam view={CurrentView} pos={controlledCamera.transform.position.ToString("F2")} rot={controlledCamera.transform.rotation.eulerAngles.ToString("F1")} fov={controlledCamera.fieldOfView:F1} followPos={FollowPos().ToString("F2")} followYaw={FollowYawDeg():F1}");
             }
         }
 
