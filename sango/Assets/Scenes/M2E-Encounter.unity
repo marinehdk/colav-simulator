@@ -119,7 +119,7 @@ NavMeshSettings:
     debug:
       m_Flags: 0
   m_NavMeshData: {fileID: 0}
---- !u!1 &50304035
+--- !u!1 &3430211
 GameObject:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -127,354 +127,8 @@ GameObject:
   m_PrefabAsset: {fileID: 0}
   serializedVersion: 6
   m_Component:
-  - component: {fileID: 50304036}
-  m_Layer: 0
-  m_Name: Ships
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!4 &50304036
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 50304035}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children:
-  - {fileID: 209380394}
-  - {fileID: 422451353}
-  m_Father: {fileID: 0}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!1001 &209380393
-PrefabInstance:
-  m_ObjectHideFlags: 0
-  serializedVersion: 2
-  m_Modification:
-    serializedVersion: 3
-    m_TransformParent: {fileID: 50304036}
-    m_Modifications:
-    - target: {fileID: 4107976017558317156, guid: 434f3755d5b7a456499aeabfe5d297c5, type: 3}
-      propertyPath: m_Name
-      value: VesselMedium
-      objectReference: {fileID: 0}
-    - target: {fileID: 4848462709466384342, guid: 434f3755d5b7a456499aeabfe5d297c5, type: 3}
-      propertyPath: m_LocalPosition.x
-      value: 100
-      objectReference: {fileID: 0}
-    - target: {fileID: 4848462709466384342, guid: 434f3755d5b7a456499aeabfe5d297c5, type: 3}
-      propertyPath: m_LocalPosition.y
-      value: -1.2857398
-      objectReference: {fileID: 0}
-    - target: {fileID: 4848462709466384342, guid: 434f3755d5b7a456499aeabfe5d297c5, type: 3}
-      propertyPath: m_LocalPosition.z
-      value: -450
-      objectReference: {fileID: 0}
-    - target: {fileID: 4848462709466384342, guid: 434f3755d5b7a456499aeabfe5d297c5, type: 3}
-      propertyPath: m_LocalRotation.w
-      value: -0.00000004371139
-      objectReference: {fileID: 0}
-    - target: {fileID: 4848462709466384342, guid: 434f3755d5b7a456499aeabfe5d297c5, type: 3}
-      propertyPath: m_LocalRotation.x
-      value: -0
-      objectReference: {fileID: 0}
-    - target: {fileID: 4848462709466384342, guid: 434f3755d5b7a456499aeabfe5d297c5, type: 3}
-      propertyPath: m_LocalRotation.y
-      value: 1
-      objectReference: {fileID: 0}
-    - target: {fileID: 4848462709466384342, guid: 434f3755d5b7a456499aeabfe5d297c5, type: 3}
-      propertyPath: m_LocalRotation.z
-      value: -0
-      objectReference: {fileID: 0}
-    - target: {fileID: 4848462709466384342, guid: 434f3755d5b7a456499aeabfe5d297c5, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.x
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 4848462709466384342, guid: 434f3755d5b7a456499aeabfe5d297c5, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 4848462709466384342, guid: 434f3755d5b7a456499aeabfe5d297c5, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.z
-      value: 0
-      objectReference: {fileID: 0}
-    m_RemovedComponents: []
-    m_RemovedGameObjects: []
-    m_AddedGameObjects: []
-    m_AddedComponents:
-    - targetCorrespondingSourceObject: {fileID: 4107976017558317156, guid: 434f3755d5b7a456499aeabfe5d297c5, type: 3}
-      insertIndex: -1
-      addedObject: {fileID: 209380396}
-    - targetCorrespondingSourceObject: {fileID: 4107976017558317156, guid: 434f3755d5b7a456499aeabfe5d297c5, type: 3}
-      insertIndex: -1
-      addedObject: {fileID: 209380397}
-  m_SourcePrefab: {fileID: 100100000, guid: 434f3755d5b7a456499aeabfe5d297c5, type: 3}
---- !u!4 &209380394 stripped
-Transform:
-  m_CorrespondingSourceObject: {fileID: 4848462709466384342, guid: 434f3755d5b7a456499aeabfe5d297c5, type: 3}
-  m_PrefabInstance: {fileID: 209380393}
-  m_PrefabAsset: {fileID: 0}
---- !u!1 &209380395 stripped
-GameObject:
-  m_CorrespondingSourceObject: {fileID: 4107976017558317156, guid: 434f3755d5b7a456499aeabfe5d297c5, type: 3}
-  m_PrefabInstance: {fileID: 209380393}
-  m_PrefabAsset: {fileID: 0}
---- !u!114 &209380396
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 209380395}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 265beab13596047b1a378fcd33d98fe7, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::Sango.VesselBuoyancy
-  waterSurface: {fileID: 800012709}
-  smoothingFrequencyHz: 0.8
-  maxRollDeg: 10
-  maxPitchDeg: 6
-  maxSamplesPerHull: 64
---- !u!114 &209380397
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 209380395}
-  m_Enabled: 0
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 24eab7130ac4c4cfa9be9d0d847c09ac, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Sango.Vessels::Sango.WaypointFollower
-  m_Waypoints: []
-  demoHotkeysEnabled: 0
-  bowYawDegOffset: 180
-  cruiseSpeedMps: 5
-  maxYawRateDegPerSec: 20
-  arrivalRadiusM: 8
-  maxAccelMps2: 2
---- !u!1 &282344935
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 282344937}
-  - component: {fileID: 282344936}
-  m_Layer: 0
-  m_Name: Weather GUI
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!114 &282344936
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 282344935}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: f1b6030341eb44e13b7843691aaaad50, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::Sango.WeatherGUI
-  controller: {fileID: 1109182792}
-  digitHotkeysEnabled: 0
---- !u!4 &282344937
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 282344935}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 0}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!1001 &422451352
-PrefabInstance:
-  m_ObjectHideFlags: 0
-  serializedVersion: 2
-  m_Modification:
-    serializedVersion: 3
-    m_TransformParent: {fileID: 50304036}
-    m_Modifications:
-    - target: {fileID: 2189890999674385733, guid: 12f9ec1eab4e5436fa253881312756cf, type: 3}
-      propertyPath: m_LocalPosition.x
-      value: -100
-      objectReference: {fileID: 0}
-    - target: {fileID: 2189890999674385733, guid: 12f9ec1eab4e5436fa253881312756cf, type: 3}
-      propertyPath: m_LocalPosition.y
-      value: -1.3738428
-      objectReference: {fileID: 0}
-    - target: {fileID: 2189890999674385733, guid: 12f9ec1eab4e5436fa253881312756cf, type: 3}
-      propertyPath: m_LocalPosition.z
-      value: 450
-      objectReference: {fileID: 0}
-    - target: {fileID: 2189890999674385733, guid: 12f9ec1eab4e5436fa253881312756cf, type: 3}
-      propertyPath: m_LocalRotation.w
-      value: -0.00000004371139
-      objectReference: {fileID: 0}
-    - target: {fileID: 2189890999674385733, guid: 12f9ec1eab4e5436fa253881312756cf, type: 3}
-      propertyPath: m_LocalRotation.x
-      value: -0
-      objectReference: {fileID: 0}
-    - target: {fileID: 2189890999674385733, guid: 12f9ec1eab4e5436fa253881312756cf, type: 3}
-      propertyPath: m_LocalRotation.y
-      value: 1
-      objectReference: {fileID: 0}
-    - target: {fileID: 2189890999674385733, guid: 12f9ec1eab4e5436fa253881312756cf, type: 3}
-      propertyPath: m_LocalRotation.z
-      value: -0
-      objectReference: {fileID: 0}
-    - target: {fileID: 2189890999674385733, guid: 12f9ec1eab4e5436fa253881312756cf, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.x
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 2189890999674385733, guid: 12f9ec1eab4e5436fa253881312756cf, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 2189890999674385733, guid: 12f9ec1eab4e5436fa253881312756cf, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.z
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 9163801143775574186, guid: 12f9ec1eab4e5436fa253881312756cf, type: 3}
-      propertyPath: m_Name
-      value: VesselLarge
-      objectReference: {fileID: 0}
-    m_RemovedComponents: []
-    m_RemovedGameObjects: []
-    m_AddedGameObjects: []
-    m_AddedComponents:
-    - targetCorrespondingSourceObject: {fileID: 9163801143775574186, guid: 12f9ec1eab4e5436fa253881312756cf, type: 3}
-      insertIndex: -1
-      addedObject: {fileID: 422451355}
-    - targetCorrespondingSourceObject: {fileID: 9163801143775574186, guid: 12f9ec1eab4e5436fa253881312756cf, type: 3}
-      insertIndex: -1
-      addedObject: {fileID: 422451356}
-  m_SourcePrefab: {fileID: 100100000, guid: 12f9ec1eab4e5436fa253881312756cf, type: 3}
---- !u!4 &422451353 stripped
-Transform:
-  m_CorrespondingSourceObject: {fileID: 2189890999674385733, guid: 12f9ec1eab4e5436fa253881312756cf, type: 3}
-  m_PrefabInstance: {fileID: 422451352}
-  m_PrefabAsset: {fileID: 0}
---- !u!1 &422451354 stripped
-GameObject:
-  m_CorrespondingSourceObject: {fileID: 9163801143775574186, guid: 12f9ec1eab4e5436fa253881312756cf, type: 3}
-  m_PrefabInstance: {fileID: 422451352}
-  m_PrefabAsset: {fileID: 0}
---- !u!114 &422451355
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 422451354}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 265beab13596047b1a378fcd33d98fe7, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::Sango.VesselBuoyancy
-  waterSurface: {fileID: 800012709}
-  smoothingFrequencyHz: 0.8
-  maxRollDeg: 10
-  maxPitchDeg: 6
-  maxSamplesPerHull: 64
---- !u!114 &422451356
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 422451354}
-  m_Enabled: 0
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 24eab7130ac4c4cfa9be9d0d847c09ac, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Sango.Vessels::Sango.WaypointFollower
-  m_Waypoints: []
-  demoHotkeysEnabled: 0
-  bowYawDegOffset: 0
-  cruiseSpeedMps: 5
-  maxYawRateDegPerSec: 20
-  arrivalRadiusM: 8
-  maxAccelMps2: 2
---- !u!1 &514135186
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 514135188}
-  - component: {fileID: 514135187}
-  m_Layer: 0
-  m_Name: Global Volume
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!114 &514135187
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 514135186}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 172515602e62fb746b5d573b38a5fe58, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Unity.RenderPipelines.Core.Runtime::UnityEngine.Rendering.Volume
-  m_IsGlobal: 1
-  priority: 10
-  blendDistance: 0
-  weight: 1
-  sharedProfile: {fileID: 11400000, guid: 0d28cf9fee37d407092758119f297a5f, type: 2}
---- !u!4 &514135188
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 514135186}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 0}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!1 &800012708
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 800012710}
-  - component: {fileID: 800012709}
+  - component: {fileID: 3430213}
+  - component: {fileID: 3430212}
   m_Layer: 0
   m_Name: Water Surface
   m_TagString: Untagged
@@ -482,13 +136,13 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!114 &800012709
+--- !u!114 &3430212
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 800012708}
+  m_GameObject: {fileID: 3430211}
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: d8f6fd535518f5540b4bcc3099582f77, type: 3}
@@ -648,13 +302,13 @@ MonoBehaviour:
   underWaterRefraction: 0
   decalRegionSize: {x: 200, y: 200}
   decalRegionAnchor: {fileID: 0}
---- !u!4 &800012710
+--- !u!4 &3430213
 Transform:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 800012708}
+  m_GameObject: {fileID: 3430211}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
@@ -663,7 +317,7 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!1 &821841094
+--- !u!1 &214755579
 GameObject:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -671,35 +325,38 @@ GameObject:
   m_PrefabAsset: {fileID: 0}
   serializedVersion: 6
   m_Component:
-  - component: {fileID: 821841096}
-  - component: {fileID: 821841095}
+  - component: {fileID: 214755581}
+  - component: {fileID: 214755580}
   m_Layer: 0
-  m_Name: Encounter GUI
+  m_Name: Frame Publisher
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!114 &821841095
+--- !u!114 &214755580
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 821841094}
+  m_GameObject: {fileID: 214755579}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 74a0b2b883dd84c17a9445aba4c08eb8, type: 3}
+  m_Script: {fileID: 11500000, guid: 88927653bc847409b94eab97fa3a5c01, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::Sango.EncounterPanel
-  director: {fileID: 1509910682}
---- !u!4 &821841096
+  m_EditorClassIdentifier: Assembly-CSharp::Sango.FramePublisher
+  runtimeEnabled: 0
+  endpoint: tcp://127.0.0.1:5556
+  jpegQuality: 60
+  source: sango
+--- !u!4 &214755581
 Transform:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 821841094}
+  m_GameObject: {fileID: 214755579}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
@@ -708,7 +365,7 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!1 &1109182791
+--- !u!1 &330937483
 GameObject:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -716,44 +373,39 @@ GameObject:
   m_PrefabAsset: {fileID: 0}
   serializedVersion: 6
   m_Component:
-  - component: {fileID: 1109182793}
-  - component: {fileID: 1109182792}
+  - component: {fileID: 330937485}
+  - component: {fileID: 330937484}
   m_Layer: 0
-  m_Name: Weather
+  m_Name: Global Volume
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!114 &1109182792
+--- !u!114 &330937484
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1109182791}
+  m_GameObject: {fileID: 330937483}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: e30bcc0201a4e4ef8bd58f4c35331147, type: 3}
+  m_Script: {fileID: 11500000, guid: 172515602e62fb746b5d573b38a5fe58, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::Sango.WeatherController
-  waterSurface: {fileID: 800012709}
-  globalVolume: {fileID: 514135187}
-  sunLight: {fileID: 1610992190}
-  beaufort: 3
-  windDirectionDeg: 30
-  timeOfDayHours: 12
-  cloudCover: 0.4
-  fogDistanceMeters: 3000
-  spectrumTier: 1
-  applyEveryFrame: 1
---- !u!4 &1109182793
+  m_EditorClassIdentifier: Unity.RenderPipelines.Core.Runtime::UnityEngine.Rendering.Volume
+  m_IsGlobal: 1
+  priority: 10
+  blendDistance: 0
+  weight: 1
+  sharedProfile: {fileID: 11400000, guid: 0d28cf9fee37d407092758119f297a5f, type: 2}
+--- !u!4 &330937485
 Transform:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1109182791}
+  m_GameObject: {fileID: 330937483}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
@@ -762,57 +414,116 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!1 &1509910681
-GameObject:
+--- !u!1001 &604582676
+PrefabInstance:
   m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 1458428348}
+    m_Modifications:
+    - target: {fileID: 2189890999674385733, guid: 12f9ec1eab4e5436fa253881312756cf, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -100
+      objectReference: {fileID: 0}
+    - target: {fileID: 2189890999674385733, guid: 12f9ec1eab4e5436fa253881312756cf, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: -1.3738428
+      objectReference: {fileID: 0}
+    - target: {fileID: 2189890999674385733, guid: 12f9ec1eab4e5436fa253881312756cf, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 450
+      objectReference: {fileID: 0}
+    - target: {fileID: 2189890999674385733, guid: 12f9ec1eab4e5436fa253881312756cf, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: -0.00000004371139
+      objectReference: {fileID: 0}
+    - target: {fileID: 2189890999674385733, guid: 12f9ec1eab4e5436fa253881312756cf, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: 2189890999674385733, guid: 12f9ec1eab4e5436fa253881312756cf, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 2189890999674385733, guid: 12f9ec1eab4e5436fa253881312756cf, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: 2189890999674385733, guid: 12f9ec1eab4e5436fa253881312756cf, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 2189890999674385733, guid: 12f9ec1eab4e5436fa253881312756cf, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 2189890999674385733, guid: 12f9ec1eab4e5436fa253881312756cf, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 9163801143775574186, guid: 12f9ec1eab4e5436fa253881312756cf, type: 3}
+      propertyPath: m_Name
+      value: VesselLarge
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents:
+    - targetCorrespondingSourceObject: {fileID: 9163801143775574186, guid: 12f9ec1eab4e5436fa253881312756cf, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 604582680}
+    - targetCorrespondingSourceObject: {fileID: 9163801143775574186, guid: 12f9ec1eab4e5436fa253881312756cf, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 604582679}
+  m_SourcePrefab: {fileID: 100100000, guid: 12f9ec1eab4e5436fa253881312756cf, type: 3}
+--- !u!4 &604582677 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: 2189890999674385733, guid: 12f9ec1eab4e5436fa253881312756cf, type: 3}
+  m_PrefabInstance: {fileID: 604582676}
   m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 1509910683}
-  - component: {fileID: 1509910682}
-  m_Layer: 0
-  m_Name: Encounter Director
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!114 &1509910682
+--- !u!1 &604582678 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 9163801143775574186, guid: 12f9ec1eab4e5436fa253881312756cf, type: 3}
+  m_PrefabInstance: {fileID: 604582676}
+  m_PrefabAsset: {fileID: 0}
+--- !u!114 &604582679
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1509910681}
-  m_Enabled: 1
+  m_GameObject: {fileID: 604582678}
+  m_Enabled: 0
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 99d76fd08f7064610840202e19e10b90, type: 3}
+  m_Script: {fileID: 11500000, guid: 24eab7130ac4c4cfa9be9d0d847c09ac, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::Sango.EncounterDirector
-  ownFollower: {fileID: 209380397}
-  targetFollower: {fileID: 422451356}
-  ownShip: {fileID: 209380394}
-  targetShip: {fileID: 422451353}
-  topCamera: {fileID: 0}
-  ballIntervalSeconds: 10
---- !u!4 &1509910683
-Transform:
+  m_EditorClassIdentifier: Sango.Vessels::Sango.WaypointFollower
+  m_Waypoints: []
+  demoHotkeysEnabled: 0
+  bowYawDegOffset: 0
+  cruiseSpeedMps: 5
+  maxYawRateDegPerSec: 20
+  arrivalRadiusM: 8
+  maxAccelMps2: 2
+--- !u!114 &604582680
+MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1509910681}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 0}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!1 &1610992189
+  m_GameObject: {fileID: 604582678}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 265beab13596047b1a378fcd33d98fe7, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Sango.VesselBuoyancy
+  waterSurface: {fileID: 3430212}
+  smoothingFrequencyHz: 0.8
+  maxRollDeg: 10
+  maxPitchDeg: 6
+  maxSamplesPerHull: 64
+--- !u!1 &732004421
 GameObject:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -820,9 +531,9 @@ GameObject:
   m_PrefabAsset: {fileID: 0}
   serializedVersion: 6
   m_Component:
-  - component: {fileID: 1610992192}
-  - component: {fileID: 1610992190}
-  - component: {fileID: 1610992191}
+  - component: {fileID: 732004424}
+  - component: {fileID: 732004422}
+  - component: {fileID: 732004423}
   m_Layer: 0
   m_Name: Directional Light
   m_TagString: Untagged
@@ -830,13 +541,13 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!108 &1610992190
+--- !u!108 &732004422
 Light:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1610992189}
+  m_GameObject: {fileID: 732004421}
   m_Enabled: 1
   serializedVersion: 12
   m_Type: 1
@@ -895,13 +606,13 @@ Light:
   m_LightUnit: 1
   m_LuxAtDistance: 1
   m_EnableSpotReflector: 1
---- !u!114 &1610992191
+--- !u!114 &732004423
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1610992189}
+  m_GameObject: {fileID: 732004421}
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 7a68c43fe1f2a47cfa234b5eeaa98012, type: 3}
@@ -1037,13 +748,13 @@ MonoBehaviour:
   m_AreaLightEmissiveMeshShadowCastingMode: 0
   m_AreaLightEmissiveMeshMotionVectorGenerationMode: 0
   m_AreaLightEmissiveMeshLayer: -1
---- !u!4 &1610992192
+--- !u!4 &732004424
 Transform:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1610992189}
+  m_GameObject: {fileID: 732004421}
   serializedVersion: 2
   m_LocalRotation: {x: 0.40821794, y: -0.23456973, z: 0.10938166, w: 0.8754261}
   m_LocalPosition: {x: 0, y: 0, z: 0}
@@ -1052,7 +763,7 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!1 &2029865099
+--- !u!1 &811888464
 GameObject:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -1060,9 +771,214 @@ GameObject:
   m_PrefabAsset: {fileID: 0}
   serializedVersion: 6
   m_Component:
-  - component: {fileID: 2029865102}
-  - component: {fileID: 2029865101}
-  - component: {fileID: 2029865100}
+  - component: {fileID: 811888466}
+  - component: {fileID: 811888465}
+  m_Layer: 0
+  m_Name: Weather GUI
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &811888465
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 811888464}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f1b6030341eb44e13b7843691aaaad50, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Sango.WeatherGUI
+  controller: {fileID: 2102710612}
+  digitHotkeysEnabled: 0
+--- !u!4 &811888466
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 811888464}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &1032680897
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1032680899}
+  - component: {fileID: 1032680898}
+  m_Layer: 0
+  m_Name: Encounter Director
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &1032680898
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1032680897}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 99d76fd08f7064610840202e19e10b90, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Sango.EncounterDirector
+  ownFollower: {fileID: 1264280975}
+  targetFollower: {fileID: 604582679}
+  ownShip: {fileID: 1264280973}
+  targetShip: {fileID: 604582677}
+  topCamera: {fileID: 0}
+  ballIntervalSeconds: 10
+--- !u!4 &1032680899
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1032680897}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1001 &1264280972
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 1458428348}
+    m_Modifications:
+    - target: {fileID: 4107976017558317156, guid: 434f3755d5b7a456499aeabfe5d297c5, type: 3}
+      propertyPath: m_Name
+      value: VesselMedium
+      objectReference: {fileID: 0}
+    - target: {fileID: 4848462709466384342, guid: 434f3755d5b7a456499aeabfe5d297c5, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: 100
+      objectReference: {fileID: 0}
+    - target: {fileID: 4848462709466384342, guid: 434f3755d5b7a456499aeabfe5d297c5, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: -1.2857398
+      objectReference: {fileID: 0}
+    - target: {fileID: 4848462709466384342, guid: 434f3755d5b7a456499aeabfe5d297c5, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: -450
+      objectReference: {fileID: 0}
+    - target: {fileID: 4848462709466384342, guid: 434f3755d5b7a456499aeabfe5d297c5, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: -0.00000004371139
+      objectReference: {fileID: 0}
+    - target: {fileID: 4848462709466384342, guid: 434f3755d5b7a456499aeabfe5d297c5, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: 4848462709466384342, guid: 434f3755d5b7a456499aeabfe5d297c5, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 4848462709466384342, guid: 434f3755d5b7a456499aeabfe5d297c5, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: 4848462709466384342, guid: 434f3755d5b7a456499aeabfe5d297c5, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 4848462709466384342, guid: 434f3755d5b7a456499aeabfe5d297c5, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 4848462709466384342, guid: 434f3755d5b7a456499aeabfe5d297c5, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents:
+    - targetCorrespondingSourceObject: {fileID: 4107976017558317156, guid: 434f3755d5b7a456499aeabfe5d297c5, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 1264280976}
+    - targetCorrespondingSourceObject: {fileID: 4107976017558317156, guid: 434f3755d5b7a456499aeabfe5d297c5, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 1264280975}
+  m_SourcePrefab: {fileID: 100100000, guid: 434f3755d5b7a456499aeabfe5d297c5, type: 3}
+--- !u!4 &1264280973 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: 4848462709466384342, guid: 434f3755d5b7a456499aeabfe5d297c5, type: 3}
+  m_PrefabInstance: {fileID: 1264280972}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1 &1264280974 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 4107976017558317156, guid: 434f3755d5b7a456499aeabfe5d297c5, type: 3}
+  m_PrefabInstance: {fileID: 1264280972}
+  m_PrefabAsset: {fileID: 0}
+--- !u!114 &1264280975
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1264280974}
+  m_Enabled: 0
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 24eab7130ac4c4cfa9be9d0d847c09ac, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Sango.Vessels::Sango.WaypointFollower
+  m_Waypoints: []
+  demoHotkeysEnabled: 0
+  bowYawDegOffset: 180
+  cruiseSpeedMps: 5
+  maxYawRateDegPerSec: 20
+  arrivalRadiusM: 8
+  maxAccelMps2: 2
+--- !u!114 &1264280976
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1264280974}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 265beab13596047b1a378fcd33d98fe7, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Sango.VesselBuoyancy
+  waterSurface: {fileID: 3430212}
+  smoothingFrequencyHz: 0.8
+  maxRollDeg: 10
+  maxPitchDeg: 6
+  maxSamplesPerHull: 64
+--- !u!1 &1301291209
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1301291212}
+  - component: {fileID: 1301291211}
+  - component: {fileID: 1301291210}
   m_Layer: 0
   m_Name: Top Camera
   m_TagString: MainCamera
@@ -1070,13 +986,13 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!114 &2029865100
+--- !u!114 &1301291210
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 2029865099}
+  m_GameObject: {fileID: 1301291209}
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 23c1ce4fb46143f46bc5cb5224c934f6, type: 3}
@@ -1209,13 +1125,13 @@ MonoBehaviour:
       data1: 0
       data2: 0
   defaultFrameSettings: 0
---- !u!20 &2029865101
+--- !u!20 &1301291211
 Camera:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 2029865099}
+  m_GameObject: {fileID: 1301291209}
   m_Enabled: 1
   serializedVersion: 2
   m_ClearFlags: 1
@@ -1260,16 +1176,198 @@ Camera:
   m_OcclusionCulling: 1
   m_StereoConvergence: 10
   m_StereoSeparation: 0.022
---- !u!4 &2029865102
+--- !u!4 &1301291212
 Transform:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 2029865099}
+  m_GameObject: {fileID: 1301291209}
   serializedVersion: 2
   m_LocalRotation: {x: 0.7071068, y: 0, z: 0, w: 0.7071068}
   m_LocalPosition: {x: 0, y: 600, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &1458428347
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1458428348}
+  m_Layer: 0
+  m_Name: Ships
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1458428348
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1458428347}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children:
+  - {fileID: 1264280973}
+  - {fileID: 604582677}
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &1638988773
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1638988775}
+  - component: {fileID: 1638988774}
+  m_Layer: 0
+  m_Name: Detection Overlay
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &1638988774
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1638988773}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 79d50dfa4f0de445ba260d2cc2ebfac7, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Sango.DetectionOverlay
+  ships:
+  - {fileID: 1264280973}
+  - {fileID: 604582677}
+  visible: 0
+  sourceCamera: {fileID: 0}
+  marginPx: 6
+--- !u!4 &1638988775
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1638988773}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &1909949786
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1909949788}
+  - component: {fileID: 1909949787}
+  m_Layer: 0
+  m_Name: Encounter GUI
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &1909949787
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1909949786}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 74a0b2b883dd84c17a9445aba4c08eb8, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Sango.EncounterPanel
+  director: {fileID: 1032680898}
+--- !u!4 &1909949788
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1909949786}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &2102710611
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 2102710613}
+  - component: {fileID: 2102710612}
+  m_Layer: 0
+  m_Name: Weather
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &2102710612
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2102710611}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e30bcc0201a4e4ef8bd58f4c35331147, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Sango.WeatherController
+  waterSurface: {fileID: 3430212}
+  globalVolume: {fileID: 330937484}
+  sunLight: {fileID: 732004422}
+  beaufort: 3
+  windDirectionDeg: 30
+  timeOfDayHours: 12
+  cloudCover: 0.4
+  fogDistanceMeters: 3000
+  spectrumTier: 1
+  applyEveryFrame: 1
+--- !u!4 &2102710613
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2102710611}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -1279,12 +1377,14 @@ Transform:
 SceneRoots:
   m_ObjectHideFlags: 0
   m_Roots:
-  - {fileID: 800012710}
-  - {fileID: 514135188}
-  - {fileID: 1610992192}
-  - {fileID: 1109182793}
-  - {fileID: 282344937}
-  - {fileID: 50304036}
-  - {fileID: 1509910683}
-  - {fileID: 821841096}
-  - {fileID: 2029865102}
+  - {fileID: 3430213}
+  - {fileID: 330937485}
+  - {fileID: 732004424}
+  - {fileID: 2102710613}
+  - {fileID: 811888466}
+  - {fileID: 1458428348}
+  - {fileID: 1032680899}
+  - {fileID: 1909949788}
+  - {fileID: 1638988775}
+  - {fileID: 214755581}
+  - {fileID: 1301291212}

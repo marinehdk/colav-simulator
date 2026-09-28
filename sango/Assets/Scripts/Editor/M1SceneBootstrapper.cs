@@ -267,7 +267,7 @@ namespace Sango.Editor
 
             // g2. M2-E2 相机切换 + 桥楼矢量 + 雷达 + Simulation 面板 + Autonomous 按钮（spec #85）。
             //     键位账本：C 相机循环 · V 矢量开关 · A demo（G 既有）· Q/E 雷达量程 · Z/X 转速
-            //     · -/= 岛数 · ,/. 缩放 · Enter Apply · P 预览档（0-9/T/F 天气不动）。
+            //     · -/= 岛数 · ,/. 缩放 · Enter Apply · P 预览档 · B 检测框叠加（M3，0-9/T/F 天气不动）。
             var cameraRig = cameraGo.AddComponent<CameraRig>();
             cameraRig.followShip = small != null ? small.transform : null;
             cameraRig.controlledCamera = camera;
@@ -295,6 +295,19 @@ namespace Sango.Editor
             var islandBaseline = IslandRebuild.M1Baseline();
             islandBaseline.material = islandMaterial;
             sim.islandBaseline = islandBaseline;
+
+            // M3 缝钉子①④（spec #86）：检测框叠加层（B 切换，真值框 + "1.0 (gt)" 标签）
+            // + ZMQ 帧发布器（默认 OFF，SangoSeamConfig.PublisherEnabled=false；启用路径见 frame-publisher-v1.md）。
+            var overlayGo = new GameObject("Detection Overlay", typeof(DetectionOverlay));
+            var overlay = overlayGo.GetComponent<DetectionOverlay>();
+            var overlayShips = new List<Transform>();
+            if (small != null) overlayShips.Add(small.transform);
+            if (medium != null) overlayShips.Add(medium.transform);
+            overlay.ships = overlayShips.ToArray();
+
+            var pubGo = new GameObject("Frame Publisher", typeof(FramePublisher)); // 默认关闸：OnEnable 早退零开销
+            Debug.Log($"[Sango.M3] wired: detection overlay (B, {overlayShips.Count} ships), frame publisher (default OFF, {pubGo.GetComponent<FramePublisher>().endpoint})");
+
             Debug.Log("[Sango.M2E2] wired: camera rig (C cycle bridge/bow/chase/top-down), vector arrows (V), " +
                       "radar overlay (Q/E range, Z/X sweep), simulation panel (-/= count, ,/. scale, Enter apply, P model), " +
                       "autonomous control (A, G unchanged)");

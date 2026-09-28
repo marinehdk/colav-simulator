@@ -44,3 +44,33 @@ as CC0. Exact source pages, download URLs, hashes, geometric qualifications and
 excluded partial models are recorded in `web_gui/assets/models/README.md` and
 `targets/asset-manifest.json`. The FCB45 GLB is user-provided engineering artwork,
 with provenance recorded separately; no CAD/physics fidelity claim is made.
+
+## Sango FramePublisher vendored binaries (M3, spec #86)
+
+`sango/Assets/Plugins/NetMQ/` ships two unmodified managed assemblies used by the
+optional (default-OFF) ZeroMQ frame publisher. Full license texts live alongside
+the DLLs (`LICENSE-NetMQ.txt`, `LICENSE-AsyncIO.md`).
+
+### NetMQ 4.0.1.13 (lib/netstandard2.0/NetMQ.dll)
+
+- https://github.com/zeromq/netmq
+- License: GNU Lesser General Public License v3.0 (LGPL-3.0)
+- Used as an unmodified, replaceable library binary; the application remains
+  separable from the library per LGPL §4/§5.
+- Copyright (c) 2010-2018 NetMQ contributors
+
+### AsyncIO 0.1.69 (lib/netstandard2.0/AsyncIO.dll)
+
+- https://github.com/somdoron/AsyncIO
+- License: Mozilla Public License, version 2.0 (MPL-2.0)
+- Used unmodified; MPL 2.0 file-level copyleft satisfied by shipping the
+  unmodified library with its license text.
+- Copyright (c) Somdoron Ltd.
+
+### NaCl.Net 0.1.13 (lib/netstandard2.1/NaCl.dll)
+
+- https://github.com/somdoron/NaCl.net
+- License: Mozilla Public License, version 2.0 (MPL-2.0)
+- NetMQ transitive dependency (CurveZMQ support); used unmodified with its
+  license text (`LICENSE-NaCl.md`).
+- Copyright (c) Somdoron Ltd.

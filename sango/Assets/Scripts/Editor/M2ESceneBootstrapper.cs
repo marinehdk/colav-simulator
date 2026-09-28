@@ -257,6 +257,13 @@ namespace Sango.Editor
             var panelGo = new GameObject("Encounter GUI", typeof(EncounterPanel));
             panelGo.GetComponent<EncounterPanel>().director = director;
 
+            // g2. M3 缝钉子①④（spec #86）：检测框叠加层（B 切换，真值框 + "1.0 (gt)" 标签，
+            //     相机随 Top Camera；投影走 OverlayProjection 纯函数）+ ZMQ 帧发布器（默认 OFF）。
+            var overlayGo = new GameObject("Detection Overlay", typeof(DetectionOverlay));
+            overlayGo.GetComponent<DetectionOverlay>().ships = new[] { own.transform, target.transform };
+            var pubGo = new GameObject("Frame Publisher", typeof(FramePublisher));
+            Debug.Log($"[Sango.M3] wired: detection overlay (B, 2 ships), frame publisher (default OFF, {pubGo.GetComponent<FramePublisher>().endpoint})");
+
             // h. 北向上正交俯视相机（唯一相机）：forward = 下、up = 北 → 屏幕右上东、上北（标准海图方向）。
             var cameraGo = new GameObject("Top Camera", typeof(Camera));
             cameraGo.tag = "MainCamera";

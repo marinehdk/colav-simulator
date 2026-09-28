@@ -1,0 +1,994 @@
+{
+ "schema_version": "1.0",
+ "run_id": "bd4e1404-ac39-4986-b1ca-d50676d612b0",
+ "scenario_id": "head_on",
+ "seq": 54,
+ "sim_time": 26.5,
+ "source_time_s": 26.5,
+ "ais_utc": null,
+ "state": "RUNNING",
+ "result_ready": false,
+ "truth": [
+  {
+   "id": 0,
+   "mmsi": 100,
+   "length": 8.45,
+   "width": 2.71,
+   "x": 2632.9977518524975,
+   "y": 2632.997751850671,
+   "north": 6957632.9977518525,
+   "east": 39632.99775185067,
+   "psi": 0.7853981633974483,
+   "u": 7.097025631853241,
+   "v": 0.0,
+   "r": 0.0,
+   "sog": 7.097025631853241,
+   "cog": 0.7853981633974483,
+   "trajectory": [
+    [
+     2500.0,
+     2500.0
+    ],
+    [
+     2502.4997527953237,
+     2502.4997527954256
+    ],
+    [
+     2505.0137371458113,
+     2505.013737145855
+    ],
+    [
+     2507.5226961877197,
+     2507.522696187574
+    ],
+    [
+     2510.033314895816,
+     2510.033314896071
+    ],
+    [
+     2512.543285658583,
+     2512.543285658532
+    ],
+    [
+     2515.0534109370783,
+     2515.053410937122
+    ],
+    [
+     2517.5634164884686,
+     2517.563416488578
+    ],
+    [
+     2520.073400496505,
+     2520.07340049668
+    ],
+    [
+     2522.5833320906386,
+     2522.5833320911115
+    ],
+    [
+     2525.093224911019,
+     2525.093224911194
+    ],
+    [
+     2527.603077045642,
+     2527.603077046115
+    ],
+    [
+     2530.11289182771,
+     2530.1128918280956
+    ],
+    [
+     2532.6226706421003,
+     2532.622670642937
+    ],
+    [
+     2535.132415424101,
+     2535.132415424734
+    ],
+    [
+     2537.642127797939,
+     2537.6421277986738
+    ],
+    [
+     2540.1518093831837,
+     2540.1518093835766
+    ],
+    [
+     2542.6614616923034,
+     2542.6614616927836
+    ],
+    [
+     2545.1710861735046,
+     2545.171086173781
+    ],
+    [
+     2547.6806841995567,
+     2547.680684199535
+    ],
+    [
+     2550.190257076174,
+     2550.1902570762904
+    ],
+    [
+     2552.699806045741,
+     2552.6998060454425
+    ],
+    [
+     2555.2093322873116,
+     2555.209332287239
+    ],
+    [
+     2557.718836924061,
+     2557.7188369236173
+    ],
+    [
+     2560.2283210214227,
+     2560.228321021139
+    ],
+    [
+     2562.7377855936065,
+     2562.7377855937084
+    ],
+    [
+     2565.2472316054627,
+     2565.2472316051862
+    ],
+    [
+     2567.7566599724814,
+     2567.7566599718484
+    ],
+    [
+     2570.2660715654492,
+     2570.2660715647435
+    ],
+    [
+     2572.775467212312,
+     2572.7754672119117
+    ],
+    [
+     2575.2848477009684,
+     2575.2848477005173
+    ],
+    [
+     2577.7942137792706,
+     2577.7942137788705
+    ],
+    [
+     2580.303566158749,
+     2580.3035661583417
+    ],
+    [
+     2582.812905515544,
+     2582.8129055151803
+    ],
+    [
+     2585.322232492268,
+     2585.3222324922535
+    ],
+    [
+     2587.8315477008,
+     2587.831547700691
+    ],
+    [
+     2590.340851721354,
+     2590.340851721463
+    ],
+    [
+     2592.850145107135,
+     2592.850145106844
+    ],
+    [
+     2595.3594283824787,
+     2595.35942838186
+    ],
+    [
+     2597.868702046573,
+     2597.8687020456127
+    ],
+    [
+     2600.377966573462,
+     2600.377966572567
+    ],
+    [
+     2602.8872224148363,
+     2602.8872224137594
+    ],
+    [
+     2605.3964699991047,
+     2605.3964699979697
+    ],
+    [
+     2607.9057097341865,
+     2607.905709732804
+    ],
+    [
+     2610.414942007512,
+     2610.414942005751
+    ],
+    [
+     2612.924167186953,
+     2612.9241671851632
+    ],
+    [
+     2615.4333856226876,
+     2615.433385621225
+    ],
+    [
+     2617.942597648129,
+     2617.942597646819
+    ],
+    [
+     2620.4518035799265,
+     2620.451803578406
+    ],
+    [
+     2622.9610037179664,
+     2622.9610037168095
+    ],
+    [
+     2625.470198349096,
+     2625.470198348019
+    ],
+    [
+     2627.979387745261,
+     2627.9793877438933
+    ],
+    [
+     2630.4885721644387,
+     2630.4885721628816
+    ],
+    [
+     2632.9977518524975,
+     2632.997751850671
+    ]
+   ],
+   "active": true,
+   "historical_sample_kind": null,
+   "dimensions_provenance": null,
+   "latitude": 62.46220893540158,
+   "longitude": 6.05416511196829,
+   "floor_depth_m": 20.0,
+   "floor_depth_source": "ENC_DEPTH_BIN_LOWER_BOUND"
+  },
+  {
+   "id": 1,
+   "mmsi": 101,
+   "length": 8.45,
+   "width": 2.71,
+   "x": 4368.831692093983,
+   "y": 4368.831692085449,
+   "north": 6959368.831692094,
+   "east": 41368.83169208545,
+   "psi": -2.3561944906638455,
+   "u": 7.0,
+   "v": 4.114826251238257e-09,
+   "r": -2.1828593064811102e-10,
+   "sog": 7.0,
+   "cog": -2.356194490076013,
+   "trajectory": [
+    [
+     4500.0,
+     4500.0
+    ],
+    [
+     4497.525126266293,
+     4497.525126265849
+    ],
+    [
+     4495.0502525325865,
+     4495.050252531699
+    ],
+    [
+     4492.57537879888,
+     4492.575378797548
+    ],
+    [
+     4490.100505065173,
+     4490.100505063398
+    ],
+    [
+     4487.625631331466,
+     4487.625631329247
+    ],
+    [
+     4485.150757597759,
+     4485.150757595096
+    ],
+    [
+     4482.675883864053,
+     4482.675883860953
+    ],
+    [
+     4480.201010130346,
+     4480.20101012681
+    ],
+    [
+     4477.726136396639,
+     4477.726136392674
+    ],
+    [
+     4475.251262662001,
+     4475.251262658545
+    ],
+    [
+     4472.776388927363,
+     4472.776388924423
+    ],
+    [
+     4470.301515192725,
+     4470.301515190309
+    ],
+    [
+     4467.826641458087,
+     4467.826641456202
+    ],
+    [
+     4465.351767723449,
+     4465.3517677221025
+    ],
+    [
+     4462.8768939888105,
+     4462.876893988017
+    ],
+    [
+     4460.402020254172,
+     4460.40202025394
+    ],
+    [
+     4457.927146519534,
+     4457.927146519869
+    ],
+    [
+     4455.452272784896,
+     4455.452272785806
+    ],
+    [
+     4452.977399050258,
+     4452.97739905175
+    ],
+    [
+     4450.50252531562,
+     4450.502525317701
+    ],
+    [
+     4448.027651580982,
+     4448.0276515836595
+    ],
+    [
+     4445.552777846344,
+     4445.552777849618
+    ],
+    [
+     4443.077904111706,
+     4443.0779041155765
+    ],
+    [
+     4440.603030377068,
+     4440.603030381528
+    ],
+    [
+     4438.1281566424295,
+     4438.128156647472
+    ],
+    [
+     4435.653282907791,
+     4435.6532829134085
+    ],
+    [
+     4433.178409173153,
+     4433.178409179338
+    ],
+    [
+     4430.703535438515,
+     4430.703535445253
+    ],
+    [
+     4428.228661703877,
+     4428.228661711146
+    ],
+    [
+     4425.753787969239,
+     4425.753787977017
+    ],
+    [
+     4423.278914235532,
+     4423.278914242866
+    ],
+    [
+     4420.8040405018255,
+     4420.804040508687
+    ],
+    [
+     4418.329166768119,
+     4418.329166774478
+    ],
+    [
+     4415.854293034412,
+     4415.85429304024
+    ],
+    [
+     4413.379419300705,
+     4413.379419305973
+    ],
+    [
+     4410.904545566998,
+     4410.90454557167
+    ],
+    [
+     4408.429671833292,
+     4408.429671837337
+    ],
+    [
+     4405.954798099585,
+     4405.954798102968
+    ],
+    [
+     4403.479924365878,
+     4403.47992436857
+    ],
+    [
+     4401.005050632171,
+     4401.005050634136
+    ],
+    [
+     4398.530176898465,
+     4398.53017689968
+    ],
+    [
+     4396.055303164758,
+     4396.055303165194
+    ],
+    [
+     4393.580429431051,
+     4393.580429430687
+    ],
+    [
+     4391.105555697344,
+     4391.1055556961655
+    ],
+    [
+     4388.6306819636375,
+     4388.630681961629
+    ],
+    [
+     4386.155808229931,
+     4386.1558082270785
+    ],
+    [
+     4383.680934496224,
+     4383.680934492528
+    ],
+    [
+     4381.206060762517,
+     4381.206060757977
+    ],
+    [
+     4378.73118702881,
+     4378.731187023433
+    ],
+    [
+     4376.256313295104,
+     4376.2563132889045
+    ],
+    [
+     4373.781439561397,
+     4373.78143955439
+    ],
+    [
+     4371.30656582769,
+     4371.306565819905
+    ],
+    [
+     4368.831692093983,
+     4368.831692085449
+    ]
+   ],
+   "active": true,
+   "historical_sample_kind": null,
+   "dimensions_provenance": null
+  }
+ ],
+ "measurements": [
+  null,
+  null
+ ],
+ "tracks": [
+  {
+   "labels": [],
+   "generations": [],
+   "states": [],
+   "covariances": [],
+   "nis": []
+  },
+  {
+   "labels": [],
+   "generations": [],
+   "states": [],
+   "covariances": [],
+   "nis": []
+  }
+ ],
+ "plans": {
+  "waypoints": [
+   [
+    2500.0,
+    5900.0
+   ],
+   [
+    2500.0,
+    5900.0
+   ]
+  ],
+  "prediction_horizon": [
+   [
+    2630.4885721644387,
+    2630.4885721628816
+   ]
+  ],
+  "previous_prediction_horizon": [
+   [
+    2625.470198349096,
+    2625.470198348019
+   ]
+  ],
+  "rejected_prediction_horizon": [],
+  "target_prediction_horizons": [],
+  "rejected_target_prediction_horizons": [],
+  "target_routes": [
+   {
+    "target_id": 1,
+    "waypoints": [
+     [
+      4500.0,
+      500.0
+     ],
+     [
+      4500.0,
+      500.0
+     ]
+    ],
+    "speed_mps": 7.0
+   }
+  ],
+  "prediction_render": null
+ },
+ "encounters": [],
+ "primary_encounter": null,
+ "threat_management": {
+  "schema_version": "colav.threat-management.projection@1",
+  "status": "AVAILABLE",
+  "snapshot": {
+   "schema_version": "colav.threat-management.snapshot@1",
+   "canonicalizer_id": "colav.python-json@1",
+   "epoch": "session-baseline",
+   "sequence": 27,
+   "sim_time_s": 26.5,
+   "input_hash": "ebd3c9db26c06004a95bae52b2c4055a3ce9f40593ece489a7a62b12df95c8b6",
+   "profile_hash": "2f32c22998873e7b95692d5d7dcca7b702b066eaf591546e82183faf807c5351",
+   "profile": {
+    "profile_id": "colav.ship-domain.v1",
+    "version": "1",
+    "model": "OFF_CENTRED_ELLIPSE",
+    "fore_m": 300.0,
+    "aft_m": 100.0,
+    "port_m": 120.0,
+    "starboard_m": 180.0,
+    "parameter_source": "colav-simulator-unqualified-default",
+    "assumptions": [
+     "off-centred elliptical engineering envelope",
+     "metres",
+     "not a COLREG statutory distance"
+    ],
+    "qualification": "UNQUALIFIED",
+    "uncertainty_multiplier": 2.0,
+    "units": "m"
+   },
+   "vectors": [],
+   "provenance": {
+    "accepted_plan_applied_sequence": null,
+    "accepted_plan_receipt_hash": null,
+    "accepted_plan_staged_sequence": null,
+    "authority": "ThreatManagementCoordinator",
+    "conflict_cluster_count": 0,
+    "conflict_edge_count": 0,
+    "conflict_graph_hash": "d7e124583aaa859854e54b16b7e3ed39aa4d68240680d0d6ee5e5defc9fac921",
+    "lifecycle_input_hash": "c2406adaef136d5c88f14e3d206f2e01fe1d11d482dedd75033114a6ff298e68",
+    "lifecycle_omitted_keys": [],
+    "physical_facts_count": 0,
+    "physical_facts_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+   },
+   "lifecycle_snapshot": {
+    "epoch": "session-baseline",
+    "sequence": 27,
+    "sim_time_s": 26.5,
+    "input_hash": "c2406adaef136d5c88f14e3d206f2e01fe1d11d482dedd75033114a6ff298e68",
+    "profile_hash": "7eed52a0a68515f032a95d4f35d426015b668cd94f8c5c252801794ef118ad36",
+    "targets": [],
+    "directive": {
+     "required_targets": [],
+     "passing_side": "NONE",
+     "minimum_course_change_rad": 0.0,
+     "speed_bounds_mps": [
+      0.0,
+      8.0
+     ],
+     "stop_required": false
+    },
+    "primary_target": null,
+    "events": [],
+    "evidence_persisted": true,
+    "primary_challenger": null,
+    "primary_candidate_since_s": null,
+    "primary_switch_remaining_s": null,
+    "primary_switch_reason": "NO_PRIMARY",
+    "primary_preempted": false,
+    "primary_selection_evidence": {
+     "winner": null,
+     "winning_class": null,
+     "decisive_factor": null,
+     "challenger": null,
+     "confirmation_remaining_s": null,
+     "switch_reason": "NO_PRIMARY",
+     "preempted": false
+    }
+   },
+   "schedule": {
+    "current_primary": null,
+    "concurrent_required": [],
+    "next_threats": [],
+    "monitor": [],
+    "released": [],
+    "entries": [],
+    "events": [],
+    "horizon_start_s": 26.5,
+    "horizon_end_s": null,
+    "generated_at_s": 26.5,
+    "input_hash": "ebd3c9db26c06004a95bae52b2c4055a3ce9f40593ece489a7a62b12df95c8b6",
+    "profile_hash": "2f32c22998873e7b95692d5d7dcca7b702b066eaf591546e82183faf807c5351",
+    "schema_version": "colav.threat-schedule@1"
+   },
+   "events": [],
+   "accepted_plan_receipt": null,
+   "conflict_graph": {
+    "schema_version": "colav.conflict-graph@1",
+    "nodes": [],
+    "edges": [],
+    "clusters": [],
+    "unavailable_reasons": [
+     "MISSING_ACCEPTED_PLAN_RECEIPT"
+    ],
+    "profile_hash": "dc690d1c3472ea238feeec9b3ca13468776945c392b758f0d4b01a1d13b77948",
+    "input_hash": "ebd3c9db26c06004a95bae52b2c4055a3ce9f40593ece489a7a62b12df95c8b6",
+    "semantic_hash": "d7e124583aaa859854e54b16b7e3ed39aa4d68240680d0d6ee5e5defc9fac921",
+    "evidence_hash": "d7e124583aaa859854e54b16b7e3ed39aa4d68240680d0d6ee5e5defc9fac921"
+   },
+   "semantic_hash": "ca3703ab83ca3c26e0efe84bc19d6619c0c6b755fd79e897404c4ba0d263df13"
+  },
+  "vectors": [],
+  "schedule": {
+   "current_primary": null,
+   "concurrent_required": [],
+   "next_threats": [],
+   "monitor": [],
+   "released": [],
+   "entries": [],
+   "events": [],
+   "horizon_start_s": 26.5,
+   "horizon_end_s": null,
+   "generated_at_s": 26.5,
+   "input_hash": "ebd3c9db26c06004a95bae52b2c4055a3ce9f40593ece489a7a62b12df95c8b6",
+   "profile_hash": "2f32c22998873e7b95692d5d7dcca7b702b066eaf591546e82183faf807c5351",
+   "schema_version": "colav.threat-schedule@1"
+  },
+  "conflicts": {
+   "schema_version": "colav.conflict-graph@1",
+   "nodes": [],
+   "edges": [],
+   "clusters": [],
+   "unavailable_reasons": [
+    "MISSING_ACCEPTED_PLAN_RECEIPT"
+   ],
+   "profile_hash": "dc690d1c3472ea238feeec9b3ca13468776945c392b758f0d4b01a1d13b77948",
+   "input_hash": "ebd3c9db26c06004a95bae52b2c4055a3ce9f40593ece489a7a62b12df95c8b6",
+   "semantic_hash": "d7e124583aaa859854e54b16b7e3ed39aa4d68240680d0d6ee5e5defc9fac921",
+   "evidence_hash": "d7e124583aaa859854e54b16b7e3ed39aa4d68240680d0d6ee5e5defc9fac921"
+  },
+  "conflict_graph": {
+   "schema_version": "colav.conflict-graph@1",
+   "nodes": [],
+   "edges": [],
+   "clusters": [],
+   "unavailable_reasons": [
+    "MISSING_ACCEPTED_PLAN_RECEIPT"
+   ],
+   "profile_hash": "dc690d1c3472ea238feeec9b3ca13468776945c392b758f0d4b01a1d13b77948",
+   "input_hash": "ebd3c9db26c06004a95bae52b2c4055a3ce9f40593ece489a7a62b12df95c8b6",
+   "semantic_hash": "d7e124583aaa859854e54b16b7e3ed39aa4d68240680d0d6ee5e5defc9fac921",
+   "evidence_hash": "d7e124583aaa859854e54b16b7e3ed39aa4d68240680d0d6ee5e5defc9fac921"
+  },
+  "unavailable_reason": null
+ },
+ "planner": {
+  "schema_version": "1.0",
+  "algorithm_id": "vo",
+  "solve_id": 27,
+  "sim_time": 26.5,
+  "solver_executed": false,
+  "status": "SUCCESS",
+  "feasible": true,
+  "reason": null,
+  "elapsed_ms": 0.23079099992173724,
+  "iterations": null,
+  "objective": 0.009365244536940454,
+  "horizon_dt_s": null,
+  "selected_command": {
+   "course_rad": 0.7853981633974483,
+   "speed_mps": 7.096774193548387
+  },
+  "constraints": {},
+  "algorithm_details": {
+   "reconstruction_label": "kuwata_2011_behavior_compatible_reconstruction",
+   "feasible": true,
+   "fallback": null,
+   "fallback_reason": null,
+   "objective": 0.009365244536940454,
+   "selected_heading_rad": 0.7853981633974483,
+   "reference_velocity_ne_mps": [
+    4.949747468278585,
+    4.949747468333081
+   ],
+   "planning_horizon_s": 60.0,
+   "ownship_envelope": null,
+   "execution_speed_policy": null,
+   "execution_mode": null,
+   "avoidance_speed_window_active": false,
+   "transit_gate_open": true,
+   "avoidance_speed_window_rows": 0,
+   "envelope_excluded_count": 0,
+   "reachable_candidate_count": 4096,
+   "selection_held": false,
+   "selected_speed_mps": 7.096774193548387,
+   "give_way_family_selected": null,
+   "dynamic_hazard_count": 0,
+   "static_hazard_count": 0,
+   "active_rules": {},
+   "track_metrics": {},
+   "base_vo_count": 0,
+   "colregs_v1_count": 0,
+   "crossing_commitment_count": 0,
+   "give_way_commitment_count": 0,
+   "hard_constraint_count": 0,
+   "wvo_only_count": 0,
+   "preferred_clearance_count": 0,
+   "feasible_candidate_count": 4096,
+   "selected_in_base_vo": false,
+   "selected_in_colregs_v1": false,
+   "current_in_base_vo": false,
+   "stand_on_hold_active": false,
+   "stand_on_emergency_active": false,
+   "driving_target_id": null,
+   "driving_rule": null,
+   "expired_target_ids": [],
+   "selected_in_wvo_only": false,
+   "selected_in_preferred_clearance": false,
+   "hard_hull_clearance_m": 182.0,
+   "preferred_hull_clearance_m": 190.0,
+   "ownship_length_m": 8.45,
+   "ownship_width_m": 2.71,
+   "dynamics_prediction_active": false,
+   "selected_ttc_s": null,
+   "reference_velocity_error_mps": 0.09677419354838589,
+   "minimum_feasible_ttc_s": null,
+   "grid_shape": [
+    32,
+    128
+   ],
+   "solve_period_s": 1.0,
+   "crossing_commitment_active": false,
+   "crossing_commitment_state": "CLEAR",
+   "give_way_commitment_active": false,
+   "give_way_commitment_rules": [],
+   "give_way_commitment_state": "CLEAR",
+   "give_way_rule_locks": {},
+   "completed_give_way_targets": [],
+   "emergency_rule_relaxation": false,
+   "overtaking_state": "CLEAR",
+   "overtaking_target_id": null,
+   "overtaking_along_track_m": null,
+   "overtaking_cross_track_m": null,
+   "overtaking_relative_speed_mps": null,
+   "overtaking_progress_relaxed": false,
+   "overtaking_release_count": 0,
+   "overtaking_release_reason": null,
+   "overtaking_entry_tcpa_s": null
+  }
+ },
+ "latest_planner_solve": {
+  "schema_version": "1.0",
+  "algorithm_id": "vo",
+  "solve_id": 27,
+  "sim_time": 26.0,
+  "solver_executed": true,
+  "status": "SUCCESS",
+  "feasible": true,
+  "reason": null,
+  "elapsed_ms": 3.681916999994428,
+  "iterations": null,
+  "objective": 0.009365244536940454,
+  "horizon_dt_s": null,
+  "selected_command": {
+   "course_rad": 0.7853981633974483,
+   "speed_mps": 7.096774193548387
+  },
+  "constraints": {},
+  "algorithm_details": {
+   "reconstruction_label": "kuwata_2011_behavior_compatible_reconstruction",
+   "feasible": true,
+   "fallback": null,
+   "fallback_reason": null,
+   "objective": 0.009365244536940454,
+   "selected_heading_rad": 0.7853981633974483,
+   "reference_velocity_ne_mps": [
+    4.949747468278585,
+    4.949747468333081
+   ],
+   "planning_horizon_s": 60.0,
+   "ownship_envelope": null,
+   "execution_speed_policy": null,
+   "execution_mode": null,
+   "avoidance_speed_window_active": false,
+   "transit_gate_open": true,
+   "avoidance_speed_window_rows": 0,
+   "envelope_excluded_count": 0,
+   "reachable_candidate_count": 4096,
+   "selection_held": false,
+   "selected_speed_mps": 7.096774193548387,
+   "give_way_family_selected": null,
+   "dynamic_hazard_count": 0,
+   "static_hazard_count": 0,
+   "active_rules": {},
+   "track_metrics": {},
+   "base_vo_count": 0,
+   "colregs_v1_count": 0,
+   "crossing_commitment_count": 0,
+   "give_way_commitment_count": 0,
+   "hard_constraint_count": 0,
+   "wvo_only_count": 0,
+   "preferred_clearance_count": 0,
+   "feasible_candidate_count": 4096,
+   "selected_in_base_vo": false,
+   "selected_in_colregs_v1": false,
+   "current_in_base_vo": false,
+   "stand_on_hold_active": false,
+   "stand_on_emergency_active": false,
+   "driving_target_id": null,
+   "driving_rule": null,
+   "expired_target_ids": [],
+   "selected_in_wvo_only": false,
+   "selected_in_preferred_clearance": false,
+   "hard_hull_clearance_m": 182.0,
+   "preferred_hull_clearance_m": 190.0,
+   "ownship_length_m": 8.45,
+   "ownship_width_m": 2.71,
+   "dynamics_prediction_active": false,
+   "selected_ttc_s": null,
+   "reference_velocity_error_mps": 0.09677419354838589,
+   "minimum_feasible_ttc_s": null,
+   "grid_shape": [
+    32,
+    128
+   ],
+   "solve_period_s": 1.0,
+   "crossing_commitment_active": false,
+   "crossing_commitment_state": "CLEAR",
+   "give_way_commitment_active": false,
+   "give_way_commitment_rules": [],
+   "give_way_commitment_state": "CLEAR",
+   "give_way_rule_locks": {},
+   "completed_give_way_targets": [],
+   "emergency_rule_relaxation": false,
+   "overtaking_state": "CLEAR",
+   "overtaking_target_id": null,
+   "overtaking_along_track_m": null,
+   "overtaking_cross_track_m": null,
+   "overtaking_relative_speed_mps": null,
+   "overtaking_progress_relaxed": false,
+   "overtaking_release_count": 0,
+   "overtaking_release_reason": null,
+   "overtaking_entry_tcpa_s": null
+  }
+ },
+ "execution": {
+  "solve_id": 27,
+  "applied_course_ref_rad": 0.7853981633974483,
+  "applied_speed_ref_mps": 7.096774193548387,
+  "selected_command": {
+   "course_rad": 0.7853981633974483,
+   "speed_mps": 7.096774193548387
+  }
+ },
+ "events": [],
+ "operational_events": [
+  {
+   "event_id": 1,
+   "sequence": 0,
+   "sim_time": 0.0,
+   "type": "session_started",
+   "details": {}
+  }
+ ],
+ "step": 54,
+ "scenario_time": 26.5,
+ "running": true,
+ "shadow_ownship": null,
+ "shadow_comparison": {
+  "status": "NOT_AVAILABLE"
+ },
+ "historical_context": null,
+ "waypoints": [
+  [
+   2500.0,
+   5900.0
+  ],
+  [
+   2500.0,
+   5900.0
+  ]
+ ],
+ "prediction_horizon": [
+  [
+   2630.4885721644387,
+   2630.4885721628816
+  ]
+ ],
+ "previous_prediction_horizon": [
+  [
+   2625.470198349096,
+   2625.470198348019
+  ]
+ ],
+ "target_routes": [
+  {
+   "target_id": 1,
+   "waypoints": [
+    [
+     4500.0,
+     500.0
+    ],
+    [
+     4500.0,
+     500.0
+    ]
+   ],
+   "speed_mps": 7.0
+  }
+ ],
+ "dcpa": null,
+ "tcpa": null,
+ "colregs": null,
+ "safety_margin": null,
+ "selected_algorithm": "vo",
+ "requested_algorithm": "vo",
+ "executed_algorithm": "vo",
+ "requested_tracker": "god",
+ "executed_tracker": "god",
+ "selected_rule": "rule14",
+ "selected_scenario": "head_on",
+ "modular_gnc": null,
+ "original_gnc": null,
+ "gnc_balance": null,
+ "step_time_ms": 1.9898749997082632,
+ "playback": {
+  "requested_multiplier": 1.0,
+  "effective_multiplier": 0.9997006040878215,
+  "realtime_limited": false,
+  "scheduler_lag_ms": 0.0
+ },
+ "failure_reason": null,
+ "baseline_threat_failure_reason": null,
+ "reproduction_status": "running",
+ "transport": {
+  "schema_version": "colav.telemetry.compact@1",
+  "static_included": false
+ }
+}
