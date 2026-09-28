@@ -18,12 +18,77 @@ namespace Sango
         public Vector3 SternLight;
     }
 
+    /// <summary>灯型（M4-B COLREG 光弧驱动用）：相对方位弧由 Rule 21 钉死，见 GetArc。</summary>
+    public enum LampKind
+    {
+        StarboardSidelight, // 绿，右舷 112.5°
+        PortSidelight,      // 红，左舷 112.5°
+        Masthead,           // 白，艏向 225°
+        SternLight,         // 白，艉向 135°
+    }
+
     /// <summary>
     /// M2-D 航行灯纯核心（spec #83）：时刻→明灭阈值 + hull 包围盒→锚点布局。
+    /// M4-B（issue #87 批次 B 项 3）增：Rule 21 光弧 SectorIntensity。
     /// 纯静态、无引擎场景依赖——单点真值供 NavigationLights 适配器与测试共用。
     /// </summary>
     public static class NavigationLightsCore
     {
+        // ── COLREG 光弧（M4-B）──────────────────────────────────────────────────
+        /// <summary>
+        /// 扇区过渡带（度）：COLREG Annex I §9 允许扇区边界外 1°-3° 内衰减至实际截止，
+        /// 取上限 3° = 低模 rig 上最柔的合法过渡。
+        /// </summary>
+        public const float SectorFalloffDeg = 3f;
+
+        /// <summary>
+        /// 相对方位约定（SectorIntensity 与适配器共用）：0 = 正艏前方，顺时针（俯视）为正
+        /// = 观察者在右舷侧，[0,360)。例：90 = 右正横，180 = 正艉，270 = 左正横。
+        /// </summary>
+        static float Normalize360(float deg)
+        {
+            float d = deg % 360f;
+            return d < 0f ? d + 360f : d;
+        }
+
+        /// <summary>
+        /// Rule 21 光弧强度 ∈ [0,1]：relBearingDeg 在 [arcStartDeg, arcEndDeg]（顺时针区间，
+        /// 支持跨 0/360 环绕，边界含端点）内 = 1；区间外按离近端边界的角距在 falloffDeg 内
+        /// 线性衰减至 0（Annex I §9 "steady decrease to practical cut-off"）。
+        /// falloffDeg ≤ 0 = 硬截止（无过渡带）。弧端点语义 = 舷灯 0→112.5 / 247.5→360、
+        /// 桅灯 247.5→112.5（跨 0）、艉灯 112.5→247.5，全部顺时针。
+        /// </summary>
+        public static float SectorIntensity(float relBearingDeg, float arcStartDeg, float arcEndDeg, float falloffDeg)
+        {
+            float b = Normalize360(relBearingDeg);
+            float span = Normalize360(arcEndDeg - arcStartDeg); // 顺时针弧长 (0,360]
+            float d = Normalize360(b - Normalize360(arcStartDeg)); // 距弧起点的顺时针距离 [0,360)
+            if (d <= span) return 1f; // 弧内（含边界；span=0 退化 = 单点弧）
+            if (falloffDeg <= 0f) return 0f;
+            float beyondEnd = d - span;   // 顺时针越过终边界的角距
+            float beforeStart = 360f - d; // 逆时针距起始边界的角距
+            return Mathf.Clamp01(1f - Mathf.Min(beyondEnd, beforeStart) / falloffDeg);
+        }
+
+        /// <summary>
+        /// 灯型 → Rule 21 光弧（relBearing 约定的顺时针区间）：
+        ///   舷灯各 112.5°（自艏向艉 22.5° 后起算：右舷 0→112.5，左舷 247.5→360）；
+        ///   桅灯 225°（自艏向两舷各 112.5°：247.5→112.5 跨 0/360 环绕）；
+        ///   艉灯 135°（自艉向艏每舷 67.5°：112.5→247.5）。
+        /// 正艏方位 0 同时在两舷弧端点上（两舷灯在正艏均可见，Rule 21 语义如此）。
+        /// </summary>
+        public static (float startDeg, float endDeg) GetArc(LampKind kind)
+        {
+            switch (kind)
+            {
+                case LampKind.StarboardSidelight: return (0f, 112.5f);
+                case LampKind.PortSidelight: return (247.5f, 360f);
+                case LampKind.Masthead: return (247.5f, 112.5f);
+                case LampKind.SternLight: return (112.5f, 247.5f);
+                default: return (0f, 0f);
+            }
+        }
+
         // 锚点分数常量（hull 半尺寸的比例；worked examples 钉死在测试侧，改这里必红）：
         // 舷灯上甲板（中心 + 0.5·半高）、艏侧 1/3 站位；桅灯舱顶、艏部上方；艉灯上甲板、艉端极值。
         const float k_SidelightHeightFrac = 0.5f;

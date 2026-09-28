@@ -11,6 +11,10 @@ namespace Sango
     /// 每帧按 WeatherController 时刻过纯阈值函数刷明灭。昼态 = renderer+light 全禁用，
     /// 零光晕（spec 验收 5）。无新键位：状态跟随既有 T 循环/时刻滑条（spec 验收 4）。
     /// 场景重建时零序列化负担（rig 纯运行时构建，bootstrapper 只挂组件）。
+    /// M4-B（issue #87 批次 B 项 3）：夜态另按 Rule 21 光弧纯函数
+    /// NavigationLightsCore.SectorIntensity 驱动三型四灯的角向分布（观察者=主相机的
+    /// 相对方位）：弧外灯片隐藏+点光归零，Annex I 1°-3° 过渡带内线性衰减。
+    /// 假反射 streak 与灯色不变（只改角向分布）。
     /// </summary>
     public class NavigationLights : MonoBehaviour
     {
@@ -42,6 +46,9 @@ namespace Sango
         public float streakLengthFractionOfLoa = 0.45f;
         [Tooltip("拖尾基长 m（并入长度公式）。")]
         public float streakBaseLengthM = 3f;
+        [Header("COLREG sector arcs (M4-B — Rule 21 / Annex I)")]
+        [Tooltip("扇区边界过渡带（度）：Annex I §9 允许 1-3°，默认 3 = 最柔合法过渡。")]
+        public float sectorFalloffDeg = NavigationLightsCore.SectorFalloffDeg;
 
         Transform m_RigRoot;          // 全部灯对象挂此子树（昼夜开关整树 SetActive）
         Transform[] m_Streaks;        // 水面拖尾（每灯一条；世界位姿逐帧朝相机拉长）
@@ -50,6 +57,19 @@ namespace Sango
         float m_WaterLocalY;          // 构建时的水面高度换算到根局部 y
         bool? m_LastLoggedState;
         bool m_WarnedNoWeather;       // weather 缺失一次性告警（OnEnable 重置）
+
+        // M4-B 光弧驱动：每灯注册（自发光材质/点光/灯片渲染器）+ 最近一次扇区因子。
+        struct LampEntry
+        {
+            public LampKind Kind;
+            public Color BaseColor;
+            public float BaseLumens;
+            public Material Emissive;     // 交叉双面灯片共用
+            public Light PointLight;
+            public MeshRenderer[] Quads;  // 灯片渲染器（弧外整片隐藏，防黑点残影）
+        }
+        readonly System.Collections.Generic.List<LampEntry> m_Lamps = new System.Collections.Generic.List<LampEntry>();
+        float[] m_LastSectorFactors;
 
         const string k_RigName = "NavigationLightsRig";
         const string k_LogTag = "[Sango.M2D]";
@@ -78,7 +98,68 @@ namespace Sango
             }
             bool on = NavigationLightsCore.IsLightsOn(weather.timeOfDayHours);
             ApplyState(on);
-            if (on) UpdateStreaks();
+            if (on)
+            {
+                UpdateStreaks();
+                // M4-B：观察者（主相机）相对方位 → Rule 21 光弧衰减。无相机（headless/
+                // 采集场景）保持全强度：角向分布只服务于"看灯的人"。
+                var cam = Camera.main;
+                if (cam != null) ApplyObservationBearing(ObserverRelativeBearing(cam.transform.position));
+            }
+        }
+
+        /// <summary>
+        /// 观察者在艏舷角坐标（0=正艏，顺时针=右舷正，[0,360)）的相对方位：船渲染艏向
+        /// （root.rotation × 原生艏向量，同 M1SceneBootstrapper 放置自证的映射）到
+        /// 船→观察者水平向量的带符号角。
+        /// </summary>
+        float ObserverRelativeBearing(Vector3 observerWorldPos)
+        {
+            var nativeBow = new Vector3(0f, 0f, Mathf.Cos(bowYawDeg * Mathf.Deg2Rad));
+            var bow = transform.rotation * nativeBow;
+            var toObserver = observerWorldPos - transform.position;
+            toObserver.y = 0f;
+            float signed = Vector3.SignedAngle(bow, toObserver, Vector3.up); // + = 观察者在右舷
+            return Mathf.Repeat(signed, 360f);
+        }
+
+        /// <summary>
+        /// 按相对方位刷四灯角向分布（公开 = EditMode 可测缝）：弧内因子 1（灯片显示、点光
+        /// 基准强度），过渡带内线性衰减（自发光/点光同乘因子），弧外灯片整片隐藏、点光归零。
+        /// 只改强度/可见性，灯色、点光范围、假反射 streak 均不变。
+        /// </summary>
+        public void ApplyObservationBearing(float relBearingDeg)
+        {
+            if (LampsNotRegistered()) return;
+            for (int i = 0; i < m_Lamps.Count; i++)
+            {
+                var lamp = m_Lamps[i];
+                var (start, end) = NavigationLightsCore.GetArc(lamp.Kind);
+                float f = NavigationLightsCore.SectorIntensity(relBearingDeg, start, end, sectorFalloffDeg);
+                m_LastSectorFactors[i] = f;
+                lamp.Emissive.color = lamp.BaseColor * (lampEmissiveNits * f);
+                lamp.PointLight.intensity = lamp.BaseLumens * f;
+                bool visible = f > 0.02f;
+                lamp.PointLight.enabled = f > 0.01f;
+                var quads = lamp.Quads;
+                for (int q = 0; q < quads.Length; q++) quads[q].enabled = visible;
+            }
+        }
+
+        /// <summary>最近一次 ApplyObservationBearing 给该灯的扇区因子 ∈ [0,1]（测试/观测口）。</summary>
+        public float LastLampFactor01(LampKind kind)
+        {
+            if (LampsNotRegistered()) return -1f;
+            for (int i = 0; i < m_Lamps.Count; i++)
+            {
+                if (m_Lamps[i].Kind == kind) return m_LastSectorFactors[i];
+            }
+            return -1f;
+        }
+
+        bool LampsNotRegistered()
+        {
+            return m_Lamps == null || m_Lamps.Count == 0 || m_LastSectorFactors == null || m_LastSectorFactors.Length != m_Lamps.Count;
         }
 
         /// <summary>
@@ -170,7 +251,7 @@ namespace Sango
             for (int i = 0; i < anchors.Length; i++)
             {
                 var streak = GameObject.CreatePrimitive(PrimitiveType.Quad);
-                Object.Destroy(streak.GetComponent<Collider>());
+                DestroyCollider(streak.GetComponent<Collider>());
                 streak.name = $"{anchors[i].name}.Streak";
                 streak.transform.SetParent(m_RigRoot, false);
                 streak.GetComponent<MeshRenderer>().sharedMaterial = StreakMaterial(anchors[i].color, streakNits, streakAlpha);
@@ -180,10 +261,11 @@ namespace Sango
                 m_StreakHalfLenM[i] = streakLength * 0.5f;
             }
 
-            BuildLamp("PortSidelight", layout.PortSidelight, new Color(1f, 0.12f, 0.08f), lampSize, sidelightRangeM, sidelightIntensityLm);
-            BuildLamp("StarboardSidelight", layout.StarboardSidelight, new Color(0.15f, 1f, 0.25f), lampSize, sidelightRangeM, sidelightIntensityLm);
-            BuildLamp("Masthead", layout.Masthead, new Color(1f, 0.98f, 0.92f), lampSize, mastheadRangeM, mastheadIntensityLm);
-            BuildLamp("SternLight", layout.SternLight, new Color(1f, 0.98f, 0.92f), lampSize, sidelightRangeM, sternIntensityLm);
+            BuildLamp(LampKind.PortSidelight, "PortSidelight", layout.PortSidelight, new Color(1f, 0.12f, 0.08f), lampSize, sidelightRangeM, sidelightIntensityLm);
+            BuildLamp(LampKind.StarboardSidelight, "StarboardSidelight", layout.StarboardSidelight, new Color(0.15f, 1f, 0.25f), lampSize, sidelightRangeM, sidelightIntensityLm);
+            BuildLamp(LampKind.Masthead, "Masthead", layout.Masthead, new Color(1f, 0.98f, 0.92f), lampSize, mastheadRangeM, mastheadIntensityLm);
+            BuildLamp(LampKind.SternLight, "SternLight", layout.SternLight, new Color(1f, 0.98f, 0.92f), lampSize, sidelightRangeM, sternIntensityLm);
+            m_LastSectorFactors = new float[m_Lamps.Count];
 
             Debug.Log($"{k_LogTag} {name}: rig built bowYaw={bowYawDeg:0}° loa={loa:F1}m lamp={lampSize:F2}m streak={streakLength:F1}x{streakWidth:F1}m " +
                       $"port={layout.PortSidelight} stbd={layout.StarboardSidelight} mast={layout.Masthead} stern={layout.SternLight}", this);
@@ -210,7 +292,7 @@ namespace Sango
             return mat;
         }
 
-        void BuildLamp(string lampName, Vector3 localAnchor, Color color, float size, float rangeM, float intensityLm)
+        void BuildLamp(LampKind kind, string lampName, Vector3 localAnchor, Color color, float size, float rangeM, float intensityLm)
         {
             var lamp = new GameObject(lampName).transform;
             lamp.SetParent(m_RigRoot, false);
@@ -218,16 +300,18 @@ namespace Sango
 
             // 灯片：交叉双面十字（0°/90°），水平全向可读，免 billboard/双面材质 shader 折腾。
             var mat = new Material(Shader.Find("HDRP/Unlit")) { color = color * lampEmissiveNits };
+            var quads = new MeshRenderer[2];
             for (int i = 0; i < 2; i++)
             {
                 var quad = GameObject.CreatePrimitive(PrimitiveType.Quad);
-                Object.Destroy(quad.GetComponent<Collider>()); // 灯片非碰撞体
+                DestroyCollider(quad.GetComponent<Collider>()); // 灯片非碰撞体
                 quad.name = $"{lampName}.Quad{i}";
                 quad.transform.SetParent(lamp, false);
                 quad.transform.localPosition = Vector3.zero;
                 quad.transform.localRotation = Quaternion.Euler(0f, i * 90f, 0f);
                 quad.transform.localScale = new Vector3(size, size, 1f);
-                quad.GetComponent<MeshRenderer>().sharedMaterial = mat;
+                quads[i] = quad.GetComponent<MeshRenderer>();
+                quads[i].sharedMaterial = mat;
             }
 
             // 点光：HDRP 本地光（水面对其镜面反射 = R2 spike 对象），无阴影（4 灯×2 船 廉价）。
@@ -240,11 +324,33 @@ namespace Sango
             light.intensity = intensityLm; // HDRP 点光默认单位流明
             light.shadows = LightShadows.None;
             lightGo.AddComponent<HDAdditionalLightData>();
+
+            // M4-B：登记光弧驱动句柄（角向分布每帧由 ApplyObservationBearing 刷）。
+            m_Lamps.Add(new LampEntry
+            {
+                Kind = kind,
+                BaseColor = color,
+                BaseLumens = intensityLm,
+                Emissive = mat,
+                PointLight = light,
+                Quads = quads,
+            });
+        }
+
+        /// <summary>
+        /// 去 Collider：Play 用延迟 Destroy（批末合并），EditMode（BuildRig 可被测试直调）
+        /// 用 DestroyImmediate——Object.Destroy 在编辑器态会记 "may not be called from edit
+        /// mode" 错误并使 EditMode 测试红（UTF 对 LogError 默认判失败）。
+        /// </summary>
+        static void DestroyCollider(Component collider)
+        {
+            if (collider == null) return;
+            if (Application.isPlaying) Object.Destroy(collider);
+            else Object.DestroyImmediate(collider);
         }
 
         static IEnumerable<Vector3> Corners(Bounds b)
-        {
-            for (int xi = 0; xi < 2; xi++)
+        {            for (int xi = 0; xi < 2; xi++)
             for (int yi = 0; yi < 2; yi++)
             for (int zi = 0; zi < 2; zi++)
             {

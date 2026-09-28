@@ -79,6 +79,18 @@ namespace Sango.Editor
             nav.bowYawDeg = VesselAssetPipeline.BowYawDeg(vesselClass);
         }
 
+        // M4-B 水线工艺接线（issue #87 批次 B 项 1/4）：船壳水线湿感带（动态 y 跟随浮力
+        // 解算的水面高度）+ boot top 静态暗红防污带，两块 DecalProjector 由组件运行时构建；
+        // 湿带偏移复用 VesselBuoyancy 既有 CPU 水高查询的解算结果，零新增水面查询。
+        // boot top 带高按船级给观感起调值（12 m 小船窄带 / 60 m 邮轮宽带，组件内钳型深）。
+        static void AttachHullWaterlineDecals(GameObject ship, float bootTopBandM)
+        {
+            if (ship == null) return;
+            var decals = ship.AddComponent<HullWaterlineDecals>();
+            decals.buoyancy = ship.GetComponent<VesselBuoyancy>();
+            decals.bootTopBandHeightM = bootTopBandM;
+        }
+
         // M4 spike：艏波+尾迹 WaterDecal 接线。材质来自 HDRP 17.3 WaterSamples 的
         // CurrentWithSplines/"Sample Water Decal" 拷贝改造（Assets/Art/WaterDecals/，
         // GUID 随 meta 保留）——真 WaterDecalSubTarget 图，CustomFunctionNode 直调
@@ -339,6 +351,12 @@ namespace Sango.Editor
             AttachNavigationLights(medium, VesselClass.Medium, weather);
             Debug.Log("[Sango.M1] M2-D navigation lights wired on both ships (on/off follows time-of-day; port RED / starboard GREEN / white masthead + stern)");
 
+            // M4-B 水线工艺：两船各挂湿感带 + boot top 红（湿带 y 跟浮力水面解算；夜态灯弧
+            // 由 NavigationLights 光弧驱动自动生效——观察者方位 = 主相机）。
+            AttachHullWaterlineDecals(small, 0.5f);
+            AttachHullWaterlineDecals(medium, 2.0f);
+            Debug.Log("[Sango.M4B] hull waterline decals wired on both ships (wetness band follows buoyancy water level; boot top 0.5 m / 2.0 m)");
+
             // g. 相机：桥楼高度视角 (0,12,-40) 望岛群
             var cameraGo = new GameObject("Main Camera", typeof(Camera));
             cameraGo.tag = "MainCamera";
@@ -356,6 +374,12 @@ namespace Sango.Editor
             var cameraRig = cameraGo.AddComponent<CameraRig>();
             cameraRig.followShip = small != null ? small.transform : null;
             cameraRig.controlledCamera = camera;
+
+            // M4-B 海况摇晃：桥楼/Chase 机位叠加 SeaStateSway 表驱动小晃（B0 全零），
+            // 在 CameraRig.ApplyPose 之后增量叠加（DefaultExecutionOrder 150）。
+            var sway = cameraGo.AddComponent<BridgeSway>();
+            sway.weather = weather;
+            sway.rig = cameraRig;
 
             var radarGo = new GameObject("Radar Overlay", typeof(RadarOverlay));
             var radar = radarGo.GetComponent<RadarOverlay>();
