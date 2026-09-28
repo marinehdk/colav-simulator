@@ -125,3 +125,16 @@ NEGATIVE_PROBE_EXIT=1
 5. **pyzmq 未入 pyproject**——探针为 tools-only 验收件；一次性 `uv pip install`，避免与并行中的依赖树冲突（§4）。
 6. **首帧 fixture 弃用**——首条消息 static_included=true 含 ENC 静态块（~460 KB），改取稳态消息（static_included=false，~21 KB），结构与剥字段语义一致（§1）。
 7. **GUI 框样式用 OnGUI 默认 Box**（spec 明示 OnGUI 或 UGUI 二选一）；phase-2 若需精修样式，替换 DetectionOverlay.OnGUI 单点即可，投影/契约层不动。
+
+## Orchestrator acceptance (2026-09-28)
+
+- Probe independently repeated by the orchestrator: publisher enabled via
+  `--sango-publisher`, `tools/sango_zmq_probe.py --count 30` → **30/30 valid
+  frames, exit 0** (last seq=508, 1.0 s). Default-off negative control was
+  proven by the implementer (timeout 0/30 without the flag).
+- Overlay: `m3-overlay-gt-boxes.jpg` — B-key ground-truth boxes on both ships
+  (`VesselMedium 1.0 (gt)`, `VesselSmall 1.0 (gt)`), reprojection follows the
+  camera.
+- Verdict: PASS (probe + overlay + default-off; contracts/fixture tests in
+  the 124/124 suite).
+- Review pending at time of writing; close-out of #86 follows the review.
