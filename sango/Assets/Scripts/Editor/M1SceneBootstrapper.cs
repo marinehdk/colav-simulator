@@ -91,15 +91,15 @@ namespace Sango.Editor
         const string k_BowWaveMatPath = "Assets/Art/WaterDecals/M4_BowWave.mat";
         const string k_WakeFoamMatPath = "Assets/Art/WaterDecals/M4_WakeFoam.mat";
 
-        static void AttachWaterDecals(GameObject ship, WaterSurface water, float loaMeters, WaypointFollower follower)
+        static BoatWaterDecals AttachWaterDecals(GameObject ship, WaterSurface water, float loaMeters, WaypointFollower follower)
         {
-            if (ship == null || follower == null) return;
+            if (ship == null || follower == null) return null;
             var bowMat = AssetDatabase.LoadAssetAtPath<Material>(k_BowWaveMatPath);
             var wakeMat = AssetDatabase.LoadAssetAtPath<Material>(k_WakeFoamMatPath);
             if (bowMat == null || wakeMat == null)
             {
                 Debug.LogError($"[Sango.M4] water decal materials missing ({k_BowWaveMatPath} / {k_WakeFoamMatPath}); decals skipped");
-                return;
+                return null;
             }
 
             float s = Mathf.Max(ship.transform.lossyScale.x, 1e-3f); // 均匀烘焙缩放：局部单位 × s = 米
@@ -131,7 +131,8 @@ namespace Sango.Editor
             wake.surfaceFoamDimmer = 0f;   // 适配器按航速爬坡驱动
             wake.deepFoamDimmer = 0.6f;
 
-            // 速度门限适配器：G 键 demo 同一航速真值（WaypointFollower.SpeedMps）。
+            // 速度门限适配器：G 键 demo 同一航速真值（WaypointFollower.SpeedMps）。LOA 进适配器
+            // （艏波 Froude 曲线尺度分母），编目缺档兜底 12 = Small。
             var gate = ship.AddComponent<BoatWaterDecals>();
             gate.bowDecal = bow;
             gate.wakeDecal = wake;
@@ -139,6 +140,7 @@ namespace Sango.Editor
             gate.speedThresholdMps = 0.5f;
             gate.fullEffectSpeedMps = 5f;
             gate.bowAmplitudeM = 0.4f;
+            gate.loaMeters = loaMeters;
 
             // 水面开关：deformation/foam 任一 false 时对应 pass 直接不可见（WaterSystem.Decals CullWaterDecals）。
             // decal 区域锚到演示船：region 跟船走，64 m 方区在 512 res 下 ≈ 8 px/m（默认 200 m 只有 2.56）。
@@ -146,9 +148,16 @@ namespace Sango.Editor
             water.foam = true;
             water.decalRegionAnchor = ship.transform;
             water.decalRegionSize = new Vector2(64f, 64f);
+            // M4-A 分辨率降档（issue #87）：deformation/foam 由默认 512 降 256——spike 实测 512 档
+            // fps 25–28 < 30 闸门，且每升一档显存/reproject 代价 ×4（spike notes §5），256 档把两块
+            // 模拟 RT 与泡沫 CS 降为 1/4 面积换回性能头寸；64 m 区域 256 档 ≈ 4 px/m 仍够 12 m 船 V 形。
+            // 回滚开关 = 下面两行枚举改回 Resolution512（视觉是否变粗由编排者实机裁决）。
+            water.deformationRes = WaterSurface.WaterDecalRegionResolution.Resolution256;
+            water.foamResolution = WaterSurface.WaterDecalRegionResolution.Resolution256;
 
             Debug.Log("[Sango.M4] water decals wired: bow V deformation (12x12 m, amp 0.4 m) + wake foam (14x28 m), " +
-                      "speed gate 0.5 m/s, full effect 5 m/s, decal region 64x64 m anchored to demo boat");
+                      "speed gate 0.5 m/s, full effect 5 m/s, decal region 64x64 m anchored to demo boat, sim res 256");
+            return gate;
         }
 
         static VolumeProfile CreateVolumeProfileAsset() => CreateVolumeProfileAsset(k_ProfileAsset);
@@ -261,6 +270,7 @@ namespace Sango.Editor
             //    ship-cargo-a 编目在册但本场景不摆（留给 M2-E 遭遇场景）。
             GameObject small = null, medium = null;
             WaypointFollower smallFollower = null; // M2-E2：相机 rig/矢量箭头/Autonomous 按钮接线用
+            BoatWaterDecals smallDecals = null;    // M4-A：Simulation 面板「水面工艺」滑条驱动目标
             var catalog = AssetDatabase.LoadAssetAtPath<VesselCatalog>(VesselAssetPipeline.CatalogAssetPath);
             if (catalog == null)
             {
@@ -290,7 +300,7 @@ namespace Sango.Editor
                               "route (14,-6) -> (40,0) -> (60,-20) -> (20,-30) -> (5,-12), cruise 5 m/s");
 
                     // M4 spike：艏波变形 + 尾迹泡沫 WaterDecal（编目 LOA 定 V 尖顶锚位，速度门限接跟随器真值）。
-                    AttachWaterDecals(small, water, catalog.GetEntry(VesselClass.Small)?.loaMeters ?? 12f, smallFollower);
+                    smallDecals = AttachWaterDecals(small, water, catalog.GetEntry(VesselClass.Small)?.loaMeters ?? 12f, smallFollower);
                 }
             }
 
@@ -367,6 +377,7 @@ namespace Sango.Editor
             sim.radar = radar;
             sim.catalog = catalog;
             sim.islandCenter = k_IslandCenter;
+            sim.waterDecals = smallDecals; // M4-A：水面工艺滑条（材质缺失跳过时为 null，滑条照常显示不生效）
             var islandBaseline = IslandRebuild.M1Baseline();
             islandBaseline.material = islandMaterial;
             sim.islandBaseline = islandBaseline;

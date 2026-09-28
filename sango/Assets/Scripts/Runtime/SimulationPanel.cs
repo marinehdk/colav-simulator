@@ -13,6 +13,7 @@ namespace Sango
     ///   - 岛屿数量 / 岛屿缩放：面板字段，Enter（或 Apply 按钮）才重建（spec 明示 Apply 语义）；
     ///     映射 = IslandRebuild（count 直传、scale × sizeRange/clusterRadius、seed 恒 42 确定性）。
     ///   - 雷达量程 / 扫描转速：滑条拖动即时生效（雷达是装饰层，不必走重建）。
+    ///   - M4 水面工艺：艏波幅度/尾迹强度/速度阈值滑条即时直写 BoatWaterDecals（适配器每帧消费）。
     ///   - 船模预览：render-texture 相机 + 远角编目 prefab 实例，慢旋（render-texture 方案，
     ///     spec 首选档；超时兜底的类名圆盘未启用）。
     ///   - Environment count / agents-per-env：占位行（plan phase-2 字段——非功能，带标注）。
@@ -24,6 +25,9 @@ namespace Sango
     {
         [Tooltip("雷达覆盖层引用（量程/转速滑条即时驱动）。")]
         public RadarOverlay radar;
+
+        [Tooltip("M4 船波 decal 适配器（艏波幅度/尾迹强度/速度阈值滑条即时驱动；构建器注入，可空）。")]
+        public BoatWaterDecals waterDecals;
 
         [Tooltip("船只编目（预览按档位取 prefab/水线/LOA）。")]
         public VesselCatalog catalog;
@@ -146,6 +150,32 @@ namespace Sango
                     if (radar != null) radar.SetSweepSpeed(v);
                 });
             y = LabeledSlider(y, "Sweep speed (deg/s)", _sweepSlider);
+
+            // ── M4 水面工艺（即时生效，雷达同款 live 模式）────────────────────────────
+            // 滑条直写 BoatWaterDecals 字段，适配器每帧 ApplySpeed 消费——无需 Apply/重建。
+            // 幅度/强度/阈值单位 = 米 / 乘子 / m·s⁻¹；范围钉 M4-A（issue #87）。
+            y = SectionLabel(y, "M4 WATER SURFACE  (live)");
+
+            var bowSlider = CreateSlider("M4BowAmp", 0f, 1f,
+                waterDecals != null ? waterDecals.bowAmplitudeM : 0.4f, false, v =>
+                {
+                    if (waterDecals != null) waterDecals.bowAmplitudeM = v;
+                });
+            y = LabeledSlider(y, "Bow amplitude (m)", bowSlider);
+
+            var wakeSlider = CreateSlider("M4WakeIntensity", 0f, 1f,
+                waterDecals != null ? waterDecals.wakeFoamIntensity : 1f, false, v =>
+                {
+                    if (waterDecals != null) waterDecals.wakeFoamIntensity = v;
+                });
+            y = LabeledSlider(y, "Wake intensity", wakeSlider);
+
+            var thresholdSlider = CreateSlider("M4SpeedThreshold", 0.2f, 2f,
+                waterDecals != null ? waterDecals.speedThresholdMps : 0.5f, false, v =>
+                {
+                    if (waterDecals != null) waterDecals.speedThresholdMps = v;
+                });
+            y = LabeledSlider(y, "Speed threshold (m/s)", thresholdSlider);
 
             // ── 船模预览 ───────────────────────────────────────────────────────────────
             y = SectionLabel(y, "SHIP MODEL PREVIEW  (P cycles)");

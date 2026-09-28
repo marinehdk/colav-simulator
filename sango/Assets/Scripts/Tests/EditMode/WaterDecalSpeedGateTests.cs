@@ -6,13 +6,16 @@ using UnityEngine.Rendering.HighDefinition;
 namespace Sango.Tests
 {
     /// <summary>
-    /// M4 水面 decal 速度门限缝 EditMode 测试（spike）：纯核心 WaterDecalSpeedGate +
-    /// 薄适配器 BoatWaterDecals.ApplySpeed，无场景/水面（先例 WaypointKinematicsTests）。
-    /// 钉死的判定约定（M4 spike）：
+    /// M4 水面 decal 速度门限缝 EditMode 测试（spike + M4-A Froude 曲线正式化）：纯核心
+    /// WaterDecalSpeedGate + 薄适配器 BoatWaterDecals.ApplySpeed，无场景/水面（先例
+    /// WaypointKinematicsTests）。钉死的判定约定（M4 spike / M4-A issue #87）：
     ///   低于阈值（静止/锢泊）→ 两块 decal 禁用、泡沫强度 0；
-    ///   阈值以上 → 启用，泡沫/艏波幅度随航速线性爬坡到全强速度后钳 1。
+    ///   阈值以上 → 启用；尾迹泡沫随航速线性爬坡到全强速度后钳 1；
+    ///   艏波幅度按 Froude Fr=v/√(g·loaM) 在 [0.20, 0.45] 线性爬坡后钳基准（长船起波晚）。
     /// BoatWaterDecals 在 Assembly-CSharp（Runtime 根无 asmdef），经反射驱动
     /// （共享 TestReflection.FindAssemblyCSharpType）；WaterDecal 断言走 HDRP 公开 API。
+    /// 手算锚值（worked examples 的独立算术，非回声实现）：√(9.81×12)=10.84988，
+    /// Fr(5,12)=0.4608、Fr(2.75,12)=0.25346、Fr(4,12)=0.36867、Fr(4,100)=0.12771。
     /// </summary>
     public class WaterDecalSpeedGateTests
     {
@@ -75,6 +78,54 @@ namespace Sango.Tests
             Assert.That(WaterDecalSpeedGate.WakeFoamIntensity(0.6f, 0.5f, 0.5f), Is.EqualTo(1f));
         }
 
+        // ── 纯核心：艏波 Froude 曲线（M4-A，锚点 Fr 0.20→0.45）──────────────────
+        [Test]
+        public void BowAmplitude_MooredAndBelowRampStart_Zero()
+        {
+            Assert.That(WaterDecalSpeedGate.BowAmplitude(0f, 0.5f, 12f, 0.4f), Is.EqualTo(0f), "静止/锢泊零幅度");
+            // 12 m 船 2 m/s → Fr=0.1843 < 0.20 爬坡起点：已过门限但兴波未起，幅度仍 0
+            Assert.That(WaterDecalSpeedGate.BowAmplitude(2f, 0.5f, 12f, 0.4f), Is.EqualTo(0f).Within(1e-6f),
+                "Fr<0.20 低速区零艏波");
+        }
+
+        [Test]
+        public void BowAmplitude_FroudeMidpoint_HalfBase()
+        {
+            // 爬坡带中点 Fr=0.325：v = 0.325×√(9.81×12) = 3.526 m/s → 0.5×基准
+            // （独立算术事实：0.325×10.84988=3.5262，勿回声实现）
+            Assert.That(WaterDecalSpeedGate.BowAmplitude(3.526f, 0.5f, 12f, 0.4f), Is.EqualTo(0.2f).Within(1e-3f),
+                "Fr 中点 → 半幅");
+        }
+
+        [Test]
+        public void BowAmplitude_AboveFullFroude_ClampedToBase()
+        {
+            // 12 m 船 5 m/s → Fr=0.4608 ≥ 0.45 钳制点：全幅基准（spike 全强档对齐）
+            Assert.That(WaterDecalSpeedGate.BowAmplitude(5f, 0.5f, 12f, 0.4f), Is.EqualTo(0.4f).Within(1e-6f),
+                "巡航 5 m/s 恰过 Fr=0.45 → 全幅");
+            Assert.That(WaterDecalSpeedGate.BowAmplitude(9f, 0.5f, 12f, 0.4f), Is.EqualTo(0.4f).Within(1e-6f),
+                "更高航速仍钳基准");
+        }
+
+        [Test]
+        public void BowAmplitude_LongerBoatRampsLater_LoaMatters()
+        {
+            // 同航速 4 m/s：12 m 船 Fr=0.3687 → t=0.6747 → 0.2699 m；
+            // 100 m 船 Fr=0.1277 < 0.20 → 0（同一 Froude 尺度：船越长起波越晚）
+            Assert.That(WaterDecalSpeedGate.BowAmplitude(4f, 0.5f, 12f, 0.4f), Is.EqualTo(0.2699f).Within(1e-3f),
+                "12 m 船 4 m/s 手算锚值");
+            Assert.That(WaterDecalSpeedGate.BowAmplitude(4f, 0.5f, 100f, 0.4f), Is.EqualTo(0f).Within(1e-6f),
+                "100 m 船 4 m/s 未过 Fr=0.20 起点");
+        }
+
+        [Test]
+        public void BowAmplitude_DegenerateLoa_StepAboveThreshold()
+        {
+            // loaM ≤ 0：Froude 分母非法，阈值以上阶跃全幅（WakeFoamIntensity 退化先例，不除零）
+            Assert.That(WaterDecalSpeedGate.BowAmplitude(0f, 0.5f, 0f, 0.4f), Is.EqualTo(0f));
+            Assert.That(WaterDecalSpeedGate.BowAmplitude(5f, 0.5f, 0f, 0.4f), Is.EqualTo(0.4f));
+        }
+
         // ── 适配器薄壳：ApplySpeed 驱动两块 decal ────────────────────────────────
         [Test]
         public void ApplySpeed_MooredDisablesBothDecals()
@@ -93,12 +144,24 @@ namespace Sango.Tests
             InvokeApplySpeed(adapter, 5f);
             Assert.That(bow.enabled, Is.True, "巡航时艏波 decal 启用");
             Assert.That(wake.enabled, Is.True, "巡航时尾迹 decal 启用");
-            Assert.That(bow.amplitude, Is.EqualTo(0.4f).Within(1e-5f), "全强航速艏波幅度 = 基准 0.4 m");
+            Assert.That(bow.amplitude, Is.EqualTo(0.4f).Within(1e-5f), "12 m 船 5 m/s → Fr=0.4608 恰过钳制点，艏波 = 基准 0.4 m");
             Assert.That(wake.surfaceFoamDimmer, Is.EqualTo(1f), "全强航速泡沫 dimmer 1");
 
-            InvokeApplySpeed(adapter, 2.75f); // 中点 → 幅度/泡沫减半
-            Assert.That(bow.amplitude, Is.EqualTo(0.2f).Within(1e-5f), "中点航速艏波幅度减半");
+            InvokeApplySpeed(adapter, 2.75f); // 中点：尾迹线性减半；艏波走 Froude 曲线 Fr=0.2535
+            Assert.That(bow.amplitude, Is.EqualTo(0.0855f).Within(1e-3f), "艏波 Fr 中段手算锚值 0.4×(0.2535-0.20)/0.25");
             Assert.That(wake.surfaceFoamDimmer, Is.EqualTo(0.5f).Within(1e-5f), "中点航速泡沫 dimmer 0.5");
+        }
+
+        [Test]
+        public void ApplySpeed_LoaScalesBowCurve_WakeIntensityMultiplies()
+        {
+            var (adapter, bow, wake) = CreateWired(0.4f);
+            var t = adapter.GetType();
+            t.GetField("loaMeters").SetValue(adapter, 100f);       // 长船：5 m/s 时 Fr=0.1597 未过起点
+            t.GetField("wakeFoamIntensity").SetValue(adapter, 0.5f); // 面板尾迹强度乘子（M4 滑条）
+            InvokeApplySpeed(adapter, 5f);
+            Assert.That(bow.amplitude, Is.EqualTo(0f).Within(1e-6f), "100 m 船 5 m/s Fr<0.20 → 零艏波（loa 接线生效）");
+            Assert.That(wake.surfaceFoamDimmer, Is.EqualTo(0.5f).Within(1e-5f), "全强爬坡 × 面板乘子 0.5");
         }
 
         [Test]

@@ -113,6 +113,21 @@ namespace Sango
                                     volLine += $" fogEn={fog.enabled.value}(ovr={fog.enabled.overrideState})";
                             }
                             Debug.Log(volLine);
+
+                            // M4-A 运行时实例口径：WeatherController.Apply 的 .Override() 写在 vol.profile
+                            // 运行时副本上（core Volume.cs:79-97 getter 惰性 Instantiate sharedProfile），
+                            // sharedProfile 行看不见 ovr=True——此行读 vol.profile（HDRP 体积混合实际
+                            // 消费的现场），字段与上行同构。副作用：getter 会惰性建副本（值同 shared，无害）。
+                            var rtProf = vol.profile;
+                            string rtLine = $"[Sango.M2E2] vol runtime #{v} name={vol.name} on={vol.enabled} act={vol.gameObject.activeInHierarchy} isGlobal={vol.isGlobal} layer={vol.gameObject.layer} weight={vol.weight:0.0#} profile={(rtProf != null ? rtProf.name : "null")}";
+                            if (rtProf != null)
+                            {
+                                if (rtProf.TryGet<UnityEngine.Rendering.HighDefinition.Exposure>(out var rexp))
+                                    rtLine += $" expActive={rexp.active} expMode={rexp.mode.value}(ovr={rexp.mode.overrideState}) expLim=[{rexp.limitMin.value:0.#},{rexp.limitMax.value:0.#}](ovr={rexp.limitMin.overrideState}) expAdapt={rexp.adaptationMode.value}(ovr={rexp.adaptationMode.overrideState})";
+                                if (rtProf.TryGet<UnityEngine.Rendering.HighDefinition.Fog>(out var rfog))
+                                    rtLine += $" fogEn={rfog.enabled.value}(ovr={rfog.enabled.overrideState})";
+                            }
+                            Debug.Log(rtLine);
                         }
                     }
                     Debug.Log(line);

@@ -27,26 +27,33 @@ namespace Sango
         [Tooltip("全强航速（m/s）：尾迹泡沫/艏波幅度线性爬坡到此为 1。")]
         public float fullEffectSpeedMps = 5f;
 
-        [Tooltip("艏波幅度基准（米，全强航速时）：12 m 小船量级 ~0.4 m。")]
+        [Tooltip("艏波幅度基准（米，全强 Fr=0.45 以上）：12 m 小船量级 ~0.4 m。")]
         public float bowAmplitudeM = 0.4f;
+
+        [Tooltip("船长 LOA（米）：艏波按 Froude 数 Fr=v/√(g·LOA) 爬坡的尺度分母（默认 12 = 编目 Small）。")]
+        public float loaMeters = 12f;
+
+        [Tooltip("尾迹泡沫强度乘子 ∈ [0,1]（Simulation 面板 M4 滑条实时驱动；1 = 全强）。")]
+        public float wakeFoamIntensity = 1f;
 
         /// <summary>
         /// 以给定航速驱动两块 decal（公开 = EditMode 可测缝，先例 WaypointFollower.StepOnce）：
-        /// enabled = 门限谓词；艏波幅度与泡沫 dimmer 同乘爬坡系数——低速弱尾迹、全速全强。
+        /// enabled = 门限谓词；艏波幅度走 Froude 曲线（长船起波晚，WaterDecalSpeedGate.BowAmplitude），
+        /// 泡沫 dimmer = 线性爬坡 × 面板强度乘子——低速弱尾迹、全速全强。
         /// </summary>
         public void ApplySpeed(float speedMps)
         {
             bool enabled = WaterDecalSpeedGate.ShouldEnableDecals(speedMps, speedThresholdMps);
-            float intensity = WaterDecalSpeedGate.WakeFoamIntensity(speedMps, speedThresholdMps, fullEffectSpeedMps);
+            float ramp = WaterDecalSpeedGate.WakeFoamIntensity(speedMps, speedThresholdMps, fullEffectSpeedMps);
             if (bowDecal != null)
             {
                 bowDecal.enabled = enabled;
-                bowDecal.amplitude = bowAmplitudeM * intensity;
+                bowDecal.amplitude = WaterDecalSpeedGate.BowAmplitude(speedMps, speedThresholdMps, loaMeters, bowAmplitudeM);
             }
             if (wakeDecal != null)
             {
                 wakeDecal.enabled = enabled;
-                wakeDecal.surfaceFoamDimmer = intensity;
+                wakeDecal.surfaceFoamDimmer = ramp * wakeFoamIntensity;
             }
         }
 
