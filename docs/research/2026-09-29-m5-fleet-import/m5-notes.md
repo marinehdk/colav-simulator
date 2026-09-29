@@ -21,3 +21,10 @@
 - cargo-container/tanker-suezmax 减面与 LOD（M6+ polish 或远景替代）
 - Blender GLB→FBX 转换脚本 tools/convert_glb_to_fbx.py 已版本化（可重跑）
 - Houbei hero 近景仍为中档（17.7k tri）——hero 精模维持外包推迟轨道
+
+## Code-review 处置（2026-09-29）
+
+- **F1（Blocker 判定）→ 实机裁决为误报**：评审员静态推演认为归一化烘在 prefab 根位、被放置层覆盖致 7/8 艘错位。三重反证：①prefab 全量 transform dump（14 块）——根节点干净 (0,0,0)/scale1，所引"根 p.y=+6.237"不存在于文件（+6.24 为轮胎辅助节点值，归属误读）；②实机三组帧（主角水线/轮胎贴水/艏波、俯视锚地零沉没零悬空零穿模——m5-fleet-topdown.jpg）；③评审自认仅静态分析建议 GUI 确认。**底层关切成立**（契约无测试/审计无 center）→ 加固批进行中（落位位姿断言测试+审计 center 列）。
+- F2 署名文本补 URL+CC deed 链（8 行）✓ 6c9346ff；F3 docstring 改正 ✓ 同 commit。
+- F4 双表联动测试 → 加固批；F5 meta 两行格式=Unity 会自动补齐（评审自评无害），不动。
+- 范围口径：评审指出 faa1b642..80ffe0f7 混入 M6-spike 提交（信息项，M5 单提交=ab8e4446..80ffe0f7）——记录。
