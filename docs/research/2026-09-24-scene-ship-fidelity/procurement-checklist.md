@@ -6,6 +6,8 @@
 
 ## ★免费替代决策表（2026-09-29 调研后，项目初期未定型）
 
+> **用户裁决 2026-09-29：路线 A = 全免费（$0）。** MicroSplat 344008 与 Amplify 均不购买；地形贴图走 HDRP 原生 Terrain Lit；FCB 走 CC-BY 换装占位，hero 档推迟至项目定型。付费表 A 降级为"若免费路线某类观感不过关再回头买"的备选。人闸清单见 [account-guide.md](account-guide.md)。
+
 调研档案：[free-alternatives-ships.md](../2026-09-29-free-alternatives-ships.md)（船模 25 候选一手核证）｜[free-alternatives-tools-hero.md](../2026-09-29-free-alternatives-tools-hero.md)（工具+主角路线）。**采购额可从 ≈$250-300 压到 $0-20**，代价 ≈3-5 净增人日 + CC-BY 署名义务（登记表制度覆盖）。
 
 | 表A 项 | 原付费 | 免费替代（档位） | 建议 |
