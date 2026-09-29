@@ -283,8 +283,9 @@ def tiles(tier, grid, px, xmin, ymax):
             out.append({
                 "name": name,
                 "utm_bounds": [round(x0, 2), round(y1-12000.0, 2), round(x0+12000.0, 2), round(y1, 2)],  # [xmin,ymin,xmax,ymax]
-                "path_raw": f"tiles/{name}.raw",     # ENVI 裸 u16，小端/北上行序，同目录 .hdr
-                "path_jpg": f"basemap/{name}.jpg",   # S2 sRGB 底图，同目录 .wld worldfile
+                # 路径=仓库根相对（消费方约定：从仓库根解析；脚本/V7 均按此断言）
+                "path_raw": os.path.join(os.environ['OUT'], 'tiles', f'{name}.raw'),   # ENVI 裸 u16，小端/北上行序，同目录 .hdr
+                "path_jpg": os.path.join(os.environ['OUT'], 'basemap', f'{name}.jpg'), # S2 sRGB 底图，同目录 .wld worldfile
             })
     return out
 
@@ -548,8 +549,9 @@ for tier, cnt, px in (('near', 4, 2049), ('far', 25, 513)):
     for t in b['tiles']:
         for k in ('name', 'utm_bounds', 'path_raw', 'path_jpg'):
             assert k in t and t[k], f"{tier} tile missing {k}"
-        assert os.path.exists(os.path.join(os.environ['OUT'], t['path_raw']))
-        assert os.path.exists(os.path.join(os.environ['OUT'], t['path_jpg']))
+        # path 契约=仓库根相对（脚本 cwd=仓库根），直接存在性断言
+        assert os.path.exists(t['path_raw']), f"missing {t['path_raw']}"
+        assert os.path.exists(t['path_jpg']), f"missing {t['path_jpg']}"
 for k in ('scene', 'date', 'res_m', 'srgb', 'source'):
     assert k in m['s2'], f"s2.{k} missing"
 print("   manifest OK: near=%d far=%d, near elev [%.3f, %.3f], far elev [%.3f, %.3f]" % (

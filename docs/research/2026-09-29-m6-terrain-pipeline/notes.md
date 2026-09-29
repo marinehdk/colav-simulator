@@ -61,7 +61,7 @@
 ## manifest.json 契约（Unity 段直接消费）
 
 字段名即契约（`tmp/m6-data/manifest.json`）：
-`epsg`=32648（int）；`center_lonlat`/`center_utm`（Unity 世界原点）；`feather_m`；`near`/`far`：`extent_utm`(4 元) `tile_px` `tile_size_m`(=12000) `grid` `m_per_px` `basemap_px`(底图 2048/512) `elev_min/max`(u16 scale) `tiles[]`：`{name, utm_bounds, path_raw, path_jpg}`——**path 相对 manifest 所在目录**；`s2`：`{scene,date,res_m,srgb,source,note}`；`generated_by`。
+`epsg`=32648（int）；`center_lonlat`/`center_utm`（Unity 世界原点）；`feather_m`；`near`/`far`：`extent_utm`(4 元) `tile_px` `tile_size_m`(=12000) `grid` `m_per_px` `basemap_px`(底图 2048/512) `elev_min/max`(u16 scale) `tiles[]`：`{name, utm_bounds, path_raw, path_jpg}`——**path 一律仓库根相对**（如 `tmp/m6-data/tiles/near_r0c0_2049.raw`；消费方从仓库根解析，V7 按此断言存在性）；`s2`：`{scene,date,res_m,srgb,source,note}`；`generated_by`。
 注意：`utm_bounds`/`extent_utm` 为**逻辑域**（12 km tile / 24–60 km 带）；RAW 光栅比逻辑域多东/南各 1 共享 px（Unity 按 terrain size=12000 导入即可）。
 
 ## 已知限制 / followUps
