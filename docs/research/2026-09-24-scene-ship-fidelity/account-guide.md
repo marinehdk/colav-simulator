@@ -50,6 +50,26 @@
 - **直达**：https://www.fab.com/ （Epic 账号登录）
 - 用途：约 1,500 免费扫描资产 + Megaplants 全免费（热带植被/岩石/滩涂材质，M7 用）；Fab Standard License 全文下载前留意（上游档案 L1 待证项）。
 
+## ★下载规格（2026-09-29 账号就绪后，按此操作）
+
+### GEBCO 水深（用户已可下载）
+
+- 工具：**https://download.gebco.net/** （GEBCO 官方区域子集下载）
+- 参数：Grid 选 **GEBCO 2026**（最新版；调研原记 2025，用新不作废）；范围 **lon 103.0–104.8E，lat 1.8S–1.8N**（比 DEM 窗外扩 0.4° 余量）；格式 **Data GeoTIFF**
+- 落盘：`/Users/marine/Code/Colav-Simulator/tmp/m6-spike-data/gebco/gebco_strait.tif`
+
+### Sentinel-2 L2A 真彩色底图（Copernicus browser）
+
+- 入口：**https://browser.dataspace.copernicus.eu/** （用户已注册可进）
+- 检索：画矩形 **lon 103.3–104.3E，lat 1.4S–1.4N**；Platform=Sentinel-2；Product type=**S2MSI2A（Level 2A）**；时间 2025-06-01 至今（优先西南季风晴空档）；**Cloud cover < 10%**
+- 覆盖海峡需 **2 个 MGRS tile**（结果按 tile 分组）：每个 tile 挑**同日期或近日期、云量最低**的一个产品，Download 整包 zip（各约 1GB）
+- 落盘：`/Users/marine/Code/Colav-Simulator/tmp/m6-spike-data/s2/`（两个 zip 原名放入）
+- 说明：管线只取每包内 `GRANULE/*/L2A_T*/*/TCI.jp2`（10m 真彩色），其余波段弃用、zip 用后即删
+
+### 完成动作
+
+两项落盘后说一声，即触发 M6 正式批的数据扩展段：GEBCO 与 GLO-30 陆海合并（feather 海岸带）+ S2 重投影为 tile BaseMap（Terrain Lit 首层机制）。
+
 ## 完成回报方式
 
 每完成一项说一声即可（如"Sketchfab 好了"）；**第 1 项（Sketchfab+9 件下载落盘）完成即触发 M5 免费船队导入批**（workflow 已改靶待发）；2/3 完成触发 M6 正式批（S2 底图+水深）；4/5/6 按各自里程碑需要触发。
