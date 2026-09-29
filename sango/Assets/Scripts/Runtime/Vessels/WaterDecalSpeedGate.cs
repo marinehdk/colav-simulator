@@ -42,7 +42,7 @@ namespace Sango
         /// <summary>
         /// 艏波幅度（米）：低于启用阈值恒 0（静止/锢泊）；以上按 Froude 数 Fr = v/√(g·loaM)
         /// 从 BowFroudeRampStart 线性爬坡到 BowFroudeFull 后钳 baseAmpM——同一 Fr 同一归一幅度，
-        /// 船越长起波越晚（100 m 船 5 m/s 时 Fr≈0.16 仍近零艏波）。
+        /// 船越长起波越晚（100 m 船 5 m/s 时 Fr≈0.16 低于爬坡起点，艏波恰为零非近零）。
         /// loaM ≤ 0 防御退化：Froude 分母非法，阈值以上阶跃全幅（WakeFoamIntensity 退化先例）。
         /// </summary>
         public static float BowAmplitude(float speedMps, float thresholdMps, float loaM, float baseAmpM)

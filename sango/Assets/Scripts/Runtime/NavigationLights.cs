@@ -115,7 +115,10 @@ namespace Sango
         /// </summary>
         float ObserverRelativeBearing(Vector3 observerWorldPos)
         {
-            var nativeBow = new Vector3(0f, 0f, Mathf.Cos(bowYawDeg * Mathf.Deg2Rad));
+            // native = R(−bowYawDeg)·(0,0,1)（NavigationLightsCore.DeriveAnchors 同约定）：
+            // 只写 z 分量会在 yaw=±90° 退化成零向量；编目现仅 0/180（sinθ=0）故历史路径无恙。
+            var yawRad = bowYawDeg * Mathf.Deg2Rad;
+            var nativeBow = new Vector3(-Mathf.Sin(yawRad), 0f, Mathf.Cos(yawRad));
             var bow = transform.rotation * nativeBow;
             var toObserver = observerWorldPos - transform.position;
             toObserver.y = 0f;
@@ -350,7 +353,8 @@ namespace Sango
         }
 
         static IEnumerable<Vector3> Corners(Bounds b)
-        {            for (int xi = 0; xi < 2; xi++)
+        {
+            for (int xi = 0; xi < 2; xi++)
             for (int yi = 0; yi < 2; yi++)
             for (int zi = 0; zi < 2; zi++)
             {
