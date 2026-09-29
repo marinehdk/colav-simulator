@@ -105,3 +105,10 @@ dive_04.md:12 与 00-REPORT.md:84 写"UTM 48N（EPSG:32748）"——**32748 是 
 2. GEBCO 水深拼接（海面下地形，水色分块用）——等 GEBCO 通道（免注册直下待验证）或账号。
 3. S2 L2A 底图（Terrain Lit 首层 base layer 机制）+ OSM landcover splat——等 Copernicus 账号。
 4. DEMNAS 8m 印尼侧高程替换 GLO-30——等 BIG 账号（可选增强，30m 已可用）。
+
+## S2 底图与 GEBCO 水深落盘（2026-09-29）
+
+- **S2 L2A TCI（GeoTIFF, 10m）**：AWS element84 sentinel-cogs 匿名通道（CC-BY-4.0）。选景=2026-03-20 同日同轨 S2B 对（UG 11.1%/VG 12.5% 目录云，读图验证云均在远海角落、海峡主体清晰）+ 04-23 VG 8.2% 补丁料；预览 PNG 入本目录。备选升级=08-22 对（VG 2.8%）需 CDSE 登录下载。选择依据：赤道气候下 COG 在桶景无 <10% 同日对（CDSE OData 云量 × COG 桶列表联选实证）。
+- **GEBCO 水深**：用户经 download.gebco.net 子集工具落盘（432×864 @15″，103.0-104.8E/1.8S-1.8N，GeoTIFF）。
+- 数据清单与下载源：`tmp/m6-spike-data/s2/MANIFEST.md`。
+- **教训（账本）**：Copernicus browser UI 对 AX 不可见+视觉通道幻觉两次（幽灵按钮/幽灵日期），复杂 JS 应用优先找公开 API/桶通道（本次 element84 STAC/COG + CDSE OData 全匿名解决）。
