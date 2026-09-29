@@ -195,6 +195,11 @@ namespace Sango.Editor
             //     内置构建期水深门禁 fail-fast——浮标逐点 <0、航路 100 m 逐点 <0、渔排 [-8,-2] 窗）
             M7BSceneBuilder.Build(manifest, water, weather, catalog, BuildSampler(terrains));
 
+            // f4. M8 画质双档 + 交叠 tile 互斥流送（High = M7 终态零改动基线；Low = 近带
+            //     常开 + 外环邻域裁剪 + 装饰随宿主 tile 降档。构建期断言 fail-fast：档参数
+            //     完整性、tile 计数 4/9/16、装饰组 9 个逐一挂靠宿主 tile）
+            WireQualityStreaming(manifest, terrains, weather.sunLight, hero.transform);
+
             // g. 水深验证（构建期 fail-fast，确定性，防搁浅；不满足即构建失败报错，不静默换点）
             ValidateDepths(terrains);
 
@@ -309,6 +314,126 @@ namespace Sango.Editor
                 }
                 throw new System.ArgumentOutOfRangeException($"({xz.x:F0},{xz.y:F0}) outside all terrain tiles");
             };
+        }
+
+        // ── M8 画质双档 + 交叠 tile 互斥流送（构建期接线；判据/队列纯函数在 Sango.Vessels）──
+
+        /// <summary>
+        /// 注入 M8TileStreaming：29 tile 条目（近带 4 / 交叠 9 / 外环 16，rect 来自 manifest
+        /// 布局）+ 装饰组 9 个（GO 名 = M7BackdropBuilder/M7BSceneBuilder 字面量，宿主 tile
+        /// 按 M8QualityProfile 静态索引表）+ 参考点（主船）+ 太阳光。构建期断言 fail-fast：
+        /// 档参数完整性（M8QualityProfile.Validate）、tile 计数 4/9/16、近带 bbox = ±12 km
+        /// （流送判据常量与真实网格一致门）、装饰组宿主 tile 必须在 tile 表内。
+        /// 场景初始激活态维持 M7 语义不变（近带亮 / 交叠 9 隐藏 / 外环亮）；运行时 swap
+        /// 只在主船出带 &gt;2 km 后接棒（互斥、分帧、迟滞——见 M8TileStreamingPlan 头注）。
+        /// </summary>
+        static void WireQualityStreaming(M6Manifest manifest, List<Terrain> terrains, Light sun, Transform reference)
+        {
+            var profileErrors = M8QualityProfile.Validate();
+            if (profileErrors.Count > 0)
+                throw new System.InvalidOperationException("[Sango.M8] quality profile invalid: " + string.Join("; ", profileErrors));
+
+            var center = new Vector2(manifest.center_utm[0], manifest.center_utm[1]);
+            var tiles = new List<M8StreamingTile>(M8QualityProfile.TotalTileCount);
+            int near = 0, overlap = 0, ring = 0;
+            float nearXmin = float.MaxValue, nearZmin = float.MaxValue, nearXmax = float.MinValue, nearZmax = float.MinValue;
+            foreach (var band in new[] { manifest.near, manifest.far })
+            {
+                bool nearBand = band == manifest.near;
+                foreach (var tile in band.tiles)
+                {
+                    var layout = M6TerrainMath.LayoutFor(tile, band, center);
+                    var entry = new M8StreamingTile
+                    {
+                        tileName = tile.name,
+                        xmin = layout.originXZ.x,
+                        zmin = layout.originXZ.y,
+                        xmax = layout.originXZ.x + layout.sizeMeters,
+                        zmax = layout.originXZ.y + layout.sizeMeters,
+                        group = nearBand ? M8StreamGroup.Near
+                            : M6TerrainMath.FarTileUnderNearBand(tile, manifest.near.extent_utm)
+                                ? M8StreamGroup.Overlap
+                                : M8StreamGroup.Ring,
+                    };
+                    foreach (var t in terrains)
+                        if (t != null && t.gameObject.name == tile.name)
+                        {
+                            entry.tileGo = t.gameObject;
+                            entry.terrain = t;
+                            break;
+                        }
+                    if (entry.tileGo == null)
+                        throw new System.InvalidOperationException($"[Sango.M8] terrain GO missing for tile {tile.name}");
+                    switch (entry.group)
+                    {
+                        case M8StreamGroup.Near:
+                            near++;
+                            nearXmin = Mathf.Min(nearXmin, entry.xmin);
+                            nearZmin = Mathf.Min(nearZmin, entry.zmin);
+                            nearXmax = Mathf.Max(nearXmax, entry.xmax);
+                            nearZmax = Mathf.Max(nearZmax, entry.zmax);
+                            break;
+                        case M8StreamGroup.Overlap: overlap++; break;
+                        default: ring++; break;
+                    }
+                    tiles.Add(entry);
+                }
+            }
+            if (near != M8QualityProfile.NearTileCount || overlap != M8QualityProfile.OverlapTileCount
+                || ring != M8QualityProfile.RingTileCount)
+                throw new System.InvalidOperationException(
+                    $"[Sango.M8] tile counts near/{near} overlap/{overlap} ring/{ring} != " +
+                    $"{M8QualityProfile.NearTileCount}/{M8QualityProfile.OverlapTileCount}/{M8QualityProfile.RingTileCount} — manifest/grid drift, stop and report");
+            if (Mathf.Abs(nearXmin + M8QualityProfile.NearBandHalfM) > 1f
+                || Mathf.Abs(nearZmin + M8QualityProfile.NearBandHalfM) > 1f
+                || Mathf.Abs(nearXmax - M8QualityProfile.NearBandHalfM) > 1f
+                || Mathf.Abs(nearZmax - M8QualityProfile.NearBandHalfM) > 1f)
+                throw new System.InvalidOperationException(
+                    $"[Sango.M8] near band bbox [{nearXmin:F0},{nearZmin:F0}..{nearXmax:F0},{nearZmax:F0}] != ±{M8QualityProfile.NearBandHalfM:F0} m — streaming latch constants assume the manifest near extent, stop and report");
+
+            var groups = new List<M8DecorationGroup>(M8QualityProfile.DecorationGroupCount);
+            for (int i = 0; i < M8QualityProfile.DecorationGroupCount; i++)
+            {
+                string goName = M8QualityProfile.DecorationGoNames[i];
+                string hostTile = M8QualityProfile.DecorationHostTiles[i];
+                var go = FindSceneGo(goName);
+                if (go == null)
+                    throw new System.InvalidOperationException($"[Sango.M8] decoration GO '{goName}' missing (group {i}) — builder name drift, stop and report");
+                int hostIndex = tiles.FindIndex(t => t.tileName == hostTile);
+                if (hostIndex < 0)
+                    throw new System.InvalidOperationException($"[Sango.M8] decoration group {i} host tile '{hostTile}' not among streaming tiles — stop and report");
+                groups.Add(new M8DecorationGroup { groupGo = go, hostTileName = hostTile, hostTileIndex = hostIndex });
+            }
+
+            var streamingGo = new GameObject("M8 Tile Streaming");
+            var streaming = streamingGo.AddComponent<M8TileStreaming>();
+            streaming.tiles = tiles.ToArray();
+            streaming.decorationGroups = groups.ToArray();
+            streaming.reference = reference;
+            streaming.sunLight = sun;
+            Debug.Log($"[Sango.M8] streaming wired: {tiles.Count} tiles (near {near} / overlap {overlap} / ring {ring}), " +
+                      $"{groups.Count} decoration groups; High = M7 terminal baseline, Low = near band + ring neighborhood + decoration downgrade");
+        }
+
+        static GameObject FindSceneGo(string name)
+        {
+            foreach (var root in UnityEngine.SceneManagement.SceneManager.GetActiveScene().GetRootGameObjects())
+            {
+                var found = FindRecursive(root.transform, name);
+                if (found != null) return found;
+            }
+            return null;
+        }
+
+        static GameObject FindRecursive(Transform t, string name)
+        {
+            if (t.name == name) return t.gameObject;
+            for (int i = 0; i < t.childCount; i++)
+            {
+                var found = FindRecursive(t.GetChild(i), name);
+                if (found != null) return found;
+            }
+            return null;
         }
 
         // ── Standalone 播放器（海峡场景接棒主 demo；M1-Weather 场景与 M2E app 保留不动）────

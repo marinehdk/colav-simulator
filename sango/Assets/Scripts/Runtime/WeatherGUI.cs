@@ -30,6 +30,7 @@ namespace Sango
         Slider[] _sliders;   // [beaufort, windDir, time, cloud, fog]，Update 镜像用
         Dropdown _tierDropdown;
         Dropdown _atmoDropdown; // M7-B 大气档（N 键循环镜像）
+        Dropdown _qualityDropdown; // M8 画质档（L 键循环镜像；无 M8 streamer 的场景切档仅记账）
 
         const float PanelWidth = 380f;
         const float ValueRowHeight = 26f; // 标签行高
@@ -149,6 +150,19 @@ namespace Sango
                 RefreshReadout();
             });
 
+            // M8 画质双档（High = M7 终态基线 / Low = 性能降档）：下拉选择 + L 键循环。
+            // 大气三档同款三段式：回调写参数源（M8Quality 静态 API → streamer.ApplyTier）
+            // → 应用 → Update 镜像回读。无 streamer 的场景（M1/M2E）只翻静态记账值。
+            _cursorY -= ValueRowHeight;
+            CreateRowLabel("Quality (M8)");
+            _cursorY -= ValueRowHeight;
+            _qualityDropdown = CreateDropdown(_panel, "QualityDropdown", new[] { "High", "Low" },
+                M8Quality.DropdownIndex, i =>
+            {
+                M8Quality.SetTierFromDropdownIndex(i);
+                Debug.Log($"[Sango.M8] GUI quality -> {M8Quality.CurrentTier}");
+            });
+
             _sliders = new[] { beaufortSlider, windDirSlider, timeSlider, cloudSlider, fogSlider };
             _panel.sizeDelta = new Vector2(PanelWidth, -_cursorY + 12f);
         }
@@ -204,6 +218,11 @@ namespace Sango
                 RefreshReadout();
                 Debug.Log($"[Sango.M1] hotkey atmosphere={controller.atmosphereTier}");
             }
+            if (Input.GetKeyDown(KeyCode.L)) // M8 画质档循环（M8 键位账本核对 2026-09-29：
+            {                                // 全仓 grep Input.GetKeyDown：0-9/T/F/N/G/V/B/C/A/P/Q/E/Z/X/Space/R/±,./Enter(+keypad) 已占，L 空闲）
+                M8Quality.CycleTier();
+                Debug.Log($"[Sango.M8] hotkey quality -> {M8Quality.CurrentTier}");
+            }
         }
 
         // applyEveryFrame 下 controller 公开字段是唯一真值源（Inspector/后续脚本可绕 GUI 直改）。
@@ -231,6 +250,11 @@ namespace Sango
             {
                 _atmoDropdown.SetValueWithoutNotify((int)controller.atmosphereTier);
                 _atmoDropdown.RefreshShownValue();
+            }
+            if (_qualityDropdown != null && (int)M8Quality.CurrentTier != _qualityDropdown.value)
+            {
+                _qualityDropdown.SetValueWithoutNotify((int)M8Quality.CurrentTier);
+                _qualityDropdown.RefreshShownValue();
             }
             RefreshReadout();
         }
