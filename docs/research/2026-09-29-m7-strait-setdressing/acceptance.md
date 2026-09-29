@@ -97,3 +97,44 @@
 - **F1 瞭望机位**：CameraView 增第五档 **Overlook**（艏向前 80 m 高 40 m、yaw=艏向+180° 回望、俯角 26.6°、FOV 60、随船）——C 循环 Bridge→Bow→Chase→TopDown→Overlook；NDC 视锥组合验收（M6 S1 idiom + 16:9 aspect）：M6 泊位艏向 134° 下船本体居中、PP 码头中点 (-2335,-1675,0) 在前方且 NDC x,y∈(-1,1)。
 - **L1 舷灯侧别**：组合级 EditMode 钉死（fresh placement FcbHoubei × heading {0,134,270}°，port 灯世界坐标在 −starboard 半平面、stbd 在 +starboard；挂=真实反侧 bug 上报裁决）——结果见该批测试运行记录；census 日志加单位口径标注（mesh-local units ×root scale → world m）。
 - **其余 findings**：A2 场景回存（本批提交 M6-Strait.unity，13 浮标/5 渔排/3 follower/RainFall 实测在档）；A6 TerrainM7 资产登记行补入 asset-registry.md；A7 FishFarmSway phaseDeg Tooltip 弧度→度；A8 splat 漫反射 `.png`→`.asset` 改名（内容本就是原生 Texture2D YAML；meta 换 NativeFormatImporter 且 guid 不变，TerrainLayer 引用不受影响；builder 同步路径）；A10 LandReport.samples 死字段移除；A11 builder 管线数学（flatten 归一化/alphamap 最近格/TreeInstance 归一化）抽进 M7BackdropMath 纯函数并以 fresh TerrainData 测试钉契约；A3（合并网格 vs GPU instancing）不改——性能目标已由静态合批单 draw call 达成（fps 60×4 证据），字面差异不构成缺陷；A5（EditMode 套件未在本会话运行）由本修复批全量自测闭环。
+
+## M7 review 修复批（commit bfc14d69，2026-09-29）
+
+### 双轴评审（规格轴+标准轴，9c01698b..e4c53261）findings=11 全处置
+
+处置摘录（证据见报告卡「M7 修复批报告」）：
+- **热键冲突（medium→修）**：M7-B 大气档 V 键与 VectorArrows M2-E2 的无门控 V 冲突（同按双触发）→
+  大气循环改 **N 键**（热键账本核对全仓空闲）；WeatherGUI 的 V 已移除。
+- **场景回存（medium→修）**：e4c53261 只提交了代码未回存场景（HEAD 场景 0 浮标/0 渔排/0 动目标/0 RainFall，
+  干净检出直跑 BuildStraitPlayer 会缺 M7-B 内容）→ bfc14d69 回存 M6-Strait.unity（提交态实测 13×"M7B Buoy"）。
+- **动目标一趟制（low→修）**：WaypointFollower 加 loopWaypoints（默认 false=M1/M2E 语义不变），渡轮/拖轮置
+  true——到点回卷航点 0 而非冻结。
+- **资产登记（medium→修）**：TerrainM7 84 件自制资产补登 asset-registry.md（程序化生成声明，无许可义务）。
+- 其余 low：箱堆合并网格（性能等效于 instancing，披露）、FishFarmSway Tooltip 单位勘误、YAML-as-png
+  原生资产写法披露、LandReport 死字段、builder 数学测试覆盖缺口（随本批新增测试部分闭合）。
+
+### L1 舷灯侧别：裁决=无反侧 bug（测试钉死）
+
+- 组合级 EditMode 测试 `NavigationLightsSidelightSideTests`：fresh placement FcbHoubei × heading{0,134,270}°，
+  DeriveAnchors 锚点经实例 TransformPoint 到世界系，断言 port 灯在 −starboard 半平面——三艏向全过
+  （portDot −6.79 / stbdDot +6.79 mesh-local；×根缩放 0.0448=±0.30m world）。
+- **夜拍"红在右舷"= 艉后视角读色误判**；色别约定不改。
+- 勘误（对本档 M7-B 节）：census `port=±151 units` 是锚点**纵向**分量（k_SidelightForwardFrac 0.3×LOA/2），
+  非横向舷偏；真实横向舷偏 ±6.79 units=±0.30m（Tire 护舷 bounds 窄 x）。census 日志已加单位口径标注
+  （mesh-local units ×root scale → m world）。
+
+### F1 瞭望机位：落地+实拍
+
+- C 循环第五机位 Overlook（Bridge→Bow→Chase→TopDown→Overlook）：船前上方 (0,40,+80)、艏向+180° 回望、
+  pitch −26.6°；NDC 视锥组合测试（M6 S1 idiom，16:9）：M6 泊位/艏向 134° 下 PP 码头中点 (−2335,−1675,0)
+  在前方且 NDC∈(−1,1) ✓。
+- 实拍（m7fx-overlook.jpg + 裁切）：回望构图正确，NW 后向地平线见 PP/Tuas 岸线条带。
+- **披露（转 M8 polish）**：出生点构图下 PP 方位（NDC x≈0.6）落在右侧 SIMULATION 半透明面板后——
+  天际线被 HUD 遮挡大半；建议 M8 出片加 HUD 隐藏键或 HUD-off 录制路径。
+
+### 收口指标
+
+- EditMode **308/308**（297+11：Overlook NDC 视锥、L1 三艏向、loopWaypoints 等）。
+- M6+M1 场景重建 exit=0/0；播放器 fresh。
+- fps 干净协议（修复批终态构建）：**60.0×4 连读**（vsync 上限非饱和）。
+- 热键回归：N 循环三档正常（实拍 m7fx-nkey-cb.jpg，滑条/下拉镜像同步）。
