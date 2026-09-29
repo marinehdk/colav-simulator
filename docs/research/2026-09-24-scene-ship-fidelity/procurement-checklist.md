@@ -4,6 +4,24 @@
 - 使用规则：表A **"下单前复核"列留空**——下单当日人工打开发售页核对现价与许可后填写；表B 逐条复核后把结论回写本文件，资产到货后同步登记 `sango/Docs/asset-registry.md`。
 - 所有价格为访问日 2026-09-24 页面标价（USD）。
 
+## ★免费替代决策表（2026-09-29 调研后，项目初期未定型）
+
+调研档案：[free-alternatives-ships.md](../2026-09-29-free-alternatives-ships.md)（船模 25 候选一手核证）｜[free-alternatives-tools-hero.md](../2026-09-29-free-alternatives-tools-hero.md)（工具+主角路线）。**采购额可从 ≈$250-300 压到 $0-20**，代价 ≈3-5 净增人日 + CC-BY 署名义务（登记表制度覆盖）。
+
+| 表A 项 | 原付费 | 免费替代（档位） | 建议 |
+|---|---|---|---|
+| A1 渔船 | $4.99 | JasperTobias「Trawler」CC-BY 5.3k（中远，剪影正确） | **走免费** |
+| A2 集装箱船 | $45.00 | RM02「Container Ship」CC-BY 189k（中景；付费款同样 231k 超标需减面） | **走免费** |
+| A3 油轮 | $24.90 | ArtBlender「Tanker」193k +「LNG」90k 成对（中远） | **走免费** |
+| A4 拖轮 | $30.00 | davidbroutian「Rastar 3200」CC-BY 47k（中景；本类候选最薄） | **走免费** |
+| A5 杂货船 | $17.99 | hungry_drifter「Cargo ship」CC-BY 73k（中景） | **走免费** |
+| A6 FCB 占位 | $58.00 | dannzjs「Type 22 Houbei」17.8k 换白壳绿装 + S1Priv「USS Hurricane PC-3」14.5k（中景/剪影分层） | **暂缓购买**——CC-BY 分层占位先行，换装后中景不过关再买 |
+| A7 MicroSplat | ≈$20-60 | HDRP 原生 Terrain Lit（8 层/逐层法线/高度混合，17.3 官方文档核实）+ 可选自写 Shader Graph 3-5 人日 | 若买：**只买 344008**（HDRP for Unity 6.3，$20）——280884 是 6.0 错版；省下的 $180 足够覆盖 |
+| A8 Amplify Impostors | $33 | Kenney CC0 低模远景网格 LOD（零工时）；手搓 billboard 2-4 人日仅 Profiler 证明瓶颈后 | **不买**（Amplify 兼容矩阵无 Unity 6 行，买前必测） |
+| A9 FCB 外包 | $2,000-8,000 | 无 hero 档免费替代（CC0 巡逻艇全站=0） | **推迟至项目定型**；窗口期可用 PC-3 CC-BY 基准网格混合路线 |
+
+要点：① 免费现代船**全部 CC-BY**（须署名，无 AI 限制条款——比 CGTrader 付费件的 no-AI 反而更宽）；② hero 近景档免费为零，双轨制轨道 B 不动，仅推迟；③ 地理数据侧（GLO-30/GEBCO/DEMNAS/S2）本就全免费，精度不受本决策影响；④ 来源链存疑件（"not mine/ripped"）已列入调研档案 §6 禁入清单。
+
 ## 表A — 拟购资产（付费）
 
 | # | 资产/产品 | 商店/来源 URL | 价格（2026-09-24 核价） | 访问日期 | 下单前复核 | 用途 |
@@ -14,8 +32,8 @@
 | A4 | PA Tug Boat（Popup Asylum） | Unity Asset Store：https://assetstore.unity.com/packages/3d/vehicles/sea/pa-tug-boat-162168 | $30.00 | 2026-09-24 | | 交通船流—拖轮 |
 | A5 | Container Ships | Fab：https://www.fab.com/listings/d15bb4d9-e292-4bc0-a058-14aee645f69e | $17.99 | 2026-09-24 | | 交通船流—杂货。注意：Fab 反爬强，价格档/许可细节需人工核对页面（dive_01） |
 | A6 | Fast Patrol Boat Ship Vessel 45M（FBX+PBR） | CGTrader：https://www.cgtrader.com/3d-models/military/military-vehicle/fast-patrol-vessel-with-weapon | $58.00 | 2026-09-24 | | FCB 占位（轨道A）。注意：页面标 "License (no AI)"——不得对其 AI 重贴图/重拓扑 |
-| A7 | MicroSplat 核心（免费，96478）+ HDRP for Unity 6 适配包（280884）+ 1–2 模块 | Unity Asset Store：核心 https://assetstore.unity.com/packages/tools/terrain/microsplat-96478 ；模块样本 96480 / 96484；发行商页 https://assetstore.unity.com/publishers/25047 | ≈$20–60（核心 FREE；模块实测 $20/个，2 样本；Ultimate Bundle $99.50，划线 $199） | 2026-09-24 | | 地形贴图提质。模块单价样本外未核（B-L8） |
-| A8 | Amplify Impostors | Unity Asset Store：https://assetstore.unity.com/packages/tools/utilities/amplify-impostors-119877 | 促销 **$33** / 原价 $66（resolve_01；另见 $30.00 JSON-LD 残留） | 2026-09-24 | | 远景 impostor |
+| A7 | MicroSplat 核心（免费，96478）+ HDRP for Unity 6 适配包（~~280884~~ **更正：本项目 6000.3.24 应买 344008**，$20，2026-09-29 核）+ 1–2 模块 | Unity Asset Store：核心 https://assetstore.unity.com/packages/tools/terrain/microsplat-96478 ；6.3 适配包 https://assetstore.unity.com/packages/tools/terrain/microsplat-hdrp-for-unity-6-3-344008 ；模块样本 96480 / 96484；发行商页 https://assetstore.unity.com/publishers/25047 | ≈$20–60（核心 FREE 但 **HDRP 下完全不可用**——描述原文 "HDRP/URP support sold separately"；模块实测 $20/个；Ultimate Bundle $99.50） | 2026-09-24（SKU 更正 09-29） | | 地形贴图提质。免费替代=HDRP 原生 Terrain Lit（见顶部决策表） |
+| A8 | Amplify Impostors | Unity Asset Store：https://assetstore.unity.com/packages/tools/utilities/amplify-impostors-119877 | 促销 **$33** / 原价 $66；**2026-09-29 LD 实测 $30.00，兼容矩阵最高 2022.3.22 无 Unity 6 行** | 2026-09-24 | | 远景 impostor。免费替代=低模网格远景 LOD（见顶部决策表） |
 | A9 | FCB 外包精模（轨道B） | 2–3 家询价，见 [inquiry-letter-fcb-outsource.md](inquiry-letter-fcb-outsource.md) | $2,000–8,000（自由职业档）/ 上限 $15,000（工作室档） | 2026-09-24（定价锚） | | 最终主角船（45m FCB） |
 
 小计（不含 A9 与免费注册）：00-REPORT §5 原文为 **≈$250–300**。逐项加总为 $233.88–273.88（$122.88 配角包 + $58 + $20–60 + $33），与报告约数存在 ±$20 口径差——以逐项现价复核结果为准。
