@@ -48,3 +48,44 @@
 
 ## M7-B（占位，待 B 批完成后补）
 
+
+## M7-B 动目标与大气（commit e4c53261）
+
+### 交付事实（确定性证据）
+
+- **B1 浮标**：13 座 IALA-A（主航道带 10=3 红罐/3 绿锥/北南方位标 + 锚地进口 3 含安全水域标），
+  BuoyBeacon 夜灯复用 NavigationLights 光弧工艺（快闪 1s/群闪 10s×3/长闪 8s×1，曲线有测试）。
+- **B2 动目标**：渡轮（Medium 代役，编目无渡轮件）巴淡北部 (1.2005N 104.019E) ↔ 新加坡西南
+  (1.25N 103.79E) 往返；拖轮（RAstar 3200）东锚地以南 2km 闭环；WaypointFollower autoStart，
+  100m 步长逐点水深门 <0 fail-fast（含改道回归锚：合成岛压 x[3000,7000] z[-7600,-3400] 仍过）。
+- **B3 大气三档**：HazyClear 默认 8000m/云 0.35/0EV/雨关；Cumulonimbus 4000m/云 0.80/−0.8EV/太阳×0.55；
+  Thunderstorm 1500m/云 0.95/−1.6EV/太阳×0.30/雨 9000/s 粒子。smoothstep 3s 过渡（AdvanceAtmosphereTransition
+  可测缝）；杠杆选型=Exposure.compensation .Override（自动曝光下压太阳会被直方图抵消，补偿 EV 才留得住）。
+  WeatherGUI 下拉 + V 键循环。
+- **B4 渔排**：5 组（木板+浮筒+棚）far_r3c4 活跃 tile Batam 北浅水带 [-8,-2]m 窗，FishFarmSway 系留微摇摆。
+- **门禁**：EditMode 279→**297/297**（+18）；M6+M1 场景重建 exit=0/0；播放器 fresh。
+
+### 主 agent 实机验收（CUA，2026-09-29）
+
+- **三档大气切换全过**：V 键循环三次实拍（m7b-tier1-hazyclear / tier2-cumulonimbus / tier3-thunderstorm）——
+  积雨云档云量 0.80/雾 4000/画面变暗可辨；雷暴档雨幕粒子+1500m 浓雾+天光压暗，三档一眼差异成立；
+  面板下拉与滑条镜像同步（Cloud cover 0.35→0.80→0.95，Fog 8000→4000→1500）。
+- **夜航**：T×2 至 h=0 实拍（m7b-night / night-bridge）——月夜海面、三船号灯 ON（census：Ferry/Houbei/Tug
+  lights ON at h=0.0）、本船两舷灯光斑可见。
+- **fps 干净协议**：60.0×4 连读（vsync 上限，gate ≥30 大余量过）。
+- **probe 30/30**：`--sango-publisher` 启动 + `tools/sango_zmq_probe.py --count 30` → OK exit 0
+  （20Hz 稳流 1600x900，M3 链路在 M7 全内容下完好）。
+
+### 待裁决疑点与移交 review 批
+
+- **L1 舷灯侧别（不下结论，测试钉死）**：夜拍两次读色均似"红在右舷"（艉后视角），但代码链三重自洽——
+  ①DeriveAnchors 弓形框架 Port=−X 红；②ToNative(180°)+根旋转组合代数复核 world port 偏移·starboard<0
+  （h=0/134° 双点验算）；③census 三船 rig 内部一致且 M2-D 对该约定做过视觉验收。census loa=937.8 为
+  **网格原生单位口径**（×根缩放 0.0448=42m 实际，port ±151units=±6.8m 实际舷边），非悬空 bug。
+  → review 批派组合级测试：fresh placement 后断言 port 灯世界坐标在 −starboard 半平面，一锤定音；
+  另建议 census 日志标注单位口径。
+- **F1 瞭望机位**（M7-A finding，本次修复项）：C 循环加第五机位（船相对高角回望 ≈314°）——出生点见
+  PP 岸桥天际线，航线后段回望见东锚地船群；渡轮北端距出生点仅 ~2.6km（1.25N 103.79E），回望机位同时
+  解决动目标可见性。
+- **动目标/渔排/浮标日间视觉**：本批从出生点视距内不可达（雾 8000m 外），且无回望机位——census+水深门
+  +测试为确定性证据，视觉复核随 F1 机位修复后补拍。
