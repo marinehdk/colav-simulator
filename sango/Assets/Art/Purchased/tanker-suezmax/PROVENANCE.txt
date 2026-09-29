@@ -1,0 +1,22 @@
+Tanker Ship (Suez-Max) — asset provenance
+=========================================
+
+Model:          "Tanker Ship" by ArtBlender (Sketchfab)
+Source page:    https://sketchfab.com/3d-models/tanker-ship-96ebf61af42b4062ae98a6ad848e1a25
+License:        CC-BY 4.0 (Sketchfab license: "Author must be credited. Commercial
+                use is allowed." — no AI clauses; author desc states LOA 322 m /
+                beam 47 m, hand-painted textures; verified via Sketchfab API
+                2026-09-29, docs/research/2026-09-29-free-alternatives-ships.md §2.3)
+Attribution:    "Tanker Ship" by ArtBlender (sketchfab.com) — CC-BY 4.0
+                (also listed in sango/Docs/asset-registry.md)
+
+Download:       Sketchfab glTF download (tanker_ship.zip); converted GLB->FBX with
+                headless Blender (tools/convert_glb_to_fbx.py, textures embedded).
+                Original zip/glb archived outside the repo (tmp/m5-archives/).
+
+Use:            M5 traffic-fleet crude tanker (VesselClass.Tanker, LOA 300 m).
+                Route A free replacement for paid item A3.
+                C3 face gate: 193,100 faces on Sketchfab — over 150k hero budget,
+                verdict = mid-range anchorage dressing only (docs/research/
+                2026-09-29-m5-fleet-import/m5-audit.md).
+Policy:         No AI-generated textures applied to this model (project policy).

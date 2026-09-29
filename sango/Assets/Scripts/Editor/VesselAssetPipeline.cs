@@ -77,7 +77,8 @@ namespace Sango.Editor
 
         /// <summary>
         /// k_Specs 艏向字面量的唯一查表口（M2-D 航行灯锚点映射用）：原生艏 → +Z 所需根 yaw，
-        /// 即 prefab 根 localRotation 烘焙值。未编入 k_Specs 的档位返回 0（+Z 原生艏）。
+        /// 即 prefab 根 localRotation 烘焙值。未编入 k_Specs 的档位转查 M5 采购船队流水线
+        /// （M5FleetPipeline.BowYawDeg），两边都未编目返回 0（+Z 原生艏）。
         /// </summary>
         public static float BowYawDeg(VesselClass vesselClass)
         {
@@ -85,7 +86,7 @@ namespace Sango.Editor
             {
                 if (spec.vesselClass == vesselClass) return spec.bowYawDeg;
             }
-            return 0f;
+            return M5FleetPipeline.BowYawDeg(vesselClass);
         }
 
         [MenuItem("Sango/M2/Build Vessel Assets")]
@@ -208,7 +209,21 @@ namespace Sango.Editor
                 AssetDatabase.CreateAsset(catalog, CatalogAssetPath);
             }
             catalog.pipelineVersion = k_PipelineVersion;
-            catalog.entries = new VesselCatalog.Entry[k_Specs.Length];
+            // M5（2026-09-29）：整表只重写 Kenney 三档——编目里非 k_Specs 的条目（M5 采购
+            // 船队由 M5FleetPipeline 持有）原样保留，否则重跑 M2 构建会静默抹掉采购船队。
+            var preserved = new List<VesselCatalog.Entry>();
+            foreach (var existing in catalog.entries)
+            {
+                if (existing == null) continue;
+                bool ownedByKenneySpecs = false;
+                foreach (var spec in k_Specs)
+                {
+                    if (spec.vesselClass == existing.vesselClass) { ownedByKenneySpecs = true; break; }
+                }
+                if (!ownedByKenneySpecs) preserved.Add(existing);
+            }
+            catalog.entries = new VesselCatalog.Entry[k_Specs.Length + preserved.Count];
+            for (int p = 0; p < preserved.Count; p++) catalog.entries[k_Specs.Length + p] = preserved[p];
 
             for (int i = 0; i < k_Specs.Length; i++)
             {
@@ -268,6 +283,7 @@ namespace Sango.Editor
                     waterlineOffsetY = -draft,
                     bowEndWidth = bowEndWidth,
                     sternEndWidth = sternEndWidth,
+                    bowYawDeg = spec.bowYawDeg, // M5：运行时放置层（AnchorageFleet）不再反查编辑器流水线
                 };
             }
 
@@ -275,7 +291,9 @@ namespace Sango.Editor
             return catalog;
         }
 
-        static Bounds EncapsulatingRendererBounds(GameObject root)
+        // 实例的世界渲染器并集包围盒（含 FBX 导入自身缩放，单位无关）。M5 起公开：采购船队
+        // 流水线与审计工具复用同一测量（单一事实口）。
+        public static Bounds EncapsulatingRendererBounds(GameObject root)
         {
             var renderers = root.GetComponentsInChildren<Renderer>(true);
             var bounds = renderers[0].bounds;
@@ -285,8 +303,9 @@ namespace Sango.Editor
 
         // 艏向几何证据：导入姿态（恒等）下按 z 切 10 片统计 x 宽度，-Z/+Z 两端各取首末两片平均。
         // 窄端即艏（艏尖艉肥）；中段结构（桅杆/吊杆/舱口缝）只影响中段片宽，不影响首末片。
-        // 返回 (−Z 端宽度, +Z 端宽度)，并产出人类可读日志串。
-        static (float negEndWidth, float posEndWidth) MeasureEndTaper(GameObject instance, out string logLine)
+        // 返回 (−Z 端宽度, +Z 端宽度)，并产出人类可读日志串。M5 起公开：采购船队流水线
+        // 按同一证据自动定 BowYawDeg（窄端=艏）。
+        public static (float negEndWidth, float posEndWidth) MeasureEndTaper(GameObject instance, out string logLine)
         {
             const int slices = 10;
             var points = new List<Vector3>();

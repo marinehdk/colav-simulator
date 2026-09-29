@@ -1,0 +1,21 @@
+Container Ship — asset provenance
+=================================
+
+Model:          "Container Ship" by RM02 (Sketchfab)
+Source page:    https://sketchfab.com/3d-models/container-ship-aaa41cca946b4a08bc08cf692b7757be
+License:        CC-BY 4.0 (Sketchfab license: "Author must be credited. Commercial
+                use is allowed." — no AI clauses; verified via Sketchfab API
+                2026-09-29, docs/research/2026-09-29-free-alternatives-ships.md §2.2)
+Attribution:    "Container Ship" by RM02 (sketchfab.com) — CC-BY 4.0
+                (also listed in sango/Docs/asset-registry.md)
+
+Download:       Sketchfab FBX download (container_ship.zip); shipped
+                source/Ship.fbx + textures/ (full PBR set, DirectX normals).
+                Original zip/glb archived outside the repo (tmp/m5-archives/).
+
+Use:            M5 traffic-fleet container vessel (VesselClass.CargoContainer,
+                LOA 150 m). Route A free replacement for paid item A2.
+                C3 face gate: 188,711 faces on Sketchfab — over 150k hero budget,
+                verdict = mid-range anchorage dressing only (docs/research/
+                2026-09-29-m5-fleet-import/m5-audit.md).
+Policy:         No AI-generated textures applied to this model (project policy).

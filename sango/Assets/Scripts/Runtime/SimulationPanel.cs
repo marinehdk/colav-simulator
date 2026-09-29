@@ -29,6 +29,9 @@ namespace Sango
         [Tooltip("M4 船波 decal 适配器（艏波幅度/尾迹强度/速度阈值滑条即时驱动；构建器注入，可空）。")]
         public BoatWaterDecals waterDecals;
 
+        [Tooltip("M5 锚地布景（锚泊船数滑条即时重建；构建器注入，可空）。")]
+        public AnchorageFleet anchorage;
+
         [Tooltip("船只编目（预览按档位取 prefab/水线/LOA）。")]
         public VesselCatalog catalog;
 
@@ -176,6 +179,17 @@ namespace Sango
                     if (waterDecals != null) waterDecals.speedThresholdMps = v;
                 });
             y = LabeledSlider(y, "Speed threshold (m/s)", thresholdSlider);
+
+            // ── M5 锚地布景（即时生效，M4-A live 同款）────────────────────────────────
+            // 滑条直写 AnchorageFleet.SetDensity（整群确定性重建，槽位表 = 离线验证字面量）。
+            y = SectionLabel(y, "M5 ANCHORAGE  (live)");
+            int anchorMax = anchorage != null ? anchorage.maxDensity : AnchorageSlots.Defaults.Length;
+            int anchorNow = anchorage != null ? anchorage.density : 0;
+            var anchorSlider = CreateSlider("M5Anchorage", 0f, anchorMax, anchorNow, true, v =>
+            {
+                if (anchorage != null) anchorage.SetDensity(Mathf.RoundToInt(v));
+            });
+            y = LabeledSlider(y, "Anchored ships", anchorSlider);
 
             // ── 船模预览 ───────────────────────────────────────────────────────────────
             y = SectionLabel(y, "SHIP MODEL PREVIEW  (P cycles)");

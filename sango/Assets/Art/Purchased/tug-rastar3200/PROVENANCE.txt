@@ -1,0 +1,20 @@
+RAstar 3200 tugboat — asset provenance
+======================================
+
+Model:          "Rastar 3200 tugboat" by davidbroutian (Sketchfab)
+Source page:    https://sketchfab.com/3d-models/rastar-3200-tugboat-1bbadbe4ab0a4b2599cd3f450942e6fe
+License:        CC-BY 4.0 (Sketchfab license: "Author must be credited. Commercial
+                use is allowed."; author desc: "textures ready for use in game
+                engines such as Unreal Engine, Unity3D"; no AI clauses; verified
+                via Sketchfab API 2026-09-29, docs/research/2026-09-29-free-alternatives-ships.md §2.4)
+Attribution:    "Rastar 3200 tugboat" by davidbroutian (sketchfab.com) — CC-BY 4.0
+                (also listed in sango/Docs/asset-registry.md)
+
+Download:       Sketchfab glTF download (rastar_3200_tugboat.zip); converted
+                GLB->FBX with headless Blender (tools/convert_glb_to_fbx.py,
+                textures embedded). Original zip/glb archived outside the repo
+                (tmp/m5-archives/).
+
+Use:            M5 traffic-fleet harbour tug (VesselClass.Tug, LOA 32 m).
+                Route A free replacement for paid item A4.
+Policy:         No AI-generated textures applied to this model (project policy).

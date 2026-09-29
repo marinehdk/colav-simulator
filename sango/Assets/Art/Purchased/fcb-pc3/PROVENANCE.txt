@@ -1,0 +1,19 @@
+Lowpoly USS Hurricane (PC-3) — asset provenance
+===============================================
+
+Model:          "Lowpoly USS Hurricane (PC-3)" by S1Priv (Sketchfab)
+Source page:    https://sketchfab.com/3d-models/lowpoly-uss-hurricane-pc3-9582af31655d43ddbb0d3d2af9a037eb
+License:        CC-BY 4.0 (Sketchfab license: "Author must be credited. Commercial
+                use is allowed." — no AI clauses; verified via Sketchfab API
+                2026-09-29, docs/research/2026-09-29-free-alternatives-ships.md §2.5)
+Attribution:    "Lowpoly USS Hurricane (PC-3)" by S1Priv (sketchfab.com) — CC-BY 4.0
+                (also listed in sango/Docs/asset-registry.md)
+
+Download:       Sketchfab glTF download (lowpoly_uss_hurricane_pc-3.zip);
+                converted GLB->FBX with headless Blender
+                (tools/convert_glb_to_fbx.py, textures embedded). Original zip/glb
+                archived outside the repo (tmp/m5-archives/).
+
+Use:            M5 FCB secondary/far-field patrol craft (VesselClass.FcbPc3,
+                LOA 55 m). Route A free layering for paid item A6.
+Policy:         No AI-generated textures applied to this model (project policy).

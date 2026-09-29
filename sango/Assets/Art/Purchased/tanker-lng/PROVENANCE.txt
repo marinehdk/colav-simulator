@@ -1,0 +1,19 @@
+LNG Ship (Moss-type) — asset provenance
+=======================================
+
+Model:          "LNG Ship" by ArtBlender (Sketchfab)
+Source page:    https://sketchfab.com/3d-models/lng-ship-fa335b96450d4344863bbf5d912a0288
+License:        CC-BY 4.0 (Sketchfab license: "Author must be credited. Commercial
+                use is allowed."; author desc: "All textures were created by
+                myself... can be used for any purpose"; no AI clauses; verified
+                via Sketchfab API 2026-09-29, docs/research/2026-09-29-free-alternatives-ships.md §2.3)
+Attribution:    "LNG Ship" by ArtBlender (sketchfab.com) — CC-BY 4.0
+                (also listed in sango/Docs/asset-registry.md)
+
+Download:       Sketchfab glTF download (lng_ship.zip); converted GLB->FBX with
+                headless Blender (tools/convert_glb_to_fbx.py, textures embedded).
+                Original zip/glb archived outside the repo (tmp/m5-archives/).
+
+Use:            M5 traffic-fleet LNG carrier (VesselClass.TankerLng, LOA 300 m).
+                Route A free replacement for paid item A3 (paired with Tanker).
+Policy:         No AI-generated textures applied to this model (project policy).

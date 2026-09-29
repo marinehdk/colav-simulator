@@ -1,0 +1,23 @@
+Type 22 (Houbei) missile boat — asset provenance
+================================================
+
+Model:          "Type 22 missile boat" by dannzjs (Sketchfab)
+Source page:    https://sketchfab.com/3d-models/type-22-missile-boat-d90464e6ca2e4d23a7a5a9865d220945
+License:        CC-BY 4.0 (Sketchfab license: "Author must be credited. Commercial
+                use is allowed." — no AI clauses; verified via Sketchfab API
+                2026-09-29, docs/research/2026-09-29-free-alternatives-ships.md §2.5)
+Attribution:    "Type 22 missile boat" by dannzjs (sketchfab.com) — CC-BY 4.0
+                (also listed in sango/Docs/asset-registry.md)
+
+Download:       Sketchfab glTF download (type_22_missile_boat.zip); converted
+                GLB->FBX with headless Blender (tools/convert_glb_to_fbx.py,
+                textures embedded). Original zip/glb archived outside the repo
+                (tmp/m5-archives/).
+
+Use:            M5 FCB placeholder hero (VesselClass.FcbHoubei, LOA 42 m) — demo
+                protagonist ship. Placeholder dressing applied on import: white
+                hull + green fittings flat HDRP/Lit palette (original blue-camo
+                textures unused) + procedural black tire-fender rings. Route A
+                free replacement for paid item A6 placeholder track.
+Policy:         No AI-generated textures applied to this model (project policy);
+                recolour is a flat-material override, not a texture generation.

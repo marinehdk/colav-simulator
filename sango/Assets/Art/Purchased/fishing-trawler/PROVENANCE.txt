@@ -1,0 +1,18 @@
+Trawler — asset provenance
+==========================
+
+Model:          "Trawler" by JasperTobias (Sketchfab)
+Source page:    https://sketchfab.com/3d-models/trawler-421f3239115c44539686fcb62835f115
+License:        CC-BY 4.0 (Sketchfab license: "Author must be credited. Commercial
+                use is allowed." — no AI clauses; verified via Sketchfab API
+                2026-09-29, docs/research/2026-09-29-free-alternatives-ships.md §2.1)
+Attribution:    "Trawler" by JasperTobias (sketchfab.com) — CC-BY 4.0
+                (also listed in sango/Docs/asset-registry.md)
+
+Download:       Sketchfab "glTF" download (trawler.zip), shipped FBX variant kept
+                here as source/Trawler.fbx + textures/Colour_Palette.png.
+                Original zip/glb archived outside the repo (tmp/m5-archives/).
+
+Use:            M5 traffic-fleet fishing vessel (VesselClass.FishingTrawler,
+                LOA 25 m). Route A free replacement for paid item A1.
+Policy:         No AI-generated textures applied to this model (project policy).

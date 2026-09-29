@@ -1,0 +1,18 @@
+Cargo ship — asset provenance
+=============================
+
+Model:          "Cargo ship" by hungry_drifter (Sketchfab)
+Source page:    https://sketchfab.com/3d-models/cargo-ship-b7c97df584824ca682d26daabf401f87
+License:        CC-BY 4.0 (Sketchfab license: "Author must be credited. Commercial
+                use is allowed." — no AI clauses; verified via Sketchfab API
+                2026-09-29, docs/research/2026-09-29-free-alternatives-ships.md §2.2)
+Attribution:    "Cargo ship" by hungry_drifter (sketchfab.com) — CC-BY 4.0
+                (also listed in sango/Docs/asset-registry.md)
+
+Download:       Sketchfab glTF download (cargo_ship.zip); converted GLB->FBX with
+                headless Blender (tools/convert_glb_to_fbx.py, textures embedded).
+                Original zip/glb archived outside the repo (tmp/m5-archives/).
+
+Use:            M5 traffic-fleet general cargo vessel (VesselClass.CargoGeneral,
+                LOA 120 m). Route A free replacement for paid item A5.
+Policy:         No AI-generated textures applied to this model (project policy).

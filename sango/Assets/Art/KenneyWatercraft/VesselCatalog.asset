@@ -13,22 +13,82 @@ MonoBehaviour:
   m_Name: VesselCatalog
   m_EditorClassIdentifier: Sango.Vessels::Sango.VesselCatalog
   pipelineVersion: 3
+  fleetPipelineVersion: 1
   entries:
+  - vesselClass: 8
+    prefab: {fileID: 7745941666361840033, guid: 5319f3f963878423c9e83b3a4cc8b9d3, type: 3}
+    loaMeters: 24.999998
+    waterlineOffsetY: -2.567691
+    bowEndWidth: 5.406382
+    sternEndWidth: 6.9839764
+    bowYawDeg: 90
+  - vesselClass: 6
+    prefab: {fileID: 8521719354605057286, guid: 5f7daa7fd90094aaca50c46d0cbad3a7, type: 3}
+    loaMeters: 120
+    waterlineOffsetY: -7.5070267
+    bowEndWidth: 16.372606
+    sternEndWidth: 19.241209
+    bowYawDeg: 90
+  - vesselClass: 5
+    prefab: {fileID: 4820087023905006572, guid: b58002b5b1ff74c878f586df3862658e, type: 3}
+    loaMeters: 150
+    waterlineOffsetY: -8.333411
+    bowEndWidth: 8.822971
+    sternEndWidth: 8.860076
+    bowYawDeg: 90
+  - vesselClass: 3
+    prefab: {fileID: 4938118034801197597, guid: 34bf319c89d4e4c20a8b9027653270a6, type: 3}
+    loaMeters: 300
+    waterlineOffsetY: -14.064377
+    bowEndWidth: 19.566618
+    sternEndWidth: 19.632793
+    bowYawDeg: 0
+  - vesselClass: 4
+    prefab: {fileID: 3359626584961287222, guid: 1dcf3d919dfc8405ea6e6cf71376ce6c, type: 3}
+    loaMeters: 300
+    waterlineOffsetY: -11.736288
+    bowEndWidth: 5.2527003
+    sternEndWidth: 5.7953005
+    bowYawDeg: 0
+  - vesselClass: 7
+    prefab: {fileID: 185653262495740755, guid: 7c8eca65a3f4b462ba95071d62554eb8, type: 3}
+    loaMeters: 32
+    waterlineOffsetY: -5.3820624
+    bowEndWidth: 11.693607
+    sternEndWidth: 11.730462
+    bowYawDeg: 0
+  - vesselClass: 9
+    prefab: {fileID: 8845690319957712567, guid: ca2aae01e53ac485f97bd9e4f3cc9758, type: 3}
+    loaMeters: 42
+    waterlineOffsetY: -1.6763879
+    bowEndWidth: 207.96326
+    sternEndWidth: 275.70804
+    bowYawDeg: 180
+  - vesselClass: 10
+    prefab: {fileID: 7809319680948945369, guid: 187af12b83e3542c3a76cca19fd0a18e, type: 3}
+    loaMeters: 55
+    waterlineOffsetY: -2.0877204
+    bowEndWidth: 2.4734457
+    sternEndWidth: 2.875
+    bowYawDeg: 180
   - vesselClass: 0
     prefab: {fileID: 9163801143775574186, guid: 12f9ec1eab4e5436fa253881312756cf, type: 3}
     loaMeters: 100
     waterlineOffsetY: -1.3738428
     bowEndWidth: 5.311784
     sternEndWidth: 7.6122684
+    bowYawDeg: 0
   - vesselClass: 1
     prefab: {fileID: 4107976017558317156, guid: 434f3755d5b7a456499aeabfe5d297c5, type: 3}
     loaMeters: 60
     waterlineOffsetY: -1.2857398
     bowEndWidth: 5.7175293
     sternEndWidth: 6.7546597
+    bowYawDeg: 0
   - vesselClass: 2
     prefab: {fileID: 2120040287910415500, guid: e3d87d98346e34c86873ce386fc7a4f9, type: 3}
     loaMeters: 12
     waterlineOffsetY: -0.3255871
     bowEndWidth: 2.7614818
     sternEndWidth: 3.5700107
+    bowYawDeg: 0

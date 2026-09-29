@@ -31,6 +31,7 @@ namespace Sango.Editor
         {
             M0SceneBootstrapper.ConfigureHdrpAssets(); // plan A applied: M0 版已改 public，避免两处同步维护
             VesselAssetPipeline.EnsureBuilt(); // M2-A：干净克隆时自动补建船模 prefab/编目（齐全则零开销跳过）
+            M5FleetPipeline.EnsureBuilt();     // M5：采购船队 8 档同款自举（fleetPipelineVersion 分账）
             var profile = CreateVolumeProfileAsset();
             BuildScene(profile);
         }
@@ -56,8 +57,9 @@ namespace Sango.Editor
             float bowYawDeg = VesselAssetPipeline.BowYawDeg(vesselClass);
             ship.transform.rotation = Quaternion.Euler(0f, headingDeg, 0f) * Quaternion.Euler(0f, bowYawDeg, 0f);
             // 放置自证（batchmode 日志取证）：渲染艏（世界）= rotation·原生艏向量，必须等于 heading 方向。
-            // 原生艏向量 = (0,0,cos bowYaw)（编目 yaw 仅 0/180：0→+Z、180→−Z，见 VesselAssetPipeline.k_Specs）。
-            var nativeBow = new Vector3(0f, 0f, Mathf.Cos(bowYawDeg * Mathf.Deg2Rad));
+            // 原生艏向量 = (−sinθ, 0, cosθ)（θ=bowYaw；0→+Z、180→−Z 为 Kenney 两档，M5 采购件另有
+            // 90→−X、270→+X 的 X 轴原生船——见 M5FleetPipeline.MeasureBowYaw 的映射推导）。
+            var nativeBow = new Vector3(-Mathf.Sin(bowYawDeg * Mathf.Deg2Rad), 0f, Mathf.Cos(bowYawDeg * Mathf.Deg2Rad));
             var renderedBow = ship.transform.rotation * nativeBow;
             float rad = headingDeg * Mathf.Deg2Rad;
             Debug.Log($"[Sango.M1] placed {vesselClass} @ ({xz.x:F0},{xz.y:F0}) heading {headingDeg:0}° + bowYaw {bowYawDeg:0}° " +
@@ -114,31 +116,34 @@ namespace Sango.Editor
                 return null;
             }
 
+            // M5（spike notes §7.1 正式化项 1）：regionSize/amplitude 按 LOA 查 WaterDecalSizing 表
+            // （12 m 档逐位复现 M4 spike 提交值；hero 42 m FCB 档随之放大，区域预算/幅度钳见该表注释）。
+            var sizing = WaterDecalSizing.ForLoa(loaMeters);
             float s = Mathf.Max(ship.transform.lossyScale.x, 1e-3f); // 均匀烘焙缩放：局部单位 × s = 米
             float halfLoa = loaMeters * 0.5f;
 
-            // 艏波：V 尖顶落在艏柱（+loa/2），双臂向艉展开覆盖船身（12 m 小船量级）。
+            // 艏波：V 尖顶落在艏柱（+loa/2），双臂向艉展开覆盖船身。
             var bowGo = new GameObject("Bow Wave Decal");
             bowGo.transform.SetParent(ship.transform, false);
-            bowGo.transform.localPosition = new Vector3(0f, 0f, (halfLoa - 0.4f * 12f) / s);
+            bowGo.transform.localPosition = new Vector3(0f, 0f, (halfLoa - 0.4f * sizing.bowRegionSize.y) / s);
             bowGo.transform.localRotation = Quaternion.Euler(0f, 180f, 0f);
             var bow = bowGo.AddComponent<WaterDecal>();
             bow.material = bowMat;
             bow.scaleMode = DecalScaleMode.ScaleInvariant;
-            bow.regionSize = new Vector2(12f, 12f);
-            bow.amplitude = 0.4f;          // 全强航速 0.4 m 抬升（适配器按航速缩放）
+            bow.regionSize = sizing.bowRegionSize;
+            bow.amplitude = sizing.bowAmplitudeM; // 全强航速抬升（适配器按航速/Froude 曲线缩放）
             bow.surfaceFoamDimmer = 0f;
             bow.deepFoamDimmer = 0f;
 
             // 尾迹泡沫：V 尖顶落船中，双臂向艉外扩 + 泡沫缓冲持久化拖出尾迹；变形走材质关闭（_AffectDeformation: 0）。
             var wakeGo = new GameObject("Wake Foam Decal");
             wakeGo.transform.SetParent(ship.transform, false);
-            wakeGo.transform.localPosition = new Vector3(0f, 0f, (0f - 0.4f * 28f) / s);
+            wakeGo.transform.localPosition = new Vector3(0f, 0f, (0f - 0.4f * sizing.wakeRegionSize.y) / s);
             wakeGo.transform.localRotation = Quaternion.Euler(0f, 180f, 0f);
             var wake = wakeGo.AddComponent<WaterDecal>();
             wake.material = wakeMat;
             wake.scaleMode = DecalScaleMode.ScaleInvariant;
-            wake.regionSize = new Vector2(14f, 28f);
+            wake.regionSize = sizing.wakeRegionSize;
             wake.amplitude = 0f;
             wake.surfaceFoamDimmer = 0f;   // 适配器按航速爬坡驱动
             wake.deepFoamDimmer = 0.6f;
@@ -151,15 +156,16 @@ namespace Sango.Editor
             gate.follower = follower;
             gate.speedThresholdMps = 0.5f;
             gate.fullEffectSpeedMps = 5f;
-            gate.bowAmplitudeM = 0.4f;
+            gate.bowAmplitudeM = sizing.bowAmplitudeM;
             gate.loaMeters = loaMeters;
 
             // 水面开关：deformation/foam 任一 false 时对应 pass 直接不可见（WaterSystem.Decals CullWaterDecals）。
-            // decal 区域锚到演示船：region 跟船走，64 m 方区在 512 res 下 ≈ 8 px/m（默认 200 m 只有 2.56）。
+            // decal 区域锚到演示船：region 跟船走，尺寸按 LOA 放大（42 m FCB 档 ≈101 m；512 res 下 px/m 换算
+            // 见 M4-A 注）。锚泊船群不挂 decal（AnchorageFleet 纯布景，速度门限无关、零 decal 开销）。
             water.deformation = true;
             water.foam = true;
             water.decalRegionAnchor = ship.transform;
-            water.decalRegionSize = new Vector2(64f, 64f);
+            water.decalRegionSize = sizing.decalRegionSize;
             // M4-A 分辨率降档（issue #87）：deformation/foam 由默认 512 降 256——spike 实测 512 档
             // fps 25–28 < 30 闸门，且每升一档显存/reproject 代价 ×4（spike notes §5），256 档把两块
             // 模拟 RT 与泡沫 CS 降为 1/4 面积换回性能头寸；64 m 区域 256 档 ≈ 4 px/m 仍够 12 m 船 V 形。
@@ -167,8 +173,10 @@ namespace Sango.Editor
             water.deformationRes = WaterSurface.WaterDecalRegionResolution.Resolution256;
             water.foamResolution = WaterSurface.WaterDecalRegionResolution.Resolution256;
 
-            Debug.Log("[Sango.M4] water decals wired: bow V deformation (12x12 m, amp 0.4 m) + wake foam (14x28 m), " +
-                      "speed gate 0.5 m/s, full effect 5 m/s, decal region 64x64 m anchored to demo boat, sim res 256");
+            Debug.Log($"[Sango.M4] water decals wired (catalog-driven sizing, LOA {loaMeters:F0} m): " +
+                      $"bow {sizing.bowRegionSize.x:0}x{sizing.bowRegionSize.y:0} m amp {sizing.bowAmplitudeM:0.00} m, " +
+                      $"wake {sizing.wakeRegionSize.x:0}x{sizing.wakeRegionSize.y:0} m, region {sizing.decalRegionSize.x:0} m anchored to demo ship, " +
+                      "speed gate 0.5 m/s, full effect 5 m/s, sim res 256");
             return gate;
         }
 
@@ -275,14 +283,18 @@ namespace Sango.Editor
             lightGo.AddComponent<HDAdditionalLightData>();
             light.intensity = 100000f; // 正午量级 lux；Apply() 会按时刻滑条覆盖
 
-            // d. 2 艘编目船模（M2-A 替换占位方块船；M1 不做浮力查询，纯看海况尺度）：
-            //    小渔船近桥（原 Ship-0 位 (14,-6)，艏向 20°），邮轮中距 ((30,90)，艏向 -35°)。
-            //    泊位复算：seed-42 岛5 中心 (-30.9,51.6) 可视岸线 ~0.8R=61m，旧位 (-30,30) 距岛心仅 22m 搁浅，
-            //    新位 (30,90) 距岛5/岛3 可视岸线均 ≥17m（艏艉端投影 ≥15m，PerlinIslandGenerator 确定性复算）。
-            //    ship-cargo-a 编目在册但本场景不摆（留给 M2-E 遭遇场景）。
-            GameObject small = null, medium = null;
-            WaypointFollower smallFollower = null; // M2-E2：相机 rig/矢量箭头/Autonomous 按钮接线用
-            BoatWaterDecals smallDecals = null;    // M4-A：Simulation 面板「水面工艺」滑条驱动目标
+            // d. 船群（M5：主角换 FCB 占位 + 拖网渔船配角 + 锚地布景）：
+            //    · hero = FcbHoubei（42 m 白壳绿装占位，M5 换装主角）泊 (30,-12) 艏向 20°——
+            //      M2-C 的 12 m 渔船 demo 让位（Kenney Small 档仍在编目供 M2-E/预览）；
+            //      泊位/航线对 seed-42 岛群岸线盘按 42×12.6 m 船体矩形逐角核过（最差 6 m 裕量，
+            //      旧 (14,-6) 泊位仅够 12 m 船），验证记录 m5-audit.md。
+            //    · trawler（25 m 实渔船）静态泊 (-16,-28) 艏向 25°：近景尺度参照。
+            //    · medium 邮轮沿用 (30,90)（M2-A/M4 既有位，不动）。
+            //    · 锚地 5 槽默认密度（AnchorageFleet，槽位表离线验证）。
+            GameObject hero = null, trawler = null, medium = null;
+            WaypointFollower heroFollower = null; // M2-E2：相机 rig/矢量箭头/Autonomous 按钮接线用
+            BoatWaterDecals heroDecals = null;    // M4-A：Simulation 面板「水面工艺」滑条驱动目标
+            AnchorageFleet anchorage = null;      // M5：锚地密度滑条驱动目标
             var catalog = AssetDatabase.LoadAssetAtPath<VesselCatalog>(VesselAssetPipeline.CatalogAssetPath);
             if (catalog == null)
             {
@@ -291,29 +303,34 @@ namespace Sango.Editor
             else
             {
                 var shipsRoot = new GameObject("Ships");
-                small = PlaceCatalogShip(catalog, VesselClass.Small, new Vector2(14f, -6f), 20f, shipsRoot.transform, water);
+                hero = PlaceCatalogShip(catalog, VesselClass.FcbHoubei, new Vector2(30f, -12f), 20f, shipsRoot.transform, water);
+                trawler = PlaceCatalogShip(catalog, VesselClass.FishingTrawler, new Vector2(-16f, -28f), 25f, shipsRoot.transform, water);
                 medium = PlaceCatalogShip(catalog, VesselClass.Medium, new Vector2(30f, 90f), -35f, shipsRoot.transform, water);
 
-                // M2-C demo 航线（spec #82）：小渔船按 G 起航/停船，走清水走廊后回到泊位附近停船。
-                // 航点对 seed-42 全部 5 岛的可视岸线（≈0.8R）逐一核过 ≥12 m 裕量（推演见 evidence m2c-build-log.md）；
-                // 全程 ≈120 m，巡航 5 m/s ≈ 30 s 演示（含 3 次转弯与终点减速）。
-                if (small != null)
+                // M5 demo 航线（G 键语义不变）：42 m FCB 快巡档 8 m/s（≈16 kn）/ 25°/s / 到达半径 12 m；
+                // 航线沿南部开阔水域（岛 E 岸线盘南缘 z≈-9.2 以南），全航程船体矩形角点最差 6 m 裕量。
+                if (hero != null)
                 {
-                    smallFollower = small.AddComponent<WaypointFollower>(); // 参数用组件默认档（5 m/s / 20°/s / 8 m / 2 m/s²）
-                    smallFollower.demoHotkeysEnabled = true; // 仅演示船响应 G；M2-E 多跟随器实例默认 false，互不串扰
-                    smallFollower.waypoints = new[]
-                    {
-                        new Vector2(40f, 0f),
-                        new Vector2(60f, -20f),
-                        new Vector2(20f, -30f),
-                        new Vector2(5f, -12f),
-                    };
-                    Debug.Log("[Sango.M1] M2-C waypoint demo wired on Small ship: press G to sail/stop; " +
-                              "route (14,-6) -> (40,0) -> (60,-20) -> (20,-30) -> (5,-12), cruise 5 m/s");
+                    heroFollower = hero.AddComponent<WaypointFollower>();
+                    heroFollower.demoHotkeysEnabled = true; // 仅演示船响应 G；多跟随器实例默认 false，互不串扰
+                    heroFollower.cruiseSpeedMps = 8f;
+                    heroFollower.maxYawRateDegPerSec = 25f;
+                    heroFollower.arrivalRadiusM = 12f;
+                    heroFollower.bowYawDegOffset = VesselAssetPipeline.BowYawDeg(VesselClass.FcbHoubei); // M2-E1 组合艏向契约
+                    heroFollower.waypoints = AnchorageSlots.DemoRoute; // 槽位/航线清障字面量单一事实口（AnchorageSlotsTests 守）
+                    Debug.Log("[Sango.M1] M5 waypoint demo wired on FCB hero: press G to sail/stop; " +
+                              "route (30,-12) -> (52,-36) -> (72,-64) -> (30,-78) -> (-6,-50), cruise 8 m/s");
 
-                    // M4 spike：艏波变形 + 尾迹泡沫 WaterDecal（编目 LOA 定 V 尖顶锚位，速度门限接跟随器真值）。
-                    smallDecals = AttachWaterDecals(small, water, catalog.GetEntry(VesselClass.Small)?.loaMeters ?? 12f, smallFollower);
+                    // M4 spike→M5 编目驱动：艏波变形 + 尾迹泡沫 WaterDecal（WaterDecalSizing 按 LOA 定尺寸）。
+                    heroDecals = AttachWaterDecals(hero, water, catalog.GetEntry(VesselClass.FcbHoubei)?.loaMeters ?? 42f, heroFollower);
                 }
+
+                // M5 锚地布景：默认 5 槽（SE 群 + LNG），密度滑条运行时可调（Simulation 面板 M5 段）。
+                var anchorageGo = new GameObject("Anchorage Fleet", typeof(AnchorageFleet));
+                anchorage = anchorageGo.GetComponent<AnchorageFleet>();
+                anchorage.catalog = catalog;
+                anchorage.waterSurface = water;
+                anchorage.SetDensity(5);
             }
 
             // e. Perlin 岛屿：5 岛 seed 42（PLAN §5 M1；程序化 mesh 生成器见 PerlinIslandGenerator）
@@ -343,19 +360,21 @@ namespace Sango.Editor
             var guiGo = new GameObject("Weather GUI", typeof(WeatherGUI));
             guiGo.GetComponent<WeatherGUI>().controller = weather;
 
-            // M2-D 航行灯（spec #83）：两船各挂 NavigationLights，时刻真值注入 WeatherController。
+            // M2-D 航行灯（spec #83）：三船各挂 NavigationLights，时刻真值注入 WeatherController。
             // 明灭随既有 T 循环/时刻滑条（纯阈值 NavigationLightsCore.IsLightsOn），无新键位。
-            // bowYawDeg 由 VesselAssetPipeline.BowYawDeg 查 k_Specs（Medium 根烘焙 180°）：
+            // bowYawDeg 由 VesselAssetPipeline.BowYawDeg 查表（Medium 根烘焙 180°；M5 采购件 0/90/180/270）：
             // 根局部空间是原生轴，锚点推导必须按它映射，否则 −Z 原生艏的 Medium 被静默镜像（验收 P2）。
-            AttachNavigationLights(small, VesselClass.Small, weather);
+            AttachNavigationLights(hero, VesselClass.FcbHoubei, weather);
+            AttachNavigationLights(trawler, VesselClass.FishingTrawler, weather);
             AttachNavigationLights(medium, VesselClass.Medium, weather);
-            Debug.Log("[Sango.M1] M2-D navigation lights wired on both ships (on/off follows time-of-day; port RED / starboard GREEN / white masthead + stern)");
+            Debug.Log("[Sango.M1] M2-D navigation lights wired on three ships (on/off follows time-of-day; port RED / starboard GREEN / white masthead + stern)");
 
-            // M4-B 水线工艺：两船各挂湿感带 + boot top 红（湿带 y 跟浮力水面解算；夜态灯弧
-            // 由 NavigationLights 光弧驱动自动生效——观察者方位 = 主相机）。
-            AttachHullWaterlineDecals(small, 0.5f);
+            // M4-B 水线工艺：三船各挂湿感带 + boot top 红（湿带 y 跟浮力水面解算；夜态灯弧
+            // 由 NavigationLights 光弧驱动自动生效——观察者方位 = 主相机）。带宽按船级：42 m FCB 1.2 m。
+            AttachHullWaterlineDecals(hero, 1.2f);
+            AttachHullWaterlineDecals(trawler, 0.5f);
             AttachHullWaterlineDecals(medium, 2.0f);
-            Debug.Log("[Sango.M4B] hull waterline decals wired on both ships (wetness band follows buoyancy water level; boot top 0.5 m / 2.0 m)");
+            Debug.Log("[Sango.M4B] hull waterline decals wired on three ships (wetness band follows buoyancy water level; boot top 1.2 / 0.5 / 2.0 m)");
 
             // g. 相机：桥楼高度视角 (0,12,-40) 望岛群
             var cameraGo = new GameObject("Main Camera", typeof(Camera));
@@ -372,7 +391,7 @@ namespace Sango.Editor
             //     键位账本：C 相机循环 · V 矢量开关 · A demo（G 既有）· Q/E 雷达量程 · Z/X 转速
             //     · -/= 岛数 · ,/. 缩放 · Enter Apply · P 预览档 · B 检测框叠加（M3，0-9/T/F 天气不动）。
             var cameraRig = cameraGo.AddComponent<CameraRig>();
-            cameraRig.followShip = small != null ? small.transform : null;
+            cameraRig.followShip = hero != null ? hero.transform : null; // M5：跟随目标 = FCB 占位主角
             cameraRig.controlledCamera = camera;
 
             // M4-B 海况摇晃：桥楼/Chase 机位叠加 SeaStateSway 表驱动小晃（B0 全零），
@@ -383,17 +402,19 @@ namespace Sango.Editor
 
             var radarGo = new GameObject("Radar Overlay", typeof(RadarOverlay));
             var radar = radarGo.GetComponent<RadarOverlay>();
-            radar.ownShip = small != null ? small.transform : null;
-            radar.otherShips = medium != null ? new[] { medium.transform } : System.Array.Empty<Transform>();
+            radar.ownShip = hero != null ? hero.transform : null;
+            radar.otherShips = medium != null
+                ? (trawler != null ? new[] { medium.transform, trawler.transform } : new[] { medium.transform })
+                : System.Array.Empty<Transform>();
 
-            if (smallFollower != null)
+            if (heroFollower != null)
             {
-                var arrows = small.AddComponent<VectorArrows>();
-                arrows.follower = smallFollower;
+                var arrows = hero.AddComponent<VectorArrows>();
+                arrows.follower = heroFollower;
                 arrows.cameraRig = cameraRig;
 
                 var autoGo = new GameObject("Autonomous Control", typeof(AutonomousControlPanel));
-                autoGo.GetComponent<AutonomousControlPanel>().follower = smallFollower;
+                autoGo.GetComponent<AutonomousControlPanel>().follower = heroFollower;
             }
 
             var simGo = new GameObject("Simulation GUI", typeof(SimulationPanel));
@@ -401,7 +422,8 @@ namespace Sango.Editor
             sim.radar = radar;
             sim.catalog = catalog;
             sim.islandCenter = k_IslandCenter;
-            sim.waterDecals = smallDecals; // M4-A：水面工艺滑条（材质缺失跳过时为 null，滑条照常显示不生效）
+            sim.waterDecals = heroDecals; // M4-A：水面工艺滑条（材质缺失跳过时为 null，滑条照常显示不生效）
+            sim.anchorage = anchorage;    // M5：锚地密度滑条（AnchorageFleet 缺失时为 null，滑条照常显示不生效）
             var islandBaseline = IslandRebuild.M1Baseline();
             islandBaseline.material = islandMaterial;
             sim.islandBaseline = islandBaseline;
@@ -411,8 +433,9 @@ namespace Sango.Editor
             var overlayGo = new GameObject("Detection Overlay", typeof(DetectionOverlay));
             var overlay = overlayGo.GetComponent<DetectionOverlay>();
             var overlayShips = new List<Transform>();
-            if (small != null) overlayShips.Add(small.transform);
+            if (hero != null) overlayShips.Add(hero.transform);
             if (medium != null) overlayShips.Add(medium.transform);
+            if (trawler != null) overlayShips.Add(trawler.transform);
             overlay.ships = overlayShips.ToArray();
 
             var pubGo = new GameObject("Frame Publisher", typeof(FramePublisher)); // 默认关闸：OnEnable 早退零开销
