@@ -39,6 +39,16 @@ namespace Sango.Editor
         // M7-A（2026-09-29）：锚地迁真实锚区（见 k_StraitSlots 注）；新增布景四要素 stage
         // （M7BackdropBuilder：Tuas/PP 岸桥天际线+箱堆、A3 平整、A4 远景植被），落位另有陆上门禁。
 
+        /// <summary>海峡锚地槽位（M7-A 迁真实锚区；表体/选点 provenance 见
+        /// M7BackdropMath.StraitAnchorageSlots——此仅转发引用，保 k_StraitSlots 消费点不动）。</summary>
+        static readonly AnchorageSlot[] k_StraitSlots = M7BackdropMath.StraitAnchorageSlots;
+
+        // M7-B（2026-09-29）：f3 stage 接棒——IALA A 区浮标 13 座（主航道带 10 + 锚地口 3，
+        // 夜灯 BuoyBeacon）、渡轮/拖轮动目标（WaypointFollower autoStart，航线往返/闭环）、
+        // 渔排 5 组（浅水 2-8 m 窗，FishFarmSway 系留微摇摆）、大气三档（浓霾晴/积雨云/
+        // 雷暴雨幡；WeatherGUI V 键循环 + 下拉，雨 VFX 挂 Main Camera）。落位与航路逐点
+        // 水深门禁在 M7BSceneBuilder.Build 内 fail-fast（选点 provenance 见 M7BMath 类头注）。
+
         /// <summary>主角泊位（中部深水航道西缘，艏向沿航线首段 ~134°）。</summary>
         static readonly Vector2 k_HeroBerth = new Vector2(-1500f, -5000f);
         const float k_HeroHeadingDeg = 134f;
@@ -51,10 +61,6 @@ namespace Sango.Editor
             new Vector2(7200f, -11200f),
             new Vector2(9500f, -8800f),
         };
-
-        /// <summary>海峡锚地槽位（M7-A 迁真实锚区；表体/选点 provenance 见
-        /// M7BackdropMath.StraitAnchorageSlots——此仅转发引用，保 k_StraitSlots 消费点不动）。</summary>
-        static readonly AnchorageSlot[] k_StraitSlots = M7BackdropMath.StraitAnchorageSlots;
 
         // 水深 fail-fast 裕量：除"高程<0"硬门外再压 5 m（防搁浅工程口径：keel/锚链富余）。
         const float k_DepthMarginM = 5f;
@@ -185,6 +191,10 @@ namespace Sango.Editor
             //     幂等：平整在 M6TerrainPipeline.BuildAll 重建 RAW 高度后重放，资产 load-or-create）
             M7BackdropBuilder.BuildBackdrop(manifest, terrains, BuildSampler(terrains));
 
+            // f3. M7-B 海峡浮标/动目标/渔排（B1 IALA 浮标 + B2 渡轮/拖轮 + B4 渔排；
+            //     内置构建期水深门禁 fail-fast——浮标逐点 <0、航路 100 m 逐点 <0、渔排 [-8,-2] 窗）
+            M7BSceneBuilder.Build(manifest, water, weather, catalog, BuildSampler(terrains));
+
             // g. 水深验证（构建期 fail-fast，确定性，防搁浅；不满足即构建失败报错，不静默换点）
             ValidateDepths(terrains);
 
@@ -210,6 +220,9 @@ namespace Sango.Editor
             var sway = cameraGo.AddComponent<BridgeSway>();
             sway.weather = weather;
             sway.rig = cameraRig;
+
+            // M7-B 雨 VFX（雷暴雨幡档）：相机挂载（发射器跟相机、粒子世界系），WeatherController 驱动
+            weather.rain = cameraGo.AddComponent<RainFall>();
 
             var radarGo = new GameObject("Radar Overlay", typeof(RadarOverlay));
             var radar = radarGo.GetComponent<RadarOverlay>();

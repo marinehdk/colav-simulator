@@ -32,6 +32,9 @@ namespace Sango
         [Tooltip("响应 G 键启停 demo（默认 false）：每个实例各持开关，M2-E 多跟随器互不串扰；仅 M1 演示船接线为 true。")]
         public bool demoHotkeysEnabled = false;
 
+        [Tooltip("Play 进入即自动 Toggle 起跑（M7-B 渡轮/拖轮常动目标；默认 false，M1/M2E 演示仍走 G 键，行为零变化）。")]
+        public bool autoStart = false;
+
         [Tooltip("烘焙艏向补偿（度，M2-E）：prefab 根原生艏 ≠ +Z 的档位（Medium 180）。导航艏向 psi 写回为 rotation.y = psi + 本值；初始化捕获反解 psi = euler.y − 本值。默认 0 = M1/M2-C 行为逐位不变。")]
         public float bowYawDegOffset = 0f;
 
@@ -72,6 +75,11 @@ namespace Sango
             ArrivalRadiusM = arrivalRadiusM,
             MaxAccelMps2 = maxAccelMps2,
         };
+
+        void Start()
+        {
+            if (autoStart) Toggle(); // M7-B 常动目标：Play 即起跑（G 键暂停/恢复语义不变）
+        }
 
         void Update()
         {

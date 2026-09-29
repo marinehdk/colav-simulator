@@ -29,6 +29,7 @@ namespace Sango
         RectTransform _panel;
         Slider[] _sliders;   // [beaufort, windDir, time, cloud, fog]，Update 镜像用
         Dropdown _tierDropdown;
+        Dropdown _atmoDropdown; // M7-B 大气档（V 键循环镜像）
 
         const float PanelWidth = 380f;
         const float ValueRowHeight = 26f; // 标签行高
@@ -133,6 +134,21 @@ namespace Sango
                 OnAnyChanged();
             });
 
+            // M7-B 大气三档（浓霾晴/积雨云/雷暴雨幡）：下拉选择 + V 键循环（HandleHotkeys）。
+            _cursorY -= ValueRowHeight;
+            CreateRowLabel("Atmosphere (M7-B)");
+            _cursorY -= ValueRowHeight;
+            var atmoNames = new[] { "Hazy clear", "Cumulonimbus", "Thunderstorm" };
+            _atmoDropdown = CreateDropdown(_panel, "AtmoDropdown", atmoNames,
+                controller != null ? (int)controller.atmosphereTier : 0, i =>
+            {
+                if (controller == null) return;
+                controller.atmosphereTier = (M7BMath.AtmosphereTier)i;
+                controller.ApplyAtmosphereTier();
+                controller.Apply();
+                RefreshReadout();
+            });
+
             _sliders = new[] { beaufortSlider, windDirSlider, timeSlider, cloudSlider, fogSlider };
             _panel.sizeDelta = new Vector2(PanelWidth, -_cursorY + 12f);
         }
@@ -180,6 +196,14 @@ namespace Sango
                 RefreshReadout();
                 Debug.Log($"[Sango.M1] hotkey fog={k_FogPresets[_fogPresetIdx]}m");
             }
+            if (Input.GetKeyDown(KeyCode.V)) // M7-B 大气档循环（0-9/T/F/B/C/G 已占用，V 空闲）
+            {
+                controller.atmosphereTier = M7BMath.NextAtmosphereTier(controller.atmosphereTier);
+                controller.ApplyAtmosphereTier();
+                controller.Apply();
+                RefreshReadout();
+                Debug.Log($"[Sango.M1] hotkey atmosphere={controller.atmosphereTier}");
+            }
         }
 
         // applyEveryFrame 下 controller 公开字段是唯一真值源（Inspector/后续脚本可绕 GUI 直改）。
@@ -202,6 +226,11 @@ namespace Sango
             {
                 _tierDropdown.SetValueWithoutNotify((int)controller.spectrumTier);
                 _tierDropdown.RefreshShownValue();
+            }
+            if (_atmoDropdown != null && (int)controller.atmosphereTier != _atmoDropdown.value)
+            {
+                _atmoDropdown.SetValueWithoutNotify((int)controller.atmosphereTier);
+                _atmoDropdown.RefreshShownValue();
             }
             RefreshReadout();
         }

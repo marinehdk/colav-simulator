@@ -36,11 +36,64 @@ namespace Sango
         [Min(100f)] public float fogDistanceMeters = 3000f;          // 雾距 m
         public JsPmTier spectrumTier = JsPmTier.Moderate;            // 海浪谱档位
 
+        [Header("M7-B atmosphere tier (V key / GUI dropdown; preset = M7BMath.AtmospherePresetFor)")]
+        public M7BMath.AtmosphereTier atmosphereTier = M7BMath.AtmosphereTier.HazyClear; // 浓霾晴 = 默认档
+        [Range(-3f, 1f)] public float exposureCompensationEv = 0f;   // 当前曝光补偿 EV（档间过渡动画值）
+        [Range(0f, 1f)] public float sunDimFactor = 1f;              // 当前直射太阳强度乘子（过渡动画值）
+        [Min(0f)] public float rainRate = 0f;                        // 当前雨粒子发射率 粒子/s（过渡动画值）
+        [Tooltip("雨粒子 VFX（场景构建器挂 Main Camera；空则无雨）。")]
+        public RainFall rain;
+
         [Header("Runtime")]
         public bool applyEveryFrame = true;                          // Play 中每帧 Apply（GUI 拖动即时生效的兜底）
 
         /// <summary>最近一次 Apply 算出的风速 m/s（GUI 顶部读数与映射表核对用，M1 验收条款 2）。</summary>
         public float LastWindSpeedMs { get; private set; }
+
+        // ── M7-B 大气档间过渡（preset lerp；AdvanceAtmosphereTransition 是 EditMode 可测缝）──
+        // 目标值来自 M7BMath.AtmospherePresetFor（纯函数）；动画只改 fogDistanceMeters/cloudCover/
+        // exposureCompensationEv/sunDimFactor/rainRate 五个"当前值"字段（GUI 滑条镜像随动），HDRP
+        // 写入仍走既有 Apply 管线（.Override 口径）。初始 m_TransT == m_TransDur = 无过渡，字段
+        // 保持Inspector/构建器注入值——首次 ApplyAtmosphereTier 才起动画。
+        float m_TransT = 1f;
+        float m_TransDur = 1f;
+        float m_FogFrom, m_FogTo, m_CloudFrom, m_CloudTo, m_EvFrom, m_EvTo, m_DimFrom, m_DimTo, m_RainFrom, m_RainTo;
+
+        /// <summary>档间过渡进行中？（首帧前 false——初始字段即当前值。）</summary>
+        public bool AtmosphereTransitioning => m_TransT < m_TransDur;
+
+        /// <summary>
+        /// 切到 atmosphereTier 并从当前值起过渡（WeatherGUI V 键/下拉消费；可重复调用重定向）。
+        /// </summary>
+        public void ApplyAtmosphereTier()
+        {
+            var p = M7BMath.AtmospherePresetFor(atmosphereTier);
+            m_FogFrom = fogDistanceMeters; m_FogTo = p.fogDistanceM;
+            m_CloudFrom = cloudCover; m_CloudTo = p.cloudCover;
+            m_EvFrom = exposureCompensationEv; m_EvTo = p.exposureCompensationEv;
+            m_DimFrom = sunDimFactor; m_DimTo = p.sunDimFactor;
+            m_RainFrom = rainRate; m_RainTo = p.rain ? p.rainRate : 0f;
+            m_TransDur = Mathf.Max(0.01f, p.transitionSeconds);
+            m_TransT = 0f;
+        }
+
+        /// <summary>
+        /// 推进过渡 dt 秒（Update 消费 Time.deltaTime；EditMode 测试直接喂 dt——Time.time 在
+        /// 编辑器态不前进，dt 显式参数是可测缝）。返回 true = 仍在过渡中。
+        /// </summary>
+        public bool AdvanceAtmosphereTransition(float dt)
+        {
+            if (!AtmosphereTransitioning) return false;
+            m_TransT = Mathf.Min(m_TransDur, m_TransT + Mathf.Max(0f, dt));
+            float t = m_TransT / m_TransDur;
+            t = t * t * (3f - 2f * t); // smoothstep：档间两端缓入缓出
+            fogDistanceMeters = Mathf.Lerp(m_FogFrom, m_FogTo, t);
+            cloudCover = Mathf.Lerp(m_CloudFrom, m_CloudTo, t);
+            exposureCompensationEv = Mathf.Lerp(m_EvFrom, m_EvTo, t);
+            sunDimFactor = Mathf.Lerp(m_DimFrom, m_DimTo, t);
+            rainRate = Mathf.Lerp(m_RainFrom, m_RainTo, t);
+            return AtmosphereTransitioning;
+        }
 
         // 蒲福→风速锚点（级内中值，公认换算：B0≈0.5 / B3≈4.5 / B6≈12.5 / B9≈22.5，PLAN §5 M1 验收 1）
         static readonly (float bft, float ms)[] WindAnchors =
@@ -59,7 +112,11 @@ namespace Sango
 
         void Update()
         {
-            if (applyEveryFrame && Application.isPlaying) Apply();
+            if (applyEveryFrame && Application.isPlaying)
+            {
+                AdvanceAtmosphereTransition(Time.deltaTime); // 档间 lerp 先行，Apply 消费动画后的当前值
+                Apply();
+            }
         }
 
         void OnValidate()
@@ -101,6 +158,7 @@ namespace Sango
             ApplyWater(windMs);
             ApplySun();
             ApplyCloudsAndFog();
+            ApplyAtmosphereExtras();
         }
 
         // ── Water band 映射 ─────────────────────────────────────────────────────────────
@@ -154,7 +212,8 @@ namespace Sango
             float azimuthDeg = (timeOfDayHours / 24f) * 360f;
             sunLight.transform.rotation = Quaternion.Euler(elevationDeg, azimuthDeg, 0f);
             float dayFactor = Mathf.Clamp01(Mathf.Sin(elevationDeg * Mathf.Deg2Rad));
-            sunLight.intensity = Mathf.Lerp(0.1f, 100000f, dayFactor * dayFactor); // 平方压暗晨昏
+            // M7-B：sunDimFactor=1（晴档/默认）时与旧契约逐位一致；积雨云/雷暴档压直射
+            sunLight.intensity = Mathf.Lerp(0.1f, 100000f, dayFactor * dayFactor) * sunDimFactor;
         }
 
         // ── 云量 / 雾距 → Volume override ─────────────────────────────────────────────
@@ -205,6 +264,20 @@ namespace Sango
                                                                              // 雾感同时目标可见（仍 TBD-实机微调）
                 fog.maximumHeight.Override(120f); // 雾层盖过桥楼视线（相机 y=12 + 余量），TBD-实机
             }
+        }
+
+        // ── M7-B 大气档附加杠杆：曝光补偿 + 雨 ────────────────────────────────────────
+        // Exposure.compensation 是自动曝光（M6 profile Automatic 档）下的确定性压暗杠杆——
+        // 直射太阳压暗（sunDimFactor）会被逐帧直方图自适应抵消，补偿 EV 移动直方图目标才留得住
+        // 雷暴暗天观感。字段源码 PostProcessing/Components/Exposure.cs:46（FloatParameter）。
+        void ApplyAtmosphereExtras()
+        {
+            if (globalVolume != null && globalVolume.profile.TryGet<Exposure>(out var exposure))
+            {
+                exposure.active = true;
+                exposure.compensation.Override(exposureCompensationEv); // .Override 口径（同雾参数注释）
+            }
+            if (rain != null) rain.SetRate(rainRate);
         }
     }
 }
