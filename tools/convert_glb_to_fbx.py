@@ -9,7 +9,8 @@ driven headless:
 
 Per input `Purchased/<product>/<name>.glb` this writes `Purchased/<product>/source/<name>.fbx`
 plus the GLB's embedded textures as sibling PNG/JPG files (FBX export path_mode='COPY',
-embed_textures=True). If no GLB paths are passed, every `sango/Assets/Art/Purchased/**/*.glb`
+embed_textures=False — Unity 侧逐材质回接，嵌入会与贴图重导管线打架；见 :88-90 注释).
+If no GLB paths are passed, every `sango/Assets/Art/Purchased/**/*.glb`
 is converted (idempotent: an existing target FBX is skipped unless --force).
 
 Scale chain note (audit hook): glTF is metres; Blender's glTF importer converts to
