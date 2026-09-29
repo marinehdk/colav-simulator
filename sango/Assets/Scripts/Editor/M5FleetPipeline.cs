@@ -29,8 +29,10 @@ namespace Sango.Editor
 
         // 编目版本戳（VesselCatalog.fleetPipelineVersion，与 Kenney pipelineVersion 分账）：
         // 换源模型/改归一化规则/改贴图回接时 +1；EnsureBuilt 见版本不符即整跑重建。
-        // 历史：1=首版（8 船入库，Houbei hero 白壳绿装+轮胎护舷）。
-        public const int k_PipelineVersion = 1;
+        // 历史：1=首版（8 船入库，Houbei hero 白壳绿装+轮胎护舷）；
+        //       2=归一化补偿从根位姿改烘进子节点（F1 加固：根位姿补偿被放置层覆盖抹除，
+        //         M5FleetPlacementPoseTests 实测 13 断言红后修复重导）。
+        public const int k_PipelineVersion = 2;
 
         /// <summary>Houbei 占位涂装：白壳 + 绿装（flat 调色板，替换原蓝迷彩贴图；无 AI 工序）。</summary>
         static readonly Color k_FcbHullWhite = new Color(0.93f, 0.94f, 0.92f);
@@ -313,6 +315,18 @@ namespace Sango.Editor
             {
                 ApplyRemappedMaterials(root, instance, spec);
             }
+
+            // F1 加固（硬化批实测裁决后修复）：归一化补偿从根位姿改烘进直接子节点。
+            // 放置层（PlaceCatalogShip/AnchorageFleet）只覆盖 root 的 position/rotation——
+            // 补偿留在根 position 上会在落位时被覆盖抹除（M5FleetPlacementPoseTests 实测：
+            // 7/8 keel 错位最大 +31.8 m、6/8 中心偏移最大 43.4 m）。目标 root-local 框架：
+            // keel=0、center.x/z=0（keel 随根 y 走：root 放到 waterlineOffsetY 即 keel 落在
+            // 设计吃水）。做法：root position 落回 0，位移差+吃水抬升折算进全部直接子节点
+            // localPosition（含 FCB Tire Fenders；均匀缩放+纯 yaw 下逐位等价）。
+            var bakedPosition = root.transform.position;
+            root.transform.position = Vector3.zero;
+            var childOffset = Quaternion.Inverse(yaw) * ((bakedPosition + new Vector3(0f, draft, 0f)) / scale);
+            foreach (Transform child in root.transform) child.localPosition += childOffset;
 
             PrefabUtility.SaveAsPrefabAsset(root, $"{k_PrefabsDir}/{spec.prefabName}.prefab");
             Object.DestroyImmediate(root);

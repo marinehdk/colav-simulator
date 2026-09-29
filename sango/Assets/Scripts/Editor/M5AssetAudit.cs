@@ -57,9 +57,10 @@ namespace Sango.Editor
             sb.AppendLine("- 闸门：**hero ≤150,000 tri**（C3）；超标船记录裁决=减面或降级中景，不静默入库。");
             sb.AppendLine("- 面数为 Unity 导入后实测（全部 MeshFilter × 全部 submesh 索引和，去重网格）；Sketchfab faceCount 仅作对照。");
             sb.AppendLine("- 包围盒 = 恒等姿态实例化的世界渲染器并集（含 FBX 导入缩放）；偏差>20% 记 finding，编目 LOA 归一化时修正。");
+            sb.AppendLine("- 中心 = 同一包围盒 center（烘焙归属核验：归一化补偿烘在子节点时，源 FBX 中心即模型原始偏移；prefab 侧落位契约由 M5FleetPlacementPoseTests 钉死）。");
             sb.AppendLine();
-            sb.AppendLine("| 船 | 角色 | tri | verts | 贴图 | UV 通道 | LOD | 包围盒 (x,y,z m) | 实测水平边 | 预期 LOA | 偏差 | C3 裁决 |");
-            sb.AppendLine("|---|---|---|---|---|---|---|---|---|---|---|---|");
+            sb.AppendLine("| 船 | 角色 | tri | verts | 贴图 | UV 通道 | LOD | 包围盒 (x,y,z m) | 中心 (x,y,z m) | 实测水平边 | 预期 LOA | 偏差 | C3 裁决 |");
+            sb.AppendLine("|---|---|---|---|---|---|---|---|---|---|---|---|---|");
 
             var detail = new StringBuilder();
             foreach (var spec in k_Specs)
@@ -90,7 +91,7 @@ namespace Sango.Editor
             var source = AssetDatabase.LoadAssetAtPath<GameObject>(spec.modelPath);
             if (source == null)
             {
-                table.AppendLine($"| {spec.label} | {spec.role} | MISSING | | | | | 模型缺失：{spec.modelPath} | | | | | 阻断 |");
+                table.AppendLine($"| {spec.label} | {spec.role} | MISSING | | | | | | 模型缺失：{spec.modelPath} | | | | | 阻断 |");
                 Debug.LogError($"[Sango.M5] model missing: {spec.modelPath}");
                 return;
             }
@@ -161,7 +162,8 @@ namespace Sango.Editor
                 : (spec.role.Contains("hero") ? "**超标：减面后方可作 hero**" : "**超 150k：限中景（不入 hero，不减面本批）**");
 
             table.AppendLine($"| {spec.label} | {spec.role} | {tris:N0} | {verts:N0} | {texSummary} | {uvChannels} | {lodGroups} | " +
-                             $"({bounds.size.x:F1}, {bounds.size.y:F1}, {bounds.size.z:F1}) | {extent:F1} | {(spec.expectedLoa > 0 ? spec.expectedLoa.ToString("0") : "—")} | {deviation} | {verdict} |");
+                             $"({bounds.size.x:F1}, {bounds.size.y:F1}, {bounds.size.z:F1}) | " +
+                             $"({bounds.center.x:F1}, {bounds.center.y:F1}, {bounds.center.z:F1}) | {extent:F1} | {(spec.expectedLoa > 0 ? spec.expectedLoa.ToString("0") : "—")} | {deviation} | {verdict} |");
 
             detail.AppendLine($"### {spec.label} (`{spec.modelPath}`)");
             detail.AppendLine();

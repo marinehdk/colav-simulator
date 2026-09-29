@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using NUnit.Framework;
 using Sango;
+using UnityEditor;
 using UnityEngine;
 
 namespace Sango.Tests
@@ -16,6 +17,7 @@ namespace Sango.Tests
         // hero 泊位（demo 航线起点，AnchorageSlots.StaticBerths[0] 同源）
         static readonly Vector2 k_Berth = new Vector2(30f, -12f);
         const float k_FcbLoa = 42f, k_FcbBeam = 12.6f;
+        const string k_CatalogPath = "Assets/Art/KenneyWatercraft/VesselCatalog.asset";
 
         Vector2[] m_Centers;
         float[] m_Shore;
@@ -125,6 +127,31 @@ namespace Sango.Tests
                 worst = Mathf.Min(worst, AnchorageSlots.ShoreMargin(corner, m_Centers, m_Shore));
             }
             Assert.That(worst, Is.GreaterThanOrEqualTo(8f), $"hero 泊位船体矩形最差裕量 {worst:F1} m < 8 m（离线解 11.6 m）");
+        }
+
+        // ── F4 联动（review 硬化批）：清障尺寸表 vs 编目实测 LOA 防双表漂移 ─────────────
+        // AnchorageSlots.LoaOf 是清障保守口径的字面量表，VesselCatalog.loaMeters 是导入实测值；
+        // 一方单独改动（归一化目标调整/兜底值改动）即在此拦下。只查 8 个 M5 档——Kenney 三档
+        // 走 LoaOf 的 _ 兜底（不入锚地槽位表，无对应关系可言）。
+        [Test]
+        public void LoaOf_MatchesCatalogLoaMeters_Within5Pct()
+        {
+            var catalog = AssetDatabase.LoadAssetAtPath<VesselCatalog>(k_CatalogPath);
+            Assert.That(catalog, Is.Not.Null, $"catalog asset missing at {k_CatalogPath}");
+            var m5Classes = new[]
+            {
+                VesselClass.FishingTrawler, VesselClass.CargoGeneral, VesselClass.CargoContainer,
+                VesselClass.Tanker, VesselClass.TankerLng, VesselClass.Tug,
+                VesselClass.FcbHoubei, VesselClass.FcbPc3,
+            };
+            foreach (var cls in m5Classes)
+            {
+                var entry = catalog.GetEntry(cls);
+                Assert.That(entry, Is.Not.Null, $"catalog entry missing for {cls}");
+                Assert.That(AnchorageSlots.LoaOf(cls), Is.EqualTo(entry.loaMeters).Within(entry.loaMeters * 0.05f),
+                    $"{cls}: AnchorageSlots.LoaOf={AnchorageSlots.LoaOf(cls):F1} m vs catalog loaMeters={entry.loaMeters:F1} m " +
+                    $"（>±5%——清障圈与编目双表漂移）");
+            }
         }
     }
 }
