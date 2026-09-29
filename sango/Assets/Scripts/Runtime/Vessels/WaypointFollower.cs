@@ -35,6 +35,9 @@ namespace Sango
         [Tooltip("Play 进入即自动 Toggle 起跑（M7-B 渡轮/拖轮常动目标；默认 false，M1/M2E 演示仍走 G 键，行为零变化）。")]
         public bool autoStart = false;
 
+        [Tooltip("终点到达即回首航点循环再跑，长会话常动目标不冻结（M7-B 渡轮往返/拖轮闭环航线首尾重合，循环无缝；默认 false = 一趟制，M1/M2E 语义零变化）。")]
+        public bool loopWaypoints = false;
+
         [Tooltip("烘焙艏向补偿（度，M2-E）：prefab 根原生艏 ≠ +Z 的档位（Medium 180）。导航艏向 psi 写回为 rotation.y = psi + 本值；初始化捕获反解 psi = euler.y − 本值。默认 0 = M1/M2-C 行为逐位不变。")]
         public float bowYawDegOffset = 0f;
 
@@ -151,17 +154,28 @@ namespace Sango
             {
                 m_State = WaypointKinematics.Step(m_State, waypoints[m_Index], final, Params, dt);
                 if (final && WaypointKinematics.WithinArrival(m_State, waypoints[m_Index], arrivalRadiusM))
-                {
-                    m_State.Speed = 0f;
-                    m_Arrived = true;
-                }
+                    OnFinalArrival();
             }
             else
             {
-                m_State.Speed = 0f;
-                m_Arrived = true;
+                OnFinalArrival();
             }
             WriteTransform();
+        }
+
+        /// <summary>终点到达收束：减速停船。loopWaypoints=true 时回首航点续跑（M7-B 常动目标
+        /// 不冻结——M7 review B2 修复），IsArrived 恒 false；false = 一趟制到达态（M1/M2E 原语义）。</summary>
+        void OnFinalArrival()
+        {
+            m_State.Speed = 0f;
+            if (loopWaypoints)
+            {
+                m_Index = 0; // 回文/闭环航线首尾重合：下一帧 WithinArrival(waypoints[0]) 即推进，续跑无缝
+            }
+            else
+            {
+                m_Arrived = true;
+            }
         }
 
         // 合成契约：只写 x/z/yaw；y/roll/pitch 是 VesselBuoyancy 的独占写（M2-B）。

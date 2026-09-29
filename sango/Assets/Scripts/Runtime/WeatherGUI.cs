@@ -29,7 +29,7 @@ namespace Sango
         RectTransform _panel;
         Slider[] _sliders;   // [beaufort, windDir, time, cloud, fog]，Update 镜像用
         Dropdown _tierDropdown;
-        Dropdown _atmoDropdown; // M7-B 大气档（V 键循环镜像）
+        Dropdown _atmoDropdown; // M7-B 大气档（N 键循环镜像）
 
         const float PanelWidth = 380f;
         const float ValueRowHeight = 26f; // 标签行高
@@ -134,7 +134,7 @@ namespace Sango
                 OnAnyChanged();
             });
 
-            // M7-B 大气三档（浓霾晴/积雨云/雷暴雨幡）：下拉选择 + V 键循环（HandleHotkeys）。
+            // M7-B 大气三档（浓霾晴/积雨云/雷暴雨幡）：下拉选择 + N 键循环（HandleHotkeys）。
             _cursorY -= ValueRowHeight;
             CreateRowLabel("Atmosphere (M7-B)");
             _cursorY -= ValueRowHeight;
@@ -196,8 +196,8 @@ namespace Sango
                 RefreshReadout();
                 Debug.Log($"[Sango.M1] hotkey fog={k_FogPresets[_fogPresetIdx]}m");
             }
-            if (Input.GetKeyDown(KeyCode.V)) // M7-B 大气档循环（0-9/T/F/B/C/G 已占用，V 空闲）
-            {
+            if (Input.GetKeyDown(KeyCode.N)) // M7-B 大气档循环（M7 review 修复：V 已被 VectorArrows
+            {                                // M2-E2 无门控占用——同帧两功能齐翻；改 N（全工程空闲，键位账本 0-9/T/F/G/C/B/A/P/Q/E/Z/X/Space/R/±,./Enter/V 已占））
                 controller.atmosphereTier = M7BMath.NextAtmosphereTier(controller.atmosphereTier);
                 controller.ApplyAtmosphereTier();
                 controller.Apply();

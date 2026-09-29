@@ -63,7 +63,7 @@ namespace Sango
         public bool AtmosphereTransitioning => m_TransT < m_TransDur;
 
         /// <summary>
-        /// 切到 atmosphereTier 并从当前值起过渡（WeatherGUI V 键/下拉消费；可重复调用重定向）。
+        /// 切到 atmosphereTier 并从当前值起过渡（WeatherGUI N 键/下拉消费；可重复调用重定向）。
         /// </summary>
         public void ApplyAtmosphereTier()
         {

@@ -92,15 +92,16 @@ namespace Sango.Tests
         // 纯几何视锥投影（Camera.WorldToViewportPoint 等价口径，无 Camera 引擎对象）：
         // 旋转与 CameraRig.ApplyPose 同构（pitch 取负进 Euler）；d>0 = 相机前方（viewport z>0，
         // 修复前 census boatNDC z=-4959 = 正后方即 d<0）；|ndcX|,|ndcY|<1 = 在半 FOV 锥内
-        // （x 侧按 aspect=1 最严口径：实际宽屏 aspect>1 只会更靠内）。
-        static (float d, float ndcX, float ndcY) ProjectToCamera(CameraPose cam, Vector3 worldPoint)
+        // （x 侧按 aspect=1 最严口径：实际宽屏 aspect>1 只会更靠内；Overlook 组合验收按
+        // 演示口径 16:9 传 aspect——横向半视场 = atan(tanHalf·aspect)）。
+        static (float d, float ndcX, float ndcY) ProjectToCamera(CameraPose cam, Vector3 worldPoint, float aspect = 1f)
         {
             var rot = Quaternion.Euler(-cam.PitchDeg, cam.YawDeg, 0f);
             var toPoint = worldPoint - cam.Position;
             float d = Vector3.Dot(toPoint, rot * Vector3.forward);
             float tanHalf = Mathf.Tan(cam.FieldOfView * 0.5f * Mathf.Deg2Rad);
             return (d,
-                Vector3.Dot(toPoint, rot * Vector3.right) / (d * tanHalf),
+                Vector3.Dot(toPoint, rot * Vector3.right) / (d * tanHalf * aspect),
                 Vector3.Dot(toPoint, rot * Vector3.up) / (d * tanHalf));
         }
 
@@ -141,14 +142,67 @@ namespace Sango.Tests
             Assert.That(d, Is.LessThan(0f), "船在固定机位后方 5 km = 启动首帧无船的根因位");
         }
 
-        // ── 循环顺序：C 键 Bridge → Bow → Chase → TopDown → Bridge ─────────────────
+        // ── Overlook 瞭望档（M7-A F1 修复 2026-09-29）：船前上方回望，艉后方向尽收 ──
         [Test]
-        public void Next_CyclesAllFourViewsInOrder()
+        public void Overlook_HeadingNorth_HoversAheadAboveLookingBack()
+        {
+            var p = CameraViews.Resolve(CameraView.Overlook, k_Ship, 0f);
+            Assert.That(p.Position.x, Is.EqualTo(100f).Within(k_PosTol), "朝北时艏向前 80 m 不动 x");
+            Assert.That(p.Position.z, Is.EqualTo(130f).Within(k_PosTol), "朝北时艏向前 80 m = z + 80");
+            Assert.That(p.Position.y, Is.EqualTo(40f).Within(k_PosTol), "瞭望高 40 m");
+            Assert.That(p.YawDeg, Is.EqualTo(180f).Within(k_AngleTolDeg), "回望（艏向 0 + 180）");
+            Assert.That(p.PitchDeg, Is.EqualTo(-26.6f).Within(0.05f), "俯角 atan2(40,80) ≈ 26.6°（船居画面中心）");
+            Assert.That(p.FieldOfView, Is.EqualTo(60f).Within(k_PosTol), "常规档透视 FOV 60");
+            Assert.That(p.FollowsShip, Is.True, "随船每帧重解（航行中艉后方向恒在画面）");
+        }
+
+        [Test]
+        public void Overlook_OffsetRotatesWithHeading_YawMirrorsBack()
+        {
+            var p = CameraViews.Resolve(CameraView.Overlook, k_Ship, 134f);
+            float sin = Mathf.Sin(134f * Mathf.Deg2Rad), cos = Mathf.Cos(134f * Mathf.Deg2Rad);
+            Assert.That(p.Position.x, Is.EqualTo(k_Ship.x + 80f * sin).Within(k_PosTol), "艏向系 (0,40,+80) 随艏向旋转（M6 S1 船相对解算同款）");
+            Assert.That(p.Position.z, Is.EqualTo(k_Ship.z + 80f * cos).Within(k_PosTol));
+            Assert.That(p.Position.y, Is.EqualTo(40f).Within(k_PosTol));
+            Assert.That(p.YawDeg, Is.EqualTo(314f).Within(k_AngleTolDeg), "艏向 134 + 180 = 314°（回望，M7-A F1 提案值）");
+        }
+
+        // ── 循环顺序：C 键 Bridge → Bow → Chase → TopDown → Overlook → Bridge ──────
+        [Test]
+        public void Next_CyclesAllFiveViewsInOrder()
         {
             Assert.That(CameraViews.Next(CameraView.Bridge), Is.EqualTo(CameraView.Bow));
             Assert.That(CameraViews.Next(CameraView.Bow), Is.EqualTo(CameraView.Chase));
             Assert.That(CameraViews.Next(CameraView.Chase), Is.EqualTo(CameraView.TopDown));
-            Assert.That(CameraViews.Next(CameraView.TopDown), Is.EqualTo(CameraView.Bridge), "循环回桥楼");
+            Assert.That(CameraViews.Next(CameraView.TopDown), Is.EqualTo(CameraView.Overlook), "M7-A F1：瞭望档入循环");
+            Assert.That(CameraViews.Next(CameraView.Overlook), Is.EqualTo(CameraView.Bridge), "循环回桥楼");
+        }
+
+        // ── F1 组合验收（NDC 视锥断言，M6 S1 idiom）：M6 主角泊位/艏向 134° 下，瞭望机位
+        //    出生点即见 PP 码头（艉后 3.4 km）与船本体 ────────────────────────────────
+        [Test]
+        public void Overlook_M6HeroBerth_PPQuayAndShipInsideFrustum()
+        {
+            // M6 主角泊位字面量（M6StraitSceneBootstrapper.k_HeroBerth/k_HeroHeadingDeg 同源）
+            // + PP 码头中点（M7BackdropMath.PasirPanjang 码头线中点，-2335,-1675 量级）。
+            var ship = new Vector3(-1500f, 0f, -5000f);
+            var ppQuayMid = new Vector3(-2335f, 0f, -1675f);
+            var p = CameraViews.Resolve(CameraView.Overlook, ship, 134f);
+
+            // 16:9 = 演示/采集口径（WeatherGUI 参考分辨率 1920×1080，probe 流 1600×900）。
+            // aspect=1 半横视场 30° 时 PP 码头 31.2° 偏航在锥外是几何事实；16:9 半横视场
+            // 45.7° 才是本机位的服务口径。船本体按 aspect=1 最严口径也应居中。
+            float aspect169 = 1920f / 1080f;
+
+            var shipNdc = ProjectToCamera(p, ship);
+            Assert.That(shipNdc.d, Is.GreaterThan(0f), "船在相机前方");
+            Assert.That(shipNdc.ndcX, Is.InRange(-1f, 1f), "船 NDC x（艏向系正前，横向居中）");
+            Assert.That(shipNdc.ndcY, Is.InRange(-1f, 1f), "船 NDC y（40 m 高 / 80 m 前距 ≈ 俯角中心）");
+
+            var quay = ProjectToCamera(p, ppQuayMid, aspect169);
+            Assert.That(quay.d, Is.GreaterThan(0f), "PP 码头中点在相机前方（F1：出生点即见岸桥天际线）");
+            Assert.That(quay.ndcX, Is.InRange(-1f, 1f), "PP 码头 NDC x ∈ (-1,1)（16:9 横向视场内，bearing 345° vs 回望 314°）");
+            Assert.That(quay.ndcY, Is.InRange(-1f, 1f), "PP 码头 NDC y ∈ (-1,1)（远处水面点近视线高度）");
         }
     }
 }

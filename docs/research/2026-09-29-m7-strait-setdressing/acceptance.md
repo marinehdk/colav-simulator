@@ -89,3 +89,11 @@
   解决动目标可见性。
 - **动目标/渔排/浮标日间视觉**：本批从出生点视距内不可达（雾 8000m 外），且无回望机位——census+水深门
   +测试为确定性证据，视觉复核随 F1 机位修复后补拍。
+
+## M7 修复批（review fixes，2026-09-29）
+
+- **A1 热键冲突**：大气档循环 V→**N**（V 已被 VectorArrows M2-E2 无门控占用——M6-Strait 运行态按 V 两功能齐翻；N 全工程空闲，WeatherGUI/M7BMath/WeatherController/bootstrapper 注释与测试消息同步改）。
+- **B2 常动目标**：WaypointFollower 增 `loopWaypoints`（默认 false=M1/M2E 一趟制零变化；M7BSceneBuilder 对渡轮/拖轮置 true，终点到达即回首航点续跑）；M6-Strait.unity 两 mover 块手补 `loopWaypoints: 1`（与构建器序列化逐位一致）。
+- **F1 瞭望机位**：CameraView 增第五档 **Overlook**（艏向前 80 m 高 40 m、yaw=艏向+180° 回望、俯角 26.6°、FOV 60、随船）——C 循环 Bridge→Bow→Chase→TopDown→Overlook；NDC 视锥组合验收（M6 S1 idiom + 16:9 aspect）：M6 泊位艏向 134° 下船本体居中、PP 码头中点 (-2335,-1675,0) 在前方且 NDC x,y∈(-1,1)。
+- **L1 舷灯侧别**：组合级 EditMode 钉死（fresh placement FcbHoubei × heading {0,134,270}°，port 灯世界坐标在 −starboard 半平面、stbd 在 +starboard；挂=真实反侧 bug 上报裁决）——结果见该批测试运行记录；census 日志加单位口径标注（mesh-local units ×root scale → world m）。
+- **其余 findings**：A2 场景回存（本批提交 M6-Strait.unity，13 浮标/5 渔排/3 follower/RainFall 实测在档）；A6 TerrainM7 资产登记行补入 asset-registry.md；A7 FishFarmSway phaseDeg Tooltip 弧度→度；A8 splat 漫反射 `.png`→`.asset` 改名（内容本就是原生 Texture2D YAML；meta 换 NativeFormatImporter 且 guid 不变，TerrainLayer 引用不受影响；builder 同步路径）；A10 LandReport.samples 死字段移除；A11 builder 管线数学（flatten 归一化/alphamap 最近格/TreeInstance 归一化）抽进 M7BackdropMath 纯函数并以 fresh TerrainData 测试钉契约；A3（合并网格 vs GPU instancing）不改——性能目标已由静态合批单 draw call 达成（fps 60×4 证据），字面差异不构成缺陷；A5（EditMode 套件未在本会话运行）由本修复批全量自测闭环。

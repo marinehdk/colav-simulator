@@ -368,5 +368,99 @@ namespace Sango.Tests
             var few = M7BackdropMath.ScatterTreeCards(heights, res, size, Vector2.zero, elevMin, elevSpan, 3, null);
             Assert.That(few.Count, Is.LessThanOrEqualTo(3), "极小 cap 封顶生效");
         }
+
+        // ── ⑦ A3/A4 builder 管线数学（M7 review A11：M6 TerrainDataFreshBuild 先例的
+        //    fresh 对等——builder 已改为逐点消费这三根纯函数，此处钉死契约）────────────
+
+        [Test]
+        public void FlattenNormTarget_FormulaPins_AndFreshTerrainDataRoundTrip()
+        {
+            // 公式钉：(target − elevMin) / span。区域真值量级（near 带 elevMin −191.7258 /
+            // elevMax 188.3606，M6 manifest 同款量级）+ 两个独立手算锚点。
+            const double elevMin = -191.7258, span = 380.0864;
+            Assert.That(M7BackdropMath.FlattenNormTarget(elevMin, span, 2f),
+                Is.EqualTo(193.7258 / 380.0864).Within(1e-9), "+2 m 平台的归一化目标（手算 0.5097）");
+            Assert.That(M7BackdropMath.FlattenNormTarget(elevMin, span, 0f),
+                Is.EqualTo(191.7258 / 380.0864).Within(1e-9), "0 m（海平面）归一化目标");
+            // 单调：平整目标越高归一化值越大（防 span/分子颠倒类错误——平整到 +20 m 与 +2 m 必须可区分）
+            Assert.That(M7BackdropMath.FlattenNormTarget(elevMin, span, 20f),
+                Is.GreaterThan(M7BackdropMath.FlattenNormTarget(elevMin, span, 2f)), "target 单调");
+
+            // fresh TerrainData 往返（M6TerrainModelTests.TerrainDataFreshBuild 同款口径）：
+            // SetHeights 写 normTarget → 读回 → ElevMeters 必须还原 targetM——"平整到 +20 m
+            // 却写成 +2 m"类公式错误在此红，不再只靠构建期 gate 的 ≥0 单边验证。
+            foreach (var target in new[] { 2f, 20f })
+            {
+                var data = new TerrainData { heightmapResolution = 33, size = new Vector3(12000f, (float)span, 12000f) };
+                var block = new float[33, 33];
+                float norm = (float)M7BackdropMath.FlattenNormTarget(elevMin, span, target);
+                for (int y = 0; y < 33; y++) for (int x = 0; x < 33; x++) block[y, x] = norm;
+                data.SetHeights(0, 0, block);
+                var read = data.GetHeights(0, 0, 33, 33);
+                Assert.That(M6TerrainMath.ElevMeters(read[16, 16], elevMin, span + elevMin),
+                    Is.EqualTo(target).Within(0.01f), $"fresh TerrainData 平整往返 target={target} m");
+                Object.DestroyImmediate(data);
+            }
+        }
+
+        [Test]
+        public void HeightmapIndexForTexel_ProductionSizing_HandPins_MonotonicInBounds()
+        {
+            // 手算锚点（独立于实现）：texel 中心比例映射取整。
+            // alphaRes=257, res=2049：t=0 → floor(0.5/257·2049)=3；t=128（正中）→ floor(0.5·2049)=1024；
+            // t=256（末格）→ floor(2049−3.986)=2045。
+            Assert.That(M7BackdropMath.HeightmapIndexForTexel(0, 257, 2049), Is.EqualTo(3), "首 texel（近景 2049 格）");
+            Assert.That(M7BackdropMath.HeightmapIndexForTexel(128, 257, 2049), Is.EqualTo(1024), "正中 texel → 高度图正中格");
+            Assert.That(M7BackdropMath.HeightmapIndexForTexel(256, 257, 2049), Is.EqualTo(2045), "末 texel（中心永不及末格，钳内）");
+            // 远景 513 格：t=128 → floor(0.5·513)=256；t=256 → 512（钳到 res−1）。
+            Assert.That(M7BackdropMath.HeightmapIndexForTexel(128, 257, 513), Is.EqualTo(256), "远景正中");
+            Assert.That(M7BackdropMath.HeightmapIndexForTexel(256, 257, 513), Is.EqualTo(512), "远景末格钳 res−1");
+
+            // 全 texel 扫掠：界内 + 单调不减（权重行/列不得回折）。
+            foreach (var res in new[] { 513, 2049 })
+            {
+                int prev = -1;
+                for (int t = 0; t < 257; t++)
+                {
+                    int idx = M7BackdropMath.HeightmapIndexForTexel(t, 257, res);
+                    Assert.That(idx, Is.InRange(0, res - 1), $"res={res} t={t} 界内");
+                    Assert.That(idx, Is.GreaterThanOrEqualTo(prev), $"res={res} t={t} 单调");
+                    prev = idx;
+                }
+            }
+        }
+
+        [Test]
+        public void TreeNormalizedPosition_TileFramePins_AndScatterPointsInUnitSquare()
+        {
+            var origin = new Vector2(-30000f, -6000f); // far tile 落位窗（同 ⑥ 合成网格）
+            const float size = 12000f;
+            var atOrigin = M7BackdropMath.TreeNormalizedPosition(origin, origin, size);
+            Assert.That(atOrigin.x, Is.EqualTo(0f).Within(1e-5f), "原点 → 0");
+            Assert.That(atOrigin.y, Is.EqualTo(0f).Within(1e-5f), "原点 → 0");
+            var atFar = M7BackdropMath.TreeNormalizedPosition(origin + new Vector2(size, size), origin, size);
+            Assert.That(atFar.x, Is.EqualTo(1f).Within(1e-5f), "tile 东北角 → 1");
+            Assert.That(atFar.y, Is.EqualTo(1f).Within(1e-5f), "tile 东北角 → 1");
+            var atMid = M7BackdropMath.TreeNormalizedPosition(origin + new Vector2(size * 0.25f, size * 0.75f), origin, size);
+            Assert.That(atMid.x, Is.EqualTo(0.25f).Within(1e-5f), "1/4 点 x");
+            Assert.That(atMid.y, Is.EqualTo(0.75f).Within(1e-5f), "3/4 点 y");
+
+            // 组合：⑥ 散布规划器的世界落点全量经本函数归一化后必落 [0,1]²（TreeInstance 契约域），
+            // 且往返还原世界坐标（builder 写入前只此一道换算）。
+            const int res = 129;
+            const double elevMin = -191.7258, elevSpan = 188.3606 - elevMin;
+            var heights = CoastFixture(res, elevMin, elevSpan + elevMin);
+            var points = M7BackdropMath.ScatterTreeCards(heights, res, size, origin, elevMin, elevSpan, 50, null);
+            Assert.That(points.Count, Is.GreaterThan(0), "前置：对角海岸线产出落点");
+            foreach (var p in points)
+            {
+                var n = M7BackdropMath.TreeNormalizedPosition(p, origin, size);
+                Assert.That(n.x, Is.InRange(0f, 1f), $"落点 {p} 归一化 x");
+                Assert.That(n.y, Is.InRange(0f, 1f), $"落点 {p} 归一化 y");
+                var world = origin + n * size;
+                Assert.That(world.x, Is.EqualTo(p.x).Within(1e-2f), "往返还原 x");
+                Assert.That(world.y, Is.EqualTo(p.y).Within(1e-2f), "往返还原 z");
+            }
+        }
     }
 }

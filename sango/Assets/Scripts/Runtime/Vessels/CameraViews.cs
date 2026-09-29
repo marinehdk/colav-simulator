@@ -2,13 +2,14 @@ using UnityEngine;
 
 namespace Sango
 {
-    /// <summary>四视图（spec #85 画面 2/3/4 补全）。C 键循环。</summary>
+    /// <summary>五视图（spec #85 四视图 + M7-A F1 瞭望档）。C 键循环。</summary>
     public enum CameraView
     {
-        Bridge,  // 桥楼固定机位（M1 既有 (0,12,-40) 望北）
-        Bow,     // 艏视角：装在小船艏部随船
-        Chase,   // 追随视角：艉后上方随船
-        TopDown, // 北向上透视俯视战术档（encounter 同款方向约定）
+        Bridge,   // 桥楼固定机位（M1 既有 (0,12,-40) 望北）
+        Bow,      // 艏视角：装在小船艏部随船
+        Chase,    // 追随视角：艉后上方随船
+        TopDown,  // 北向上透视俯视战术档（encounter 同款方向约定）
+        Overlook, // 瞭望：船前上方回望（M7-A F1——艉后方向尽收：出生点见 PP 岸桥天际线，航线后段见东锚地）
     }
 
     /// <summary>相机目标位姿（yaw/pitch 分量式，无 roll）+ 每视图 FOV。
@@ -27,7 +28,7 @@ namespace Sango
     /// M2-E2 相机视图位姿解析（纯函数，无引擎调用——船位姿作参数传入，spec #85 Testing Decisions）。
     /// 坐标约定与 WaypointKinematics 同源：东 = +x，北 = +z，艏向角自北顺时针；
     /// 艏向单位向量 = (sin h, 0, cos h)。bow/chase 偏移按船位姿船体系（艏向旋转）叠加。
-    /// **全部四视图透视**（验收修正 2026-09-24：ortho TopDown 触发 HDRP 透视⇄正交投影切换的
+    /// **全部视图透视**（验收修正 2026-09-24：ortho TopDown 触发 HDRP 透视⇄正交投影切换的
     /// 管线状态破坏——TopDown 花屏、切回透视后全局变暗；投影切换彻底移除）。
     /// TopDown = 北向上战术俯视：160 m 高、pitch −80°、FOV 35°（地面足迹 ~100 m，
     /// 12 m 小船 ~100+ px 恒在画面正中）。
@@ -62,6 +63,14 @@ namespace Sango
         // 北向上（yaw 0 = 海图方向），FOV 35°。
         public const float TopDownHeightM = 160f;
         public const float TopDownPitchDeg = -80f;
+
+        // 瞭望（M7-A F1 2026-09-29）：艏向前 80 m、高 40 m，yaw = 艏向+180° 回望、俯角
+        // atan2(40,80) ≈ 26.6°（船居画面中心）——M7-A 四机位均沿艏向（hero 艏向 134° SE），
+        // PP 岸桥天际线（艉后 3.4 km）与东锚地船群（右舷前 11 km）demo 全程不可见；本档
+        // 出生点即见 PP 岸桥天际线（bearing≈346°，16:9 半横视场 45.7° 内），航线后段回望见东锚地。
+        public const float OverlookHeightM = 40f;
+        public const float OverlookForwardOffsetM = 80f;
+        public const float OverlookPitchDeg = -26.6f;
 
         /// <summary>3 参旧签名（bridgeShipRelative=false，M1 语义零变化）；既有调用/测试不动。</summary>
         public static CameraPose Resolve(CameraView view, Vector3 shipPos, float shipHeadingDeg)
@@ -106,6 +115,18 @@ namespace Sango
                         FieldOfView = TopDownFovDeg,
                         FollowsShip = true,
                     };
+                case CameraView.Overlook:
+                    // 船艏向系前方 (0,40,+80)（+Z=艏）随艏向旋转，yaw = 艏向+180° 回望（M6 S1
+                    // bridgeShipRelative 同款船相对解算模式，镜像在艏前而非艉后）；FollowsShip
+                    // = 每帧从船实时位姿重解，航行中艉后方向恒在画面。
+                    return new CameraPose
+                    {
+                        Position = shipPos + fwd * OverlookForwardOffsetM + Vector3.up * OverlookHeightM,
+                        YawDeg = Mathf.Repeat(shipHeadingDeg + 180f, 360f),
+                        PitchDeg = OverlookPitchDeg,
+                        FieldOfView = BaseFovDeg,
+                        FollowsShip = true,
+                    };
                 case CameraView.Bridge:
                 default:
                     if (bridgeShipRelative)
@@ -131,11 +152,11 @@ namespace Sango
             }
         }
 
-        /// <summary>C 键循环顺序：Bridge → Bow → Chase → TopDown → Bridge。</summary>
+        /// <summary>C 键循环顺序：Bridge → Bow → Chase → TopDown → Overlook → Bridge。</summary>
         public static CameraView Next(CameraView view)
         {
             int next = (int)view + 1;
-            return next > (int)CameraView.TopDown ? CameraView.Bridge : (CameraView)next;
+            return next > (int)CameraView.Overlook ? CameraView.Bridge : (CameraView)next;
         }
     }
 }

@@ -9,7 +9,7 @@ namespace Sango
     /// </summary>
     public class FishFarmSway : MonoBehaviour
     {
-        [Tooltip("组间错相（弧度；构建期按组序号注入，防整排同拍共振观感）。")]
+        [Tooltip("组间错相（度；Update 内 ×Deg2Rad 转弧度——M7 review 修正：原 Tooltip 误标弧度，字段名/语义/构建期注入均为度）。")]
         public float phaseDeg = 0f;
 
         Vector3 m_BasePosition;

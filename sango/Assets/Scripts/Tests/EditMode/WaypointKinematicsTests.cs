@@ -331,4 +331,50 @@ namespace Sango.Tests
             Assert.That(go.transform.position.y, Is.EqualTo(-0.33f).Within(1e-6f), "y 仍归浮力");
         }
     }
+
+    /// <summary>
+    /// M7 review B2（2026-09-29）：loopWaypoints 终点到达即回首航点循环再跑——渡轮往返/
+    /// 拖轮闭环等常动目标长会话不冻结成静态障碍。默认 false = 一趟制（上方既有到达即停
+    /// 测试组即其回归），M1/M2E 语义零变化。
+    /// </summary>
+    public class WaypointFollowerLoopTests
+    {
+        [Test]
+        public void Default_IsFalse_OneShotSemanticsUnchanged()
+        {
+            var f = new GameObject("one-shot").AddComponent<WaypointFollower>();
+            Assert.That(f.loopWaypoints, Is.False, "默认 false：M1/M2E 一趟制语义零变化");
+        }
+
+        [Test]
+        public void LoopWaypoints_RestartsFromFirstWaypoint_KeepsMovingAfterFinalArrival()
+        {
+            var go = new GameObject("ferry");
+            var f = go.AddComponent<WaypointFollower>();
+            go.transform.position = new Vector3(0f, -0.33f, 0f);
+            f.waypoints = new[] { new Vector2(0f, 0f), new Vector2(60f, 0f), new Vector2(0f, 0f) }; // 往返回文（M7-B 渡轮同构）
+            f.loopWaypoints = true;
+
+            // 手动步进跑完首程（120 m @ 5 m/s + 起步/转向，1000 步 = 100 s 预算充裕）：
+            // 活动索引到终点段后再回首航点 = 循环重开的判据。
+            bool reachedFinalLeg = false;
+            int wrappedAt = -1;
+            for (int i = 0; i < 1000; i++)
+            {
+                f.StepOnce(0.1f);
+                if (f.ActiveWaypointIndex == 2) reachedFinalLeg = true;
+                if (reachedFinalLeg && f.ActiveWaypointIndex < 2) { wrappedAt = i; break; }
+            }
+            Assert.That(reachedFinalLeg, Is.True, "前置：已推进到终点段（索引 2）");
+            Assert.That(wrappedAt, Is.GreaterThanOrEqualTo(0), "终点到达后索引回首航点（循环重开，M7-B 常动目标不冻结）");
+            Assert.That(f.IsArrived, Is.False, "循环模式不进入到达冻结态（IsArrived 恒 false）");
+
+            // 重开后继续前进：离开起点、速度恢复（不再是 speed=0 的冻结位姿）。
+            for (int i = 0; i < 30; i++) f.StepOnce(0.1f); // 3 s：起步 + 加速可感位移
+            var flat = new Vector2(go.transform.position.x, go.transform.position.z);
+            Assert.That(flat.magnitude, Is.GreaterThan(1f), $"循环后继续航行（3 s 后离起点 {flat.magnitude:F1} m）");
+            Assert.That(f.SpeedMps, Is.GreaterThan(0.5f), "速度已从停船态恢复");
+            Assert.That(go.transform.position.y, Is.EqualTo(-0.33f).Within(1e-6f), "y 仍归浮力");
+        }
+    }
 }

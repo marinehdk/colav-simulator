@@ -270,8 +270,11 @@ namespace Sango
             BuildLamp(LampKind.SternLight, "SternLight", layout.SternLight, new Color(1f, 0.98f, 0.92f), lampSize, sidelightRangeM, sternIntensityLm);
             m_LastSectorFactors = new float[m_Lamps.Count];
 
-            Debug.Log($"{k_LogTag} {name}: rig built bowYaw={bowYawDeg:0}° loa={loa:F1}m lamp={lampSize:F2}m streak={streakLength:F1}x{streakWidth:F1}m " +
-                      $"port={layout.PortSidelight} stbd={layout.StarboardSidelight} mast={layout.Masthead} stern={layout.SternLight}", this);
+            // M7 review L1：单位口径标注——loa/port/stbd/mast/stern 为网格根局部原生单位，
+            // ×根缩放 = 世界米（防 937.8 误读成米；FcbHoubei 实际 ×0.0448 ≈ 42 m）。
+            Debug.Log($"{k_LogTag} {name}: rig built bowYaw={bowYawDeg:0}° loa={loa:F1} (mesh-local units ×root scale {s:F4} = {loa * s:F1} m world) " +
+                      $"lamp={lampSize:F2}m streak={streakLength:F1}x{streakWidth:F1}m " +
+                      $"port={layout.PortSidelight} stbd={layout.StarboardSidelight} mast={layout.Masthead} stern={layout.SternLight} (anchors mesh-local units)", this);
         }
 
         /// <summary>

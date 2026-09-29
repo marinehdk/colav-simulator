@@ -164,6 +164,7 @@ namespace Sango.Editor
 
             var follower = ship.AddComponent<WaypointFollower>();
             follower.autoStart = true;            // Play 即起跑（常动目标；G 键暂停/恢复仍可用）
+            follower.loopWaypoints = true;        // M7 review B2：终点到达即循环再跑，长会话不冻结成静态障碍
             follower.demoHotkeysEnabled = false;  // G 键演示归主角船，动目标不抢
             follower.waypoints = waypoints;
             follower.cruiseSpeedMps = cruiseMps;

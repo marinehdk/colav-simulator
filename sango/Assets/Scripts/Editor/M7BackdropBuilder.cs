@@ -152,7 +152,7 @@ namespace Sango.Editor
             if (w <= 1 || h <= 1)
                 throw new System.InvalidOperationException($"[Sango.M7] flatten rect outside tile {t.tileName}: [{r[0]},{r[1]},{r[2]},{r[3]}]");
 
-            float normTarget = (float)((t.flattenTargetM - layout.elevMin) / layout.elevSpan);
+            float normTarget = (float)M7BackdropMath.FlattenNormTarget(layout.elevMin, layout.elevSpan, t.flattenTargetM);
             var block = new float[h, w];
             for (int y = 0; y < h; y++)
                 for (int x = 0; x < w; x++)
@@ -356,9 +356,9 @@ namespace Sango.Editor
             {
                 for (int x = 0; x < alphaRes; x++)
                 {
-                    // alphamap texel 中心 → 高度图最近格
-                    int hx = Mathf.Min((int)((x + 0.5f) / alphaRes * data.heightmapResolution), data.heightmapResolution - 1);
-                    int hy = Mathf.Min((int)((y + 0.5f) / alphaRes * data.heightmapResolution), data.heightmapResolution - 1);
+                    // alphamap texel 中心 → 高度图最近格（纯函数单点真值，M7 review A11）
+                    int hx = M7BackdropMath.HeightmapIndexForTexel(x, alphaRes, data.heightmapResolution);
+                    int hy = M7BackdropMath.HeightmapIndexForTexel(y, alphaRes, data.heightmapResolution);
                     float elev = M6TerrainMath.ElevMeters(heights[hy, hx], elevMin, elevSpan + elevMin);
                     var w = M7BackdropMath.SplatWeights(elev);
                     maps[y, x, 0] = w.baseWeight;
@@ -385,11 +385,10 @@ namespace Sango.Editor
             var instances = new TreeInstance[points.Count];
             for (int i = 0; i < points.Count; i++)
             {
-                float nx = (points[i].x - layout.originXZ.x) / layout.sizeMeters;
-                float nz = (points[i].y - layout.originXZ.y) / layout.sizeMeters;
+                var n = M7BackdropMath.TreeNormalizedPosition(points[i], layout.originXZ, layout.sizeMeters);
                 instances[i] = new TreeInstance
                 {
-                    position = new Vector3(nx, 0f, nz), // y 由地形引擎贴地
+                    position = new Vector3(n.x, 0f, n.y), // y 由地形引擎贴地
                     widthScale = 1f,
                     heightScale = 1f,
                     color = Color.white,
@@ -476,7 +475,10 @@ namespace Sango.Editor
                 layer = new TerrainLayer();
                 AssetDatabase.CreateAsset(layer, layerPath);
             }
-            string texPath = $"{TextureDir}/{name}_Diffuse.png";
+            // M7 review A8：splat 漫反射是 AssetDatabase.CreateAsset 的原生 Texture2D YAML 资产，
+            // 扩展名须 .asset（曾误用 .png + TextureImporter meta——内容/扩展名/importer 三者矛盾，
+            // fresh 重导入脆弱）；现路径与磁盘资产一致（guid 不变，TerrainLayer 引用不受影响）。
+            string texPath = $"{TextureDir}/{name}_Diffuse.asset";
             var tex = AssetDatabase.LoadAssetAtPath<Texture2D>(texPath);
             if (tex == null)
             {

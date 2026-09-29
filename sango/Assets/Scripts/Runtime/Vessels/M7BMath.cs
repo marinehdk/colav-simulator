@@ -157,7 +157,7 @@ namespace Sango
 
         /// <summary>
         /// 拖轮闭环航点：绕 TugLoopCenter 半径 TugLoopRadiusM 的正八边形，
-        /// 末点重复首点（WaypointFollower 走完全程 = 一圈闭环后停船）。
+        /// 末点重复首点（WaypointFollower loopWaypoints 循环消费：一圈闭环即回首点续跑）。
         /// </summary>
         public static Vector2[] TugLoopWaypoints()
         {
@@ -181,7 +181,8 @@ namespace Sango
 
         /// <summary>
         /// 渡轮往返航点：南（巴淡北岸离岸）→ 北（新加坡西南 1.25N 103.79E）→ 南，
-        /// 回程逐点逆序复用同一深水走廊；末点 = 首点（一圈往返后停船）。
+        /// 回程逐点逆序复用同一深水走廊；末点 = 首点（WaypointFollower loopWaypoints
+        /// 循环消费：一圈往返即回首点续跑，长会话常动不冻结）。
         /// </summary>
         public static Vector2[] FerryWaypoints()
         {
@@ -202,7 +203,7 @@ namespace Sango
 
         // ── B3 大气三档 ─────────────────────────────────────────────────────────────
 
-        /// <summary>大气档（V 键/面板下拉循环；preset 契约见 AtmospherePresetFor）。</summary>
+        /// <summary>大气档（N 键/面板下拉循环；preset 契约见 AtmospherePresetFor）。</summary>
         public enum AtmosphereTier
         {
             HazyClear = 0,    // 浓霾晴（默认档）
@@ -272,7 +273,7 @@ namespace Sango
             }
         }
 
-        /// <summary>档位循环状态机：HazyClear → Cumulonimbus → Thunderstorm → HazyClear（V 键消费）。</summary>
+        /// <summary>档位循环状态机：HazyClear → Cumulonimbus → Thunderstorm → HazyClear（N 键消费）。</summary>
         public static AtmosphereTier NextAtmosphereTier(AtmosphereTier tier)
             => (AtmosphereTier)(((int)tier + 1) % 3);
 

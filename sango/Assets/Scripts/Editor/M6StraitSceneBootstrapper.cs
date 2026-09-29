@@ -46,7 +46,7 @@ namespace Sango.Editor
         // M7-B（2026-09-29）：f3 stage 接棒——IALA A 区浮标 13 座（主航道带 10 + 锚地口 3，
         // 夜灯 BuoyBeacon）、渡轮/拖轮动目标（WaypointFollower autoStart，航线往返/闭环）、
         // 渔排 5 组（浅水 2-8 m 窗，FishFarmSway 系留微摇摆）、大气三档（浓霾晴/积雨云/
-        // 雷暴雨幡；WeatherGUI V 键循环 + 下拉，雨 VFX 挂 Main Camera）。落位与航路逐点
+        // 雷暴雨幡；WeatherGUI N 键循环 + 下拉，雨 VFX 挂 Main Camera）。落位与航路逐点
         // 水深门禁在 M7BSceneBuilder.Build 内 fail-fast（选点 provenance 见 M7BMath 类头注）。
 
         /// <summary>主角泊位（中部深水航道西缘，艏向沿航线首段 ~134°）。</summary>

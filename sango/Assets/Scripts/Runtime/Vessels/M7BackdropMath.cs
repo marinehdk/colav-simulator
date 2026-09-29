@@ -10,7 +10,9 @@ namespace Sango
     /// 级数，逆投影不动点迭代——参考值由 pyproj 3.7 离线固化进 EditMode 测试）；
     /// ②陆/水掩膜纯函数（elev ≥ 0 = 陆上，构建期落位门禁的口径）；③A4 远景带滩涂/丛林
     /// 两段 splat 权重（逐海拔、归一化）；④A1 岸桥/箱堆布局字面量与生成器（确定性，无
-    /// 运行时随机）；⑤A4 远景近岸线树卡散布规划器（双遍计数+哈希采样，确定性、上限封顶）。
+    /// 运行时随机）；⑤A4 远景近岸线树卡散布规划器（双遍计数+哈希采样，确定性、上限封顶）；
+    /// ⑥A3/A4 builder 管线数学（flatten 归一化映射 / alphamap→高度图最近格 / TreeInstance
+    /// 归一化——M7 review A11 抽出单点真值，builder 与 fresh EditMode 测试共用）。
     /// 坐标约定与 M6TerrainMath 一致：manifest center_utm = Unity 原点，+X=东、+Z=北、海面 y=0。
     /// </summary>
     public static class M7BackdropMath
@@ -165,18 +167,19 @@ namespace Sango
         public static bool IsLand(float elevationM) => elevationM >= 0f;
 
         /// <summary>陆上落位验证（fail-fast，与 M6TerrainMath.ValidateDepths 同款报告语义）：
-        /// 所有点高程 ≥ minElevationM；失败时定位首个违规点，成功时 lowest* = 全局最低。</summary>
+        /// 所有点高程 ≥ minElevationM；失败时定位首个违规点，成功时 lowest* = 全局最低。
+        /// （M7 review A10：移除置位后无消费方的 samples 死字段——报告只暴露实际被读的
+        /// ok/worstPoint/worstElevationM，避免照抄 DepthReport 的口径漂移。）</summary>
         public struct LandReport
         {
             public bool ok;
             public float worstElevationM;    // 失败 = 首个违规点高程；成功 = 全局最低高程
             public Vector2 worstPoint;
-            public int samples;
         }
 
         public static LandReport ValidateDryLand(M6TerrainMath.ElevationSampler sample, Vector2[] points, float minElevationM = LandGateMinElevationM)
         {
-            var report = new LandReport { ok = true, worstElevationM = float.MaxValue, samples = points.Length };
+            var report = new LandReport { ok = true, worstElevationM = float.MaxValue };
             foreach (var p in points)
             {
                 float e = sample(p);
@@ -404,8 +407,26 @@ namespace Sango
             return result;
         }
 
-        /// <summary>箱堆陆侧偏移（码头线 → 首 block 前缘距离；岸桥后伸梁跨过此带）。</summary>
-        public const float YardInlandOffsetM = 70f;
+    /// <summary>箱堆陆侧偏移（码头线 → 首 block 前缘距离；岸桥后伸梁跨过此带）。</summary>
+    public const float YardInlandOffsetM = 70f;
+
+    // ── ⑥ A3/A4 builder 管线数学（单点真值；M7BackdropBuilder 逐点消费）──────────────
+
+    /// <summary>A3 小块平整：目标高程（米）→ 高度图归一化值 (target − elevMin) / span。
+    /// SetHeights 写入该值即平整到 targetM（M7 review A11 fresh 测试钉契约：平整到错误
+    /// 高程如 +20 m 在此即红，不再只靠构建期 gate 的 ≥0 单边验证）。</summary>
+    public static double FlattenNormTarget(double elevMin, double elevSpan, float targetM)
+        => (targetM - elevMin) / elevSpan;
+
+    /// <summary>A4 alphamap texel 中心 → 高度图最近格索引：floor((texel+0.5)/alphaRes·heightmapRes)
+    /// 钳 [0, heightmapRes−1]（texel 中心比例映射取整；中景 2049 格/257 texel → ~8 格对 1 texel）。</summary>
+    public static int HeightmapIndexForTexel(int texel, int alphaRes, int heightmapRes)
+        => Mathf.Min((int)((texel + 0.5f) / alphaRes * heightmapRes), heightmapRes - 1);
+
+    /// <summary>A4 树卡世界 (x,z) → TreeInstance.position 归一化分量（tile 原点 + 边长；
+    /// y 由地形引擎贴地，恒 0）。</summary>
+    public static Vector2 TreeNormalizedPosition(Vector2 worldXZ, Vector2 originXZ, float sizeMeters)
+        => new Vector2((worldXZ.x - originXZ.x) / sizeMeters, (worldXZ.y - originXZ.y) / sizeMeters);
 
         // ── ⑤ A4 远景近岸线树卡散布规划器（确定性、上限封顶）────────────────────────
 

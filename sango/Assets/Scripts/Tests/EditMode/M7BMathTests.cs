@@ -259,7 +259,7 @@ namespace Sango.Tests
             Assert.That(M7BMath.NextAtmosphereTier(M7BMath.AtmosphereTier.Cumulonimbus),
                 Is.EqualTo(M7BMath.AtmosphereTier.Thunderstorm));
             Assert.That(M7BMath.NextAtmosphereTier(M7BMath.AtmosphereTier.Thunderstorm),
-                Is.EqualTo(M7BMath.AtmosphereTier.HazyClear), "循环回默认档（V 键热键状态机）");
+                Is.EqualTo(M7BMath.AtmosphereTier.HazyClear), "循环回默认档（N 键热键状态机）");
         }
 
         // ── ⑤ B4 渔排落位契约 + 深度窗 ──────────────────────────────────────────────
