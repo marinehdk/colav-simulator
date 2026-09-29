@@ -259,6 +259,10 @@ namespace Sango
         static Material MakeDecalMaterial(Texture2D map, float blend, bool affectSmoothness, float smoothness, int drawOrder)
         {
             var mat = new Material(Shader.Find("HDRP/Decal"));
+            mat.enableInstancing = true; // HDRP DecalSystem.RenderIntoDBuffer 无条件走 DrawMeshInstanced
+                                         // （DecalSystem.cs:1116，单实例也走）——不开启 = DBuffer 抛
+                                         // InvalidOperationException、整帧 RenderGraph 中止（黑帧）。
+                                         // M4_BowWave/M4_WakeFoam 资产侧同修（M8-B 批）。
             mat.SetTexture("_BaseColorMap", map);
             mat.SetColor("_BaseColor", Color.white);
             mat.SetFloat("_DecalBlend", blend);

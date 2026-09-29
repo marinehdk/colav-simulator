@@ -6,7 +6,8 @@
         "UnityEngine.TestRunner",
         "UnityEditor.TestRunner",
         "Unity.RenderPipelines.Core.Runtime",
-        "Unity.RenderPipelines.HighDefinition.Runtime"
+        "Unity.RenderPipelines.HighDefinition.Runtime",
+        "Unity.Recorder.Editor"
     ],
     "includePlatforms": [
         "Editor"

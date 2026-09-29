@@ -223,6 +223,12 @@ namespace Sango
                 M8Quality.CycleTier();
                 Debug.Log($"[Sango.M8] hotkey quality -> {M8Quality.CurrentTier}");
             }
+            if (Input.GetKeyDown(KeyCode.H)) // M8-B HUD 集中隐藏/还原（HudVisibility；出片与演示共用）。
+            {                                // 键位账本 2026-09-29 复核（M8-B 批再 grep 全仓 Input.GetKeyDown）：
+                                             // 0-9/T/F/N/L/G/V/B/C/A/P/Q/E/Z/X/Space/R/±,./Enter(+keypad) 已占，H 空闲。
+                HudVisibility.Toggle();
+                Debug.Log($"[Sango.M8] hotkey hud -> {(HudVisibility.IsHidden ? "hidden" : "shown")} (H)");
+            }
         }
 
         // applyEveryFrame 下 controller 公开字段是唯一真值源（Inspector/后续脚本可绕 GUI 直改）。
