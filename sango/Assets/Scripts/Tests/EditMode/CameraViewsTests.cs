@@ -87,6 +87,60 @@ namespace Sango.Tests
             Assert.That(p.FollowsShip, Is.True);
         }
 
+        // ── Bridge 随船解算（M6 海峡 review S1 2026-09-29：船远离原点时固定机位首帧拍空海）──
+
+        // 纯几何视锥投影（Camera.WorldToViewportPoint 等价口径，无 Camera 引擎对象）：
+        // 旋转与 CameraRig.ApplyPose 同构（pitch 取负进 Euler）；d>0 = 相机前方（viewport z>0，
+        // 修复前 census boatNDC z=-4959 = 正后方即 d<0）；|ndcX|,|ndcY|<1 = 在半 FOV 锥内
+        // （x 侧按 aspect=1 最严口径：实际宽屏 aspect>1 只会更靠内）。
+        static (float d, float ndcX, float ndcY) ProjectToCamera(CameraPose cam, Vector3 worldPoint)
+        {
+            var rot = Quaternion.Euler(-cam.PitchDeg, cam.YawDeg, 0f);
+            var toPoint = worldPoint - cam.Position;
+            float d = Vector3.Dot(toPoint, rot * Vector3.forward);
+            float tanHalf = Mathf.Tan(cam.FieldOfView * 0.5f * Mathf.Deg2Rad);
+            return (d,
+                Vector3.Dot(toPoint, rot * Vector3.right) / (d * tanHalf),
+                Vector3.Dot(toPoint, rot * Vector3.up) / (d * tanHalf));
+        }
+
+        [Test]
+        public void Bridge_ShipRelative_OffsetRotatesWithHeadingAndLooksAlongIt()
+        {
+            var p = CameraViews.Resolve(CameraView.Bridge, k_Ship, 134f, bridgeShipRelative: true);
+            float sin = Mathf.Sin(134f * Mathf.Deg2Rad), cos = Mathf.Cos(134f * Mathf.Deg2Rad);
+            Assert.That(p.Position.x, Is.EqualTo(k_Ship.x - 40f * sin).Within(k_PosTol), "艉后 40 m = 沿艏向反方向（船体系 (0,12,-40) 随艏向旋转）");
+            Assert.That(p.Position.z, Is.EqualTo(k_Ship.z - 40f * cos).Within(k_PosTol));
+            Assert.That(p.Position.y, Is.EqualTo(12f).Within(k_PosTol), "桥楼高 12 m（与 M1 固定机位同高）");
+            Assert.That(p.YawDeg, Is.EqualTo(134f).Within(k_AngleTolDeg), "视线沿艏向");
+            Assert.That(p.PitchDeg, Is.EqualTo(-0.52f).Within(0.01f), "微俯沿用固定机位");
+            Assert.That(p.FollowsShip, Is.True, "随船每帧重解（G 航行中船不出画面）");
+            Assert.That(p.FieldOfView, Is.EqualTo(60f).Within(k_PosTol));
+        }
+
+        [Test]
+        public void Bridge_ShipRelative_M6HeroBerth_ShipInsideFrustumFirstFrame()
+        {
+            // M6 主角泊位字面量（M6StraitSceneBootstrapper.k_HeroBerth/k_HeroHeadingDeg 同源）。
+            var ship = new Vector3(-1500f, 0f, -5000f);
+            var p = CameraViews.Resolve(CameraView.Bridge, ship, 134f, bridgeShipRelative: true);
+            var (d, ndcX, ndcY) = ProjectToCamera(p, ship);
+            Assert.That(d, Is.GreaterThan(0f), "船在相机前方（修复前固定机位 census boatNDC z=-4959）");
+            Assert.That(ndcX, Is.InRange(-1f, 1f), "NDC x ∈ (-1,1)（aspect=1 最严口径；艏向系横向居中 ≈0）");
+            Assert.That(ndcY, Is.InRange(-1f, 1f), "NDC y ∈ (-1,1)（12 m 高 / 40 m 前距 / 半 FOV 30° → ≈-0.5）");
+        }
+
+        [Test]
+        public void Bridge_Fixed_M6HeroBerth_ShipBehindCamera_DocumentsRootCause()
+        {
+            // 反例钉根因：bridgeShipRelative=false（M1 语义零变化）时 M6 泊位船在固定机位
+            // (0,12,-40) 望北的正后方——Player.log census boatNDC z=-4959 逐字对应（d≈-4960）。
+            var ship = new Vector3(-1500f, 0f, -5000f);
+            var p = CameraViews.Resolve(CameraView.Bridge, ship, 134f, bridgeShipRelative: false);
+            var (d, _, _) = ProjectToCamera(p, ship);
+            Assert.That(d, Is.LessThan(0f), "船在固定机位后方 5 km = 启动首帧无船的根因位");
+        }
+
         // ── 循环顺序：C 键 Bridge → Bow → Chase → TopDown → Bridge ─────────────────
         [Test]
         public void Next_CyclesAllFourViewsInOrder()

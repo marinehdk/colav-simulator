@@ -67,6 +67,11 @@ namespace Sango.Editor
         const float k_DepthMarginM = 5f;
         const float k_RouteSampleStepM = 100f;
 
+        /// <summary>海峡默认雾距（review S2 2026-09-29）：开阔海峡档 8000 m——F 键 A/B 实证
+        /// 亮度随雾距单调变化、3000 档自动曝光把海面压成深灰墨绿；M1 默认 3000 不动
+        /// （WeatherController 字段初始化器），此处场景构建时注入覆盖。</summary>
+        const float k_DefaultFogDistanceM = 8000f;
+
         [MenuItem("Sango/M6/Build Strait Scene")]
         public static void Build()
         {
@@ -148,6 +153,7 @@ namespace Sango.Editor
             weather.globalVolume = volume;
             weather.sunLight = light;
             weather.applyEveryFrame = true;
+            weather.fogDistanceMeters = k_DefaultFogDistanceM; // review S2：海峡默认 8000 m（M1 默认 3000 不变）
             var guiGo = new GameObject("Weather GUI", typeof(WeatherGUI));
             guiGo.GetComponent<WeatherGUI>().controller = weather;
 
@@ -189,6 +195,7 @@ namespace Sango.Editor
             var cameraGo = new GameObject("Main Camera", typeof(Camera));
             cameraGo.tag = "MainCamera";
             var bow = new Vector3(Mathf.Sin(k_HeroHeadingDeg * Mathf.Deg2Rad), 0f, Mathf.Cos(k_HeroHeadingDeg * Mathf.Deg2Rad));
+            // 下方两行 = 编辑器 Scene 视图位姿；运行时由 CameraRig.Bridge 接管（Awake→SnapNow）
             cameraGo.transform.position = new Vector3(k_HeroBerth.x - 150f, 20f, k_HeroBerth.y - 80f);
             cameraGo.transform.rotation = Quaternion.LookRotation(
                 new Vector3(k_HeroBerth.x, 2f, k_HeroBerth.y) + bow * 200f - cameraGo.transform.position, Vector3.up);
@@ -201,6 +208,7 @@ namespace Sango.Editor
             var cameraRig = cameraGo.AddComponent<CameraRig>();
             cameraRig.followShip = hero.transform;
             cameraRig.controlledCamera = camera;
+            cameraRig.bridgeShipRelative = true; // review S1：桥楼随船解算（固定 M1 机位在海峡拍空海——首帧无船）
 
             var sway = cameraGo.AddComponent<BridgeSway>();
             sway.weather = weather;
@@ -236,7 +244,8 @@ namespace Sango.Editor
             Debug.Log($"[Sango.M3] wired: detection overlay (B, {overlayShips.Count} ships), frame publisher (default OFF, {pubGo.GetComponent<FramePublisher>().endpoint})");
 
             // k. FpsProbe（overlays fps 行 + Logs/fps-report.jsonl，干净协议读它）
-            new GameObject("M6 Fps Probe", typeof(FpsProbe));
+            var fpsProbeGo = new GameObject("M6 Fps Probe", typeof(FpsProbe));
+            fpsProbeGo.GetComponent<FpsProbe>().anchor = FpsProbe.OverlayAnchor.BottomLeft; // review S3：置底避让 WeatherGUI 左上面板
 
             // l. 保存
             if (!AssetDatabase.IsValidFolder(k_SceneDir))

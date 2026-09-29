@@ -54,5 +54,28 @@ namespace Sango.Tests
             Assert.That(fog.meanFreePath.value, Is.EqualTo(1234f), "自由程起调值 = 1× 雾距");
             Assert.That(fog.maximumHeight.overrideState, Is.True, "雾层顶高 overrideState");
         }
+
+        // ── M6 review S2（2026-09-29）：海峡默认雾距 8000、M1 默认 3000 不变 ──────────
+        [Test]
+        public void FogDistance_FieldInitializer_StaysM1Default3000()
+        {
+            var ctrlType = TestReflection.FindAssemblyCSharpType("Sango.WeatherController");
+            _controllerGo = new GameObject("fog-default-controller");
+            var controller = _controllerGo.AddComponent(ctrlType);
+            Assert.That((float)ctrlType.GetField("fogDistanceMeters").GetValue(controller), Is.EqualTo(3000f),
+                "字段初始化器 = M1 默认 3000（S2 只在 M6 bootstrapper 注入覆盖，不动 M1 语义）");
+        }
+
+        [Test]
+        public void M6Bootstrapper_InjectsStraitDefaultFog8000()
+        {
+            // Sango.Editor.M6StraitSceneBootstrapper 在 Assembly-CSharp-Editor（asmdef 不引用，
+            // EditMode 域已加载）——const k_DefaultFogDistanceM = BuildScene 注入
+            // weather.fogDistanceMeters 的唯一来源，钉住 8000（F 键 A/B 实证的亮度主因档）。
+            var bootType = TestReflection.FindLoadedType("Sango.Editor.M6StraitSceneBootstrapper");
+            var f = bootType.GetField("k_DefaultFogDistanceM", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+            Assert.That(f, Is.Not.Null, "M6 bootstrapper 有海峡默认雾距常量");
+            Assert.That((float)f.GetValue(null), Is.EqualTo(8000f), "海峡默认雾距 8000 m（开阔海峡档）");
+        }
     }
 }

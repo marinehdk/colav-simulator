@@ -40,7 +40,11 @@ namespace Sango
         public const float TopDownFovDeg = 35f;
 
         // 桥楼：M1 场景既有机位 (0,12,-40) 望岛群 (0,10,180)——pitch = atan2(-2, 220) ≈ -0.52°。
-        public static readonly Vector3 BridgePosition = new Vector3(0f, 12f, -40f);
+        // 高度/艉后分量单独成常量：bridgeShipRelative=true 时同一偏移按船艏向旋转叠加
+        // （M6 海峡 review S1 2026-09-29：船在 (-1500,-5000) 时固定机位拍空海——首帧无船）。
+        public const float BridgeHeightM = 12f;
+        public const float BridgeAsternOffsetM = 40f;
+        public static readonly Vector3 BridgePosition = new Vector3(0f, BridgeHeightM, -BridgeAsternOffsetM);
         public const float BridgeYawDeg = 0f;
         public const float BridgePitchDeg = -0.52f;
 
@@ -59,7 +63,16 @@ namespace Sango
         public const float TopDownHeightM = 160f;
         public const float TopDownPitchDeg = -80f;
 
+        /// <summary>3 参旧签名（bridgeShipRelative=false，M1 语义零变化）；既有调用/测试不动。</summary>
         public static CameraPose Resolve(CameraView view, Vector3 shipPos, float shipHeadingDeg)
+            => Resolve(view, shipPos, shipHeadingDeg, bridgeShipRelative: false);
+
+        /// <summary>
+        /// bridgeShipRelative=true 时 Bridge 改随船解算：船位 + 船艏向系 (0,12,-40) 偏移
+        /// （艉后 40 m 高 12 m）、视线沿艏向、FollowsShip=true——供船远离世界原点的场景
+        /// （M6 主角泊位 (-1500,-5000)）使用；false = M1 固定机位 (0,12,-40) 望北，零变化。
+        /// </summary>
+        public static CameraPose Resolve(CameraView view, Vector3 shipPos, float shipHeadingDeg, bool bridgeShipRelative)
         {
             // 艏向单位向量（约定：自北顺时针，(sin h, 0, cos h)）；偏移全在水平面，艏部/艉后高度走 +y。
             float rad = shipHeadingDeg * Mathf.Deg2Rad;
@@ -95,6 +108,19 @@ namespace Sango
                     };
                 case CameraView.Bridge:
                 default:
+                    if (bridgeShipRelative)
+                    {
+                        // 船体系 (0,12,-40) 随艏向旋转：艉后 40 m 高 12 m，视线沿艏向（船恒在
+                        // 画面内）；pitch 沿用固定机位微俯 -0.52°。
+                        return new CameraPose
+                        {
+                            Position = shipPos - fwd * BridgeAsternOffsetM + Vector3.up * BridgeHeightM,
+                            YawDeg = shipHeadingDeg,
+                            PitchDeg = BridgePitchDeg,
+                            FieldOfView = BaseFovDeg,
+                            FollowsShip = true,
+                        };
+                    }
                     return new CameraPose
                     {
                         Position = BridgePosition,

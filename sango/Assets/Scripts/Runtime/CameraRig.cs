@@ -8,7 +8,8 @@ namespace Sango
     /// 相机跟船）。位姿解析全在纯函数 CameraViews（spec Testing Decisions 缝），本类只做引擎薄壳。
     /// **全透视 rig**（验收修正 2026-09-24：ortho TopDown 触发 HDRP 透视⇄正交投影切换、破坏管线
     /// 渲染状态——TopDown 花屏、切回后全局变暗；投影切换彻底移除，过渡 = 位置/旋转/FOV 插值）。
-    /// 桥楼位姿 = M1 场景既有机位（解析器 Bridge 常数同源 + FOV 60，零观感变化）。
+    /// 桥楼位姿 = M1 场景既有机位（解析器 Bridge 常数同源 + FOV 60，零观感变化）；
+    /// bridgeShipRelative=true 时改随船解算（M6 海峡，review S1 2026-09-29）。
     /// </summary>
     public class CameraRig : MonoBehaviour
     {
@@ -20,6 +21,9 @@ namespace Sango
 
         [Tooltip("过渡时长（秒，smoothstep 插值位置+旋转）。")]
         public float transitionSeconds = 1f;
+
+        [Tooltip("桥楼机位随船解算（M6 海峡 review S1）：true = 船位 + 船艏向系 (0,12,-40) 偏移、视线沿艏向（首帧/航行中船恒在画面）；false = M1 固定机位 (0,12,-40) 望北，语义零变化。")]
+        public bool bridgeShipRelative = false;
 
         /// <summary>当前视图（C 键循环；面板/日志同源）。</summary>
         public CameraView CurrentView { get; private set; } = CameraView.Bridge;
@@ -55,7 +59,7 @@ namespace Sango
                 }
                 return;
             }
-            var target = CameraViews.Resolve(CurrentView, FollowPos(), FollowYawDeg());
+            var target = CameraViews.Resolve(CurrentView, FollowPos(), FollowYawDeg(), bridgeShipRelative);
             // pitch 取负进 Unity（根因注释见 ApplyPose）：目标旋转在此单点构造。
             var targetRot = Quaternion.Euler(-target.PitchDeg, target.YawDeg, 0f);
             if (m_Blend < 1f)
@@ -166,7 +170,7 @@ namespace Sango
 
         void SnapNow()
         {
-            var target = CameraViews.Resolve(CurrentView, FollowPos(), FollowYawDeg());
+            var target = CameraViews.Resolve(CurrentView, FollowPos(), FollowYawDeg(), bridgeShipRelative);
             ApplyPose(target.Position, Quaternion.Euler(-target.PitchDeg, target.YawDeg, 0f), target.FieldOfView);
         }
 

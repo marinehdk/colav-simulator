@@ -47,7 +47,7 @@ cd "$(dirname "$0")/../.."   # 一律从仓库根执行
 # ---------- 固定规格常量（改动=改规格，须同步 manifest 与 docs notes） ----------
 CENTER_LON=103.80
 CENTER_LAT=1.28
-TARGET_EPSG=EPSG:32648          # UTM 48N（spike 勘误定案：北纬新加敞 ≠ 32748）
+TARGET_EPSG=EPSG:32648          # UTM 48N（spike 勘误定案：北纬新加坡 ≠ 32748）
 
 # DEM 全域裁剪窗（经纬度，沿用 spike）：103.40–104.40E, 1.45S–1.45N
 WIN_LON_MIN=103.40; WIN_LAT_MIN=-1.45; WIN_LON_MAX=104.40; WIN_LAT_MAX=1.45

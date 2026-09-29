@@ -21,5 +21,18 @@ namespace Sango.Tests
             Assert.Fail("Assembly-CSharp 程序集未加载");
             return null;
         }
+
+        /// <summary>全程序集扫描（M6 review S2：Sango.Editor.M6StraitSceneBootstrapper 在
+        /// Assembly-CSharp-Editor，EditMode 域已加载但 asmdef 不引用——同经反射）。</summary>
+        public static System.Type FindLoadedType(string fullName)
+        {
+            foreach (var asm in System.AppDomain.CurrentDomain.GetAssemblies())
+            {
+                var t = asm.GetType(fullName, false);
+                if (t != null) return t;
+            }
+            Assert.Fail($"已加载程序集缺类型 {fullName}");
+            return null;
+        }
     }
 }

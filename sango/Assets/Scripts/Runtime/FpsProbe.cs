@@ -11,12 +11,23 @@ namespace Sango
     [DefaultExecutionOrder(200)] // 晚于 TriangleBuoyancyProbe(100) 的 LateUpdate，读取完整帧内统计
     public class FpsProbe : MonoBehaviour
     {
+        /// <summary>IMGUI 框屏幕锚角（review S3 2026-09-29：默认 TopLeft+margin(8,8) = M1 原位；
+        /// BottomLeft = 贴屏幕底边，M6 避让 WeatherGUI 左上面板）。</summary>
+        public enum OverlayAnchor { TopLeft, BottomLeft }
+
         public static FpsProbe Instance { get; private set; }
 
         const string k_LogDir = "Logs";
         const string k_LogFile = "fps-report.jsonl";
         const float k_WindowSeconds = 1f;
         const int k_ConsoleLogEveryNWindows = 10; // 每 10 秒往 Console 打一行 SummaryLine
+        const float k_BoxWidth = 560f;
+        const float k_BoxHeight = 116f;
+
+        [Tooltip("IMGUI 框锚角。TopLeft = M1 原位；BottomLeft = 贴屏幕底边（M6 避让 WeatherGUI 左上面板）。")]
+        public OverlayAnchor anchor = OverlayAnchor.TopLeft;
+        [Tooltip("锚角到屏幕边距（像素）。")]
+        public Vector2 screenMargin = new Vector2(8f, 8f);
 
         float m_WindowStart = -1f;
         int m_Frames;
@@ -126,6 +137,16 @@ namespace Sango
                 Instance.LastQueriesPerFrame, Instance.LastQueryMsPerFrame);
         }
 
+        /// <summary>
+        /// IMGUI 框矩形（纯函数，EditMode 可测缝）。BottomLeft 的 y 在调用侧传运行时
+        /// Screen.height（序列化只存锚角+边距，不存绝对像素——分辨率无关）。
+        /// </summary>
+        public static Rect ComputeBoxRect(OverlayAnchor anchor, Vector2 margin, float screenHeight)
+        {
+            float y = anchor == OverlayAnchor.BottomLeft ? screenHeight - k_BoxHeight - margin.y : margin.y;
+            return new Rect(margin.x, y, k_BoxWidth, k_BoxHeight);
+        }
+
         void OnGUI()
         {
             if (m_Style == null)
@@ -138,7 +159,7 @@ namespace Sango
                 m_Style.normal.textColor = Color.white;
             }
 
-            var box = new Rect(8f, 8f, 560f, 116f);
+            var box = ComputeBoxRect(anchor, screenMargin, Screen.height);
             GUI.Box(box, GUIContent.none);
 
             string l1 = string.Format(
@@ -149,9 +170,10 @@ namespace Sango
                 LastQueriesPerFrame, TriangleBuoyancyProbe.FrameFailedQueries, LastQueryMsPerFrame);
             string l3 = "gate: >= 30 fps @1440p (Script Interactions ON + 6-ship per-triangle queries)";
 
-            GUI.Label(new Rect(16f, 14f, box.width - 16f, 30f), l1, m_Style);
-            GUI.Label(new Rect(16f, 46f, box.width - 16f, 30f), l2, m_Style);
-            GUI.Label(new Rect(16f, 78f, box.width - 16f, 30f), l3, m_Style);
+            // 框内相对偏移 (8,6)/(8,38)/(8,70)：默认锚下与旧绝对坐标 (16,14)/(16,46)/(16,78) 逐像素一致。
+            GUI.Label(new Rect(box.x + 8f, box.y + 6f, box.width - 16f, 30f), l1, m_Style);
+            GUI.Label(new Rect(box.x + 8f, box.y + 38f, box.width - 16f, 30f), l2, m_Style);
+            GUI.Label(new Rect(box.x + 8f, box.y + 70f, box.width - 16f, 30f), l3, m_Style);
         }
     }
 }
