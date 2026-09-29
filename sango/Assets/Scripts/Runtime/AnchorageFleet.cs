@@ -29,6 +29,16 @@ namespace Sango
         /// <summary>当前锚泊船数。</summary>
         public int density => m_Density;
 
+        /// <summary>
+        /// M6：场景构建器注入自定义槽位表（海峡锚地字面量）后调 SetDensity 落船。
+        /// 必须在 SetDensity 前调用；运行时改表不会自动重摆（重建走 SetDensity）。
+        /// </summary>
+        public void SetSlots(AnchorageSlot[] slots)
+        {
+            m_Slots = slots ?? AnchorageSlots.Defaults;
+            m_Density = 0; // 表已换：旧计数失效，下次 SetDensity 整群重建
+        }
+
         /// <summary>槽位总数（滑条上限）。</summary>
         public int maxDensity => m_Slots.Length;
 

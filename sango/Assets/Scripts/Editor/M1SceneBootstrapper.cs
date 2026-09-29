@@ -73,7 +73,7 @@ namespace Sango.Editor
         static Material TintedLit(Color c) => new Material(Shader.Find("HDRP/Lit")) { color = c };
 
         // M2-D 航行灯接线：bowYawDeg 由 VesselAssetPipeline.BowYawDeg 查 k_Specs（原生轴映射，见 BuildScene 注释）。
-        static void AttachNavigationLights(GameObject ship, VesselClass vesselClass, WeatherController weather)
+        public static void AttachNavigationLights(GameObject ship, VesselClass vesselClass, WeatherController weather)
         {
             if (ship == null) return;
             var nav = ship.AddComponent<NavigationLights>();
@@ -85,7 +85,7 @@ namespace Sango.Editor
         // 解算的水面高度）+ boot top 静态暗红防污带，两块 DecalProjector 由组件运行时构建；
         // 湿带偏移复用 VesselBuoyancy 既有 CPU 水高查询的解算结果，零新增水面查询。
         // boot top 带高按船级给观感起调值（12 m 小船窄带 / 60 m 邮轮宽带，组件内钳型深）。
-        static void AttachHullWaterlineDecals(GameObject ship, float bootTopBandM)
+        public static void AttachHullWaterlineDecals(GameObject ship, float bootTopBandM)
         {
             if (ship == null) return;
             var decals = ship.AddComponent<HullWaterlineDecals>();
@@ -105,7 +105,7 @@ namespace Sango.Editor
         const string k_BowWaveMatPath = "Assets/Art/WaterDecals/M4_BowWave.mat";
         const string k_WakeFoamMatPath = "Assets/Art/WaterDecals/M4_WakeFoam.mat";
 
-        static BoatWaterDecals AttachWaterDecals(GameObject ship, WaterSurface water, float loaMeters, WaypointFollower follower)
+        public static BoatWaterDecals AttachWaterDecals(GameObject ship, WaterSurface water, float loaMeters, WaypointFollower follower)
         {
             if (ship == null || follower == null) return null;
             var bowMat = AssetDatabase.LoadAssetAtPath<Material>(k_BowWaveMatPath);

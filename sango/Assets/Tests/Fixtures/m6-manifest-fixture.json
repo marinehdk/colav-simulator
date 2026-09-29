@@ -1,0 +1,380 @@
+{
+  "epsg": 32648,
+  "center_lonlat": [
+    103.8,
+    1.28
+  ],
+  "center_utm": [
+    100000.0,
+    200000.0
+  ],
+  "feather_m": 2000,
+  "near": {
+    "extent_utm": [
+      99850,
+      199850,
+      100050,
+      200050
+    ],
+    "tile_px": 33,
+    "tile_size_m": 100,
+    "grid": [
+      2,
+      2
+    ],
+    "m_per_px": 3.125,
+    "basemap_px": 64,
+    "elev_min": -10.0,
+    "elev_max": 30.0,
+    "tiles": [
+      {
+        "name": "near_r0c0_33",
+        "utm_bounds": [
+          99850,
+          199950,
+          99950,
+          200050
+        ],
+        "path_raw": "tmp/fixtures/near_r0c0_33.raw",
+        "path_jpg": "tmp/fixtures/near_r0c0_33.jpg"
+      },
+      {
+        "name": "near_r0c1_33",
+        "utm_bounds": [
+          99950,
+          199950,
+          100050,
+          200050
+        ],
+        "path_raw": "tmp/fixtures/near_r0c1_33.raw",
+        "path_jpg": "tmp/fixtures/near_r0c1_33.jpg"
+      },
+      {
+        "name": "near_r1c0_33",
+        "utm_bounds": [
+          99850,
+          199850,
+          99950,
+          199950
+        ],
+        "path_raw": "tmp/fixtures/near_r1c0_33.raw",
+        "path_jpg": "tmp/fixtures/near_r1c0_33.jpg"
+      },
+      {
+        "name": "near_r1c1_33",
+        "utm_bounds": [
+          99950,
+          199850,
+          100050,
+          199950
+        ],
+        "path_raw": "tmp/fixtures/near_r1c1_33.raw",
+        "path_jpg": "tmp/fixtures/near_r1c1_33.jpg"
+      }
+    ]
+  },
+  "far": {
+    "extent_utm": [
+      99750,
+      199750,
+      100250,
+      200250
+    ],
+    "tile_px": 33,
+    "tile_size_m": 100,
+    "grid": [
+      5,
+      5
+    ],
+    "m_per_px": 3.125,
+    "basemap_px": 64,
+    "elev_min": -12.0,
+    "elev_max": 28.0,
+    "tiles": [
+      {
+        "name": "far_r0c0_33",
+        "utm_bounds": [
+          99750,
+          200150,
+          99850,
+          200250
+        ],
+        "path_raw": "tmp/fixtures/far_r0c0_33.raw",
+        "path_jpg": "tmp/fixtures/far_r0c0_33.jpg"
+      },
+      {
+        "name": "far_r0c1_33",
+        "utm_bounds": [
+          99850,
+          200150,
+          99950,
+          200250
+        ],
+        "path_raw": "tmp/fixtures/far_r0c1_33.raw",
+        "path_jpg": "tmp/fixtures/far_r0c1_33.jpg"
+      },
+      {
+        "name": "far_r0c2_33",
+        "utm_bounds": [
+          99950,
+          200150,
+          100050,
+          200250
+        ],
+        "path_raw": "tmp/fixtures/far_r0c2_33.raw",
+        "path_jpg": "tmp/fixtures/far_r0c2_33.jpg"
+      },
+      {
+        "name": "far_r0c3_33",
+        "utm_bounds": [
+          100050,
+          200150,
+          100150,
+          200250
+        ],
+        "path_raw": "tmp/fixtures/far_r0c3_33.raw",
+        "path_jpg": "tmp/fixtures/far_r0c3_33.jpg"
+      },
+      {
+        "name": "far_r0c4_33",
+        "utm_bounds": [
+          100150,
+          200150,
+          100250,
+          200250
+        ],
+        "path_raw": "tmp/fixtures/far_r0c4_33.raw",
+        "path_jpg": "tmp/fixtures/far_r0c4_33.jpg"
+      },
+      {
+        "name": "far_r1c0_33",
+        "utm_bounds": [
+          99750,
+          200050,
+          99850,
+          200150
+        ],
+        "path_raw": "tmp/fixtures/far_r1c0_33.raw",
+        "path_jpg": "tmp/fixtures/far_r1c0_33.jpg"
+      },
+      {
+        "name": "far_r1c1_33",
+        "utm_bounds": [
+          99850,
+          200050,
+          99950,
+          200150
+        ],
+        "path_raw": "tmp/fixtures/far_r1c1_33.raw",
+        "path_jpg": "tmp/fixtures/far_r1c1_33.jpg"
+      },
+      {
+        "name": "far_r1c2_33",
+        "utm_bounds": [
+          99950,
+          200050,
+          100050,
+          200150
+        ],
+        "path_raw": "tmp/fixtures/far_r1c2_33.raw",
+        "path_jpg": "tmp/fixtures/far_r1c2_33.jpg"
+      },
+      {
+        "name": "far_r1c3_33",
+        "utm_bounds": [
+          100050,
+          200050,
+          100150,
+          200150
+        ],
+        "path_raw": "tmp/fixtures/far_r1c3_33.raw",
+        "path_jpg": "tmp/fixtures/far_r1c3_33.jpg"
+      },
+      {
+        "name": "far_r1c4_33",
+        "utm_bounds": [
+          100150,
+          200050,
+          100250,
+          200150
+        ],
+        "path_raw": "tmp/fixtures/far_r1c4_33.raw",
+        "path_jpg": "tmp/fixtures/far_r1c4_33.jpg"
+      },
+      {
+        "name": "far_r2c0_33",
+        "utm_bounds": [
+          99750,
+          199950,
+          99850,
+          200050
+        ],
+        "path_raw": "tmp/fixtures/far_r2c0_33.raw",
+        "path_jpg": "tmp/fixtures/far_r2c0_33.jpg"
+      },
+      {
+        "name": "far_r2c1_33",
+        "utm_bounds": [
+          99850,
+          199950,
+          99950,
+          200050
+        ],
+        "path_raw": "tmp/fixtures/far_r2c1_33.raw",
+        "path_jpg": "tmp/fixtures/far_r2c1_33.jpg"
+      },
+      {
+        "name": "far_r2c2_33",
+        "utm_bounds": [
+          99950,
+          199950,
+          100050,
+          200050
+        ],
+        "path_raw": "tmp/fixtures/far_r2c2_33.raw",
+        "path_jpg": "tmp/fixtures/far_r2c2_33.jpg"
+      },
+      {
+        "name": "far_r2c3_33",
+        "utm_bounds": [
+          100050,
+          199950,
+          100150,
+          200050
+        ],
+        "path_raw": "tmp/fixtures/far_r2c3_33.raw",
+        "path_jpg": "tmp/fixtures/far_r2c3_33.jpg"
+      },
+      {
+        "name": "far_r2c4_33",
+        "utm_bounds": [
+          100150,
+          199950,
+          100250,
+          200050
+        ],
+        "path_raw": "tmp/fixtures/far_r2c4_33.raw",
+        "path_jpg": "tmp/fixtures/far_r2c4_33.jpg"
+      },
+      {
+        "name": "far_r3c0_33",
+        "utm_bounds": [
+          99750,
+          199850,
+          99850,
+          199950
+        ],
+        "path_raw": "tmp/fixtures/far_r3c0_33.raw",
+        "path_jpg": "tmp/fixtures/far_r3c0_33.jpg"
+      },
+      {
+        "name": "far_r3c1_33",
+        "utm_bounds": [
+          99850,
+          199850,
+          99950,
+          199950
+        ],
+        "path_raw": "tmp/fixtures/far_r3c1_33.raw",
+        "path_jpg": "tmp/fixtures/far_r3c1_33.jpg"
+      },
+      {
+        "name": "far_r3c2_33",
+        "utm_bounds": [
+          99950,
+          199850,
+          100050,
+          199950
+        ],
+        "path_raw": "tmp/fixtures/far_r3c2_33.raw",
+        "path_jpg": "tmp/fixtures/far_r3c2_33.jpg"
+      },
+      {
+        "name": "far_r3c3_33",
+        "utm_bounds": [
+          100050,
+          199850,
+          100150,
+          199950
+        ],
+        "path_raw": "tmp/fixtures/far_r3c3_33.raw",
+        "path_jpg": "tmp/fixtures/far_r3c3_33.jpg"
+      },
+      {
+        "name": "far_r3c4_33",
+        "utm_bounds": [
+          100150,
+          199850,
+          100250,
+          199950
+        ],
+        "path_raw": "tmp/fixtures/far_r3c4_33.raw",
+        "path_jpg": "tmp/fixtures/far_r3c4_33.jpg"
+      },
+      {
+        "name": "far_r4c0_33",
+        "utm_bounds": [
+          99750,
+          199750,
+          99850,
+          199850
+        ],
+        "path_raw": "tmp/fixtures/far_r4c0_33.raw",
+        "path_jpg": "tmp/fixtures/far_r4c0_33.jpg"
+      },
+      {
+        "name": "far_r4c1_33",
+        "utm_bounds": [
+          99850,
+          199750,
+          99950,
+          199850
+        ],
+        "path_raw": "tmp/fixtures/far_r4c1_33.raw",
+        "path_jpg": "tmp/fixtures/far_r4c1_33.jpg"
+      },
+      {
+        "name": "far_r4c2_33",
+        "utm_bounds": [
+          99950,
+          199750,
+          100050,
+          199850
+        ],
+        "path_raw": "tmp/fixtures/far_r4c2_33.raw",
+        "path_jpg": "tmp/fixtures/far_r4c2_33.jpg"
+      },
+      {
+        "name": "far_r4c3_33",
+        "utm_bounds": [
+          100050,
+          199750,
+          100150,
+          199850
+        ],
+        "path_raw": "tmp/fixtures/far_r4c3_33.raw",
+        "path_jpg": "tmp/fixtures/far_r4c3_33.jpg"
+      },
+      {
+        "name": "far_r4c4_33",
+        "utm_bounds": [
+          100150,
+          199750,
+          100250,
+          199850
+        ],
+        "path_raw": "tmp/fixtures/far_r4c4_33.raw",
+        "path_jpg": "tmp/fixtures/far_r4c4_33.jpg"
+      }
+    ]
+  },
+  "s2": {
+    "scene": "FIXTURE",
+    "date": "2026-03-20",
+    "res_m": 10,
+    "srgb": true,
+    "source": "fixture",
+    "note": "synthetic"
+  },
+  "generated_by": "EditMode fixture generator 2026-09-29"
+}

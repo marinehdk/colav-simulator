@@ -41,6 +41,9 @@ namespace Sango
         [Tooltip("岛群基线设置（场景构建器注入 M1 常数 + 岛体材质；Apply 时经 IslandRebuild 映射）。")]
         public IslandSettings islandBaseline;
 
+        [Tooltip("M6：岛数控件可见性。真实地形场景（M6-Strait）无 Perlin 岛群，隐藏该段 UI/键位并使 Apply 只收权雷达参数（避免对真实地形执行岛群重建）。默认 true = M1 语义不变。")]
+        public bool islandControlsVisible = true;
+
         // 待应用的岛屿参数（Enter/Apply 才生效；面板滑条与 -/= ,/. 键同写这里）。
         int m_Count = 5;
         float m_Scale = 1f;
@@ -106,36 +109,39 @@ namespace Sango
             AnchorTop(title.rectTransform, 16f, y, k_PanelWidth - 32f, 30f);
             y -= 40f;
 
-            // ── 岛屿（Apply 门控）───────────────────────────────────────────────────────
-            y = SectionLabel(y, "ISLANDS  (Apply rebuilds, seed 42 kept)");
-
-            _countValue = CreateLabel(_panel, "CountValue", "", 16, TextAnchor.MiddleRight, new Color(0.75f, 0.85f, 0.95f));
-            AnchorTop(_countValue.rectTransform, k_PanelWidth - 216f, y, 200f, 22f);
-            var countLabel = CreateLabel(_panel, "CountLabel", "Island count", 17, TextAnchor.MiddleLeft, new Color(0.92f, 0.94f, 0.96f));
-            AnchorTop(countLabel.rectTransform, 16f, y, 260f, 22f);
-            y -= 30f;
-            _countSlider = CreateSlider("IslandCount", 1f, 15f, m_Count, true, v =>
+            // ── 岛屿（Apply 门控；M6 真实地形场景 islandControlsVisible=false 整段隐藏）──
+            if (islandControlsVisible)
             {
-                m_Count = Mathf.RoundToInt(v);
-                RefreshPendingLabels();
-                Debug.Log($"[Sango.M2E2] island count pending={m_Count} (press Apply / Enter)");
-            });
-            PlaceSlider((RectTransform)_countSlider.transform, y);
-            y -= 46f;
+                y = SectionLabel(y, "ISLANDS  (Apply rebuilds, seed 42 kept)");
 
-            _scaleValue = CreateLabel(_panel, "ScaleValue", "", 16, TextAnchor.MiddleRight, new Color(0.75f, 0.85f, 0.95f));
-            AnchorTop(_scaleValue.rectTransform, k_PanelWidth - 216f, y, 200f, 22f);
-            var scaleLabel = CreateLabel(_panel, "ScaleLabel", "Island scale (x)", 17, TextAnchor.MiddleLeft, new Color(0.92f, 0.94f, 0.96f));
-            AnchorTop(scaleLabel.rectTransform, 16f, y, 260f, 22f);
-            y -= 30f;
-            _scaleSlider = CreateSlider("IslandScale", IslandRebuild.ScaleMin, IslandRebuild.ScaleMax, m_Scale, false, v =>
-            {
-                m_Scale = Mathf.Round(v * 100f) / 100f;
-                RefreshPendingLabels();
-                Debug.Log($"[Sango.M2E2] island scale pending={m_Scale:0.00} (press Apply / Enter)");
-            });
-            PlaceSlider((RectTransform)_scaleSlider.transform, y);
-            y -= 46f;
+                _countValue = CreateLabel(_panel, "CountValue", "", 16, TextAnchor.MiddleRight, new Color(0.75f, 0.85f, 0.95f));
+                AnchorTop(_countValue.rectTransform, k_PanelWidth - 216f, y, 200f, 22f);
+                var countLabel = CreateLabel(_panel, "CountLabel", "Island count", 17, TextAnchor.MiddleLeft, new Color(0.92f, 0.94f, 0.96f));
+                AnchorTop(countLabel.rectTransform, 16f, y, 260f, 22f);
+                y -= 30f;
+                _countSlider = CreateSlider("IslandCount", 1f, 15f, m_Count, true, v =>
+                {
+                    m_Count = Mathf.RoundToInt(v);
+                    RefreshPendingLabels();
+                    Debug.Log($"[Sango.M2E2] island count pending={m_Count} (press Apply / Enter)");
+                });
+                PlaceSlider((RectTransform)_countSlider.transform, y);
+                y -= 46f;
+
+                _scaleValue = CreateLabel(_panel, "ScaleValue", "", 16, TextAnchor.MiddleRight, new Color(0.75f, 0.85f, 0.95f));
+                AnchorTop(_scaleValue.rectTransform, k_PanelWidth - 216f, y, 200f, 22f);
+                var scaleLabel = CreateLabel(_panel, "ScaleLabel", "Island scale (x)", 17, TextAnchor.MiddleLeft, new Color(0.92f, 0.94f, 0.96f));
+                AnchorTop(scaleLabel.rectTransform, 16f, y, 260f, 22f);
+                y -= 30f;
+                _scaleSlider = CreateSlider("IslandScale", IslandRebuild.ScaleMin, IslandRebuild.ScaleMax, m_Scale, false, v =>
+                {
+                    m_Scale = Mathf.Round(v * 100f) / 100f;
+                    RefreshPendingLabels();
+                    Debug.Log($"[Sango.M2E2] island scale pending={m_Scale:0.00} (press Apply / Enter)");
+                });
+                PlaceSlider((RectTransform)_scaleSlider.transform, y);
+                y -= 46f;
+            }
 
             // ── 雷达（即时生效）────────────────────────────────────────────────────────
             y = SectionLabel(y, "RADAR  (live)");
@@ -236,7 +242,9 @@ namespace Sango
             var hint1 = CreateLabel(_panel, "Hint1", "C camera · V vectors · A/G demo", 13, TextAnchor.MiddleLeft, new Color(0.6f, 0.65f, 0.7f));
             AnchorTop(hint1.rectTransform, 16f, y, k_PanelWidth - 32f, 18f);
             y -= 20f;
-            var hint2 = CreateLabel(_panel, "Hint2", "-/= count · ,/. scale · Enter apply", 13, TextAnchor.MiddleLeft, new Color(0.6f, 0.65f, 0.7f));
+            var hint2 = CreateLabel(_panel, "Hint2",
+                islandControlsVisible ? "-/= count · ,/. scale · Enter apply" : "Enter apply (radar)",
+                13, TextAnchor.MiddleLeft, new Color(0.6f, 0.65f, 0.7f));
             AnchorTop(hint2.rectTransform, 16f, y, k_PanelWidth - 32f, 18f);
             y -= 20f;
             var hint3 = CreateLabel(_panel, "Hint3", "P model · Q/E radar range · Z/X sweep", 13, TextAnchor.MiddleLeft, new Color(0.6f, 0.65f, 0.7f));
@@ -289,19 +297,24 @@ namespace Sango
 
         public void ApplyNow()
         {
-            var settings = IslandRebuild.MapToSettings(islandBaseline, m_Count, m_Scale);
-            var old = GameObject.Find("Islands");
-            if (old != null) Destroy(old);
-            var root = PerlinIslandGenerator.GenerateIslands(settings);
-            root.transform.position = islandCenter;
+            if (islandControlsVisible)
+            {
+                var settings = IslandRebuild.MapToSettings(islandBaseline, m_Count, m_Scale);
+                var old = GameObject.Find("Islands");
+                if (old != null) Destroy(old);
+                var root = PerlinIslandGenerator.GenerateIslands(settings);
+                root.transform.position = islandCenter;
+                if (_applyStatus != null) _applyStatus.text = $"applied: {settings.count} islands x{m_Scale:0.00} @ t+{Time.frameCount}f";
+                Debug.Log($"[Sango.M2E2] islands rebuilt: count={settings.count} scale={m_Scale:0.00} " +
+                          $"sizeRange=({settings.sizeRange.x:0}-{settings.sizeRange.y:0}m) cluster={settings.clusterRadius:0}m seed={settings.seed}");
+            }
             if (radar != null)
             {
                 radar.SetRange(_rangeSlider != null ? _rangeSlider.value : radar.RangeM);
                 radar.SetSweepSpeed(_sweepSlider != null ? _sweepSlider.value : radar.SweepSpeedDegPerSec);
             }
-            if (_applyStatus != null) _applyStatus.text = $"applied: {settings.count} islands x{m_Scale:0.00} @ t+{Time.frameCount}f";
-            Debug.Log($"[Sango.M2E2] islands rebuilt: count={settings.count} scale={m_Scale:0.00} " +
-                      $"sizeRange=({settings.sizeRange.x:0}-{settings.sizeRange.y:0}m) cluster={settings.clusterRadius:0}m seed={settings.seed}");
+            if (!islandControlsVisible && _applyStatus != null)
+                _applyStatus.text = $"applied: radar params @ t+{Time.frameCount}f";
         }
 
         // ── 键位（-/= 岛数、,/. 缩放、Enter Apply、P 预览档）─────────────────────────
@@ -319,29 +332,34 @@ namespace Sango
             var es = EventSystem.current;
             if (es != null && es.currentSelectedGameObject != null) es.SetSelectedGameObject(null);
 
-            if (Input.GetKeyDown(KeyCode.Minus) || Input.GetKeyDown(KeyCode.KeypadMinus))
+            // M6 真实地形场景（islandControlsVisible=false）：-/= ,/. 岛数/缩放键位随 UI 一并隐藏；
+            // Enter/Apply 保留（只收权雷达参数，见 ApplyNow）；P 预览与雷达键位两场景共用。
+            if (islandControlsVisible)
             {
-                m_Count = Mathf.Clamp(m_Count - 1, (int)IslandRebuild.CountMin, 15);
-                RefreshPendingLabels();
-                Debug.Log($"[Sango.M2E2] island count pending={m_Count} (press Apply / Enter)");
-            }
-            if (Input.GetKeyDown(KeyCode.Equals) || Input.GetKeyDown(KeyCode.KeypadPlus))
-            {
-                m_Count = Mathf.Clamp(m_Count + 1, (int)IslandRebuild.CountMin, 15);
-                RefreshPendingLabels();
-                Debug.Log($"[Sango.M2E2] island count pending={m_Count} (press Apply / Enter)");
-            }
-            if (Input.GetKeyDown(KeyCode.Comma))
-            {
-                m_Scale = Mathf.Clamp(m_Scale - 0.25f, IslandRebuild.ScaleMin, IslandRebuild.ScaleMax);
-                RefreshPendingLabels();
-                Debug.Log($"[Sango.M2E2] island scale pending={m_Scale:0.00} (press Apply / Enter)");
-            }
-            if (Input.GetKeyDown(KeyCode.Period))
-            {
-                m_Scale = Mathf.Clamp(m_Scale + 0.25f, IslandRebuild.ScaleMin, IslandRebuild.ScaleMax);
-                RefreshPendingLabels();
-                Debug.Log($"[Sango.M2E2] island scale pending={m_Scale:0.00} (press Apply / Enter)");
+                if (Input.GetKeyDown(KeyCode.Minus) || Input.GetKeyDown(KeyCode.KeypadMinus))
+                {
+                    m_Count = Mathf.Clamp(m_Count - 1, (int)IslandRebuild.CountMin, 15);
+                    RefreshPendingLabels();
+                    Debug.Log($"[Sango.M2E2] island count pending={m_Count} (press Apply / Enter)");
+                }
+                if (Input.GetKeyDown(KeyCode.Equals) || Input.GetKeyDown(KeyCode.KeypadPlus))
+                {
+                    m_Count = Mathf.Clamp(m_Count + 1, (int)IslandRebuild.CountMin, 15);
+                    RefreshPendingLabels();
+                    Debug.Log($"[Sango.M2E2] island count pending={m_Count} (press Apply / Enter)");
+                }
+                if (Input.GetKeyDown(KeyCode.Comma))
+                {
+                    m_Scale = Mathf.Clamp(m_Scale - 0.25f, IslandRebuild.ScaleMin, IslandRebuild.ScaleMax);
+                    RefreshPendingLabels();
+                    Debug.Log($"[Sango.M2E2] island scale pending={m_Scale:0.00} (press Apply / Enter)");
+                }
+                if (Input.GetKeyDown(KeyCode.Period))
+                {
+                    m_Scale = Mathf.Clamp(m_Scale + 0.25f, IslandRebuild.ScaleMin, IslandRebuild.ScaleMax);
+                    RefreshPendingLabels();
+                    Debug.Log($"[Sango.M2E2] island scale pending={m_Scale:0.00} (press Apply / Enter)");
+                }
             }
             if (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter))
             {
