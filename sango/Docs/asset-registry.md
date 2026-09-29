@@ -26,6 +26,7 @@
 | AsyncIO 0.1.69（AsyncIO.dll，未修改） | `sango/Assets/Plugins/NetMQ/AsyncIO.dll` | https://github.com/somdoron/AsyncIO | MPL-2.0（`THIRD_PARTY_NOTICES.md` 逐字记载；全文 `LICENSE-AsyncIO.md`） | 未修改库连同 `LICENSE-AsyncIO.md` 一起分发即满足 MPL-2.0 file-level copyleft。Copyright (c) Somdoron Ltd. | 2026-09-28（ecf33a72） | NetMQ 依赖（同目录 vendored） |
 | NaCl.Net 0.1.13（NaCl.dll，未修改） | `sango/Assets/Plugins/NetMQ/NaCl.dll` | https://github.com/somdoron/NaCl.net | MPL-2.0（`THIRD_PARTY_NOTICES.md` 逐字记载；全文 `LICENSE-NaCl.md`） | 同上，随库保留 `LICENSE-NaCl.md`。Copyright (c) Somdoron Ltd. | 2026-09-28（ecf33a72） | NetMQ 传递依赖（CurveZMQ 支持） |
 | telemetry-sample.json（内部录制的传输 fixture） | `sango/Assets/Tests/Fixtures/telemetry-sample.json` | 无外部来源 —— 本机 uvicorn compact-v1 会话录制（run_id `bd4e1404-ac39-4986-b1ca-d50676d612b0`，场景 head_on，schema_version 1.0） | 内部录制，无外部许可 | 不适用 | 2026-09-28（ecf33a72） | M3 传输 golden fixture（DetectionResult / FramePublisher 测试） |
+| Copernicus GLO-30（6 tile：N01/N00/S01 × E103/E104，共 115.6 MB，不入库） | `tmp/m6-spike-data/tiles/`（经 `tools/terrain/spike1.sh` 重下再生；判据产物见 `docs/research/2026-09-29-m6-terrain-spike/`） | https://copernicus-dem-30m.s3.amazonaws.com/Copernicus_DSM_COG_10_{T}_DEM/Copernicus_DSM_COG_10_{T}_DEM.tif （AWS 公开镜像，匿名） | Copernicus "Full, Free & Open"（ESA 公开镜像合法分发） | © Copernicus DEM / ESA | 2026-09-29（本 commit，见 `tools/terrain/spike1.sh` 同批） | M6 地形 spike——海峡 DEM（岛屿起伏 0–303 m），海面 0 m 钳平；bathymetry 留 GEBCO 正式批 |
 
 ## 备注
 
