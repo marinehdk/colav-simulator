@@ -24,7 +24,7 @@
 
 ## Code-review 处置（2026-09-29）
 
-- **F1（Blocker 判定）→ 实机裁决为误报**：评审员静态推演认为归一化烘在 prefab 根位、被放置层覆盖致 7/8 艘错位。三重反证：①prefab 全量 transform dump（14 块）——根节点干净 (0,0,0)/scale1，所引"根 p.y=+6.237"不存在于文件（+6.24 为轮胎辅助节点值，归属误读）；②实机三组帧（主角水线/轮胎贴水/艏波、俯视锚地零沉没零悬空零穿模——m5-fleet-topdown.jpg）；③评审自认仅静态分析建议 GUI 确认。**底层关切成立**（契约无测试/审计无 center）→ 加固批进行中（落位位姿断言测试+审计 center 列）。
+- **F1（Blocker）→ 成立，已修复（64ee85fc）**。初判"误报"被加固批推翻：落位位姿测试首轮 13 红，与评审静态推演逐位吻合（CargoGeneral 悬空 +31.8m、LNG 沉 -14.3m、7/8 keel 错位）。初判错因（重要教训）：①编排者 YAML 取证误读（正则首块 transform 非根节点）；②实机帧验证的是**场景存档实例**（绝对位姿 override 恰好正确），未触及 **prefab 契约路径**（运行时 AnchorageFleet 密度重摆才会踩雷）——经验证据必须打到契约路径。修复：补偿折算进子节点 localPosition、k_PipelineVersion 1→2、重导 8 prefab；场景实例绝对 override 自动落正确位姿。修复后 16 断言全绿（keel/中心 8 艘全 0.000 偏差），编排者独立复跑 EditMode 241/244 全绿+播放器重建+冒烟帧（m5h-postfix-smoke.jpg）+probe 30/30。
 - F2 署名文本补 URL+CC deed 链（8 行）✓ 6c9346ff；F3 docstring 改正 ✓ 同 commit。
 - F4 双表联动测试 → 加固批；F5 meta 两行格式=Unity 会自动补齐（评审自评无害），不动。
 - 范围口径：评审指出 faa1b642..80ffe0f7 混入 M6-spike 提交（信息项，M5 单提交=ab8e4446..80ffe0f7）——记录。
