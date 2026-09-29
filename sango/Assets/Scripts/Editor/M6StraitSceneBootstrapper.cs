@@ -35,8 +35,9 @@ namespace Sango.Editor
         // 构建期 depth gate（Terrain.SampleHeight 实采）复验。初版航路首跑被 gate 拦下
         // （(3407,-6370) 高程 −4.8 m：Bukom/Sudong 岛群浅滩；首版离线验证误用"段内最深处"
         // 统计——gate 纠正为"段内最浅处 < −5 m"口径后重选）。现版：泊位 200 m 盒最浅 −13.3 m；
-        // 航路三段最浅 −15.0/−46.9/−46.9 m（绕岛群南侧深水航道）；锚地 7 槽含 300 m 大船
-        // ±153 m 角点盒最浅 −23.8 ~ −73.1 m。
+        // 航路三段最浅 −15.0/−46.9/−46.9 m（绕岛群南侧深水航道）。
+        // M7-A（2026-09-29）：锚地迁真实锚区（见 k_StraitSlots 注）；新增布景四要素 stage
+        // （M7BackdropBuilder：Tuas/PP 岸桥天际线+箱堆、A3 平整、A4 远景植被），落位另有陆上门禁。
 
         /// <summary>主角泊位（中部深水航道西缘，艏向沿航线首段 ~134°）。</summary>
         static readonly Vector2 k_HeroBerth = new Vector2(-1500f, -5000f);
@@ -51,17 +52,9 @@ namespace Sango.Editor
             new Vector2(9500f, -8800f),
         };
 
-        /// <summary>海峡锚地槽位（开阔水域，z ≈ −10 km 深水锚区；档位沿用 M5 船队）。</summary>
-        static readonly AnchorageSlot[] k_StraitSlots =
-        {
-            new AnchorageSlot(VesselClass.Tug,             new Vector2(1200f,  -9900f),  20f),
-            new AnchorageSlot(VesselClass.FishingTrawler,  new Vector2(1650f,  -10450f), 20f),
-            new AnchorageSlot(VesselClass.FcbPc3,          new Vector2(2300f,  -9900f),  20f),
-            new AnchorageSlot(VesselClass.CargoGeneral,    new Vector2(3300f,  -10150f), 20f),
-            new AnchorageSlot(VesselClass.CargoContainer,  new Vector2(4600f,  -10350f), 20f),
-            new AnchorageSlot(VesselClass.TankerLng,       new Vector2(6200f,  -10600f), 20f),
-            new AnchorageSlot(VesselClass.Tanker,          new Vector2(7900f,  -10700f), 20f),
-        };
+        /// <summary>海峡锚地槽位（M7-A 迁真实锚区；表体/选点 provenance 见
+        /// M7BackdropMath.StraitAnchorageSlots——此仅转发引用，保 k_StraitSlots 消费点不动）。</summary>
+        static readonly AnchorageSlot[] k_StraitSlots = M7BackdropMath.StraitAnchorageSlots;
 
         // 水深 fail-fast 裕量：除"高程<0"硬门外再压 5 m（防搁浅工程口径：keel/锚链富余）。
         const float k_DepthMarginM = 5f;
@@ -187,6 +180,10 @@ namespace Sango.Editor
             anchorage.waterSurface = water;
             anchorage.SetSlots(k_StraitSlots);
             anchorage.SetDensity(k_StraitSlots.Length);
+
+            // f2. M7-A 布景四要素（A3 平整 → 陆上落位门禁 fail-fast → 岸桥/箱堆 → A4 远景植被；
+            //     幂等：平整在 M6TerrainPipeline.BuildAll 重建 RAW 高度后重放，资产 load-or-create）
+            M7BackdropBuilder.BuildBackdrop(manifest, terrains, BuildSampler(terrains));
 
             // g. 水深验证（构建期 fail-fast，确定性，防搁浅；不满足即构建失败报错，不静默换点）
             ValidateDepths(terrains);
