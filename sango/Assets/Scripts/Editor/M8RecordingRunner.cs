@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.IO;
+using System.Linq;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEditor.Recorder;
@@ -22,7 +23,8 @@ namespace Sango.Editor
     /// Prepare/Start → 轮询 IsRecording() 收段 → StopRecording → HUD Restore →
     /// ExitPlaymode → EditorApplication.Exit(0)。
     /// 参数（环境变量，供 a4000 按段跑）：M8_SHOT=all|段名|序号（空=all）；M8_SECONDS=段时长
-    /// 覆盖（冒烟/验证段）；M8_OUT=帧序列输出根目录（默认 sango/tmp/m8b-frames，每段一子目录）。
+    /// 覆盖（冒烟/验证段）；M8_OUT=帧序列输出根目录（默认 sango/tmp/m8b-frames，每段一子目录）；
+    /// M8_SCENE=待开场景路径（空=Assets/Scenes/M6-Strait.unity 默认）。
     /// 时钟契约：业务驱动只读 Time.time（Constant 60 下 Recorder 自设 captureDeltaTime=1/60，
     /// 渲染与游戏时间解耦；禁读墙钟——DateTime.Now/realtimeSinceStartup 一律不碰，研究档 Q2）。
     /// </summary>
@@ -160,6 +162,7 @@ namespace Sango.Editor
         WeatherController m_Weather;
         WaypointFollower m_HeroFollower;
         RecorderController m_Controller;
+        RecorderControllerSettings m_ControllerSettings;
         int m_TakeIndex = -1;
         float m_TakeStartGameTime;
         M8ShotList.TierSwitch[] m_TierSchedule;
@@ -226,6 +229,7 @@ namespace Sango.Editor
             m_TakeDir = Path.Combine(OutRoot, shot.Name);
             Directory.CreateDirectory(m_TakeDir);
             var settings = M8RecordingRunner.BuildTakeSettings(Path.Combine(m_TakeDir, shot.Name + "_"), duration);
+            m_ControllerSettings = settings;
             m_Controller = new RecorderController(settings);
             m_Controller.PrepareRecording();
             m_Controller.StartRecording();
@@ -285,7 +289,28 @@ namespace Sango.Editor
         {
             // ImageRecorder JPEG 写盘异步（帧路径队列）：让编辑器帧消化完再开下一段
             for (int i = 0; i < 30; i++) yield return null;
+            ReleaseTakeSession(); // 段资源收口（必须晚于冲刷窗：销毁早于 JPEG 队列落盘会截段）
             BeginTake();
+        }
+
+        /// <summary>
+        /// 段录制会话资源收口（一处；EndTake 冲刷窗之后调用）。Recorder 5.1.7 的
+        /// RecorderController 无 IDisposable——session 侧清理已由 StopRecording 内部完成
+        /// （session.Dispose + recorder 组件销毁，RecorderController.cs:180-197）；此处只补
+        /// ScriptableObject 侧：settings + 其 recorder settings 逐个 DestroyImmediate
+        /// （清理次序同 M8RecordingPlanTests 先例），防 AllShots 九段逐段累积。
+        /// </summary>
+        void ReleaseTakeSession()
+        {
+            if (m_ControllerSettings != null)
+            {
+                var toClean = m_ControllerSettings.RecorderSettings.ToList(); // 先捕获（销毁后不可枚举）
+                UnityEngine.Object.DestroyImmediate(m_ControllerSettings);
+                foreach (var r in toClean)
+                    UnityEngine.Object.DestroyImmediate(r);
+            }
+            m_ControllerSettings = null;
+            m_Controller = null;
         }
 
         void FinishAll()
@@ -297,6 +322,7 @@ namespace Sango.Editor
         IEnumerator ExitAfterPlay()
         {
             for (int i = 0; i < 30; i++) yield return null; // 末段 JPEG 队列落盘余量
+            ReleaseTakeSession(); // 末段资源收口（与 NextTakeAfterFlush 同源一处）
             EditorApplication.isPlaying = false;
             s_QuitPending = true; // QuitWatchStatic 在退出 Play 后退编辑器（命令行不带 -quit）
         }

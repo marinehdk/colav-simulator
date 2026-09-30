@@ -21,10 +21,7 @@ namespace Sango
         public const int JpegQuality = 95;          // Image Sequence JPEG（跨机一致格式；成片 ffmpeg 转 H.264）
         public const string CameraTag = "MainCamera"; // Recorder TaggedCamera 源（HDRP 下 ActiveCamera 不可靠，研究档 Q1）；M6 主相机 tag 同款，零场景改动
 
-        /// <summary>段首静置秒（M8-C 材料条件：每段静置 3s 后开始有效内容——机位过渡 1s/大气过渡 3s 落在此窗内）。</summary>
-        public const float SettleSeconds = 3f;
-
-        // ── 大气三档连续段节奏（M8-C 表 #6：60s，每档 18s 含 3s 过渡；末档 Thunderstorm 保持到段尾）──
+        // ── 大气三档连续段节奏（M8-C 表 #6：60s 总长，前两档各 18s、末档 24s；末档 Thunderstorm 保持到段尾）──
         public const string AtmoSegmentName = "bridge-atmo";
         public const float AtmoTierHoldSeconds = 18f;
 
