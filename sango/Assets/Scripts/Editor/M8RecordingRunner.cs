@@ -18,7 +18,10 @@ namespace Sango.Editor
     /// （关键：进 Play 若伴随资产域重载，play 前建在场景里的编辑器程序集组件会丢——
     /// "referenced script missing" 实证；宿主在进入后创建则无此问题）→ HUD 强制 off
     /// （HudVisibility.Hide，M8-C 材料条件）→ 画质钉 High → 逐段应用镜头脚本
-    /// （CameraRig.SetView / WeatherController 时刻+大气档 / 主船 Toggle 自航）→
+    /// （M8-C 修复：起录前每段复位 WeatherController 状态=段定义值[时刻/大气档，程序化 T/N
+    /// 键同源] + Toggle 自航[G 键同源，含 Arrived 重跑态]，然后过**段前就绪窗**——速度达标
+    /// [≥80% 巡航，decal 速度门开] + 大气 smoothstep 过渡完成 + TAA ≥30 渲染帧，超时 10 s
+    /// 如实打日志继续；就绪窗不进录制时长）→
     /// 构建 RecorderController（Image Sequence JPEG 1080p60，Constant 60，CapFrameRate off）→
     /// Prepare/Start → 轮询 IsRecording() 收段 → StopRecording → HUD Restore →
     /// ExitPlaymode → EditorApplication.Exit(0)。
@@ -161,6 +164,7 @@ namespace Sango.Editor
         CameraRig m_Rig;
         WeatherController m_Weather;
         WaypointFollower m_HeroFollower;
+        BoatWaterDecals m_HeroDecals; // 仅日志消费（decal 速度门阈值现场值）
         RecorderController m_Controller;
         RecorderControllerSettings m_ControllerSettings;
         int m_TakeIndex = -1;
@@ -170,6 +174,7 @@ namespace Sango.Editor
         string m_TakeDir;
         bool m_SawRecording; // 本段至少见过一帧录制中（StartRecording 失败即 fail-fast，不静默出空段）
         bool m_TakeEnding;
+        float m_PrepCruiseMps; // 就绪窗速度判据的巡航锚（段起时 hero follower 的 cruiseSpeedMps）
 
         public void Configure(M8ShotList.RunParams p, string outRootAbsolute)
         {
@@ -190,6 +195,7 @@ namespace Sango.Editor
 
             m_Rig = FindFirstObjectByType<CameraRig>();
             m_Weather = FindFirstObjectByType<WeatherController>();
+            m_HeroDecals = FindFirstObjectByType<BoatWaterDecals>();
             var followers = FindObjectsByType<WaypointFollower>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
             foreach (var f in followers)
             {
@@ -214,18 +220,71 @@ namespace Sango.Editor
                 return;
             }
             var shot = M8ShotList.ThreeVoteNine[m_TakeIndex];
-            float duration = SecondsOverride > 0f ? SecondsOverride : shot.DurationSeconds;
 
-            // 段状态应用：机位（CameraRig 1s smoothstep 过渡落在段首 3s 静置窗内）/时刻/大气/自航
+            // 段状态复位（程序化 T/N 键同源，消段间泄漏）：机位（CameraRig 1s smoothstep 落在
+            // 就绪窗内）/ 时刻 / 大气档——ApplyAtmosphereTier 从当前值起 smoothstep 过渡
+            // （preset transitionSeconds 三档统一 3 s），pre-roll 等它走完再起录。
             m_Rig.SetView(shot.View);
             m_Weather.timeOfDayHours = shot.TimeOfDayHours;
             m_TierSchedule = M8ShotList.TierSchedule(shot);
             m_TierCursor = 0;
             ApplyTier(m_TierSchedule[0].Tier);
-            if (shot.StartDemo && m_HeroFollower != null && !m_HeroFollower.DemoRunning)
-                m_HeroFollower.Toggle(); // G 键同源启航
 
-            // 录制会话（每段独立 settings/controller，输出各归段名子目录）
+            // 自航激活（程序化 G 键 Toggle 同源）：未跑/已到达 → 启动或重跑；暂停中 → 恢复；
+            // 巡航跑动中不动（保速跨段，就绪窗即时达标）。Arrived 时 DemoRunning 仍 true——
+            // 旧守卫漏此态（起航后到达即冻结且不再重启），一并修正。
+            m_PrepCruiseMps = 0f;
+            if (shot.StartDemo && m_HeroFollower != null)
+            {
+                if (!m_HeroFollower.DemoRunning || m_HeroFollower.IsArrived)
+                    m_HeroFollower.Toggle();
+                m_PrepCruiseMps = m_HeroFollower.cruiseSpeedMps;
+            }
+
+            StartCoroutine(PreRollThenRecord(shot));
+        }
+
+        /// <summary>
+        /// 段前就绪窗（不进录制时长——协议档注记）：等 ①自航速度达标（decal 速度门开、尾迹清晰）
+        /// ②大气 smoothstep 过渡完成 ③TAA ≥30 渲染帧。判据全在 M8ShotList 纯函数（EditMode 直测）；
+        /// 超时 ReadyTimeoutSeconds fail-safe——如实打警告日志继续，batchmode 不挂死。
+        /// </summary>
+        IEnumerator PreRollThenRecord(M8ShotList.Shot shot)
+        {
+            float t0 = Time.time;
+            int frames0 = Time.renderedFrameCount;
+            float transitionSeconds = M7BMath.AtmospherePresetFor(m_TierSchedule[0].Tier).transitionSeconds;
+            float speed = m_HeroFollower != null ? m_HeroFollower.SpeedMps : 0f;
+            bool expired = false;
+            while (true)
+            {
+                speed = m_HeroFollower != null ? m_HeroFollower.SpeedMps : 0f;
+                bool speedOk = !shot.StartDemo || m_HeroFollower == null
+                               || M8ShotList.SpeedReady(speed, m_PrepCruiseMps);
+                bool settled = M8ShotList.TransitionSettled(Time.time - t0, transitionSeconds)
+                               && !m_Weather.AtmosphereTransitioning;
+                bool framesOk = M8ShotList.FramesSettled(Time.renderedFrameCount - frames0);
+                if (speedOk && settled && framesOk) break;
+                if (M8ShotList.ReadyWindowExpired(Time.time - t0)) { expired = true; break; }
+                yield return null;
+            }
+            if (expired)
+                Debug.LogWarning($"[Sango.M8B] pre-roll TIMEOUT {M8ShotList.ReadyTimeoutSeconds:0.#}s on {shot.Name} — proceed " +
+                                 $"(speed={speed:0.##}/{M8ShotList.ReadySpeedFraction * m_PrepCruiseMps:0.##} m/s, " +
+                                 $"transitioning={m_Weather.AtmosphereTransitioning}, frames={Time.renderedFrameCount - frames0})");
+            float decalGateMps = m_HeroDecals != null ? m_HeroDecals.speedThresholdMps : 0.5f;
+            Debug.Log($"[Sango.M8B] pre-roll ready: {shot.Name} speed={speed:0.##}/{m_PrepCruiseMps:0.##} m/s " +
+                      $"decalGate={(WaterDecalSpeedGate.ShouldEnableDecals(speed, decalGateMps) ? "open" : "closed")} " +
+                      $"transitionSettled={!m_Weather.AtmosphereTransitioning} (preset {transitionSeconds:0.#}s) " +
+                      $"frames={Time.renderedFrameCount - frames0}");
+            StartTakeRecording(shot);
+        }
+
+        void StartTakeRecording(M8ShotList.Shot shot)
+        {
+            // 录制会话（每段独立 settings/controller，输出各归段名子目录）；时长唯一源 =
+            // M8ShotList.RecordedDuration（表内/覆盖）——pre-roll 就绪窗不进录制时长。
+            float duration = M8ShotList.RecordedDuration(shot, SecondsOverride);
             m_TakeDir = Path.Combine(OutRoot, shot.Name);
             Directory.CreateDirectory(m_TakeDir);
             var settings = M8RecordingRunner.BuildTakeSettings(Path.Combine(m_TakeDir, shot.Name + "_"), duration);

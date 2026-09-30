@@ -29,6 +29,41 @@ namespace Sango
         public const float DayHours = 12f;
         public const float NightHours = 0f;
 
+        // ── 段前就绪窗（pre-roll：起录前等待，不进录制时长——协议档注记一致）─────────────
+        // M8-C 三票 round 1 根因修复的判据层：①自航速度达标（M4 尾迹/艏波 decal 速度门开——
+        // WaterDecalSpeedGate 阈 0.5 m/s、全强 5 m/s，80% 巡航稳在其上）②TAA 收敛 ③大气档
+        // smoothstep 过渡完成（WeatherController.ApplyAtmosphereTier，preset transitionSeconds
+        // 三档统一 3 s）。三判据全纯函数，EditMode 直测；Runner 消费 + 10 s 超时 fail-safe。
+        public const float ReadySpeedFraction = 0.8f; // 速度达标线 = 巡航 × 0.8
+        public const int TaaSettleFrames = 30;        // TAA 收敛最少渲染帧（评审 C：片头未收敛）
+        public const float ReadyTimeoutSeconds = 10f; // 超时 fail-safe：如实打日志继续（batchmode 不挂死）
+
+        /// <summary>
+        /// 就绪判据（纯函数）：自航速度达标 —— speedMps ≥ 巡航 × ReadySpeedFraction。
+        /// 巡航 ≤ 0 防御为不达标（0/0 假通过禁绝：静止船必须落到超时日志，不得静默出片）。
+        /// </summary>
+        public static bool SpeedReady(float speedMps, float cruiseSpeedMps)
+            => cruiseSpeedMps > 0f && speedMps >= cruiseSpeedMps * ReadySpeedFraction;
+
+        /// <summary>就绪判据（纯函数）：平滑过渡完成 —— elapsed ≥ transitionSeconds（时长 ≤ 0 = 即时完成）。</summary>
+        public static bool TransitionSettled(float elapsedSeconds, float transitionSeconds)
+            => elapsedSeconds >= transitionSeconds;
+
+        /// <summary>就绪判据（纯函数）：TAA 收敛 —— 起段以来渲染帧数 ≥ TaaSettleFrames。</summary>
+        public static bool FramesSettled(int renderedFramesSincePrep)
+            => renderedFramesSincePrep >= TaaSettleFrames;
+
+        /// <summary>就绪窗 fail-safe（纯函数）：elapsed 达超时线 → Runner 如实打日志继续，不挂死 batchmode。</summary>
+        public static bool ReadyWindowExpired(float elapsedSeconds)
+            => elapsedSeconds >= ReadyTimeoutSeconds;
+
+        /// <summary>
+        /// 段录制时长（唯一喂给 Recorder 时间区间的值）：M8_SECONDS 覆盖优先，否则表内时长。
+        /// pre-roll 就绪窗发生在起录前，不进本值（协议注记；测试钉死九段区间 = 表内时长）。
+        /// </summary>
+        public static float RecordedDuration(in Shot shot, float secondsOverride)
+            => secondsOverride > 0f ? secondsOverride : shot.DurationSeconds;
+
         /// <summary>单个镜头段（不可变值）。</summary>
         public struct Shot
         {
