@@ -38,6 +38,13 @@ namespace Sango
         int _seq;
         bool _loopRunning;
 
+        /// <summary>
+        /// M9 节流：最小发布间隔（1/30 s）。逐帧 ReadPixels+EncodeToJPG 占帧预算大头，
+        /// 同机跑检测服务时把帧率还给渲染循环（DEMO 实测 60→18）；线协议 multipart 格式、
+        /// topic、seq 单调语义全部不变，感知宿主侧零感知（帧率敏感者按 seq/time 丢弃）。
+        /// </summary>
+        const float MinPublishIntervalS = 1f / 30f;
+
         /// <summary>是否处于发布态（编译期闸 ∨ 运行期开关 ∨ 命令行旗标）。</summary>
         public bool Active => runtimeEnabled;
 
@@ -89,9 +96,12 @@ namespace Sango
 
         IEnumerator PublishLoop()
         {
+            double lastPublishRealtime = -1.0;
             while (_loopRunning && Active)
             {
                 yield return new WaitForEndOfFrame(); // 屏幕已渲完，ReadPixels 拿到完整帧
+                if (lastPublishRealtime > 0.0 && Time.unscaledTime - lastPublishRealtime < MinPublishIntervalS)
+                    continue; // M9 节流：间隔未到跳帧（不读屏不编码，成本≈一次布尔比较）
                 try
                 {
                     PublishOnce();
@@ -100,6 +110,7 @@ namespace Sango
                 {
                     Debug.LogWarning($"[Sango.M3] publish frame failed: {e.GetType().Name} {e.Message}");
                 }
+                lastPublishRealtime = Time.unscaledTime;
             }
         }
 

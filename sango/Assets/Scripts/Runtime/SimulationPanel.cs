@@ -29,6 +29,9 @@ namespace Sango
         [Tooltip("M4 船波 decal 适配器（艏波幅度/尾迹强度/速度阈值滑条即时驱动；构建器注入，可空）。")]
         public BoatWaterDecals waterDecals;
 
+        [Tooltip("M9 尾迹/艏波泡沫 rig（High 档粒子+ribbon 主视觉；尾迹强度滑条同步驱动其强度乘子；构建器注入，可空）。")]
+        public WakeFoamRig wakeFoam;
+
         [Tooltip("M5 锚地布景（锚泊船数滑条即时重建；构建器注入，可空）。")]
         public AnchorageFleet anchorage;
 
@@ -176,6 +179,7 @@ namespace Sango
                 waterDecals != null ? waterDecals.wakeFoamIntensity : 1f, false, v =>
                 {
                     if (waterDecals != null) waterDecals.wakeFoamIntensity = v;
+                    if (wakeFoam != null) wakeFoam.intensityMultiplier = v; // M9 双档共用同一滑条（High=粒子乘子 / Low=decal dimmer）
                 });
             y = LabeledSlider(y, "Wake intensity", wakeSlider);
 

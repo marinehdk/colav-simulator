@@ -119,6 +119,16 @@ namespace Sango
         {
             if (m_RigRoot != null) return; // 幂等：域重载不重建
 
+            // M9 守卫：播放器构建里 HDRP/Decal 若未被任何资产引用会被 strip（Shader.Find=null），
+            // new Material(null) 每帧 ArgumentNullException（实机 Player.log 51-58 实证）。
+            // 湿感/boot-top 贴花属观感件，缺失时整组件干净降级，编辑器态不受影响。
+            if (Shader.Find("HDRP/Decal") == null)
+            {
+                Debug.LogWarning($"{k_LogTag} {name}: HDRP/Decal shader not in build — waterline decals disabled (player build strip).", this);
+                enabled = false;
+                return;
+            }
+
             var bounds = CollectHullBounds();
             if (!bounds.HasValue)
             {

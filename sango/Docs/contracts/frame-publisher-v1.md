@@ -58,4 +58,4 @@ uv pip install pyzmq --python .venv/bin/python   # 2026-09-28 实装 pyzmq==27.2
 ## 5. 已知边界
 
 - 编辑器 batchmode 无屏，`ReadPixels` 不可用——发布验收只在玩家构建跑（本协议 §3 路径）。
-- 逐帧发布未限流：感知宿主按需丢弃即可（帧带 seq/time，R3 异步消费设计不变）。
+- M9 起：发布循环带 1/30 s 最小间隔节流（FramePublisher.MinPublishIntervalS，间隔未到跳帧不读屏）；线协议/seq 单调语义不变，感知宿主按需丢弃照旧（帧带 seq/time，R3 异步消费设计不变）。动机：同机跑检测服务时把编码预算还给渲染循环（实机 DEMO 60→18 fps 实证）。

@@ -1,0 +1,148 @@
+{
+  "materials": [
+    {
+      "name": "FCB45_PaintGreen",
+      "srgb_hex": "#8ED044",
+      "roughness": 0.43,
+      "metallic": 0.02,
+      "base_color_linear": [
+        0.2704977910130658,
+        0.6307571363461468,
+        0.05780543019106723,
+        1.0
+      ]
+    },
+    {
+      "name": "FCB45_SuperstructureWhite",
+      "srgb_hex": "#E8EDE8",
+      "roughness": 0.42,
+      "metallic": 0.03,
+      "base_color_linear": [
+        0.8069522576692516,
+        0.846873231509858,
+        0.8069522576692516,
+        1.0
+      ]
+    },
+    {
+      "name": "FCB45_DeckGrey",
+      "srgb_hex": "#7D8883",
+      "roughness": 0.87,
+      "metallic": 0.0,
+      "base_color_linear": [
+        0.20507873639031693,
+        0.24620132670783548,
+        0.22696587351009836,
+        1.0
+      ]
+    },
+    {
+      "name": "FCB45_DeckSeam",
+      "srgb_hex": "#C3CCC5",
+      "roughness": 0.72,
+      "metallic": 0.0,
+      "base_color_linear": [
+        0.5457244613701866,
+        0.6038273388553378,
+        0.5583403896342679,
+        1.0
+      ]
+    },
+    {
+      "name": "FCB45_LiveryBlack",
+      "srgb_hex": "#10221C",
+      "roughness": 0.48,
+      "metallic": 0.0,
+      "base_color_linear": [
+        0.005181516702338386,
+        0.01599629336550963,
+        0.011612245179743885,
+        1.0
+      ]
+    },
+    {
+      "name": "FCB45_Rubber",
+      "srgb_hex": "#202B26",
+      "roughness": 0.9,
+      "metallic": 0.0,
+      "base_color_linear": [
+        0.014443843596092545,
+        0.024157632448504756,
+        0.019382360956935723,
+        1.0
+      ]
+    },
+    {
+      "name": "FCB45_TireRib",
+      "srgb_hex": "#38443D",
+      "roughness": 0.83,
+      "metallic": 0.0,
+      "base_color_linear": [
+        0.03954623527673284,
+        0.05780543019106723,
+        0.046665086336880095,
+        1.0
+      ]
+    },
+    {
+      "name": "FCB45_RailMetal",
+      "srgb_hex": "#A6B5AF",
+      "roughness": 0.35,
+      "metallic": 0.65,
+      "base_color_linear": [
+        0.38132601143253014,
+        0.4620769996544071,
+        0.4286904966139066,
+        1.0
+      ]
+    },
+    {
+      "name": "FCB45_TintedGlass",
+      "srgb_hex": "#163D44",
+      "roughness": 0.22,
+      "metallic": 0.12,
+      "base_color_linear": [
+        0.008023192985384994,
+        0.046665086336880095,
+        0.05780543019106723,
+        1.0
+      ]
+    },
+    {
+      "name": "FCB45_SafetyYellow",
+      "srgb_hex": "#E8BD32",
+      "roughness": 0.53,
+      "metallic": 0.0,
+      "base_color_linear": [
+        0.8069522576692516,
+        0.5088813208549338,
+        0.03189603307301153,
+        1.0
+      ]
+    },
+    {
+      "name": "FCB45_SafetyRed",
+      "srgb_hex": "#C94336",
+      "roughness": 0.52,
+      "metallic": 0.0,
+      "base_color_linear": [
+        0.5840784178911641,
+        0.05612849004960009,
+        0.03688945040110004,
+        1.0
+      ]
+    },
+    {
+      "name": "FCB45_PropellerBronze",
+      "srgb_hex": "#AC925D",
+      "roughness": 0.33,
+      "metallic": 0.7,
+      "base_color_linear": [
+        0.41254261348390375,
+        0.2874408377269175,
+        0.10946171077829933,
+        1.0
+      ]
+    }
+  ]
+}

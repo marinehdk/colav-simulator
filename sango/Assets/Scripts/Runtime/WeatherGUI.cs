@@ -184,17 +184,19 @@ namespace Sango
                 {
                     if (Input.GetKeyDown((KeyCode)((int)KeyCode.Alpha0 + k)))
                     {
-                        controller.beaufort = k;
                         // 文档默认分配（beaufort-water-mapping.md）：B0-1 Calm、B2-4 Moderate、B5-7 Rough、B8-11 VeryRough
                         controller.spectrumTier = k <= 1 ? JsPmTier.Calm : k <= 4 ? JsPmTier.Moderate
                                                 : k <= 7 ? JsPmTier.Rough : JsPmTier.VeryRough;
+                        // M9-2：风档切档改目标态 + 2.5 s 渐变（直设 beaufort = 风/浪/桥摇一并跳变的断崖；
+                        // spectrumTier 离散枚举仍即时生效，主导量风速随轨渐变）
+                        controller.BeginUserGradeTransition(targetBeaufort: k);
                         controller.Apply();
                         RefreshReadout();
                         Debug.Log($"[Sango.M1] hotkey beaufort=B{k} tier={controller.TierName()}");
                     }
                 }
             }
-            if (Input.GetKeyDown(KeyCode.T))
+            if (Input.GetKeyDown(KeyCode.T)) // 时刻预设直设（M8RecordingRunner 同源确定性路径——时刻永不渐变）
             {
                 _timePresetIdx = (_timePresetIdx + 1) % k_TimePresets.Length;
                 controller.timeOfDayHours = k_TimePresets[_timePresetIdx];
@@ -205,13 +207,16 @@ namespace Sango
             if (Input.GetKeyDown(KeyCode.F))
             {
                 _fogPresetIdx = (_fogPresetIdx + 1) % k_FogPresets.Length;
-                controller.fogDistanceMeters = k_FogPresets[_fogPresetIdx];
+                controller.BeginUserGradeTransition(targetFogMeters: k_FogPresets[_fogPresetIdx]); // M9-2：雾距切档 2.5 s 渐变
                 controller.Apply();
                 RefreshReadout();
                 Debug.Log($"[Sango.M1] hotkey fog={k_FogPresets[_fogPresetIdx]}m");
             }
             if (Input.GetKeyDown(KeyCode.N)) // M7-B 大气档循环（M7 review 修复：V 已被 VectorArrows
             {                                // M2-E2 无门控占用——同帧两功能齐翻；改 N（全工程空闲，键位账本 0-9/T/F/G/C/B/A/P/Q/E/Z/X/Space/R/±,./Enter/V 已占））
+                                             // M9-2 注：本路径 ApplyAtmosphereTier 已是目标态 + preset 3 s smoothstep
+                                             //（雾/曝光/云量随轨渐变）；本次补的是 digits/F 直设通道的断崖。
+                                             // 云预设四档量化为 HDRP Simple 模式离散行为，残留跳变见 backlog。
                 controller.atmosphereTier = M7BMath.NextAtmosphereTier(controller.atmosphereTier);
                 controller.ApplyAtmosphereTier();
                 controller.Apply();

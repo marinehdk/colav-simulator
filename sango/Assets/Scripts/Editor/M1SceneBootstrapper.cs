@@ -180,6 +180,25 @@ namespace Sango.Editor
             return gate;
         }
 
+        // M9-1 双系统接线（评审压分主力：艏部白线静态贴花 / a4000 悬空贴片 → High 档换
+        // 粒子+ribbon）：decals（Low 档主视觉，速度门语义原样）之上叠 WakeFoamRig（High 档
+        // 艏浪粒子 + 艉迹 ribbon + 水线泡沫环，材质/贴图全程序化）。档位谓词见 WakeFoamCore，
+        // High 档压制由 WakeFoamRig.ApplyDecalSuppression 执行——本方法不碰 decal 字段，
+        // M8 runner 消费 speedThresholdMps 的 decalGate 契约不受影响。
+        public static WakeFoamRig AttachWakeFoamRig(GameObject ship, WaterSurface water, float loaMeters,
+                                                    WaypointFollower follower, BoatWaterDecals decals)
+        {
+            if (ship == null || follower == null) return null;
+            var rig = ship.AddComponent<WakeFoamRig>();
+            rig.follower = follower;
+            rig.water = water;
+            rig.decals = decals;
+            rig.loaMeters = loaMeters; // 速度门参数与 decal 门同锚（阈值 0.5 / 全强 5 = 默认值）
+            Debug.Log($"[Sango.M9] wake foam rig wired (LOA {loaMeters:F0} m): bow spray ×2 + stern ribbon + " +
+                      "waterline ring; M8 quality High = particles+ribbon, Low = decal");
+            return rig;
+        }
+
         static VolumeProfile CreateVolumeProfileAsset() => CreateVolumeProfileAsset(k_ProfileAsset);
 
         // M2-E1：路径参数化。遭遇场景必须用独立 profile 资产——本构建器对 M1 profile 是
@@ -294,6 +313,7 @@ namespace Sango.Editor
             GameObject hero = null, trawler = null, medium = null;
             WaypointFollower heroFollower = null; // M2-E2：相机 rig/矢量箭头/Autonomous 按钮接线用
             BoatWaterDecals heroDecals = null;    // M4-A：Simulation 面板「水面工艺」滑条驱动目标
+            WakeFoamRig heroWakeFoam = null;      // M9-1：High 档粒子+ribbon 主视觉（尾迹滑条同驱）
             AnchorageFleet anchorage = null;      // M5：锚地密度滑条驱动目标
             var catalog = AssetDatabase.LoadAssetAtPath<VesselCatalog>(VesselAssetPipeline.CatalogAssetPath);
             if (catalog == null)
@@ -322,7 +342,10 @@ namespace Sango.Editor
                               "route (30,-12) -> (52,-36) -> (72,-64) -> (30,-78) -> (-6,-50), cruise 8 m/s");
 
                     // M4 spike→M5 编目驱动：艏波变形 + 尾迹泡沫 WaterDecal（WaterDecalSizing 按 LOA 定尺寸）。
-                    heroDecals = AttachWaterDecals(hero, water, catalog.GetEntry(VesselClass.FcbHoubei)?.loaMeters ?? 42f, heroFollower);
+                    // M9-1 双系统：同点位叠 WakeFoamRig（High 档主视觉；decal 保持 Low 档语义）。
+                    var heroLoaM = catalog.GetEntry(VesselClass.FcbHoubei)?.loaMeters ?? 42f;
+                    heroDecals = AttachWaterDecals(hero, water, heroLoaM, heroFollower);
+                    heroWakeFoam = AttachWakeFoamRig(hero, water, heroLoaM, heroFollower, heroDecals);
                 }
 
                 // M5 锚地布景：默认 5 槽（SE 群 + LNG），密度滑条运行时可调（Simulation 面板 M5 段）。
@@ -423,6 +446,7 @@ namespace Sango.Editor
             sim.catalog = catalog;
             sim.islandCenter = k_IslandCenter;
             sim.waterDecals = heroDecals; // M4-A：水面工艺滑条（材质缺失跳过时为 null，滑条照常显示不生效）
+            sim.wakeFoam = heroWakeFoam;  // M9-1：尾迹强度滑条双驱（High=粒子乘子 / Low=decal dimmer）
             sim.anchorage = anchorage;    // M5：锚地密度滑条（AnchorageFleet 缺失时为 null，滑条照常显示不生效）
             var islandBaseline = IslandRebuild.M1Baseline();
             islandBaseline.material = islandMaterial;
@@ -430,7 +454,8 @@ namespace Sango.Editor
 
             // M3 缝钉子①④（spec #86）：检测框叠加层（B 切换，真值框 + "1.0 (gt)" 标签）
             // + ZMQ 帧发布器（默认 OFF，SangoSeamConfig.PublisherEnabled=false；启用路径见 frame-publisher-v1.md）。
-            var overlayGo = new GameObject("Detection Overlay", typeof(DetectionOverlay));
+            //    + M9 检测回传消费端（同 GO；detection-return-v1.md，关闸零成本）。
+            var overlayGo = new GameObject("Detection Overlay", typeof(DetectionOverlay), typeof(DetectionResultConsumer));
             var overlay = overlayGo.GetComponent<DetectionOverlay>();
             var overlayShips = new List<Transform>();
             if (hero != null) overlayShips.Add(hero.transform);

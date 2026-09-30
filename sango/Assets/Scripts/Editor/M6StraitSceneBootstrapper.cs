@@ -17,7 +17,8 @@ namespace Sango.Editor
     /// + M6 Global Volume（M1 CreateVolumeProfileAsset 同款，含自动曝光 override——M2-E2 教训）
     /// + WeatherController/WeatherGUI（0-9 海况/T 昼夜/F 雾距全保留）+ SimulationPanel
     /// （锚地密度 + M4 水面工艺滑条保留；岛数控件 islandControlsVisible=false 隐藏——真实地形无 Perlin 岛）
-    /// + FpsProbe（overlays fps 行，干净协议读它）+ 主角船 FcbHoubei（PlaceCatalogShip 全套接线：
+    /// + FpsProbe（overlays fps 行，干净协议读它）+ 主角船 Fcb45（45 m Fast Crew Boat 真主角，
+/// PlaceCatalogShip 全套接线：
     ///   浮力/号灯/水线湿感/艏波尾迹 WaterDecal/G 键 WaypointFollower 沿主航道）+ AnchorageFleet
     /// 海峡锚地船群（SetSlots 注入开阔水域字面量）+ DetectionOverlay（B）+ FramePublisher（默认关）。
     /// 水深验证（防搁浅，fail-fast 不许静默换点）：构建期 Terrain.SampleHeight 采样——
@@ -156,12 +157,12 @@ namespace Sango.Editor
             var guiGo = new GameObject("Weather GUI", typeof(WeatherGUI));
             guiGo.GetComponent<WeatherGUI>().controller = weather;
 
-            // e. 主角船 = FcbHoubei（M5 编目，PlaceCatalogShip 全套接线照 M1 现版）
+            // e. 主角船 = Fcb45（M5 编目真主角，45 m Fast Crew Boat；PlaceCatalogShip 全套接线照 M1 现版）
             var catalog = AssetDatabase.LoadAssetAtPath<VesselCatalog>(VesselAssetPipeline.CatalogAssetPath);
             if (catalog == null)
                 throw new System.InvalidOperationException($"[Sango.M6] vessel catalog missing at {VesselAssetPipeline.CatalogAssetPath}");
             var shipsRoot = new GameObject("Ships");
-            var hero = M1SceneBootstrapper.PlaceCatalogShip(catalog, VesselClass.FcbHoubei, k_HeroBerth, k_HeroHeadingDeg, shipsRoot.transform, water);
+            var hero = M1SceneBootstrapper.PlaceCatalogShip(catalog, VesselClass.Fcb45, k_HeroBerth, k_HeroHeadingDeg, shipsRoot.transform, water);
             if (hero == null)
                 throw new System.InvalidOperationException("[Sango.M6] hero ship placement failed");
 
@@ -171,12 +172,16 @@ namespace Sango.Editor
             heroFollower.cruiseSpeedMps = 8f;
             heroFollower.maxYawRateDegPerSec = 25f;
             heroFollower.arrivalRadiusM = 12f;
-            heroFollower.bowYawDegOffset = VesselAssetPipeline.BowYawDeg(VesselClass.FcbHoubei);
+            heroFollower.bowYawDegOffset = VesselAssetPipeline.BowYawDeg(VesselClass.Fcb45);
             heroFollower.waypoints = k_StraitRoute;
 
             // 艏波/尾迹 WaterDecal（WaterDecalSizing 按 LOA 定尺寸；decalRegionAnchor 锚主角船）
-            var heroDecals = M1SceneBootstrapper.AttachWaterDecals(hero, water, catalog.GetEntry(VesselClass.FcbHoubei)?.loaMeters ?? 42f, heroFollower);
-            M1SceneBootstrapper.AttachNavigationLights(hero, VesselClass.FcbHoubei, weather);
+            // M9-1 双系统：同点位叠 WakeFoamRig（High 档粒子+ribbon 主视觉；decal 保持 Low 档
+            // 语义，M8 pre-roll decalGate 契约不动）。
+            var heroLoaM = catalog.GetEntry(VesselClass.Fcb45)?.loaMeters ?? 45f;
+            var heroDecals = M1SceneBootstrapper.AttachWaterDecals(hero, water, heroLoaM, heroFollower);
+            var heroWakeFoam = M1SceneBootstrapper.AttachWakeFoamRig(hero, water, heroLoaM, heroFollower, heroDecals);
+            M1SceneBootstrapper.AttachNavigationLights(hero, VesselClass.Fcb45, weather);
             M1SceneBootstrapper.AttachHullWaterlineDecals(hero, 1.2f);
 
             // f. 锚地船群（海峡槽位注入；开阔水域，纯布景随浪摇）
@@ -247,11 +252,13 @@ namespace Sango.Editor
             sim.radar = radar;
             sim.catalog = catalog;
             sim.waterDecals = heroDecals;
+            sim.wakeFoam = heroWakeFoam; // M9-1：尾迹强度滑条双驱（High=粒子乘子 / Low=decal dimmer）
             sim.anchorage = anchorage;
             sim.islandControlsVisible = false; // 岛数/缩放/Apply 岛群重建不适用于真实地形
 
             // j. M3 链路（probe 30/30 验收门）：检测框叠加（B）+ ZMQ 帧发布器（默认 OFF）
-            var overlayGo = new GameObject("Detection Overlay", typeof(DetectionOverlay));
+            //    + M9 检测回传消费端（同 GO；overlay auto-find，关闸零成本——detection-return-v1.md）
+            var overlayGo = new GameObject("Detection Overlay", typeof(DetectionOverlay), typeof(DetectionResultConsumer));
             var overlayShips = new List<Transform> { hero.transform };
             overlayShips.AddRange(anchorage.ShipTransforms());
             overlayGo.GetComponent<DetectionOverlay>().ships = overlayShips.ToArray();

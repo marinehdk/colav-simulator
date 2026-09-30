@@ -7,13 +7,19 @@ namespace Sango
     /// <summary>
     /// M3 缝钉子①④适配层（spec #86）：检测框叠加层，来源无关。
     /// - Phase-1 演示：ProvideGroundTruth() 从船包围盒真值出框（置信度标签 "1.0 (gt)"）。
-    /// - Phase-2 接入：喂 DetectionResult（后端/YOLO 回传的契约结构）即渲染，渲染路径零改动。
+    /// - Phase-2 接入（M9）：live 路径消费 DetectionResultConsumer 的新鲜结果——有新鲜 YOLO
+    ///   结果则按 box_xyxy 像素直绘（标签 = class_name + confidence），否则回退 ground-truth
+    ///   （判定走 DetectionFreshness.PreferLiveOverGroundTruth 纯函数，EditMode 已测；
+    ///   协议文档：sango/Docs/contracts/detection-return-v1.md）。关闸/无消费端时恒走真值，行为不变。
     /// - 键位 B 切换（key ledger 空闲槽）；关时 OnGUI 早退，Update 仅查键——零可测成本。
     /// - 投影数学在 OverlayProjection（Sango.Vessels 纯函数，EditMode 已测）；
     ///   本类只做相机相关的 WorldToViewportPoint 收纳（8 角点 AABB）。
     /// </summary>
     public class DetectionOverlay : MonoBehaviour
     {
+        [Tooltip("检测结果消费端（live 路径数据源；留空 = 启动时自动查找场景内 DetectionResultConsumer）")]
+        public DetectionResultConsumer liveSource;
+
         [Tooltip("参与真值出框的船（根 Transform，含 Renderer 即可）")]
         public Transform[] ships = Array.Empty<Transform>();
 
@@ -26,6 +32,25 @@ namespace Sango
         [Tooltip("框外扩像素（包住船体涂装边缘）")]
         public float marginPx = 6f;
 
+        DetectionResultConsumer _consumer;   // 自动查找缓存（只找一次，防每帧 Find 开销）
+        bool _consumerSearched;
+        DetectionResult _liveFrame;          // 本帧 live 结果（Update 取用，OnGUI 只读不消费队列）
+
+        /// <summary>消费端引用：Inspector 优先，否则场景内查找一次。</summary>
+        DetectionResultConsumer Consumer
+        {
+            get
+            {
+                if (liveSource != null) return liveSource;
+                if (!_consumerSearched)
+                {
+                    _consumer = FindFirstObjectByType<DetectionResultConsumer>();
+                    _consumerSearched = true;
+                }
+                return _consumer;
+            }
+        }
+
         void Update()
         {
             if (Input.GetKeyDown(KeyCode.B))
@@ -33,6 +58,10 @@ namespace Sango
                 visible = !visible;
                 Debug.Log($"[Sango.M3] detection overlay {(visible ? "ON" : "OFF")} (B)");
             }
+
+            // live 取用每帧恰好一次（OnGUI 同帧可多次触发，队列消费不能放 OnGUI）。
+            // 消费端关闸时 TryTakeFresh 一次布尔比较即返回，真值路径成本不变。
+            _liveFrame = Consumer != null && Consumer.TryTakeFresh(Time.timeAsDouble, out var fresh) ? fresh : null;
         }
 
         void OnGUI()
@@ -40,6 +69,20 @@ namespace Sango
             if (!visible) return; // 关时零绘制
             var cam = sourceCamera != null ? sourceCamera : Camera.main;
             if (cam == null) return;
+
+            // live/GT 判定（纯函数）：有新鲜 live 结果按像素 xyxy 直绘（渲染时刻再验一次 age，幂等）；
+            // 否则回退真值——与 M3 行为逐位一致。
+            if (DetectionFreshness.PreferLiveOverGroundTruth(_liveFrame, Time.timeAsDouble))
+            {
+                foreach (var box in _liveFrame.detections)
+                {
+                    if (box?.box_xyxy == null || box.box_xyxy.Length != 4) continue;
+                    var rect = Rect.MinMaxRect(box.box_xyxy[0], box.box_xyxy[1], box.box_xyxy[2], box.box_xyxy[3]);
+                    GUI.Box(rect, $"{box.class_name}  {OverlayProjection.ConfidenceLabel(box.confidence, false)}");
+                }
+                return;
+            }
+
             var boxes = CollectBoxes(cam, Screen.width, Screen.height);
             foreach (var box in boxes)
                 GUI.Box(PixelRectFor(box, Screen.width, Screen.height),

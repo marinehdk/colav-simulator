@@ -1,0 +1,31 @@
+45 m Fast Crew Boat (FCB45) — asset provenance
+==============================================
+
+Model:          User-commissioned Blender reconstruction "FCB45_Master.blend"
+                (2026-09-30 delivery, FCB45_Blender_v1); dimension-constrained
+                visual reconstruction from two owner documents:
+                "45M Fast Crew Boat Data Sheet - Octagen.pdf" and
+                "MSQ-00725-RP-2 PRELIMINARY TECHNICAL SPECIFICATION REV T.pdf"
+                (SHA-256 in delivery model_manifest.json; originals held by
+                owner, archived outside the repo).
+Origin:         LOA 45.00 m, beam 8.00 m, depth 3.85 m, design draft 1.55 m
+                (both documents agree). Hull below waterline, livery details
+                and superstructure layout are estimates — delivery README §3
+                records the evidence/estimate boundary.
+Delivery:       FCB45_Unity.fbx (Unity axes: +Z bow, +Y up, metres, root origin
+                at midship design waterline; 12 flat HDRP/Lit palette materials,
+                no textures) + material_palette.json (12 sRGB hex entries).
+                Blender round-trip and Unity 6000.3.24f1/HDRP 17.3 import both
+                verified by the deliverer (verification.json,
+                unity_import_verification.json: bow·+Z = 1.0, LOA 45.000 m,
+                LOD0 68,618 tris). Full delivery archived outside the repo at
+                "/Users/marine/Desktop/Desktop/45M FCB Doc/FCB45_Blender_v1/"
+                (FCB45_LOD1_Unity.fbx / FCB45_Collision.fbx / previews/ not
+                imported: hero ships carry no LODGroup or collider in this
+                project — M5 fleet convention).
+Use:            M6 strait scene hero (VesselClass.Fcb45, LOA 45 m) — real
+                protagonist ship, replaces the FcbHoubei placeholder in the
+                M6-Strait scene only (M1 keeps the placeholder).
+Policy:         No AI-generated textures (project policy); materials are the
+                deliverer's flat sRGB palette, authored by M5FleetPipeline as
+                HDRP/Lit (palette mode), no texture generation involved.

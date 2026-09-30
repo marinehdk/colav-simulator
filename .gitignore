@@ -145,3 +145,8 @@ output/figures/
 # codegraph tool index
 codegraph/
 .codegraph/
+
+# sango detector service (M9): venv + YOLO weights
+.venv-detector/
+models/*.pt
+sango/tmp/

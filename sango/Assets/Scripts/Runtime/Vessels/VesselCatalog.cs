@@ -23,8 +23,11 @@ namespace Sango
         CargoGeneral,   // hungry_drifter「Cargo ship」杂货船，LOA 120 m（中景）
         Tug,            // davidbroutian「RAstar 3200」港作拖轮，LOA 32 m（中景）
         FishingTrawler, // JasperTobias「Trawler」拖网渔船，LOA 25 m（中远）
-        FcbHoubei,      // dannzjs「Type 22 missile boat」FCB 占位主角，LOA 42 m（hero 白壳绿装）
+        FcbHoubei,      // dannzjs「Type 22 missile boat」FCB 占位主角，LOA 42 m（hero 白壳绿装；M1 场景主角——M6 hero 已换 Fcb45）
         FcbPc3,         // S1Priv「Lowpoly USS Hurricane (PC-3)」巡逻艇，LOA 55 m（副选/远景）
+
+        // ── FCB45 真主角（用户自建 Blender 交付，Art/Purchased/fcb45/；provenance 见该目录）──
+        Fcb45,          // 45 m Fast Crew Boat，LOA 45 m / 型宽 8 m / 设计吃水 1.55 m（M6 海峡场景 hero）
     }
 
     /// <summary>

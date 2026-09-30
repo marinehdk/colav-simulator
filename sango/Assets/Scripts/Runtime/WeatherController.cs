@@ -50,14 +50,26 @@ namespace Sango
         /// <summary>最近一次 Apply 算出的风速 m/s（GUI 顶部读数与映射表核对用，M1 验收条款 2）。</summary>
         public float LastWindSpeedMs { get; private set; }
 
+        /// <summary>最近一次 Apply 算出的夜间补偿 EV（白天恒 0；M9-2 夜间曝光地板观测口）。</summary>
+        public float LastNightCompensationEv => m_NightCompEv;
+
         // ── M7-B 大气档间过渡（preset lerp；AdvanceAtmosphereTransition 是 EditMode 可测缝）──
         // 目标值来自 M7BMath.AtmospherePresetFor（纯函数）；动画只改 fogDistanceMeters/cloudCover/
         // exposureCompensationEv/sunDimFactor/rainRate 五个"当前值"字段（GUI 滑条镜像随动），HDRP
         // 写入仍走既有 Apply 管线（.Override 口径）。初始 m_TransT == m_TransDur = 无过渡，字段
         // 保持Inspector/构建器注入值——首次 ApplyAtmosphereTier 才起动画。
+        // M9-2：beaufort（风档）并入同轨（ApplyAtmosphereTier 钉当前值不动风；风渐变只走
+        // BeginUserGradeTransition——digits/F 等用户直设路径的切档断崖修复）。
         float m_TransT = 1f;
         float m_TransDur = 1f;
         float m_FogFrom, m_FogTo, m_CloudFrom, m_CloudTo, m_EvFrom, m_EvTo, m_DimFrom, m_DimTo, m_RainFrom, m_RainTo;
+        float m_BftFrom, m_BftTo;
+
+        // M9-2 夜间曝光地板调值（NightGradeCore 曲线；TBD-实机）：暮光带宽 6°（civil twilight
+        // 量级，日落渐入不跳变）、地板 −3 EV（雷暴白天 −1.6 EV 先例之上的夜间加码，≈8× 压暗）。
+        const float k_NightEvFadeDeg = NightGradeCore.NightEvFadeDeg;
+        const float k_NightFloorEv = NightGradeCore.NightFloorEv;
+        float m_NightCompEv; // 最近一次 ApplySun 算出的夜间补偿 EV（白天恒 0；观测口 LastNightCompensationEv）
 
         /// <summary>档间过渡进行中？（首帧前 false——初始字段即当前值。）</summary>
         public bool AtmosphereTransitioning => m_TransT < m_TransDur;
@@ -73,7 +85,28 @@ namespace Sango
             m_EvFrom = exposureCompensationEv; m_EvTo = p.exposureCompensationEv;
             m_DimFrom = sunDimFactor; m_DimTo = p.sunDimFactor;
             m_RainFrom = rainRate; m_RainTo = p.rain ? p.rainRate : 0f;
+            m_BftFrom = beaufort; m_BftTo = beaufort; // N 档不动风（通道钉当前值；M8RecordingRunner 确定性路径行为不变）
             m_TransDur = Mathf.Max(0.01f, p.transitionSeconds);
+            m_TransT = 0f;
+        }
+
+        /// <summary>
+        /// 用户切档渐变（M9-2）：GUI digits 0-9（风档）/ F 键（雾距）等原"直设字段即跳变"的
+        /// 切档改目标态 + smoothstep 渐变（默认 2.5 s，任务 2-3 s 窗中值）。可空参数 = 通道不
+        /// 参与（钉当前值，与其他通道同轨推进，半途重定向不跳变，语义同 ApplyAtmosphereTier
+        /// 可重复调用）。只服务用户切档路径：M8RecordingRunner 与 T 键直设 timeOfDayHours 的
+        /// 确定性路径不经此缝（时刻永不渐变）；N 键大气档走 ApplyAtmosphereTier（preset
+        /// transitionSeconds = 3 s，本就在 2-3 s 窗内）。
+        /// </summary>
+        public void BeginUserGradeTransition(float? targetBeaufort = null, float? targetFogMeters = null, float durationSeconds = 2.5f)
+        {
+            m_BftFrom = beaufort; m_BftTo = targetBeaufort ?? beaufort;
+            m_FogFrom = fogDistanceMeters; m_FogTo = targetFogMeters ?? fogDistanceMeters;
+            m_CloudFrom = m_CloudTo = cloudCover;
+            m_EvFrom = m_EvTo = exposureCompensationEv;
+            m_DimFrom = m_DimTo = sunDimFactor;
+            m_RainFrom = m_RainTo = rainRate;
+            m_TransDur = Mathf.Max(0.01f, durationSeconds);
             m_TransT = 0f;
         }
 
@@ -92,6 +125,7 @@ namespace Sango
             exposureCompensationEv = Mathf.Lerp(m_EvFrom, m_EvTo, t);
             sunDimFactor = Mathf.Lerp(m_DimFrom, m_DimTo, t);
             rainRate = Mathf.Lerp(m_RainFrom, m_RainTo, t);
+            beaufort = Mathf.Lerp(m_BftFrom, m_BftTo, t); // M9-2：风档同轨渐变（风m/s/浪 band 全部随 Apply 派生）
             return AtmosphereTransitioning;
         }
 
@@ -214,6 +248,12 @@ namespace Sango
             float dayFactor = Mathf.Clamp01(Mathf.Sin(elevationDeg * Mathf.Deg2Rad));
             // M7-B：sunDimFactor=1（晴档/默认）时与旧契约逐位一致；积雨云/雷暴档压直射
             sunLight.intensity = Mathf.Lerp(0.1f, 100000f, dayFactor * dayFactor) * sunDimFactor;
+            // M9-2 夜间曝光地板：仰角 < 0 起 6° 暮光带线性渐入固定负补偿（曲线 NightGradeCore.
+            // NightCompensationEv，ApplyAtmosphereExtras 消费）。根因：自动曝光（M6 profile
+            // limitMax=14）把 0.1 lux 夜景 normalize 回中灰 = 评审"夜空不暗"；直射压暗会被
+            // 逐帧直方图自适应抵消，负补偿 EV 移动直方图目标才留得住暗夜（同 M7-B 雷暴先例）。
+            // 月光方向光不加：太阳夜间 0.1 lux 已是月光量级，再添方向光有双光源/双影风险（克制）。
+            m_NightCompEv = NightGradeCore.NightCompensationEv(elevationDeg, k_NightEvFadeDeg, k_NightFloorEv);
         }
 
         // ── 云量 / 雾距 → Volume override ─────────────────────────────────────────────
@@ -275,7 +315,12 @@ namespace Sango
             if (globalVolume != null && globalVolume.profile.TryGet<Exposure>(out var exposure))
             {
                 exposure.active = true;
-                exposure.compensation.Override(exposureCompensationEv); // .Override 口径（同雾参数注释）
+                // .Override 口径（同雾参数注释）。M9-2：夜间地板补偿只在此处并入——白天
+                // m_NightCompEv 恒 0（NightCompensationEv 仰角 ≥ 0 返 0f），跳过加法保证
+                // compensation 写入值与旧契约逐位一致。
+                float ev = exposureCompensationEv;
+                if (m_NightCompEv != 0f) ev += m_NightCompEv;
+                exposure.compensation.Override(ev);
             }
             if (rain != null) rain.SetRate(rainRate);
         }

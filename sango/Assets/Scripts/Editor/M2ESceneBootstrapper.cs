@@ -258,8 +258,9 @@ namespace Sango.Editor
             panelGo.GetComponent<EncounterPanel>().director = director;
 
             // g2. M3 缝钉子①④（spec #86）：检测框叠加层（B 切换，真值框 + "1.0 (gt)" 标签，
-            //     相机随 Top Camera；投影走 OverlayProjection 纯函数）+ ZMQ 帧发布器（默认 OFF）。
-            var overlayGo = new GameObject("Detection Overlay", typeof(DetectionOverlay));
+            //     相机随 Top Camera；投影走 OverlayProjection 纯函数）+ ZMQ 帧发布器（默认 OFF）
+            //     + M9 检测回传消费端（同 GO；detection-return-v1.md，关闸零成本）。
+            var overlayGo = new GameObject("Detection Overlay", typeof(DetectionOverlay), typeof(DetectionResultConsumer));
             overlayGo.GetComponent<DetectionOverlay>().ships = new[] { own.transform, target.transform };
             var pubGo = new GameObject("Frame Publisher", typeof(FramePublisher));
             Debug.Log($"[Sango.M3] wired: detection overlay (B, 2 ships), frame publisher (default OFF, {pubGo.GetComponent<FramePublisher>().endpoint})");

@@ -27,6 +27,7 @@ namespace Sango.Tests
             new TestCaseData(VesselClass.Tug, 32f, 0f).SetName("Tug (RAstar 3200, LOA 32 m, yaw 0)"),
             new TestCaseData(VesselClass.FcbHoubei, 42f, 180f).SetName("FcbHoubei (Type 22 hero, LOA 42 m, yaw 180)"),
             new TestCaseData(VesselClass.FcbPc3, 55f, 180f).SetName("FcbPc3 (Hurricane, LOA 55 m, yaw 180)"),
+            new TestCaseData(VesselClass.Fcb45, 45f, 0f).SetName("Fcb45 (45 m Fast Crew Boat hero, LOA 45 m, yaw 0)"),
         };
 
         readonly List<Object> m_Spawned = new List<Object>();
@@ -84,7 +85,7 @@ namespace Sango.Tests
             {
                 Assert.That(catalog.GetEntry(kenney)?.prefab, Is.Not.Null, $"{kenney} 被 M5 构建抹掉");
             }
-            Assert.That(catalog.entries.Length, Is.EqualTo(11), "编目应 3 Kenney + 8 M5 共 11 条");
+            Assert.That(catalog.entries.Length, Is.EqualTo(12), "编目应 3 Kenney + 9 M5 共 12 条");
         }
 
         [Test, TestCaseSource(nameof(k_FleetExpectations))]
@@ -215,6 +216,32 @@ namespace Sango.Tests
                 Assert.That(isWhite || isGreen, Is.True, $"FCB 占位出现非调色板材质 {m.name}");
             }
             Assert.That(palettes.Count, Is.InRange(1, 2), "白壳/绿装 flat 调色板应为 1-2 个材质");
+        }
+        // ── FCB45 真主角专项：交付方 12 色 flat 调色板 ───────────────────────────────
+
+        [Test]
+        public void Fcb45_Palette_IsDeliveryPalette_TwelveFlatHdrpLitMaterials()
+        {
+            var go = InstantiatePrefab(VesselClass.Fcb45);
+            var palettes = new HashSet<Material>();
+            foreach (var renderer in go.GetComponentsInChildren<Renderer>(true))
+                foreach (var m in renderer.sharedMaterials) palettes.Add(m);
+            Assert.That(palettes.Count, Is.EqualTo(12), "FCB45 应恰好挂交付方 12 色调色板材质（多/少 = 槽位回接漂移）");
+            foreach (var m in palettes)
+            {
+                Assert.That(m.shader.name, Is.EqualTo("HDRP/Lit"), $"{m.name}: 粉紫=shader 丢失");
+                Assert.That(m.name, Does.StartWith("VesselFcb45."), $"{m.name}: 材质应按管线命名入 Purchased/Materials/");
+            }
+            // 调色板名集合 = 交付方 material_palette.json 的 12 个 name（未知槽位兜底灰会在此拦下）
+            var paletteJson = AssetDatabase.LoadAssetAtPath<TextAsset>("Assets/Art/Purchased/fcb45/source/material_palette.json");
+            Assert.That(paletteJson, Is.Not.Null, "FCB45 调色板 JSON 缺失（Purchased/fcb45/source/）");
+            var names = new HashSet<string>();
+            foreach (var m in palettes) names.Add(m.name.Substring("VesselFcb45.".Length));
+            foreach (var token in paletteJson.text.Split('"'))
+            {
+                if (token.StartsWith("FCB45_")) Assert.That(names, Does.Contain(token),
+                    $"调色板材质 {token} 未挂上 prefab（槽位回接缺失）");
+            }
         }
     }
 }

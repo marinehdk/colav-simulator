@@ -29,6 +29,7 @@ namespace Sango.Tests
             new TestCaseData(VesselClass.Tug, 32f, 0f).SetName("Tug (RAstar 3200, LOA 32 m, yaw 0)"),
             new TestCaseData(VesselClass.FcbHoubei, 42f, 180f).SetName("FcbHoubei (Type 22 hero, LOA 42 m, yaw 180)"),
             new TestCaseData(VesselClass.FcbPc3, 55f, 180f).SetName("FcbPc3 (Hurricane, LOA 55 m, yaw 180)"),
+            new TestCaseData(VesselClass.Fcb45, 45f, 0f).SetName("Fcb45 (45 m Fast Crew Boat hero, LOA 45 m, yaw 0)"),
         };
 
         readonly List<Object> m_Spawned = new List<Object>();

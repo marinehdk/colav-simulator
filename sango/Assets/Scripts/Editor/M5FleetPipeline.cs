@@ -31,8 +31,9 @@ namespace Sango.Editor
         // 换源模型/改归一化规则/改贴图回接时 +1；EnsureBuilt 见版本不符即整跑重建。
         // 历史：1=首版（8 船入库，Houbei hero 白壳绿装+轮胎护舷）；
         //       2=归一化补偿从根位姿改烘进子节点（F1 加固：根位姿补偿被放置层覆盖抹除，
-        //         M5FleetPlacementPoseTests 实测 13 断言红后修复重导）。
-        public const int k_PipelineVersion = 2;
+        //         M5FleetPlacementPoseTests 实测 13 断言红后修复重导）；
+        //       3=FCB45 真主角入库（第 9 档，用户自建 Blender 交付，调色板材质模式）。
+        public const int k_PipelineVersion = 3;
 
         /// <summary>Houbei 占位涂装：白壳 + 绿装（flat 调色板，替换原蓝迷彩贴图；无 AI 工序）。</summary>
         static readonly Color k_FcbHullWhite = new Color(0.93f, 0.94f, 0.92f);
@@ -43,6 +44,7 @@ namespace Sango.Editor
         {
             Remap, // 逐材质槽位 HDRP/Lit 重建 + base color 贴图回接（出货 Standard → HDRP）
             FcbPlaceholder, // Houbei：白壳/绿装 flat 调色板 + 轮胎护舷（替换演示主角船）
+            Fcb45Palette, // FCB45 真主角：material_palette.json 12 色 flat HDRP/Lit（交付方调色板，无贴图工序）
         }
 
         struct FleetSpec
@@ -54,6 +56,8 @@ namespace Sango.Editor
             public float draftFraction;   // 吃水 / 模型总高（船型估值，审计文档记载；水线观感定值）
             public MaterialMode materialMode;
             public float bowYawDeg;       // 字面量钉值（窄端实测证据回填；与几何不符构建即报错）
+            public bool bakeAxisConversion;   // Blender 出货件轴转换烘顶点（FCB45 交付方导入设置同款）
+            public bool preserveHierarchy;    // 保留空节点层级（FCB45 datum/pivot 空物体）
         }
 
         // 目标 LOA 出处：任务带 + 作者 desc（Suez-Max 322 m→按带内 300 归一化、Moss LNG 305→300、
@@ -88,6 +92,16 @@ namespace Sango.Editor
             new FleetSpec { vesselClass = VesselClass.FcbPc3, prefabName = "VesselFcbPc3",
                 modelPath = RootDir + "/fcb-pc3/source/lowpoly_uss_hurricane_pc-3.fbx", targetLoa = 55f, draftFraction = 0.15f,
                 materialMode = MaterialMode.Remap, bowYawDeg = 180f }, // −Z 艏（2.47/2.88）
+            new FleetSpec { vesselClass = VesselClass.Fcb45, prefabName = "VesselFcb45",
+                modelPath = RootDir + "/fcb45/source/FCB45_Unity.fbx", targetLoa = 45f, draftFraction = 0.104f,
+                materialMode = MaterialMode.Fcb45Palette, bowYawDeg = 0f,
+                bakeAxisConversion = true, preserveHierarchy = true },
+            // +Z 艏（交付方 unity_import_verification.json：Unity 轴 +Z 艏/+Y 上，bow·+Z=1.0，
+            // LOA 45.000 m；构建期 MeasureBowYaw 窄端证据把关，不符即 LogError）。draftFraction
+            // = 设计吃水 1.55 ÷ 交付总高包围盒 14.948 m（README §2 实测值）。targetLoa=45 按任务
+            // 钉值：包围盒含护舷外伸 45.29 m → scale≈0.9936，船体本体 44.7 m（README 明示勿再
+            // 放大护舷模型，0.6% 内缩接受）。Blender 出货件：bakeAxisConversion/preserveHierarchy
+            // 沿交付方 FCB45Import.cs 导入设置（其余 8 档默认 false 不动）。
         };
 
         /// <summary>M5 船型艏向查表口（VesselAssetPipeline.BowYawDeg 的转查落点）。</summary>
@@ -254,13 +268,17 @@ namespace Sango.Editor
                 }
                 if (importer.importCameras || importer.importLights || importer.importAnimation
                     || importer.meshCompression != ModelImporterMeshCompression.Off
-                    || !importer.isReadable)
+                    || !importer.isReadable
+                    || importer.bakeAxisConversion != spec.bakeAxisConversion
+                    || importer.preserveHierarchy != spec.preserveHierarchy)
                 {
                     importer.importCameras = false;
                     importer.importLights = false;
                     importer.importAnimation = false;
                     importer.meshCompression = ModelImporterMeshCompression.Off; // hero/中景保真优先（Kenney 档 Medium 是低模内存取舍）
                     importer.isReadable = true; // VesselBuoyancy CPU 采样（M2-B 同款）
+                    importer.bakeAxisConversion = spec.bakeAxisConversion;     // FCB45：Blender 轴转换烘顶点（交付方导入设置）
+                    importer.preserveHierarchy = spec.preserveHierarchy;       // FCB45：datum/pivot 空物体保留
                     importer.SaveAndReimport();
                 }
             }
@@ -310,6 +328,10 @@ namespace Sango.Editor
             if (spec.materialMode == MaterialMode.FcbPlaceholder)
             {
                 ApplyFcbPlaceholderDressing(root, instance, bounds, scale, draft);
+            }
+            else if (spec.materialMode == MaterialMode.Fcb45Palette)
+            {
+                ApplyFcb45PaletteMaterials(instance, spec);
             }
             else
             {
@@ -433,7 +455,88 @@ namespace Sango.Editor
             return null;
         }
 
-        // ── (b2) FCB 占位换装：白壳 + 绿装 + 轮胎护舷 ────────────────────────────────
+        // ── (b2) FCB45 真主角调色板：material_palette.json 12 色 → HDRP/Lit flat 材质 ──
+        // 交付方 FCB45Import.cs 同构（sRGB hex → _BaseColor、Smoothness=1−roughness、金属度直读），
+        // 无贴图工序（贴图缺失只会降细节，粉紫=shader 丢失由 prefab 全渲染器 HDRP/Lit 测试钉死）。
+        // 槽位按 FBX 内嵌材质名（= 调色板 name 字段，交付方 AddRemap 同键）逐槽回接；
+        // 未知名 LogError 后落中性灰兜底（prefab 仍可建，日志即告警）。
+        [System.Serializable]
+        sealed class Fcb45Palette
+        {
+            public Fcb45PaletteEntry[] materials;
+        }
+
+        [System.Serializable]
+        sealed class Fcb45PaletteEntry
+        {
+            public string name;
+            public string srgb_hex;
+            public float roughness;
+            public float metallic;
+        }
+
+        static Dictionary<string, Fcb45PaletteEntry> LoadFcb45Palette(FleetSpec spec)
+        {
+            string dir = Path.GetDirectoryName(spec.modelPath)?.Replace('\\', '/');
+            var text = AssetDatabase.LoadAssetAtPath<TextAsset>($"{dir}/material_palette.json");
+            if (text == null)
+                throw new System.InvalidOperationException($"[Sango.M5] FCB45 palette missing: {dir}/material_palette.json");
+            var palette = JsonUtility.FromJson<Fcb45Palette>(text.text);
+            if (palette?.materials == null || palette.materials.Length == 0)
+                throw new System.InvalidOperationException($"[Sango.M5] FCB45 palette unparseable: {dir}/material_palette.json");
+            var map = new Dictionary<string, Fcb45PaletteEntry>();
+            foreach (var entry in palette.materials) map[entry.name] = entry;
+            return map;
+        }
+
+        static void ApplyFcb45PaletteMaterials(GameObject instance, FleetSpec spec)
+        {
+            var palette = LoadFcb45Palette(spec);
+            foreach (var renderer in instance.GetComponentsInChildren<Renderer>(true))
+            {
+                var src = renderer.sharedMaterials;
+                var slots = new Material[src.Length];
+                for (int s = 0; s < slots.Length; s++)
+                {
+                    var source = src[s];
+                    string slotName = source != null ? source.name : $"slot{s}";
+                    if (!palette.TryGetValue(slotName, out var entry))
+                    {
+                        Debug.LogError($"[Sango.M5] {spec.prefabName}: FBX material '{slotName}' not in material_palette.json — palette/FBX drift");
+                        slots[s] = FlatLit($"{k_MaterialsDir}/{spec.prefabName}.{SanitizeFileName(slotName)}.mat",
+                            new Color(0.5f, 0.5f, 0.5f), 0.5f);
+                        continue;
+                    }
+                    slots[s] = PaletteLit($"{k_MaterialsDir}/{spec.prefabName}.{slotName}.mat", entry);
+                }
+                renderer.sharedMaterials = slots;
+            }
+        }
+
+        static Material PaletteLit(string path, Fcb45PaletteEntry entry)
+        {
+            var mat = AssetDatabase.LoadAssetAtPath<Material>(path);
+            if (mat == null)
+            {
+                mat = new Material(Shader.Find(k_HdrpLitShader));
+                AssetDatabase.CreateAsset(mat, path);
+            }
+            if (mat.shader.name != k_HdrpLitShader)
+            {
+                // 版本升级兜底：资产存在但 shader 不对（粉紫源）——整个重建（RemapMaterial 同款）
+                mat.shader = Shader.Find(k_HdrpLitShader);
+            }
+            // Unity Color setter 吃 sRGB 面值、自行转 Linear（交付方注释：勿二次转换）
+            if (!ColorUtility.TryParseHtmlString(entry.srgb_hex, out var color))
+                throw new System.InvalidOperationException($"[Sango.M5] FCB45 palette invalid hex for {entry.name}: {entry.srgb_hex}");
+            mat.SetColor("_BaseColor", color);
+            mat.SetFloat("_Smoothness", 1f - entry.roughness);
+            if (mat.HasProperty("_Metallic")) mat.SetFloat("_Metallic", entry.metallic);
+            EditorUtility.SetDirty(mat);
+            return mat;
+        }
+
+        // ── (b3) FCB 占位换装：白壳 + 绿装 + 轮胎护舷 ────────────────────────────────
         // 材质规则（数据驱动）：渲染器沿船长方向跨度 ≥45% LOA = 船体类 → 白；其余（驾驶台/
         // 桅杆/武器/舾装）→ 绿。轮胎护舷 = 程序化 torus 环（无贴图工序，环嵌船舷两侧）。
         static void ApplyFcbPlaceholderDressing(GameObject root, GameObject instance, Bounds bounds, float scale, float draft)

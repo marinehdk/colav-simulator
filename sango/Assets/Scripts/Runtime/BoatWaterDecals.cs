@@ -9,6 +9,9 @@ namespace Sango
     /// （G 键 demo 同一真值；无跟随器时视作 0 = 禁用）。只写 enabled/amplitude/surfaceFoamDimmer
     /// 三个组件字段——regionSize/材质归场景构建器所有，适配器永不触碰。
     /// 分层先例：VesselBuoyancy（适配器）/ BuoyancyAttitudeSolver（纯核心）。
+    /// M9-1 双档（WakeFoamRig 落地后）：本适配器 = Low 档主视觉（现状不变）；High 档的两块
+    /// decal 由 WakeFoamRig.ApplyDecalSuppression 在 LateUpdate 压制（执行序 200 晚于本组件
+    /// Update，语义确定）——本类不读档位，速度门谓词原样（M8 pre-roll decalGate 契约）。
     /// </summary>
     public class BoatWaterDecals : MonoBehaviour
     {

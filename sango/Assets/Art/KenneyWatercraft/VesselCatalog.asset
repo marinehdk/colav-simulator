@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: VesselCatalog
   m_EditorClassIdentifier: Sango.Vessels::Sango.VesselCatalog
   pipelineVersion: 3
-  fleetPipelineVersion: 2
+  fleetPipelineVersion: 3
   entries:
   - vesselClass: 8
     prefab: {fileID: 7745941666361840033, guid: 5319f3f963878423c9e83b3a4cc8b9d3, type: 3}
@@ -71,6 +71,13 @@ MonoBehaviour:
     bowEndWidth: 2.4734457
     sternEndWidth: 2.875
     bowYawDeg: 180
+  - vesselClass: 11
+    prefab: {fileID: 935677684922826309, guid: b15d081ed59e54f6e946f37ec09121d9, type: 3}
+    loaMeters: 45
+    waterlineOffsetY: -1.5446112
+    bowEndWidth: 5.6580157
+    sternEndWidth: 8.679844
+    bowYawDeg: 0
   - vesselClass: 0
     prefab: {fileID: 9163801143775574186, guid: 12f9ec1eab4e5436fa253881312756cf, type: 3}
     loaMeters: 100
