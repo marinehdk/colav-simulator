@@ -24,7 +24,7 @@ payload 契约：`detection-result-v1.md`（字段冻结不变，本文只冻结
 ```
 
 - `frame_seq` / `frame_time_s` 逐帧透传上游 FrameMetadata，Unity 侧不重算。
-- **每消费一帧恰发一条结果**，含零检测帧（`detections:[]` = YOLO 权威"没看到"）。
+- **每进入推理的一帧恰发一条结果（推理前排空积压取最新帧，跳号容忍）**，含零检测帧（`detections:[]` = YOLO 权威"没看到"）。
 - 框坐标即原图像素（服务端对解码后原始分辨率推理，box 无缩放偏移），与 FrameMetadata width/height 同域。
 - 类映射：COCO `boat`（id=8）过滤保留；`class_name` 取模型 names 表映射（yolov8n → `"boat"`）。演进只加不减（未知字段 JsonUtility 忽略）。
 
@@ -32,8 +32,8 @@ payload 契约：`detection-result-v1.md`（字段冻结不变，本文只冻结
 
 - **age = Unity 本地 `Time.timeAsDouble` − `result.frame_time_s`**，只认 `0 ≤ age ≤ 0.5s`（`DetectionFreshness.MaxAgeS`）。帧时间源自同一 Unity 实例时钟（发布端 `Time.timeAsDouble`），钟域一致；负 age（未来戳，时钟域不一致的外部源）按陈旧拒绝。
 - **seq 连续**：只消费 `frame_seq` 严格大于上一已消费结果的结果（跳号容忍，重复/乱序拒绝；初始 lastSeq=−1）。
-- **渲染判定**（`DetectionFreshness.PreferLiveOverGroundTruth`）：有新鲜 live 结果 → live 路径按 `box_xyxy` 像素直绘（标签 = `class_name + confidence` 两位小数）；**新鲜空结果也是 live 接管**（渲染零框）；null/畸形/陈旧 → 回退 ground-truth（M3 行为逐位不变，B 键行为不变）。
-- 逐帧排空取最新：消费端队列只保留最新结果（`TryTakeFresh`），推理落后发布节奏时旧结果自然被淘汰进回退。
+- **渲染判定**（`DetectionFreshness.PreferLiveOverGroundTruth`）：有新鲜 live 结果 → live 路径按 `box_xyxy` 像素直绘（标签 = `class_name + confidence` 两位小数）；**新鲜空结果也是 live 接管**（渲染零框）；无新消息时保留最近的新鲜结果至窗口到期；null/畸形/陈旧 → 回退 ground-truth（M3 行为逐位不变，B 键行为不变）。
+- 逐帧排空取最大有效 seq：消费端队列只保留最新结果（`TryTakeFresh`），推理落后发布节奏时旧结果自然被淘汰进回退。
 
 ## 4. 开关与零成本
 

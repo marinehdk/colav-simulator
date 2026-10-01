@@ -107,6 +107,8 @@ namespace Sango.Editor
                 AssetDatabase.CreateAsset(layer, layerPath);
             }
             layer.diffuseTexture = diffuse;
+            // Satellite TCI is a radiance image, rather than measured PBR albedo; cap reflectance to avoid clipped white shorelines.
+            layer.diffuseRemapMax = new Vector4(0.65f, 0.65f, 0.65f, 1f);
             layer.tileSize = new Vector2(layout.sizeMeters, layout.sizeMeters); // UV 0-1 恰铺满 12 km tile
             layer.tileOffset = Vector2.zero;
             EditorUtility.SetDirty(layer);

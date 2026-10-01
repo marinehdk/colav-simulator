@@ -65,3 +65,7 @@ absolutely (heading), which drops the baked 180° — the liner renders stern-to
 (COLREGs-correct), but scripts consuming the liner's heading must account for that offset.
 
 No new controls: on/off follows the existing **T** time-cycle hotkey and the time slider.
+
+## 2026-10-01 本机修订
+
+主场景桥楼/艏机位采用FCB45船上锚点，继承船体浮态，外部追拍机位保持稳定。航行灯光弧沿用已测核心；灯片改为14–28cm物理尺度圆斑，RGB亮度与alpha分开。程序化透明材质经HDRP校验并关闭不透明深度通道；保留透明shader变体。反射拖尾采用渐变遮罩，水面基准约0.035m，仍是视觉近似。泡沫改用受场景光照的HDRP/Lit，避免夜间自发光白板。

@@ -58,4 +58,10 @@ uv pip install pyzmq --python .venv/bin/python   # 2026-09-28 实装 pyzmq==27.2
 ## 5. 已知边界
 
 - 编辑器 batchmode 无屏，`ReadPixels` 不可用——发布验收只在玩家构建跑（本协议 §3 路径）。
-- M9 起：发布循环带 1/30 s 最小间隔节流（FramePublisher.MinPublishIntervalS，间隔未到跳帧不读屏）；线协议/seq 单调语义不变，感知宿主按需丢弃照旧（帧带 seq/time，R3 异步消费设计不变）。动机：同机跑检测服务时把编码预算还给渲染循环（实机 DEMO 60→18 fps 实证）。
+- 2026-10-01 本机优化后：发布循环带 1/10 s 最小间隔节流（默认最高 10 Hz）（FramePublisher.MinPublishIntervalS，间隔未到跳帧不读屏；复用读屏 Texture2D，JPEG 编码不再重复 GPU 上传）；线协议/seq 单调语义不变，感知宿主按需丢弃照旧（帧带 seq/time，R3 异步消费设计不变）。动机：同机跑检测服务时把编码预算还给渲染循环（实机 DEMO 60→18 fps 实证）。
+
+## 2026-10-01 本机异步路径
+
+开闸后最多三个在途 GPU 回读槽、单个后台 JPEG 编码任务；过载跳帧，不积压。`ScreenCapture.CaptureScreenshotIntoRenderTexture` + `AsyncGPUReadback` 保留全屏像素域。采集时间戳在 GPU 请求前锁存；JPEG 经线程安全的 `ImageConversion.EncodeArrayToJPG` 编码，NetMQ socket 始终由主线程发送。关闸不分配缓冲；停止/分辨率变化递增 generation，等待现有编码与本组件的 GPU 请求完成再释放纹理，旧结果丢弃；正常渲染循环不等待。实际吞吐与新鲜度以本机 `detector-return/report.json` 为准，10Hz为上限而非保证速率。
+
+2026-10-01 识别录像补验：上起点 GPU 读回行在后台编码前归一化为编码器所需行序，JPEG 与 Unity 画面同向，检测 xyxy 仍以左上角为原点。Mac Metal 实拍确认天空在上、HUD 文字正向、返回框覆盖对应船体；原先仅验证吞吐/字段的验收不足以发现方向缺陷。旧倒置原帧保留在 `output/sango-yolo-video-20261001/orientation-before-fix/`，不作为交付视频。

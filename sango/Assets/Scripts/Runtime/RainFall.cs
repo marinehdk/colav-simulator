@@ -20,7 +20,7 @@ namespace Sango
         public Color rainColor = new Color(0.75f, 0.85f, 0.95f, 0.32f);
 
         [Tooltip("雨滴长度 m（速度拉伸前的片长）。")]
-        public float dropLengthM = 0.45f;
+        public float dropLengthM = 0.12f;
 
         ParticleSystem m_Ps;
         Material m_DropMat;
@@ -30,11 +30,18 @@ namespace Sango
             BuildRain();
         }
 
+        void OnDestroy()
+        {
+            if (m_DropMat == null) return;
+            if (Application.isPlaying) Destroy(m_DropMat); else DestroyImmediate(m_DropMat);
+        }
+
         void BuildRain()
         {
             if (m_Ps != null) return; // 幂等（域重载不重建）
 
-            m_DropMat = new Material(Shader.Find("HDRP/Unlit"));
+            var prototype = Resources.Load<Material>("SurfaceFoam");
+            m_DropMat = prototype != null ? new Material(prototype) : new Material(Shader.Find("HDRP/Unlit"));
             m_DropMat.SetColor("_UnlitColor", rainColor);
             m_DropMat.SetFloat("_SurfaceType", 1f);
             m_DropMat.SetFloat("_BlendMode", 0f); // HDRP BlendMode 0 = Alpha
@@ -43,16 +50,19 @@ namespace Sango
             m_DropMat.SetFloat("_DstBlend", (float)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
             m_DropMat.SetFloat("_ZWrite", 0f);
             m_DropMat.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Transparent;
+            UnityEngine.Rendering.HighDefinition.HDMaterial.ValidateMaterial(m_DropMat);
+            m_DropMat.SetShaderPassEnabled("DepthForwardOnly", false);
+            m_DropMat.SetShaderPassEnabled("MotionVectors", false);
 
             m_Ps = gameObject.AddComponent<ParticleSystem>();
             var main = m_Ps.main;
             main.simulationSpace = ParticleSystemSimulationSpace.World; // 发射器跟相机走，雨滴留世界系
-            main.startLifetime = 1.4f;
+            main.startLifetime = 2f;
             main.startSpeed = 0f;                                       // 速度全走 velocity-over-life（匀速直落）
             main.startSize3D = true;
-            main.startSizeX = 0.03f;
+            main.startSizeX = 0.004f;
             main.startSizeY = dropLengthM;
-            main.startSizeZ = 0.03f;
+            main.startSizeZ = 0.004f;
             main.maxParticles = 4000;
             main.gravityModifier = 0f;
             main.loop = true;
@@ -66,6 +76,7 @@ namespace Sango
             shape.enabled = true;
             shape.shapeType = ParticleSystemShapeType.Box;
             shape.scale = boxHalfExtentsM * 2f;
+            shape.position = new Vector3(0f, boxHalfExtentsM.y + 3f, 0f);
 
             var emission = m_Ps.emission;
             emission.rateOverTime = 0f; // SetRate 打开（默认关：晴档零开销）
@@ -73,7 +84,7 @@ namespace Sango
             var renderer = GetComponent<ParticleSystemRenderer>();
             renderer.material = m_DropMat;
             renderer.renderMode = ParticleSystemRenderMode.Stretch;
-            renderer.velocityScale = 0.06f; // 拉伸沿下落方向拉长雨丝
+            renderer.velocityScale = 0.008f; // ~1/125 s shutter streak, rather than metre-long bars.
             renderer.lengthScale = 0f;
             renderer.alignment = ParticleSystemRenderSpace.View;
             renderer.sortingFudge = -10f;

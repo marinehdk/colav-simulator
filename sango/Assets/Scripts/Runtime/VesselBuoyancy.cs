@@ -190,7 +190,7 @@ namespace Sango
 
             for (int i = 0; i < m_RootLocalCentroids.Length; i++)
             {
-                Vector3 world = transform.TransformPoint(m_RootLocalCentroids[i].RootLocalCentroid);
+                Vector3 world = SampleAtDesignPose(m_RootLocalCentroids[i].RootLocalCentroid);
                 float3 target = new float3(world.x, world.y, world.z);
                 m_SearchParams.startPositionWS = target;
                 m_SearchParams.targetPositionWS = target;
@@ -245,6 +245,15 @@ namespace Sango
             rootPos.y = m_BaselineY + m_Heave.Value;
             transform.position = rootPos;
             transform.rotation = Quaternion.Euler(m_Pitch.Value, yawDeg, m_Roll.Value);
+        }
+
+        Vector3 SampleAtDesignPose(Vector3 centroid)
+        {
+            var origin = transform.position;
+            origin.y = m_BaselineY;
+            // Solver output is an absolute attitude around the design datum, not an immersion-error correction.
+            // Feeding the already-heaved/tilted hull back into it otherwise cancels part of the wave input.
+            return origin + Quaternion.Euler(0f, transform.eulerAngles.y, 0f) * Vector3.Scale(centroid, transform.lossyScale);
         }
     }
 }

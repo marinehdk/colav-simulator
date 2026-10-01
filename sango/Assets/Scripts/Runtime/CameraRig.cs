@@ -11,10 +11,15 @@ namespace Sango
     /// 桥楼位姿 = M1 场景既有机位（解析器 Bridge 常数同源 + FOV 60，零观感变化）；
     /// bridgeShipRelative=true 时改随船解算（M6 海峡，review S1 2026-09-29）。
     /// </summary>
+    [DefaultExecutionOrder(125)]
     public class CameraRig : MonoBehaviour
     {
         [Tooltip("跟随目标（M1 demo 船 Transform）。bow/chase/top-down 用其实时位姿；空 = 原点朝北。")]
         public Transform followShip;
+        [Tooltip("Optional vessel-mounted bridge and bow cameras; inherit vessel attitude exactly once.")]
+        public Transform bridgeMount;
+        public Transform bowMount;
+        public float tacticalHeightM;
 
         [Tooltip("受控相机；留空取同对象上的 Camera。")]
         public Camera controlledCamera;
@@ -62,6 +67,14 @@ namespace Sango
             var target = CameraViews.Resolve(CurrentView, FollowPos(), FollowYawDeg(), bridgeShipRelative);
             // pitch 取负进 Unity（根因注释见 ApplyPose）：目标旋转在此单点构造。
             var targetRot = Quaternion.Euler(-target.PitchDeg, target.YawDeg, 0f);
+            if (CurrentView == CameraView.TopDown && tacticalHeightM > 0f)
+                target.Position.y = FollowPos().y + tacticalHeightM;
+            var mount = CurrentView == CameraView.Bridge ? bridgeMount : CurrentView == CameraView.Bow ? bowMount : null;
+            if (mount != null)
+            {
+                target.Position = mount.position;
+                targetRot = mount.rotation * Quaternion.Euler(-target.PitchDeg, 0f, 0f);
+            }
             if (m_Blend < 1f)
             {
                 m_Blend = Mathf.Min(1f, m_Blend + (Time.deltaTime > 0f ? Time.deltaTime / Mathf.Max(0.01f, transitionSeconds) : 1f));
@@ -171,7 +184,10 @@ namespace Sango
         void SnapNow()
         {
             var target = CameraViews.Resolve(CurrentView, FollowPos(), FollowYawDeg(), bridgeShipRelative);
-            ApplyPose(target.Position, Quaternion.Euler(-target.PitchDeg, target.YawDeg, 0f), target.FieldOfView);
+            var mount = CurrentView == CameraView.Bridge ? bridgeMount : CurrentView == CameraView.Bow ? bowMount : null;
+            ApplyPose(mount != null ? mount.position : target.Position,
+                mount != null ? mount.rotation * Quaternion.Euler(-target.PitchDeg, 0f, 0f)
+                              : Quaternion.Euler(-target.PitchDeg, target.YawDeg, 0f), target.FieldOfView);
         }
 
         Vector3 FollowPos() => followShip != null ? followShip.position : Vector3.zero;

@@ -78,9 +78,56 @@ namespace Sango.Editor
             M0SceneBootstrapper.ConfigureHdrpAssets();
             VesselAssetPipeline.EnsureBuilt(); // 干净克隆自举（齐全则零开销跳过）
             M5FleetPipeline.EnsureBuilt();
+            EnsureWaterlineMaterial();
             M6TerrainPipeline.BuildAll();      // 幂等：TerrainData/TerrainLayer/底图资产就绪
             var profile = M1SceneBootstrapper.CreateVolumeProfileAsset(k_ProfileAsset); // 独立 profile（M1 重建先删后建换 GUID，不得共享）
             BuildScene(profile);
+        }
+
+        static void EnsureWaterlineMaterial()
+        {
+            const string folder = "Assets/Resources";
+            const string path = folder + "/WaterlineDecal.mat";
+            if (!AssetDatabase.IsValidFolder(folder)) AssetDatabase.CreateFolder("Assets", "Resources");
+            const string litFoamPath = folder + "/LitFoam.mat";
+            if (AssetDatabase.LoadAssetAtPath<Material>(litFoamPath) == null)
+            {
+                var litFoam = new Material(Shader.Find("HDRP/Lit"));
+                litFoam.SetFloat("_SurfaceType", 1f);
+                litFoam.SetFloat("_BlendMode", 0f);
+                litFoam.SetFloat("_DoubleSidedEnable", 1f);
+                litFoam.SetFloat("_Metallic", 0f);
+                litFoam.SetFloat("_Smoothness", 0.15f);
+                litFoam.SetFloat("_EnableBlendModePreserveSpecularLighting", 0f);
+                litFoam.SetFloat("_ReceivesSSRTransparent", 0f);
+                HDMaterial.ValidateMaterial(litFoam);
+                AssetDatabase.CreateAsset(litFoam, litFoamPath);
+            }
+            var retainedLitFoam = AssetDatabase.LoadAssetAtPath<Material>(litFoamPath);
+            retainedLitFoam.SetFloat("_EnableBlendModePreserveSpecularLighting", 0f);
+            HDMaterial.ValidateMaterial(retainedLitFoam);
+            EditorUtility.SetDirty(retainedLitFoam);
+            const string foamPath = folder + "/SurfaceFoam.mat";
+            if (AssetDatabase.LoadAssetAtPath<Material>(foamPath) == null)
+            {
+                var foam = new Material(Shader.Find("HDRP/Unlit"));
+                foam.SetFloat("_SurfaceType", 1f);
+                foam.SetFloat("_BlendMode", 2f);
+                foam.SetFloat("_DoubleSidedEnable", 1f);
+                HDMaterial.ValidateMaterial(foam);
+                foam.SetShaderPassEnabled("DepthForwardOnly", false);
+                foam.SetShaderPassEnabled("MotionVectors", false);
+                AssetDatabase.CreateAsset(foam, foamPath);
+            }
+            if (AssetDatabase.LoadAssetAtPath<Material>(path) != null) return;
+            var shader = Shader.Find("HDRP/Decal");
+            if (shader == null) throw new System.InvalidOperationException("HDRP/Decal unavailable");
+            var material = new Material(shader) { enableInstancing = true };
+            material.SetFloat("_AffectAlbedo", 1f);
+            material.SetFloat("_AffectSmoothness", 1f);
+            material.SetFloat("_AffectNormal", 0f);
+            AssetDatabase.CreateAsset(material, path);
+            AssetDatabase.SaveAssets();
         }
 
         static void BuildScene(VolumeProfile profile)
@@ -182,7 +229,7 @@ namespace Sango.Editor
             var heroDecals = M1SceneBootstrapper.AttachWaterDecals(hero, water, heroLoaM, heroFollower);
             var heroWakeFoam = M1SceneBootstrapper.AttachWakeFoamRig(hero, water, heroLoaM, heroFollower, heroDecals);
             M1SceneBootstrapper.AttachNavigationLights(hero, VesselClass.Fcb45, weather);
-            M1SceneBootstrapper.AttachHullWaterlineDecals(hero, 1.2f);
+            M1SceneBootstrapper.AttachHullWaterlineDecals(hero, 0.25f);
 
             // f. 锚地船群（海峡槽位注入；开阔水域，纯布景随浪摇）
             var anchorageGo = new GameObject("Anchorage Fleet", typeof(AnchorageFleet));
@@ -226,10 +273,22 @@ namespace Sango.Editor
             cameraRig.followShip = hero.transform;
             cameraRig.controlledCamera = camera;
             cameraRig.bridgeShipRelative = true; // review S1：桥楼随船解算（固定 M1 机位在海峡拍空海——首帧无船）
+            // FCB45 delivery: bridge front glazing z≈8.9m, foredeck y≈4.05m above design waterline.
+            // Camera origins sit outside glazing/rails and share the vessel's measured attitude.
+            var bridgeMount = new GameObject("BridgeCameraMount").transform;
+            bridgeMount.SetParent(hero.transform, false);
+            bridgeMount.localPosition = new Vector3(0f, 5.9f - hero.transform.position.y, 9.4f);
+            var bowMount = new GameObject("BowCameraMount").transform;
+            bowMount.SetParent(hero.transform, false);
+            bowMount.localPosition = new Vector3(0f, 5.75f - hero.transform.position.y, 14f);
+            cameraRig.bridgeMount = bridgeMount;
+            cameraRig.bowMount = bowMount;
+            cameraRig.tacticalHeightM = 260f;
 
             var sway = cameraGo.AddComponent<BridgeSway>();
             sway.weather = weather;
             sway.rig = cameraRig;
+            sway.swayChaseView = false; // External observer stays stabilized; vessel-mounted views inherit actual buoyancy.
 
             // M7-B 雨 VFX（雷暴雨幡档）：相机挂载（发射器跟相机、粒子世界系），WeatherController 驱动
             weather.rain = cameraGo.AddComponent<RainFall>();

@@ -208,6 +208,17 @@ namespace Sango.Editor
                 yield break;
             }
 
+            var beaufortSpec = Environment.GetEnvironmentVariable("M8_BEAUFORT");
+            if (!string.IsNullOrEmpty(beaufortSpec))
+            {
+                if (!float.TryParse(beaufortSpec, System.Globalization.NumberStyles.Float,
+                    System.Globalization.CultureInfo.InvariantCulture, out float bft) || float.IsNaN(bft) || bft < 0f || bft > 9f)
+                { Debug.LogError("[Sango.M8B] M8_BEAUFORT must be 0..9"); EditorApplication.Exit(1); yield break; }
+                m_Weather.beaufort = bft;
+                m_Weather.spectrumTier = bft <= 1f ? JsPmTier.Calm : bft <= 4f ? JsPmTier.Moderate
+                    : bft <= 7f ? JsPmTier.Rough : JsPmTier.VeryRough;
+                m_Weather.Apply();
+            }
             BeginTake();
         }
 

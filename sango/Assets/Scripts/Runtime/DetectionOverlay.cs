@@ -35,6 +35,8 @@ namespace Sango
         DetectionResultConsumer _consumer;   // 自动查找缓存（只找一次，防每帧 Find 开销）
         bool _consumerSearched;
         DetectionResult _liveFrame;          // 本帧 live 结果（Update 取用，OnGUI 只读不消费队列）
+        public bool HasFreshLiveResult => Consumer != null && Consumer.Active
+            && DetectionFreshness.PreferLiveOverGroundTruth(_liveFrame, Time.timeAsDouble, Consumer.maxAgeS);
 
         /// <summary>消费端引用：Inspector 优先，否则场景内查找一次。</summary>
         DetectionResultConsumer Consumer
@@ -61,7 +63,9 @@ namespace Sango
 
             // live 取用每帧恰好一次（OnGUI 同帧可多次触发，队列消费不能放 OnGUI）。
             // 消费端关闸时 TryTakeFresh 一次布尔比较即返回，真值路径成本不变。
-            _liveFrame = Consumer != null && Consumer.TryTakeFresh(Time.timeAsDouble, out var fresh) ? fresh : null;
+            var consumer = Consumer;
+            if (consumer == null || !consumer.Active) _liveFrame = null;
+            else if (consumer.TryTakeFresh(Time.timeAsDouble, out var fresh)) _liveFrame = fresh;
         }
 
         void OnGUI()
@@ -72,7 +76,9 @@ namespace Sango
 
             // live/GT 判定（纯函数）：有新鲜 live 结果按像素 xyxy 直绘（渲染时刻再验一次 age，幂等）；
             // 否则回退真值——与 M3 行为逐位一致。
-            if (DetectionFreshness.PreferLiveOverGroundTruth(_liveFrame, Time.timeAsDouble))
+            bool live = HasFreshLiveResult;
+            GUI.Label(new Rect(Screen.width - 260f, 20f, 250f, 24f), live ? "YOLO live" : "Ground truth demo");
+            if (live)
             {
                 foreach (var box in _liveFrame.detections)
                 {
@@ -152,6 +158,12 @@ namespace Sango
             bool anyInFront = false;
             foreach (var r in renderers)
             {
+                if (r is ParticleSystemRenderer || r is TrailRenderer) continue;
+                bool effectMesh = false;
+                for (var parent = r.transform; parent != null && parent != ship; parent = parent.parent)
+                    if (parent.name == "NavigationLightsRig" || parent.name == "WakeFoamRig" || parent.name == "WaterlineDecalsRig")
+                    { effectMesh = true; break; }
+                if (effectMesh) continue;
                 var b = r.bounds;
                 for (int cx = 0; cx < 2; cx++)
                 for (int cy = 0; cy < 2; cy++)

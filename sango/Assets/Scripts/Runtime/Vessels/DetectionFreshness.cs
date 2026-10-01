@@ -39,7 +39,22 @@ namespace Sango
         /// </summary>
         public static bool PreferLiveOverGroundTruth(DetectionResult live, double nowS, double maxAgeS = MaxAgeS)
         {
-            return live != null && live.detections != null && IsFresh(nowS, live.frame_time_s, maxAgeS);
+            return IsWellFormed(live) && IsFresh(nowS, live.frame_time_s, maxAgeS);
+        }
+
+        public static bool IsWellFormed(DetectionResult result)
+        {
+            if (result == null || result.frame_seq < 0 || result.detections == null || string.IsNullOrWhiteSpace(result.source)) return false;
+            foreach (var box in result.detections)
+            {
+                if (box?.box_xyxy == null || box.box_xyxy.Length != 4) return false;
+                if (box.class_id < 0 || string.IsNullOrWhiteSpace(box.class_name)) return false;
+                foreach (float value in box.box_xyxy)
+                    if (float.IsNaN(value) || float.IsInfinity(value)) return false;
+                if (box.box_xyxy[2] <= box.box_xyxy[0] || box.box_xyxy[3] <= box.box_xyxy[1]
+                    || float.IsNaN(box.confidence) || box.confidence < 0f || box.confidence > 1f) return false;
+            }
+            return true;
         }
     }
 }

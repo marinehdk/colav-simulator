@@ -74,7 +74,9 @@ namespace Sango
         /// <summary>开启消费线程（幂等：线程已在跑则忽略）。</summary>
         public void StartConsumer()
         {
+            runtimeEnabled = true;
             if (_running) return;
+            if (_worker != null && _worker.IsAlive) return;
             _inbox = new ConcurrentQueue<DetectionResult>();
             _lastSeq = -1;
             _running = true;
@@ -85,13 +87,16 @@ namespace Sango
         /// <summary>停消费线程并等其退出（recv 200ms tick，Join 上限 1s；回默认 OFF 态）。</summary>
         public void StopConsumer()
         {
+            runtimeEnabled = false;
             bool wasRunning = _running;
             _running = false;
             if (_worker != null)
             {
                 if (_worker.IsAlive && !_worker.Join(1000))
+                {
                     Debug.LogWarning("[Sango.M9] consumer thread did not exit within 1s");
-                _worker = null;
+                }
+                else _worker = null;
             }
             _inbox = null;
             if (wasRunning)
@@ -110,7 +115,12 @@ namespace Sango
             if (!_running || _inbox == null) return false;
 
             DetectionResult newest = null;
-            while (_inbox.TryDequeue(out var item)) newest = item;
+            while (_inbox.TryDequeue(out var item))
+            {
+                if (item != null && DetectionFreshness.IsNewer(item.frame_seq, _lastSeq)
+                    && DetectionFreshness.IsFresh(nowS, item.frame_time_s, maxAgeS)
+                    && (newest == null || item.frame_seq > newest.frame_seq)) newest = item;
+            }
             if (newest == null) return false;
             if (!DetectionFreshness.IsNewer(newest.frame_seq, _lastSeq)) return false;
             if (!DetectionFreshness.IsFresh(nowS, newest.frame_time_s, maxAgeS)) return false;
@@ -123,6 +133,7 @@ namespace Sango
         /// <summary>后台线程主体：SUB connect → 循环收 2 段消息 → 解析入队。socket 仅本线程触碰。</summary>
         void ReceiveLoop()
         {
+            var inbox = _inbox;
             long rx = 0;
             try
             {
@@ -141,8 +152,8 @@ namespace Sango
                         if (result == null) continue;
                         rx++;
                         Interlocked.Exchange(ref _rxCount, rx);
-                        while (_inbox.Count >= QueueCap && _inbox.TryDequeue(out _)) { } // 丢最旧
-                        _inbox.Enqueue(result);
+                        while (inbox.Count >= QueueCap && inbox.TryDequeue(out _)) { }
+                        inbox.Enqueue(result);
                     }
                 }
             }
@@ -151,6 +162,7 @@ namespace Sango
                 if (_running)
                     Debug.LogError($"[Sango.M9] consumer thread exited: {e.GetType().Name} {e.Message}");
             }
+            finally { runtimeEnabled = false; _running = false; }
         }
 
         /// <summary>[topic][DetectionResult JSON] → 结果；段数/topic 不符或 JSON 损坏 → null（丢弃）。</summary>
@@ -159,7 +171,8 @@ namespace Sango
             if (parts == null || parts.Count != 2 || parts[0] != topic) return null;
             try
             {
-                return DetectionResult.FromJson(parts[1]);
+                var result = DetectionResult.FromJsonStrict(parts[1]);
+                return DetectionFreshness.IsWellFormed(result) ? result : null;
             }
             catch (Exception e)
             {

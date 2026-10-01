@@ -196,8 +196,10 @@ namespace Sango.Tests
             var lamp = _ship.transform.Find($"NavigationLightsRig/{lampName}");
             Assert.That(lamp, Is.Not.Null, $"灯对象 {lampName} 存在");
             var renderers = lamp.GetComponentsInChildren<MeshRenderer>();
-            Assert.That(renderers.Length, Is.EqualTo(2), "交叉双面灯片");
-            return renderers[0].enabled && renderers[1].enabled;
+            Assert.That(renderers.Length, Is.EqualTo(1), "圆形双面灯片");
+            Assert.That(renderers[0].sharedMaterial.GetTexture("_UnlitColorMap"), Is.Not.Null);
+            Assert.That(renderers[0].sharedMaterial.GetColor("_UnlitColor").a, Is.EqualTo(1f));
+            return renderers[0].enabled;
         }
     }
 }

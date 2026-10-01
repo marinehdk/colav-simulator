@@ -15,10 +15,11 @@ namespace Sango
     /// </summary>
     public static class WakeFoamTexture
     {
-        const int k_Size = 64;
+        const int k_Size = 128;
 
         static Texture2D s_Blob;
         static Texture2D s_Strip;
+        static Texture2D s_RingStrip;
 
         /// <summary>径向软斑（粒子/环带母版；静态缓存，调用方只读勿写入）。</summary>
         public static Texture2D RadialSoftBlob()
@@ -32,7 +33,7 @@ namespace Sango
                 float r = Mathf.Sqrt(u * u + v * v);
                 float theta = Mathf.Atan2(v, u);
                 float wobble = 1f + 0.10f * Mathf.Sin(5f * theta + 1.7f) + 0.06f * Mathf.Sin(9f * theta + 0.4f);
-                float a = Mathf.SmoothStep(1.05f * wobble, 0.15f * wobble, r);
+                float a = 1f - Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.15f * wobble, 1.05f * wobble, r));
                 return a;
             });
             s_Blob.name = "WakeFoam.RadialSoftBlob";
@@ -47,15 +48,33 @@ namespace Sango
             {
                 float u = x / (k_Size - 1f);        // 横向：径向截面（边缘软、中带浓）
                 float v = y / (k_Size - 1f);        // 纵向：v=0 浓（艏/内缘）→ v=1 散
-                float across = Mathf.SmoothStep(1f, 0.12f, Mathf.Abs(u * 2f - 1f));
-                float along = Mathf.Pow(1f - v, 1.4f); // 幂次 >1：近艏端维持高浓度、尾端缓散
-                return across * along;
+                float across = 1f - Mathf.SmoothStep(0f, 1f, Mathf.Abs(u * 2f - 1f));
+                float along = Mathf.Exp(-3f * v) * Mathf.Pow(1f - v, 0.6f);
+                float coarse = Mathf.PerlinNoise(u * 7f + 0.7f, v * 24f + 2.1f);
+                float fine = Mathf.PerlinNoise(u * 32f, v * 64f);
+                float breakup = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.25f, 0.75f, coarse))
+                    * Mathf.Lerp(0.25f, 1f, fine);
+                return across * along * breakup;
             });
             s_Strip.name = "WakeFoam.WakeStrip";
             return s_Strip;
         }
 
-        /// <summary>逐像素 alpha 填充（rgb 恒白：色调/亮度全由 _UnlitColor 控制）。</summary>
+        public static Texture2D HullFoamStrip()
+        {
+            if (s_RingStrip != null) return s_RingStrip;
+            s_RingStrip = Build((x, y) =>
+            {
+                float theta = x / (k_Size - 1f) * Mathf.PI * 2f;
+                float across = y / (k_Size - 1f);
+                float breakup = 0.3f + 0.7f * Mathf.PerlinNoise(3f + Mathf.Sin(theta) * 2f, 3f + Mathf.Cos(theta) * 2f);
+                return Mathf.Pow(1f - across, 2f) * breakup;
+            });
+            s_RingStrip.name = "WakeFoam.HullFoamStrip";
+            return s_RingStrip;
+        }
+
+        /// <summary>逐像素 alpha 填充，RGB 恒白。</summary>
         static Texture2D Build(System.Func<int, int, float> alphaAt)
         {
             var tex = new Texture2D(k_Size, k_Size, TextureFormat.RGBA32, false, true)

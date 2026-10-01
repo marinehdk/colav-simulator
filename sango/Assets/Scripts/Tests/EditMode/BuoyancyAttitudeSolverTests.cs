@@ -175,5 +175,13 @@ namespace Sango.Tests
             }
             Assert.That(Run(), Is.EqualTo(Run()));
         }
+        [Test]
+        public void DampingSurvivesLongRenderingFrames()
+        {
+            var state = default(DampedScalar);
+            for (int i = 0; i < 10; i++) state = BuoyancyAttitudeSolver.Damp(state, 1f, 0.8f, 0.5f);
+            Assert.That(state.Value, Is.EqualTo(1f).Within(0.001f));
+            Assert.That(state.Velocity, Is.EqualTo(0f).Within(0.001f));
+        }
     }
 }

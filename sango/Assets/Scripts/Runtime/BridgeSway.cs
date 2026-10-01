@@ -46,6 +46,8 @@ namespace Sango
             if (m_Cam == null) return;
 
             var view = rig != null ? rig.CurrentView : CameraView.Bridge;
+            if (rig != null && ((view == CameraView.Bridge && rig.bridgeMount != null)
+                || (view == CameraView.Bow && rig.bowMount != null))) return;
             bool on = view == CameraView.Bridge ? swayBridgeView
                    : view == CameraView.Chase ? swayChaseView
                    : view == CameraView.Bow ? swayBowView

@@ -83,8 +83,7 @@ namespace Sango
             _beaufortValue = CreateSliderRow("Beaufort 0-11", 0f, 11f, controller != null ? controller.beaufort : 3f, false, v =>
             {
                 if (controller == null) return;
-                controller.beaufort = Mathf.Round(v * 10f) / 10f; // 0.1 步进
-                if (beaufortSlider != null) beaufortSlider.SetValueWithoutNotify(controller.beaufort);
+                controller.BeginUserGradeTransition(targetBeaufort: Mathf.Round(v * 10f) / 10f);
                 OnAnyChanged();
             }, out beaufortSlider);
 
@@ -119,8 +118,7 @@ namespace Sango
             _fogValue = CreateSliderRow("Fog distance (m)", 100f, 8000f, controller != null ? controller.fogDistanceMeters : 3000f, true, v =>
             {
                 if (controller == null) return;
-                controller.fogDistanceMeters = Mathf.Round(v);
-                if (fogSlider != null) fogSlider.SetValueWithoutNotify(controller.fogDistanceMeters);
+                controller.BeginUserGradeTransition(targetFogMeters: Mathf.Round(v));
                 OnAnyChanged();
             }, out fogSlider);
 
@@ -132,6 +130,7 @@ namespace Sango
             {
                 if (controller == null) return;
                 controller.spectrumTier = (JsPmTier)i;
+                controller.BeginUserGradeTransition();
                 OnAnyChanged();
             });
 

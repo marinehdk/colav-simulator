@@ -62,15 +62,19 @@ namespace Sango
 
         /// <summary>水线泡沫环径向宽 = 船宽 × 0.22，钳 [0.4, 2.5] m（贴壳一圈破碎沫带）。</summary>
         public static float RingWidthM(float beamM)
-            => Mathf.Clamp(beamM * 0.22f, 0.4f, 2.5f);
+            => Mathf.Clamp(beamM * 0.08f, 0.2f, 0.8f);
 
-        /// <summary>ribbon 位置历史采样间距 = LOA × 0.08，钳 [0.8, 4] m（距离驱动：粒状波峰
-        /// 锁样，与航速无关；42 m 船满带 27 段 × 3.36 ≈ 91 m 尾迹）。</summary>
+        /// <summary>ribbon 位置历史采样间距 = LOA × 0.015，钳 [0.25, 1] m（距离驱动：粒状波峰
+        /// 锁样，与航速无关；45 m 船 127 段 × 0.675 ≈ 86 m 尾迹）。</summary>
         public static float HistorySpacingM(float loaM)
-            => Mathf.Clamp(loaM * 0.08f, 0.8f, 4f);
+            => Mathf.Clamp(loaM * 0.015f, 0.25f, 1f);
 
         /// <summary>ribbon 位置历史样本数（拓扑常量：顶点 = 2×此数，三角形 (此数-1)×2）。
-        /// 28 样本 = 56 顶点/54 三角形，一排 draw call 内的克制预算（见 WakeFoamRig 头注）。</summary>
-        public const int RibbonSampleCount = 28;
+        /// 128 样本；三条带共 768 顶点/762 三角形，一排 draw call 内的克制预算（见 WakeFoamRig 头注）。</summary>
+        public const int RibbonSampleCount = 128;
+
+        // Visual deep-water Kelvin envelope, not a resistance/CFD model. Propeller wash remains a separate centre strip.
+        public static float KelvinArmOffsetM(float distanceBehindM, float nearHalfWidthM)
+            => nearHalfWidthM + Mathf.Max(0f, distanceBehindM) * 0.3535534f;
     }
 }

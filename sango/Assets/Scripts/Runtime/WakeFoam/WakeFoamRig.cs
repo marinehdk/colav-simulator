@@ -7,27 +7,13 @@ using UnityEngine.Rendering.HighDefinition;
 namespace Sango
 {
     /// <summary>
-    /// M9-1 尾迹/艏波泡沫引擎适配器（评审压分承接：艏部白线静态贴花不随浪 / a4000 艏波贴片
-    /// 悬空平板 → High 档换 粒子+网格 主视觉）：三件套 rig 全程序化运行时构建（bootstrapper
-    /// 只挂组件，场景零序列化负担，NavigationLights 先例）——
-    ///   ① 艏部浪花：艏柱左右各一 Cone 粒子系（V 形外张 + 上抛弧线），发射率 =
-    ///      WakeFoamCore.SprayEmissionRate（速度 × Froude 双爬坡 × 面板乘子），世界系模拟
-    ///      （喷出后留在水上，不随船拖走）；
-    ///   ② 艉迹泡沫带：位置历史驱动的 ribbon mesh——距离采样推进（WakeFoamCore.HistorySpacingM），
-    ///      采样点在推进瞬间锁存该点浪高（HDRP CPU 水高查询），整条带沿历史逐点贴浪、艉端
-    ///      逐帧跟浪（修"静态贴花不随浪"）；传送/大跳全量重置防跨图拉线；
-    ///   ③ 船壳水线泡沫环：椭圆环 mesh 贴壳一圈，逐帧跟水面高度（修"悬空平板"）。
-    /// 档位（M8 双档 L 键，消费 M8Quality.CurrentTier 静态记账值）：High = 本 rig 主视觉 +
-    /// ApplyDecalSuppression 压制两块 WaterDecal（LateUpdate + 执行序 200，确定地晚于
-    /// BoatWaterDecals.Update 的每帧速度门改写）；Low = 本 rig 整树休眠零开销、decal 保持
-    /// 现状（BoatWaterDecals 原语义，速度门 WaterDecalSpeedGate 未动——M8 pre-roll
-    /// decalGate 契约与 M8_SHOT/M8_SECONDS/M8_OUT 全不受影响）。
-    /// 预算（克制，头注即代码注释）：粒子 ≤ 2×MaxSprayParticlesPerSide = 144 上限（巡航活
-    /// 粒子 ≈ 2×55/s×1.1 s ≈ 121）；ribbon 28 样本 = 56 顶点 / 54 三角、水线环 24 段 = 48 顶点
-    /// / 48 三角（各一 draw call）；每帧水高查询 ≤ 2 次（ribbon 艉端 + 环，VesselBuoyancy 同点
-    /// 64 次；ribbon 历史点在推进时另查 ~3-4 次/秒）；整帧路径零堆分配——顶点缓存 List/历史
-    /// 数组/查询结构体/发射模块句柄全部构建期预分配，材质只 SetColor/SetFloat，无 new、无
-    /// 字符串拼接。Renderer 阴影全关（unlit 泡沫不参与阴影）。
+    /// Stage-one visual wake: world-space propeller wash plus diverging Kelvin-envelope arms,
+    /// small bow spray and a water-conforming hull foam ring. It is not a CFD/resistance model.
+    /// High uses scene-lit transparent foam; Low retains the existing WaterDecal speed gate.
+    /// Budget: 128×6 ribbon vertices / 762 triangles, 48 ring vertices / 48 triangles,
+    /// <=144 spray particles. Moving High performs at most 817 water queries per update;
+    /// stopped/Low performs none. LastWaterQueries exposes the real budget for acceptance.
+    /// Vertex buffers and sampling history are reused; owned Mesh/Material objects are released.
     /// </summary>
     [DefaultExecutionOrder(200)] // 晚于 VesselBuoyancy(100)：采样/环 y 用本帧浮力后位姿
     public class WakeFoamRig : MonoBehaviour
@@ -74,6 +60,8 @@ namespace Sango
         Mesh m_RibbonMesh;
         MeshRenderer m_RibbonRenderer;
         MeshRenderer m_RingRenderer;
+        Mesh m_RingMesh;
+        Vector3[] m_RingBaseVertices, m_RingVertexCache;
         readonly ParticleSystem.EmissionModule[] m_SprayEmission = new ParticleSystem.EmissionModule[2];
         Material m_SprayMaterial, m_RibbonMaterial, m_RingMaterial;
 
@@ -100,6 +88,7 @@ namespace Sango
         public float LastWakeIntensity01 => m_LastWakeIntensity;
         public float LastRingAlpha01 => m_LastRingAlpha;
         float m_LastSprayRate, m_LastWakeIntensity, m_LastRingAlpha;
+        public int LastWaterQueries { get; private set; }
 
         void OnEnable()
         {
@@ -128,6 +117,17 @@ namespace Sango
                 if (Application.isPlaying) Destroy(m_WorldRoot.gameObject);
                 else DestroyImmediate(m_WorldRoot.gameObject);
             }
+            DestroyOwned(m_RibbonMesh);
+            DestroyOwned(m_RingMesh);
+            DestroyOwned(m_SprayMaterial);
+            DestroyOwned(m_RibbonMaterial);
+            DestroyOwned(m_RingMaterial);
+        }
+
+        static void DestroyOwned(Object resource)
+        {
+            if (resource == null) return;
+            if (Application.isPlaying) Destroy(resource); else DestroyImmediate(resource);
         }
 
         /// <summary>
@@ -137,6 +137,7 @@ namespace Sango
         /// </summary>
         public void ApplySpeed(float speedMps)
         {
+            LastWaterQueries = 0;
             if (!RigBuilt) return;
             bool active = WakeFoamCore.ParticlesActive(M8Quality.CurrentTier);
             if (m_RigRoot.gameObject.activeSelf != active) m_RigRoot.gameObject.SetActive(active);
@@ -150,6 +151,7 @@ namespace Sango
             }
 
             float clamp01Multiplier = Mathf.Clamp01(intensityMultiplier);
+            m_SprayMaterial.SetColor(k_FoamColor, new Color(0.75f, 0.78f, 0.82f, 0.6f));
             float wake = WakeFoamCore.SpeedFactor(speedMps, speedThresholdMps, fullEffectSpeedMps) * clamp01Multiplier;
             float sprayRate = WakeFoamCore.SprayEmissionRate(speedMps, speedThresholdMps, fullEffectSpeedMps,
                                                              loaMeters, MaxSprayRatePerSide) * clamp01Multiplier;
@@ -165,6 +167,8 @@ namespace Sango
             SetFoamAlpha(m_RingMaterial, wake, k_RingBaseAlpha);
             m_RibbonRenderer.enabled = wake > 0.001f; // 零强度不提交 draw（静止/锢泊零开销）
             m_RingRenderer.enabled = wake > 0.001f;
+
+            if (wake <= 0.001f) { m_HavePush = false; return; }
 
             UpdateRibbon();
             UpdateRingHeight();
@@ -261,15 +265,15 @@ namespace Sango
             var blob = WakeFoamTexture.RadialSoftBlob();
 
             // ① 艏浪：左右各一 Cone 粒子系，V 形外张（±yaw）+ 上抛（pitch），世界系模拟。
-            m_SprayMaterial = FoamMaterial(blob, FoamTint(1.35f), 1f);
+            m_SprayMaterial = FoamMaterial(blob, 1f);
             for (int i = 0; i < 2; i++) BuildSprayEmitter(i, bounds);
 
             // ② 艉迹 ribbon：世界系顶点（采样点锁浪高），静态拓扑 + 每帧只写位置。
-            m_RibbonMaterial = FoamMaterial(WakeFoamTexture.WakeStrip(), FoamTint(1.3f), 0f);
+            m_RibbonMaterial = FoamMaterial(WakeFoamTexture.WakeStrip(), 0f);
             BuildRibbon();
 
             // ③ 水线泡沫环：船子树椭圆环（跟船零同步成本），y 逐帧贴水面。
-            m_RingMaterial = FoamMaterial(WakeFoamTexture.WakeStrip(), FoamTint(1.25f), 0f);
+            m_RingMaterial = FoamMaterial(WakeFoamTexture.HullFoamStrip(), 0f);
             BuildRing(bounds, beamWorldM);
 
             // 水面查询参数一次初始化（VesselBuoyancy 同款 probe 常量）。
@@ -291,7 +295,7 @@ namespace Sango
             go.transform.SetParent(m_RigRoot, false);
             go.transform.localPosition = new Vector3(bounds.center.x, m_WaterLocalY, bounds.max.z); // 艏柱
             // Cone 默认朝局部 +Z：pitch 上抛 + yaw 外张（0=左舷 / 1=右舷）= V 形两臂。
-            go.transform.localRotation = Quaternion.Euler(38f, side == 0 ? 28f : -28f, 0f);
+            go.transform.localRotation = Quaternion.Euler(-12f, side == 0 ? -28f : 28f, 0f);
 
             var ps = go.AddComponent<ParticleSystem>();
             var main = ps.main;
@@ -301,7 +305,7 @@ namespace Sango
             main.startSize = Mathf.Clamp(loaMeters * 0.035f, 0.25f, 1.2f);
             main.startColor = new Color(1f, 1f, 1f, 0.6f);
             main.maxParticles = MaxSprayParticlesPerSide;              // 预算锚（头注）
-            main.gravityModifier = 0.35f;                              // 上抛后落回水面成弧
+            main.gravityModifier = 0.5f;                               // 小幅艏浪抛起后落水
             main.loop = true;
 
             var shape = ps.shape;
@@ -336,26 +340,33 @@ namespace Sango
             var go = new GameObject(k_RibbonName);
             go.transform.SetParent(m_WorldRoot, false);
             m_RibbonMesh = new Mesh { name = "WakeRibbon.Mesh" };
-            m_RibbonMesh.MarkDynamic(); // 每帧改顶点的提示（动态 VB 上传路径）
+            m_RibbonMesh.MarkDynamic(); // Dynamic water-conforming geometry.
 
             int n = WakeFoamCore.RibbonSampleCount;
-            var verts = new Vector3[n * 2];
-            var uvs = new Vector2[n * 2];
-            var tris = new int[(n - 1) * 6];
+            var verts = new Vector3[n * 6];
+            var uvs = new Vector2[n * 6];
+            var tris = new int[(n - 1) * 18];
             for (int i = 0; i < n; i++)
             {
                 float v = i / (n - 1f);
-                uvs[i * 2] = new Vector2(0f, v);     // u=0/1 横向（贴图边缘 alpha=0 软边）
-                uvs[i * 2 + 1] = new Vector2(1f, v); // v 沿艉后（0 艉柱浓 → 1 尾端散）
+                for (int strip = 0; strip < 3; strip++)
+                {
+                    uvs[i * 6 + strip * 2] = new Vector2(0f, v);
+                    uvs[i * 6 + strip * 2 + 1] = new Vector2(1f, v);
+                }
             }
             for (int i = 0; i < n - 1; i++)
             {
-                int o = i * 6, p = i * 2;
-                tris[o] = p; tris[o + 1] = p + 1; tris[o + 2] = p + 2;
-                tris[o + 3] = p + 1; tris[o + 4] = p + 3; tris[o + 5] = p + 2;
+                for (int strip = 0; strip < 3; strip++)
+                {
+                    int o = i * 18 + strip * 6, p = i * 6 + strip * 2;
+                    tris[o] = p; tris[o + 1] = p + 1; tris[o + 2] = p + 6;
+                    tris[o + 3] = p + 1; tris[o + 4] = p + 7; tris[o + 5] = p + 6;
+                }
             }
             m_RibbonMesh.vertices = verts; // 拓扑与 UV 一次定型；位置每帧 SetVertices（缓存 list）
             m_RibbonMesh.uv = uvs;
+            for (int i = 0; i < tris.Length; i += 3) (tris[i + 1], tris[i + 2]) = (tris[i + 2], tris[i + 1]);
             m_RibbonMesh.triangles = tris;
             m_VertexCache.AddRange(verts); // 容量一次到位（后续只覆写，零分配）
 
@@ -402,9 +413,14 @@ namespace Sango
                 tris[o + 3] = p + 1; tris[o + 4] = q + 1; tris[o + 5] = q;
             }
             var mesh = new Mesh { name = "WaterlineFoamRing.Mesh" };
+            m_RingMesh = mesh;
+            m_RingBaseVertices = verts;
+            m_RingVertexCache = new Vector3[verts.Length];
             mesh.vertices = verts;
             mesh.uv = uvs;
+            for (int i = 0; i < tris.Length; i += 3) (tris[i + 1], tris[i + 2]) = (tris[i + 2], tris[i + 1]);
             mesh.triangles = tris;
+            mesh.RecalculateNormals();
             mesh.RecalculateBounds(); // 静态几何，包围盒一次
 
             var filter = go.AddComponent<MeshFilter>();
@@ -460,6 +476,8 @@ namespace Sango
             // 顶点重排（56 次 Vector3 写，零分配）：i=0 艉柱（新）→ i=N-1 最老（尾端）。
             int n = m_History.Length;
             float halfW = WakeFoamCore.RibbonHalfWidthM(loaMeters);
+            float distanceBehind = 0f;
+            var previousCenter = sternWorld;
             for (int i = 0; i < n; i++)
             {
                 var prev = m_History[i > 0 ? i - 1 : 0];
@@ -470,30 +488,52 @@ namespace Sango
                 {
                     m_LastPerp.Set(dir.z / len, 0f, -dir.x / len); // 水平左法向（up × dir 归一）
                 }
-                float w = halfW * Mathf.Lerp(1f, k_RibbonTailWidth, i / (n - 1f));
-                m_VertexCache[i * 2] = m_History[i] - m_LastPerp * w;
-                m_VertexCache[i * 2 + 1] = m_History[i] + m_LastPerp * w;
+                var center = i == 0 ? sternWorld : m_History[i - 1];
+                distanceBehind += Vector3.Distance(center, previousCenter);
+                previousCenter = center;
+                float age = i / (n - 1f);
+                float w = halfW * Mathf.Lerp(1f, 1.5f, age);
+                m_VertexCache[i * 6] = center - m_LastPerp * w;
+                m_VertexCache[i * 6 + 1] = center + m_LastPerp * w;
+                float arm = WakeFoamCore.KelvinArmOffsetM(distanceBehind, halfW);
+                float crestHalfWidth = Mathf.Lerp(0.25f, 0.8f, age);
+                for (int side = 0; side < 2; side++)
+                {
+                    var armCenter = center + m_LastPerp * arm * (side == 0 ? -1f : 1f);
+                    int index = i * 6 + 2 + side * 2;
+                    m_VertexCache[index] = armCenter - m_LastPerp * crestHalfWidth;
+                    m_VertexCache[index + 1] = armCenter + m_LastPerp * crestHalfWidth;
+                }
+            }
+            // Each edge must follow the current water too; a single height per broad strip produces clipped dashed plates.
+            for (int vertex = 0; vertex < m_VertexCache.Count; vertex++)
+            {
+                var point = m_VertexCache[vertex];
+                if (TryQueryWaterY(ref point)) point.y += 0.075f;
+                m_VertexCache[vertex] = point;
             }
             m_RibbonMesh.SetVertices(m_VertexCache);
-            m_RibbonMesh.RecalculateBounds(); // 世界系顶点：包围盒随形状走（56 顶点，开销可忽略）
+            m_RibbonMesh.RecalculateNormals();
+            m_RibbonMesh.RecalculateBounds(); // 世界系顶点：包围盒随形状走（768 顶点）
         }
 
         /// <summary>水线环逐帧贴水面：根局部 y = 基线局部 y +（查询浪高 − 基线世界高）/根缩放。</summary>
         void UpdateRingHeight()
         {
             if (m_Ring == null) return;
-            var center = transform.TransformPoint(new Vector3(0f, m_WaterLocalY, 0f));
-            float waterY = k_SurfaceWorldY;
-            if (water != null)
+            var position = transform.position;
+            position.y = 0f;
+            m_Ring.SetPositionAndRotation(position, Quaternion.Euler(0f, transform.eulerAngles.y, 0f));
+            for (int i = 0; i < m_RingBaseVertices.Length; i++)
             {
-                m_SearchParams.startPositionWS = new float3(center.x, center.y, center.z);
-                m_SearchParams.targetPositionWS = m_SearchParams.startPositionWS;
-                if (water.ProjectPointOnWaterSurface(m_SearchParams, out m_SearchResult))
-                    waterY = m_SearchResult.projectedPositionWS.y;
+                var point = m_Ring.TransformPoint(m_RingBaseVertices[i]);
+                TryQueryWaterY(ref point);
+                    point.y += 0.075f;
+                m_RingVertexCache[i] = m_Ring.InverseTransformPoint(point);
             }
-            var lp = m_Ring.localPosition;
-            lp.y = m_WaterLocalY + (waterY - k_SurfaceWorldY) * m_RootScaleInv; // 浪高起伏换算回局部
-            m_Ring.localPosition = lp;
+            m_RingMesh.vertices = m_RingVertexCache;
+            m_RingMesh.RecalculateNormals();
+            m_RingMesh.RecalculateBounds();
         }
 
         /// <summary>查询世界点的浪高并写回 y（空水面/查询失败保持原 y = 船体高度估计）。</summary>
@@ -502,6 +542,7 @@ namespace Sango
             if (water == null) return false;
             m_SearchParams.startPositionWS = new float3(world.x, world.y, world.z);
             m_SearchParams.targetPositionWS = m_SearchParams.startPositionWS;
+            LastWaterQueries++;
             if (!water.ProjectPointOnWaterSurface(m_SearchParams, out m_SearchResult)) return false;
             world.y = m_SearchResult.projectedPositionWS.y;
             return true;
@@ -509,41 +550,42 @@ namespace Sango
 
         // ── 材质小件 ───────────────────────────────────────────────────────────────────
 
-        const float k_RibbonBaseAlpha = 0.5f;
-        const float k_RingBaseAlpha = 0.45f;
+        const float k_RibbonBaseAlpha = 0.48f;
+        const float k_RingBaseAlpha = 0.24f;
         static readonly Vector3 k_FoamTint = new Vector3(0.92f, 0.96f, 1.0f); // 泡沫冷白
-        static readonly int k_UnlitColor = Shader.PropertyToID("_UnlitColor");
-
-        static Color FoamTint(float brightness)
-            => new Color(k_FoamTint.x * brightness, k_FoamTint.y * brightness, k_FoamTint.z * brightness);
+        static readonly int k_FoamColor = Shader.PropertyToID("_BaseColor");
 
         void SetFoamAlpha(Material mat, float intensity01, float baseAlpha)
         {
             if (mat == null) return;
-            mat.SetColor(k_UnlitColor, new Color(
-                k_FoamTint.x * 1.3f, k_FoamTint.y * 1.3f, k_FoamTint.z * 1.3f, baseAlpha * intensity01));
+            mat.SetColor(k_FoamColor, new Color(
+                k_FoamTint.x * 0.82f, k_FoamTint.y * 0.82f,
+                k_FoamTint.z * 0.82f, baseAlpha * intensity01));
         }
 
-        /// <summary>
-        /// HDRP/Unlit additive 泡沫材质（NavigationLights.StreakMaterial 配方 + 贴图）：
-        /// SrcAlpha·颜色 + Dst（alpha 控强度），关 ZWrite、关背面剔除（ribbon/环俯仰双面可见）。
-        /// HDRP 17.3 UnlitData.hlsl 无条件采样 _UnlitColorMap（alpha = map.a × _UnlitColor.a，
-        /// _AlphaRemap 默认 [0,1]），无需额外 keyword。
-        /// </summary>
-        static Material FoamMaterial(Texture2D map, Color tint, float baseAlpha)
+        /// <summary>Scene-lit alpha foam: no opaque depth writes or specular reflection at zero coverage.</summary>
+        static Material FoamMaterial(Texture2D map, float baseAlpha)
         {
-            var mat = new Material(Shader.Find("HDRP/Unlit"));
-            mat.SetTexture("_UnlitColorMap", map);
-            mat.SetColor(k_UnlitColor, new Color(tint.r, tint.g, tint.b, baseAlpha));
+            var prototype = Resources.Load<Material>("LitFoam");
+            var mat = prototype != null ? new Material(prototype) : new Material(Shader.Find("HDRP/Lit"));
+            mat.SetTexture("_BaseColorMap", map);
+            mat.SetColor(k_FoamColor, new Color(0.75f, 0.78f, 0.82f, baseAlpha));
             mat.SetFloat("_SurfaceType", 1f);
-            mat.SetFloat("_BlendMode", 2f); // HDRP BlendMode: 0 Alpha / 1 Premultiplied / 2 Additive / 3 Multiply
-            mat.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
-            mat.EnableKeyword("_BLEND_MODE_ADD");
-            mat.SetFloat("_SrcBlend", (float)UnityEngine.Rendering.BlendMode.SrcAlpha);
-            mat.SetFloat("_DstBlend", (float)UnityEngine.Rendering.BlendMode.One);
+            mat.SetFloat("_BlendMode", 0f);
+            mat.SetFloat("_Metallic", 0f);
+            mat.SetFloat("_Smoothness", 0.15f);
+            mat.SetFloat("_EnableBlendModePreserveSpecularLighting", 0f);
+            mat.SetFloat("_ReceivesSSRTransparent", 0f);
             mat.SetFloat("_ZWrite", 0f);
             mat.SetFloat("_CullMode", 0f); // Off（俯/仰视双面可见）
+            mat.SetFloat("_DoubleSidedEnable", 1f);
             mat.renderQueue = (int)RenderQueue.Transparent;
+            HDMaterial.ValidateMaterial(mat);
+            mat.SetShaderPassEnabled("DepthForwardOnly", false);
+            mat.SetShaderPassEnabled("DepthOnly", false);
+            mat.SetShaderPassEnabled("TransparentDepthPrepass", false);
+            mat.SetShaderPassEnabled("TransparentDepthPostpass", false);
+            mat.SetShaderPassEnabled("MotionVectors", false);
             return mat;
         }
     }

@@ -125,3 +125,19 @@ VolumetricClouds 无标量 coverage 字段（`VolumetricClouds.cs:38-69,216-229`
 Fog 用现行 `Fog` 组件（`AtmosphericScattering/Fog.cs:29,50,55`；旧 `VolumetricFog` 已 Obsolete）、
 Volume 运行时副本改法（core 包 `Volume.cs:55-87` `profile` getter Instantiate `sharedProfile`，`VolumeProfile.cs:231` TryGet）。
 若升 Unity/HDRP 版本，先重跑一遍这些 file:line 核对。
+
+## 2026-10-01 海峡主场景本机优化
+
+主播放器为 `sango/Builds/sango.app`，源码场景 `Assets/Scenes/M6-Strait.unity`。FCB45桥楼/艏机位为船上视觉锚点；C切机位，G航点演示，0–9海况，T昼夜，N大气，L画质，B检测，H隐藏HUD。检测叠层明确显示 `YOLO live` 或 `Ground truth demo`。
+
+复跑次序：修改场景接线后先 `Sango.Editor.M6StraitSceneBootstrapper.Build`，再 `BuildStraitPlayer`。本机验收：
+
+```bash
+./sango/Builds/sango.app/Contents/MacOS/sango --sango-verify "$PWD/output/sango-stage1-20261001/acceptance" -screen-width 2560 -screen-height 1440 -screen-fullscreen 0
+# 检测服务使用仓库 .venv-detector；回环验收另加 --sango-publisher
+.venv-detector/bin/python tools/sango_detector_service.py --device cpu
+```
+
+`report.json` 记录实际尺寸、墙钟FPS、水高/姿态范围、查询数与检测窗口计数；带publisher时还要求Rx/live非零，任何门失败退出1。性能基线需与其他Unity/Recorder/GPU任务分开运行。录像不是实时FPS证据。
+
+出片沿用 `M8RecordingRunner.RunFromCli`；`M8_SHOT/M8_SECONDS/M8_OUT`，可选 `M8_BEAUFORT=0..9` 用于本机海况对照。证据位于 `output/sango-stage1-20261001/`。浮态与Kelvin包络为视觉近似，FCB45为尺寸约束重建；未标定实船RAO/相机，未接阶段2后端遥测，不代表完整闭环或海试资格。

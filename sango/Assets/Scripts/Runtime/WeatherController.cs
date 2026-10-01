@@ -64,6 +64,8 @@ namespace Sango
         float m_TransDur = 1f;
         float m_FogFrom, m_FogTo, m_CloudFrom, m_CloudTo, m_EvFrom, m_EvTo, m_DimFrom, m_DimTo, m_RainFrom, m_RainTo;
         float m_BftFrom, m_BftTo;
+        float m_SpectrumCurrent = float.NaN;
+        float m_SpectrumFrom, m_SpectrumTo;
 
         // M9-2 夜间曝光地板调值（NightGradeCore 曲线；TBD-实机）：暮光带宽 6°（civil twilight
         // 量级，日落渐入不跳变）、地板 −3 EV（雷暴白天 −1.6 EV 先例之上的夜间加码，≈8× 压暗）。
@@ -79,6 +81,7 @@ namespace Sango
         /// </summary>
         public void ApplyAtmosphereTier()
         {
+            BeginSpectrumTransition();
             var p = M7BMath.AtmospherePresetFor(atmosphereTier);
             m_FogFrom = fogDistanceMeters; m_FogTo = p.fogDistanceM;
             m_CloudFrom = cloudCover; m_CloudTo = p.cloudCover;
@@ -100,6 +103,7 @@ namespace Sango
         /// </summary>
         public void BeginUserGradeTransition(float? targetBeaufort = null, float? targetFogMeters = null, float durationSeconds = 2.5f)
         {
+            BeginSpectrumTransition();
             m_BftFrom = beaufort; m_BftTo = targetBeaufort ?? beaufort;
             m_FogFrom = fogDistanceMeters; m_FogTo = targetFogMeters ?? fogDistanceMeters;
             m_CloudFrom = m_CloudTo = cloudCover;
@@ -126,7 +130,22 @@ namespace Sango
             sunDimFactor = Mathf.Lerp(m_DimFrom, m_DimTo, t);
             rainRate = Mathf.Lerp(m_RainFrom, m_RainTo, t);
             beaufort = Mathf.Lerp(m_BftFrom, m_BftTo, t); // M9-2：风档同轨渐变（风m/s/浪 band 全部随 Apply 派生）
+            m_SpectrumCurrent = Mathf.Lerp(m_SpectrumFrom, m_SpectrumTo, t);
             return AtmosphereTransitioning;
+        }
+
+        void BeginSpectrumTransition()
+        {
+            m_SpectrumFrom = float.IsNaN(m_SpectrumCurrent) ? (float)spectrumTier : m_SpectrumCurrent;
+            m_SpectrumTo = (float)spectrumTier;
+            m_SpectrumCurrent = m_SpectrumFrom;
+        }
+
+        static float TierValue(float[] values, float tier)
+        {
+            tier = Mathf.Clamp(tier, 0f, values.Length - 1f);
+            int lo = Mathf.FloorToInt(tier);
+            return Mathf.Lerp(values[lo], values[Mathf.Min(lo + 1, values.Length - 1)], tier - lo);
         }
 
         // 蒲福→风速锚点（级内中值，公认换算：B0≈0.5 / B3≈4.5 / B6≈12.5 / B9≈22.5，PLAN §5 M1 验收 1）
@@ -136,9 +155,9 @@ namespace Sango
         };
 
         // 谱档→band 组合近似（起调值，全部 TBD-实机调值；量级指引见 sango/Docs/beaufort-water-mapping.md 调值指引节）
-        static readonly float[] TierSwellWindFactor = { 0.35f, 0.60f, 0.90f, 1.10f }; // ×风速 → largeWindSpeed
-        static readonly float[] TierBand0Mult       = { 0.15f, 0.35f, 0.50f, 0.65f }; // 涌浪 band 幅值倍率
-        static readonly float[] TierBand1Mult       = { 0.10f, 0.25f, 0.45f, 0.70f }; // 风浪 band 幅值倍率
+        static readonly float[] TierSwellWindFactor = { 0.35f, 1.00f, 0.90f, 1.10f }; // B3 uses the displayed wind, rather than suppressing it to 2.7 m/s.
+        static readonly float[] TierBand0Mult       = { 0.15f, 0.70f, 0.75f, 0.90f };
+        static readonly float[] TierBand1Mult       = { 0.10f, 0.45f, 0.65f, 0.85f };
         static readonly float[] TierRippleWindFactor = { 0.5f, 0.8f, 1.0f, 1.3f };    // ×风速 km/h → ripplesWindSpeed（钳 0..15）
         static readonly float[] TierRippleChaos     = { 0.60f, 0.70f, 0.80f, 0.90f };
         static readonly float[] TierFoamAmount      = { 0.00f, 0.10f, 0.25f, 0.45f }; // 白沫量
@@ -215,20 +234,21 @@ namespace Sango
         void ApplyWater(float windMs)
         {
             if (waterSurface == null) return;
-            int t = (int)spectrumTier;
+            if (!AtmosphereTransitioning) m_SpectrumCurrent = (float)spectrumTier;
+            float t = float.IsNaN(m_SpectrumCurrent) ? (float)spectrumTier : m_SpectrumCurrent;
             float windKmh = windMs * 3.6f; // largeWindSpeed/ripplesWindSpeed 单位 km/h（见上注）
 
-            waterSurface.largeWindSpeed = Mathf.Clamp(windKmh * TierSwellWindFactor[t], 0f, 250f);
-            waterSurface.largeBand0Multiplier = Mathf.Clamp01(TierBand0Mult[t]);
-            waterSurface.largeBand1Multiplier = Mathf.Clamp01(TierBand1Mult[t]);
+            waterSurface.largeWindSpeed = Mathf.Clamp(windKmh * TierValue(TierSwellWindFactor, t), 0f, 250f);
+            waterSurface.largeBand0Multiplier = Mathf.Clamp01(TierValue(TierBand0Mult, t));
+            waterSurface.largeBand1Multiplier = Mathf.Clamp01(TierValue(TierBand1Mult, t));
             waterSurface.largeOrientationValue = windDirectionDeg;
             waterSurface.largeChaos = Mathf.Lerp(0.9f, 0.5f, t / 3f); // 低风更单向，高风更散（起调值 TBD-实机）
             waterSurface.ripples = true;
-            waterSurface.ripplesWindSpeed = Mathf.Clamp(windKmh * TierRippleWindFactor[t], 0f, 15f);
-            waterSurface.ripplesChaos = Mathf.Clamp01(TierRippleChaos[t]);
+            waterSurface.ripplesWindSpeed = Mathf.Clamp(windKmh * TierValue(TierRippleWindFactor, t), 0f, 15f);
+            waterSurface.ripplesChaos = Mathf.Clamp01(TierValue(TierRippleChaos, t));
             waterSurface.ripplesOrientationValue = windDirectionDeg;
             waterSurface.foam = true;
-            waterSurface.simulationFoamAmount = Mathf.Clamp01(TierFoamAmount[t]);
+            waterSurface.simulationFoamAmount = Mathf.Clamp01(TierValue(TierFoamAmount, t));
             // 白沫起风阈值曲线留组件默认（preset 曲线：归一化风速 <0.2 无沫、>0.3 全沫，
             // WaterSurface.Presets.cs:100；Foam.cs:80 simulationFoamWindCurve），实机后随档位再调。
         }

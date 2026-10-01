@@ -1,4 +1,8 @@
 using System;
+using System.IO;
+using System.Text;
+using System.Runtime.Serialization;
+using System.Runtime.Serialization.Json;
 using UnityEngine;
 
 namespace Sango
@@ -11,35 +15,37 @@ namespace Sango
     /// 回环测试：DetectionResultRoundTripTests（serialize→deserialize→serialize 无损）。
     /// </summary>
     [Serializable]
+    [DataContract]
     public class DetectionResult
     {
         /// <summary>来源帧序号（FrameMetadata.frame_seq 对齐）。</summary>
-        public int frame_seq;
+        [DataMember(IsRequired = true)] public int frame_seq;
 
         /// <summary>来源帧时间（秒，帧发布时刻；与 FrameMetadata.frame_time_s 对齐）。</summary>
-        public double frame_time_s;
+        [DataMember(IsRequired = true)] public double frame_time_s;
 
         /// <summary>检测源标识（如 "yolo-a4000"；phase-1 真值路径用 "ground-truth"）。</summary>
-        public string source;
+        [DataMember(IsRequired = true)] public string source;
 
         /// <summary>检测框列表（可为空数组 = 无检测）。</summary>
-        public Box[] detections;
+        [DataMember(IsRequired = true)] public Box[] detections;
 
         /// <summary>单个检测框。</summary>
         [Serializable]
+        [DataContract]
         public class Box
         {
             /// <summary>[x0, y0, x1, y1] 像素坐标（左上原点，y 向下）。</summary>
-            public float[] box_xyxy;
+            [DataMember(IsRequired = true)] public float[] box_xyxy;
 
             /// <summary>类别 id（YOLO 类索引）。</summary>
-            public int class_id;
+            [DataMember(IsRequired = true)] public int class_id;
 
             /// <summary>类别名（如 "ship"）。</summary>
-            public string class_name;
+            [DataMember(IsRequired = true)] public string class_name;
 
             /// <summary>置信度 [0,1]；真值框恒 1。</summary>
-            public float confidence;
+            [DataMember(IsRequired = true)] public float confidence;
         }
 
         public string ToJson()
@@ -50,6 +56,13 @@ namespace Sango
         public static DetectionResult FromJson(string json)
         {
             return JsonUtility.FromJson<DetectionResult>(json);
+        }
+
+        /// <summary>Network ingress must distinguish missing required fields from valid zero values.</summary>
+        public static DetectionResult FromJsonStrict(string json)
+        {
+            using (var stream = new MemoryStream(Encoding.UTF8.GetBytes(json)))
+                return (DetectionResult)new DataContractJsonSerializer(typeof(DetectionResult)).ReadObject(stream);
         }
     }
 }

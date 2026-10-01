@@ -89,17 +89,17 @@ namespace Sango.Tests
         [Test]
         public void RingWidthM_ScalesWithBeam_Clamped()
         {
-            Assert.That(CallF("RingWidthM", 12f), Is.EqualTo(2.5f).Within(1e-5f), "12 m 船宽钳上限（2.64→2.5）");
-            Assert.That(CallF("RingWidthM", 3f), Is.EqualTo(0.66f).Within(1e-4f), "3 m 半宽小艇沫带 0.66 m");
-            Assert.That(CallF("RingWidthM", 0f), Is.EqualTo(0.4f).Within(1e-5f), "非法船宽落下限");
+            Assert.That(CallF("RingWidthM", 12f), Is.EqualTo(0.8f).Within(1e-5f), "foam band upper bound");
+            Assert.That(CallF("RingWidthM", 3f), Is.EqualTo(0.24f).Within(1e-4f), "narrow small-vessel foam band");
+            Assert.That(CallF("RingWidthM", 0f), Is.EqualTo(0.2f).Within(1e-5f), "degenerate beam lower bound");
         }
 
         [Test]
         public void HistorySpacingM_ScalesWithLoa_Clamped()
         {
-            Assert.That(CallF("HistorySpacingM", 12f), Is.EqualTo(0.96f).Within(1e-4f), "12 m 船采样距 0.96 m");
-            Assert.That(CallF("HistorySpacingM", 42f), Is.EqualTo(3.36f).Within(1e-4f), "42 m hero 采样距 3.36 m");
-            Assert.That(CallF("HistorySpacingM", 100f), Is.EqualTo(4f).Within(1e-4f), "100 m 船钳上限（8→4）");
+            Assert.That(CallF("HistorySpacingM", 12f), Is.EqualTo(0.25f).Within(1e-4f), "small vessel sampling lower bound");
+            Assert.That(CallF("HistorySpacingM", 42f), Is.EqualTo(0.63f).Within(1e-4f), "sub-metre wave sampling");
+            Assert.That(CallF("HistorySpacingM", 100f), Is.EqualTo(1f).Within(1e-4f), "large vessel sampling upper bound");
         }
 
         [Test]
@@ -108,7 +108,7 @@ namespace Sango.Tests
             // 拓扑常量：顶点 2×28 = 56、三角形 (28-1)×2 = 54（预算注释见 WakeFoamRig 头注）
             var value = TestReflection.FindAssemblyCSharpType("Sango.WakeFoamCore")
                 .GetField("RibbonSampleCount").GetValue(null);
-            Assert.That(value, Is.EqualTo(28));
+            Assert.That(value, Is.EqualTo(128));
         }
     }
 }

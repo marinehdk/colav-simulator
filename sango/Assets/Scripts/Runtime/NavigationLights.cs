@@ -7,7 +7,7 @@ namespace Sango
     /// <summary>
     /// M2-D 航行灯引擎适配器（spec #83）薄壳：OnEnable 从本船 hull 包围盒派生四灯锚点
     /// （纯核心 NavigationLightsCore，同 VesselBuoyancy 的 MeshFilter 收集法，mesh Read/Write
-    /// 已由 pipeline v3 保证），建 交叉双面自发光灯片 + 小范围点光源 的运行时 rig；
+    /// 已由 pipeline v3 保证），建 圆形双面自发光灯片 + 小范围点光源 的运行时 rig；
     /// 每帧按 WeatherController 时刻过纯阈值函数刷明灭。昼态 = renderer+light 全禁用，
     /// 零光晕（spec 验收 5）。无新键位：状态跟随既有 T 循环/时刻滑条（spec 验收 4）。
     /// 场景重建时零序列化负担（rig 纯运行时构建，bootstrapper 只挂组件）。
@@ -35,8 +35,8 @@ namespace Sango
         public float sternIntensityLm = 200f;
         [Tooltip("灯片自发光亮度（HDR 无关值，Unlit 颜色 ×nits）。")]
         public float lampEmissiveNits = 12f;
-        [Tooltip("灯片边长 = LOA × 此分数（Small ≈0.36 m / Medium ≈1.8 m）。")]
-        public float lampSizeFractionOfLoa = 0.03f;
+        [Tooltip("灯片世界边长 = LOA × 此分数，钳在 0.14–0.28 m。")]
+        public float lampSizeFractionOfLoa = 0.004f;
         [Header("Water streaks (R2 fallback — see Docs/lighting-notes.md)")]
         [Tooltip("假反射拖尾：HDRP Water 对本地点光的镜面响应数值上存在但不可读（R2 spike，evidence m2d-build-log.md），按 spec 落兜底。")]
         public float streakNits = 3f;
@@ -64,11 +64,12 @@ namespace Sango
             public LampKind Kind;
             public Color BaseColor;
             public float BaseLumens;
-            public Material Emissive;     // 交叉双面灯片共用
+            public Material Emissive;     // 圆形双面灯片材质
             public Light PointLight;
             public MeshRenderer[] Quads;  // 灯片渲染器（弧外整片隐藏，防黑点残影）
         }
         readonly System.Collections.Generic.List<LampEntry> m_Lamps = new System.Collections.Generic.List<LampEntry>();
+        readonly List<Material> m_OwnedMaterials = new List<Material>(8);
         float[] m_LastSectorFactors;
 
         const string k_RigName = "NavigationLightsRig";
@@ -82,6 +83,16 @@ namespace Sango
             BuildRig();
             m_LastLoggedState = null; // 重启用（域重载/手动）重记一条状态行
             m_WarnedNoWeather = false;
+        }
+
+        void OnDestroy()
+        {
+            foreach (var material in m_OwnedMaterials)
+                if (material != null)
+                {
+                    if (Application.isPlaying) Destroy(material); else DestroyImmediate(material);
+                }
+            m_OwnedMaterials.Clear();
         }
 
         void Update()
@@ -140,12 +151,19 @@ namespace Sango
                 var (start, end) = NavigationLightsCore.GetArc(lamp.Kind);
                 float f = NavigationLightsCore.SectorIntensity(relBearingDeg, start, end, sectorFalloffDeg);
                 m_LastSectorFactors[i] = f;
-                lamp.Emissive.color = lamp.BaseColor * (lampEmissiveNits * f);
+                lamp.Emissive.SetColor("_UnlitColor", new Color(lamp.BaseColor.r * lampEmissiveNits * f,
+                    lamp.BaseColor.g * lampEmissiveNits * f, lamp.BaseColor.b * lampEmissiveNits * f, 1f));
                 lamp.PointLight.intensity = lamp.BaseLumens * f;
                 bool visible = f > 0.02f;
                 lamp.PointLight.enabled = f > 0.01f;
                 var quads = lamp.Quads;
-                for (int q = 0; q < quads.Length; q++) quads[q].enabled = visible;
+                for (int q = 0; q < quads.Length; q++)
+                {
+                    quads[q].enabled = visible;
+                    var cam = Camera.main;
+                    if (cam != null)
+                        quads[q].transform.rotation = Quaternion.LookRotation(cam.transform.position - quads[q].transform.position, Vector3.up);
+                }
             }
         }
 
@@ -177,6 +195,7 @@ namespace Sango
             for (int i = 0; i < m_Streaks.Length; i++)
             {
                 var anchorWorld = transform.TransformPoint(m_StreakAnchors[i]);
+                anchorWorld.y = 0.035f;
                 var toCam = camPos - anchorWorld;
                 toCam.y = 0f;
                 float len = toCam.magnitude;
@@ -229,7 +248,8 @@ namespace Sango
 
             var layout = NavigationLightsCore.DeriveAnchors(bounds, bowYawDeg);
             float loa = bounds.size.z; // 艏向 +Z：LOA = 包围盒 z 边
-            float lampSize = Mathf.Max(0.15f, loa * lampSizeFractionOfLoa);
+            float rootScale = Mathf.Max(transform.lossyScale.x, 1e-4f);
+            float lampSize = Mathf.Clamp(loa * rootScale * lampSizeFractionOfLoa, 0.14f, 0.28f) / rootScale;
 
             m_RigRoot = new GameObject(k_RigName).transform;
             m_RigRoot.SetParent(transform, false);
@@ -257,7 +277,9 @@ namespace Sango
                 DestroyCollider(streak.GetComponent<Collider>());
                 streak.name = $"{anchors[i].name}.Streak";
                 streak.transform.SetParent(m_RigRoot, false);
-                streak.GetComponent<MeshRenderer>().sharedMaterial = StreakMaterial(anchors[i].color, streakNits, streakAlpha);
+                var streakMaterial = StreakMaterial(anchors[i].color, streakNits, streakAlpha);
+                m_OwnedMaterials.Add(streakMaterial);
+                streak.GetComponent<MeshRenderer>().sharedMaterial = streakMaterial;
                 m_Streaks[i] = streak.transform;
                 m_StreakAnchors[i] = new Vector3(anchors[i].anchor.x, m_WaterLocalY, anchors[i].anchor.z);
                 streak.transform.localScale = new Vector3(streakWidth / s, streakLength / s, 1f); // 世界米 / 根缩放
@@ -285,7 +307,9 @@ namespace Sango
         /// </summary>
         static Material StreakMaterial(Color color, float nits, float alpha)
         {
-            var mat = new Material(Shader.Find("HDRP/Unlit"));
+            var prototype = Resources.Load<Material>("SurfaceFoam");
+            var mat = prototype != null ? new Material(prototype) : new Material(Shader.Find("HDRP/Unlit"));
+            mat.SetTexture("_UnlitColorMap", WakeFoamTexture.WakeStrip());
             mat.SetColor("_UnlitColor", new Color(color.r * nits, color.g * nits, color.b * nits, alpha));
             mat.SetFloat("_SurfaceType", 1f);
             mat.SetFloat("_BlendMode", 2f); // HDRP BlendMode: 0 Alpha / 1 Premultiplied / 2 Additive / 3 Multiply
@@ -295,6 +319,9 @@ namespace Sango
             mat.SetFloat("_DstBlend", (float)UnityEngine.Rendering.BlendMode.One);
             mat.SetFloat("_ZWrite", 0f);
             mat.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Transparent;
+            HDMaterial.ValidateMaterial(mat);
+            mat.SetShaderPassEnabled("DepthForwardOnly", false);
+            mat.SetShaderPassEnabled("MotionVectors", false);
             return mat;
         }
 
@@ -304,10 +331,19 @@ namespace Sango
             lamp.SetParent(m_RigRoot, false);
             lamp.localPosition = localAnchor;
 
-            // 灯片：交叉双面十字（0°/90°），水平全向可读，免 billboard/双面材质 shader 折腾。
-            var mat = new Material(Shader.Find("HDRP/Unlit")) { color = color * lampEmissiveNits };
-            var quads = new MeshRenderer[2];
-            for (int i = 0; i < 2; i++)
+            // Circular, physical-sized light aperture. RGB carries radiance; alpha never gets multiplied by nits.
+            var mat = StreakMaterial(color, lampEmissiveNits, 1f);
+            m_OwnedMaterials.Add(mat);
+            mat.SetTexture("_UnlitColorMap", LampSpotTexture.GetShared());
+            mat.SetFloat("_CullMode", 0f);
+            mat.SetFloat("_CullModeForward", 0f);
+            mat.SetFloat("_DoubleSidedEnable", 1f);
+            mat.EnableKeyword("_DOUBLESIDED_ON");
+            HDMaterial.ValidateMaterial(mat);
+            mat.SetShaderPassEnabled("DepthForwardOnly", false);
+            mat.SetShaderPassEnabled("MotionVectors", false);
+            var quads = new MeshRenderer[1];
+            for (int i = 0; i < 1; i++)
             {
                 var quad = GameObject.CreatePrimitive(PrimitiveType.Quad);
                 DestroyCollider(quad.GetComponent<Collider>()); // 灯片非碰撞体

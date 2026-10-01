@@ -91,7 +91,7 @@ namespace Sango
             // 水面相对船体的高度（米）= 目标平均水面高 − 船体已平滑升沉（两者都由 VesselBuoyancy
             // 的既有 CPU 水高查询产生，本组件零新增查询）。查询全废（batchmode 等）时两者同为 0。
             float excursion = buoyancy != null
-                ? buoyancy.TargetAttitude.y - buoyancy.SmoothedAttitude.y
+                ? buoyancy.TargetAttitude.x - buoyancy.SmoothedAttitude.x
                 : 0f;
             ApplyWaterExcursion(excursion);
         }
@@ -196,6 +196,11 @@ namespace Sango
             {
                 var mesh = filter != null ? filter.sharedMesh : null;
                 if (mesh == null) continue;
+                bool effectMesh = false;
+                for (var parent = filter.transform; parent != null && parent != transform; parent = parent.parent)
+                    if (parent.name == "NavigationLightsRig" || parent.name == "WakeFoamRig" || parent.name == "WaterlineDecalsRig")
+                    { effectMesh = true; break; }
+                if (effectMesh) continue;
                 var filterToRoot = rootInverse * filter.transform.localToWorldMatrix;
                 var bb = mesh.bounds; // 包围盒不依赖 triangles，无需 Read/Write
                 for (int xi = 0; xi < 2; xi++)
@@ -268,7 +273,8 @@ namespace Sango
         /// </summary>
         static Material MakeDecalMaterial(Texture2D map, float blend, bool affectSmoothness, float smoothness, int drawOrder)
         {
-            var mat = new Material(Shader.Find("HDRP/Decal"));
+            var template = Resources.Load<Material>("WaterlineDecal");
+            var mat = template != null ? new Material(template) : new Material(Shader.Find("HDRP/Decal"));
             mat.enableInstancing = true; // HDRP DecalSystem.RenderIntoDBuffer 无条件走 DrawMeshInstanced
                                          // （DecalSystem.cs:1116，单实例也走）——不开启 = DBuffer 抛
                                          // InvalidOperationException、整帧 RenderGraph 中止（黑帧）。
@@ -283,6 +289,7 @@ namespace Sango
             mat.SetFloat("_AffectSmoothness", affectSmoothness ? 1f : 0f);
             mat.SetFloat("_Smoothness", smoothness);
             mat.SetFloat("_DrawOrder", drawOrder);
+            HDMaterial.ValidateMaterial(mat);
             return mat;
         }
 

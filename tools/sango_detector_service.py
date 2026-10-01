@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import signal
 import sys
 import time
@@ -58,6 +59,9 @@ def parse_args() -> argparse.Namespace:
 
 
 def load_model(args: argparse.Namespace) -> YOLO:
+    if args.device in (None, "cpu"):
+        import torch
+        torch.set_num_threads(2)
     t0 = time.perf_counter()
     model = YOLO(args.model)  # 权重缺失时 ultralytics 自动下载到该路径
     print(f"[detector] model loaded from {args.model} in {time.perf_counter() - t0:.1f}s "
@@ -107,6 +111,36 @@ def result_json(meta: dict, detections: list[dict], source: str) -> str:
     }, separators=(",", ":"))
 
 
+def decode_frame(parts: list[bytes], topic: str):
+    """Validate the frozen envelope before inference; malformed input stays local to one frame."""
+    import numpy as np
+
+    if len(parts) != 3 or parts[0] != topic.encode("utf-8"):
+        raise ValueError("invalid frame topic or multipart count")
+    try:
+        meta = json.loads(parts[1].decode("utf-8"))
+        if not isinstance(meta, dict):
+            raise ValueError("metadata must be an object")
+        for key in ("frame_seq", "width", "height", "jpeg_bytes"):
+            if type(meta.get(key)) is not int:
+                raise ValueError(f"invalid {key}")
+        timestamp = meta.get("frame_time_s")
+        if isinstance(timestamp, bool) or not isinstance(timestamp, (int, float)) or not math.isfinite(timestamp) or timestamp < 0:
+            raise ValueError("invalid frame_time_s")
+        if meta["frame_seq"] < 0 or meta["width"] <= 0 or meta["height"] <= 0:
+            raise ValueError("invalid sequence or dimensions")
+        if not isinstance(meta.get("source"), str) or not meta["source"]:
+            raise ValueError("invalid source")
+        if meta["jpeg_bytes"] != len(parts[2]):
+            raise ValueError("JPEG length mismatch")
+        image = cv2.imdecode(np.frombuffer(parts[2], dtype=np.uint8), cv2.IMREAD_COLOR)
+        if image is None or image.shape[:2] != (meta["height"], meta["width"]):
+            raise ValueError("JPEG decode or dimensions mismatch")
+        return meta, image
+    except (UnicodeDecodeError, json.JSONDecodeError, TypeError) as error:
+        raise ValueError("invalid frame metadata") from error
+
+
 def selftest(args: argparse.Namespace) -> int:
     """对一张程序合成图直接跑模型（零 socket）：验证 pyzmq/ultralytics 依赖 + 权重可用。"""
     image = synthetic_frame()
@@ -125,8 +159,6 @@ def _sigterm_to_interrupt(signum, frame):
 
 
 def serve(args: argparse.Namespace) -> int:
-    import numpy as np
-
     signal.signal(signal.SIGTERM, _sigterm_to_interrupt)
 
     model = load_model(args)
@@ -135,6 +167,7 @@ def serve(args: argparse.Namespace) -> int:
     sub = ctx.socket(zmq.SUB)
     sub.setsockopt(zmq.SUBSCRIBE, args.topic.encode("utf-8"))
     sub.setsockopt(zmq.RCVTIMEO, 500)  # 短 tick，Ctrl-C 可即时生效
+    sub.setsockopt(zmq.RCVHWM, 30)
     sub.connect(args.endpoint)
     pub = ctx.socket(zmq.PUB)
     pub.setsockopt(zmq.SNDHWM, 30)  # 与 Unity 发布端对称：消费端掉线不积压
@@ -149,23 +182,17 @@ def serve(args: argparse.Namespace) -> int:
                 parts = sub.recv_multipart()
             except zmq.Again:
                 continue
-            if len(parts) != 3:
-                print(f"[detector] WARN: expected 3-part frame message, got {len(parts)} part(s); skipped")
-                continue
-            _, meta_raw, jpeg = parts
+            # Inference consumes the latest available frame, rather than growing a stale FIFO.
+            for _ in range(30):
+                try:
+                    parts = sub.recv_multipart(zmq.NOBLOCK)
+                except zmq.Again:
+                    break
             try:
-                meta = json.loads(meta_raw.decode("utf-8"))
-            except (UnicodeDecodeError, json.JSONDecodeError) as e:
-                print(f"[detector] WARN: metadata JSON parse error: {e}; skipped")
+                meta, image = decode_frame(parts, args.topic)
+            except ValueError as e:
+                print(f"[detector] WARN: {e}; skipped")
                 continue
-            image = cv2.imdecode(np.frombuffer(jpeg, dtype=np.uint8), cv2.IMREAD_COLOR)
-            if image is None:
-                print(f"[detector] WARN: seq={meta.get('frame_seq')} JPEG decode failed; skipped")
-                continue
-            meta_w, meta_h = int(meta.get("width", 0)), int(meta.get("height", 0))
-            img_h, img_w = image.shape[:2]
-            if (meta_w and img_w != meta_w) or (meta_h and img_h != meta_h):
-                print(f"[detector] WARN: seq={meta.get('frame_seq')} metadata {meta_w}x{meta_h} != decoded {img_w}x{img_h}")
 
             detections, infer_ms = run_inference(model, image, args.conf, [COCO_BOAT_CLASS_ID], args.device)
             pub.send_multipart([args.out_topic.encode("utf-8"),

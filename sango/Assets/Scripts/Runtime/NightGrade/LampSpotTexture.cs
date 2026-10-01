@@ -31,7 +31,7 @@ namespace Sango
             for (int x = 0; x < k_Size; x++)
             {
                 var r = new Vector2((x - half) / half, (y - half) / half).magnitude; // 归一化半径 [0, √2]
-                var a = NightGradeCore.LampSpotFalloff(r, NightGradeCore.LampSpotCoreRadius01, NightGradeCore.LampSpotHaloDecay);
+                var a = r >= 1f ? 0f : NightGradeCore.LampSpotFalloff(r, NightGradeCore.LampSpotCoreRadius01, NightGradeCore.LampSpotHaloDecay);
                 pixels[y * k_Size + x] = new Color32(255, 255, 255, (byte)Mathf.RoundToInt(a * 255f));
             }
             tex.SetPixels32(pixels);

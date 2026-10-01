@@ -67,7 +67,7 @@ namespace Sango
         public float PitchDeg;
     }
 
-    /// <summary>临界阻尼标量弹簧状态（半隐式欧拉）。</summary>
+    /// <summary>临界阻尼标量弹簧状态。</summary>
     public struct DampedScalar
     {
         public float Value;
@@ -140,7 +140,7 @@ namespace Sango
         }
 
         /// <summary>
-        /// 临界阻尼标量弹簧（半隐式欧拉，ω = 2πf）：阶跃无越冲、无谐振尾巴。
+        /// 临界阻尼标量弹簧闭式解（ω = 2πf）：长渲染帧也保持稳定，阶跃无越冲。
         /// dt≤0 原样返回；frequencyHz≤0 视为配置错误，直接吸附目标（不卡死姿态）。
         /// </summary>
         public static DampedScalar Damp(DampedScalar s, float target, float frequencyHz, float dt)
@@ -148,8 +148,11 @@ namespace Sango
             if (dt <= 0f) return s;
             if (frequencyHz <= 0f) return new DampedScalar { Value = target, Velocity = 0f };
             float omega = 2f * Mathf.PI * frequencyHz;
-            s.Velocity += dt * (omega * omega * (target - s.Value) - 2f * omega * s.Velocity);
-            s.Value += dt * s.Velocity;
+            float offset = s.Value - target;
+            float decay = Mathf.Exp(-omega * dt);
+            float motion = (s.Velocity + omega * offset) * dt;
+            s.Value = target + (offset + motion) * decay;
+            s.Velocity = (s.Velocity - omega * motion) * decay;
             return s;
         }
     }

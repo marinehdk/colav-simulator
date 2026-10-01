@@ -31,6 +31,17 @@ namespace Sango
 
     public static class FramePublisherCore
     {
+        /// <summary>Normalize top-origin GPU rows to the image encoder's bottom-origin input; preserve columns and RGBA channels.</summary>
+        public static void FlipRgbaRows(byte[] pixels, int rowBytes, int height, byte[] rowScratch)
+        {
+            for (int top = 0, bottom = height - 1; top < bottom; top++, bottom--)
+            {
+                Buffer.BlockCopy(pixels, top * rowBytes, rowScratch, 0, rowBytes);
+                Buffer.BlockCopy(pixels, bottom * rowBytes, pixels, top * rowBytes, rowBytes);
+                Buffer.BlockCopy(rowScratch, 0, pixels, bottom * rowBytes, rowBytes);
+            }
+        }
+
         /// <summary>组装一帧元数据（纯函数，无副作用）。</summary>
         public static FrameMetadata BuildMetadata(int frameSeq, double frameTimeS, int width, int height, int jpegBytes, string source)
         {

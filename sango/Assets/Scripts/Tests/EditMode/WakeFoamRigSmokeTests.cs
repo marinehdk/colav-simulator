@@ -90,9 +90,16 @@ namespace Sango.Tests
             var ribbonGo = GameObject.Find("WakeFoam.World/WakeRibbon");
             Assert.That(ribbonGo, Is.Not.Null, "世界系 ribbon 树存在（挂场景根）");
             var ribbonMesh = ribbonGo.GetComponent<MeshFilter>().sharedMesh;
-            Assert.That(ribbonMesh.vertexCount, Is.EqualTo(56), "28 样本 × 2 顶点");
-            Assert.That(ribbonMesh.triangles.Length, Is.EqualTo(162), "(28-1)×2 三角 × 3 索引");
+            Assert.That(ribbonMesh.vertexCount, Is.EqualTo(768), "128 samples × centre wash plus two Kelvin arms");
+            Assert.That(ribbonMesh.triangles.Length, Is.EqualTo(2286), "three strips, 762 triangles total");
             Assert.That(ribbonGo.GetComponent<MeshRenderer>().enabled, Is.False, "首帧零强度不画");
+            var foamMaterial = ribbonGo.GetComponent<MeshRenderer>().sharedMaterial;
+            Assert.That(foamMaterial.GetShaderPassEnabled("DepthForwardOnly"), Is.False,
+                "transparent foam must not write an opaque depth footprint over water");
+            Assert.That(foamMaterial.GetFloat("_ZTestDepthEqualForOpaque"), Is.EqualTo(4f),
+                "transparent HDRP forward must use LEqual, rather than opaque Equal");
+            Assert.That(foamMaterial.GetFloat("_EnableBlendModePreserveSpecularLighting"), Is.Zero,
+                "zero foam coverage must not leave an opaque specular plate");
 
             var ringGo = root.Find("WaterlineFoamRing");
             Assert.That(ringGo, Is.Not.Null, "水线泡沫环存在");
@@ -122,8 +129,30 @@ namespace Sango.Tests
             var ribbonGo = GameObject.Find("WakeFoam.World/WakeRibbon");
             Assert.That(ribbonGo.GetComponent<MeshRenderer>().enabled, Is.True, "强度 > 0 提交 ribbon draw");
             // 历史全填充于艉柱（未推进）：56 顶点横向展开 ±半宽（RibbonHalfWidthM(12)=0.75）
-            var bounds = ribbonGo.GetComponent<MeshFilter>().sharedMesh.bounds;
-            Assert.That(bounds.size.x, Is.EqualTo(1.5f).Within(1e-3f), "ribbon 初始横向全宽 = 2×半宽 0.75 m");
+            var vertices = ribbonGo.GetComponent<MeshFilter>().sharedMesh.vertices;
+            Assert.That(Vector3.Distance(vertices[0], vertices[1]), Is.EqualTo(1.5f).Within(1e-3f), "initial centre wash width");
+        }
+
+        [Test]
+        public void MovingWakeHeadTracksSternAndArmsExpandBehindIt()
+        {
+            var rig = AddRig();
+            InvokePrivate(rig, "BuildRig");
+            for (int i = 0; i < 35; i++)
+            {
+                _ship.transform.position += Vector3.forward;
+                Invoke(rig, "ApplySpeed", 5f);
+            }
+            _ship.transform.position += Vector3.forward * 0.25f;
+            Invoke(rig, "ApplySpeed", 5f);
+            var vertices = GameObject.Find("WakeFoam.World/WakeRibbon").GetComponent<MeshFilter>().sharedMesh.vertices;
+            var head = (vertices[0] + vertices[1]) * 0.5f;
+            Assert.That(head.z, Is.EqualTo(_ship.transform.position.z - 2f).Within(1e-3f), "sub-spacing motion must not leave head frozen");
+            float nearWidth = Vector3.Distance((vertices[2] + vertices[3]) * 0.5f, (vertices[4] + vertices[5]) * 0.5f);
+            int tail = vertices.Length - 6;
+            float farWidth = Vector3.Distance((vertices[tail + 2] + vertices[tail + 3]) * 0.5f,
+                (vertices[tail + 4] + vertices[tail + 5]) * 0.5f);
+            Assert.That(farWidth, Is.GreaterThan(nearWidth + 10f), "diverging wave arms must widen along the actual trail");
         }
 
         [Test]
