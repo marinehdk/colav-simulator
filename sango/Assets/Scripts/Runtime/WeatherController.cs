@@ -43,6 +43,12 @@ namespace Sango
         [Min(0f)] public float rainRate = 0f;                        // 当前雨粒子发射率 粒子/s（过渡动画值）
         [Tooltip("雨粒子 VFX（场景构建器挂 Main Camera；空则无雨）。")]
         public RainFall rain;
+        public CameraWeatherEffects cameraEffects;
+        public bool precipitationOverride, rainEnabled, snowEnabled, thunderEnabled, wetLensEnabled;
+        [Range(0f, 1f)] public float precipitationIntensity = 0.7f;
+        public int visualSpectrumStyle = -1;
+        public float waveDirectionDeg = -1f;
+        [Range(0f, 1f)] public float waveDevelopment = 0.5f, waveAlignment = 0.5f;
 
         [Header("Runtime")]
         public bool applyEveryFrame = true;                          // Play 中每帧 Apply（GUI 拖动即时生效的兜底）
@@ -247,6 +253,17 @@ namespace Sango
             waterSurface.ripplesWindSpeed = Mathf.Clamp(windKmh * TierValue(TierRippleWindFactor, t), 0f, 15f);
             waterSurface.ripplesChaos = Mathf.Clamp01(TierValue(TierRippleChaos, t));
             waterSurface.ripplesOrientationValue = windDirectionDeg;
+            if (visualSpectrumStyle >= 0)
+            {
+                float development = Mathf.Lerp(0.7f, 1.15f, waveDevelopment);
+                float longFactor = visualSpectrumStyle == 0 ? 0.85f : visualSpectrumStyle == 2 ? 0.6f : 1f;
+                float shortFactor = visualSpectrumStyle == 0 ? 0.65f : visualSpectrumStyle == 2 ? 0.85f : 1f;
+                waterSurface.largeBand0Multiplier = Mathf.Clamp01(TierValue(TierBand0Mult, t) * longFactor * development);
+                waterSurface.largeBand1Multiplier = Mathf.Clamp01(TierValue(TierBand1Mult, t) * shortFactor * development);
+                waterSurface.largeChaos = Mathf.Lerp(0.95f, 0.05f, waveAlignment);
+            }
+            if (waveDirectionDeg >= 0f)
+            { waterSurface.largeOrientationValue = waveDirectionDeg; waterSurface.ripplesOrientationValue = waveDirectionDeg; }
             waterSurface.foam = true;
             waterSurface.simulationFoamAmount = Mathf.Clamp01(TierValue(TierFoamAmount, t));
             // 白沫起风阈值曲线留组件默认（preset 曲线：归一化风速 <0.2 无沫、>0.3 全沫，
@@ -342,7 +359,9 @@ namespace Sango
                 if (m_NightCompEv != 0f) ev += m_NightCompEv;
                 exposure.compensation.Override(ev);
             }
-            if (rain != null) rain.SetRate(rainRate);
+            if (rain != null) rain.SetRate(precipitationOverride ? (rainEnabled ? precipitationIntensity * 1600f : 0f) : rainRate);
+            if (cameraEffects != null)
+                cameraEffects.Configure(snowEnabled, wetLensEnabled && (snowEnabled || rainEnabled || rainRate > 0f), thunderEnabled, precipitationIntensity);
         }
     }
 }

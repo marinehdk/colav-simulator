@@ -15,6 +15,9 @@ namespace Sango
         public float clusterRadius;   // 岛群撒点半径 m（盘面均匀分布）
         public Material material;     // null 时用 HDRP/Lit 兜底材质（全岛共享一份实例，见 DefaultMaterial）
         public bool vertexColors;     // 写顶点色（沙/草/岩分带）。HDRP/Lit 默认不读顶点色，供未来自定义 shader 用
+        public int noiseOctaves;       // 0 keeps the legacy profile; explicit experiment controls use 1..8.
+        public float noiseScaleM, edgeDepthM, smoothA, smoothB, persistence, lacunarity;
+        public Vector2 noiseOffset;
     }
 
     /// <summary>
@@ -49,23 +52,30 @@ namespace Sango
         /// 生成单岛：径向衰减 × fBm 高度场，边缘沉到水下保证自然岸线。同 seed 同 mesh。
         /// </summary>
         public static GameObject GenerateIsland(int seed, float diameter, float maxHeight, int resolution, Material material = null, bool vertexColors = false)
-        {
-            int n = Mathf.Clamp(resolution, 8, 256);
-            var mesh = BuildMesh(seed, Mathf.Max(10f, diameter), Mathf.Max(1f, maxHeight), n, vertexColors);
+            => GenerateIsland(new IslandSettings { seed = seed, sizeRange = new Vector2(diameter, diameter),
+                maxHeight = maxHeight, resolution = resolution, material = material, vertexColors = vertexColors });
 
-            var go = new GameObject($"Island-{seed}", typeof(MeshFilter), typeof(MeshRenderer));
+        public static GameObject GenerateIsland(IslandSettings settings)
+        {
+            int n = Mathf.Clamp(settings.resolution, 8, 256);
+            var mesh = BuildMesh(settings.seed, Mathf.Max(10f, settings.sizeRange.x), Mathf.Max(1f, settings.maxHeight), n,
+                settings.vertexColors, settings);
+
+            var go = new GameObject($"Island-{settings.seed}", typeof(MeshFilter), typeof(MeshRenderer));
             go.GetComponent<MeshFilter>().sharedMesh = mesh;
-            go.GetComponent<MeshRenderer>().sharedMaterial = material != null ? material : DefaultMaterial();
+            go.GetComponent<MeshRenderer>().sharedMaterial = settings.material != null ? settings.material : DefaultMaterial();
             return go;
         }
 
-        static Mesh BuildMesh(int seed, float diameter, float maxHeight, int n, bool vertexColors)
+        static Mesh BuildMesh(int seed, float diameter, float maxHeight, int n, bool vertexColors, IslandSettings settings)
         {
             // 选 Mathf.PerlinNoise 而非自写 value noise：官方文档保证同输入同输出（无内部随机状态），
             // 零分配且对岛屿地形足够；Perlin 无 seed 参数，确定性由 seed 推导的采样域偏移实现。
             var rng = new Rng((uint)seed);
             var offset = new Vector2(rng.NextFloat() * 1024f, rng.NextFloat() * 1024f);
             float noiseScale = 2.2f / diameter; // 整岛约 2 个噪声周期，特征尺度 ~ 半径级
+            bool custom = settings.noiseOctaves > 0;
+            if (custom) { offset += settings.noiseOffset; noiseScale = 1f / Mathf.Max(1f, settings.noiseScaleM); }
 
             int vertCount = (n + 1) * (n + 1);
             var verts = new Vector3[vertCount];
@@ -85,8 +95,16 @@ namespace Sango
 
                     // 径向衰减：0.55R 起平滑降到边缘 0；边缘再压 -3m 保证岸线在网格内闭合
                     float falloff = 1f - Mathf.SmoothStep(0.55f, 1f, r);
-                    float h01 = Fbm(offset + new Vector2(x, z) * noiseScale);
-                    float h = falloff * ((h01 - 0.35f) * maxHeight) - (1f - falloff) * 3f;
+                    if (custom)
+                    {
+                        float rx = Mathf.Pow(Mathf.Abs(x) / (diameter * 0.5f), Mathf.Max(1f, settings.smoothA));
+                        float rz = Mathf.Pow(Mathf.Abs(z) / (diameter * 0.5f), Mathf.Max(1f, settings.smoothB));
+                        float edge = Mathf.Pow(rx + rz, 1f / Mathf.Max(1f, (settings.smoothA + settings.smoothB) * 0.5f));
+                        falloff = 1f - Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.25f, 1f, edge));
+                    }
+                    var sample = offset + new Vector2(x, z) * noiseScale;
+                    float h01 = custom ? FbmConfigured(sample, settings) : Fbm(sample);
+                    float h = falloff * ((h01 - 0.35f) * maxHeight) - (1f - falloff) * (custom ? settings.edgeDepthM : 3f);
 
                     verts[idx] = new Vector3(x, h, z);
                     uvs[idx] = new Vector2(u, v);
@@ -139,6 +157,19 @@ namespace Sango
                 amp *= 0.5f;
             }
             return f / norm;
+        }
+
+        static float FbmConfigured(Vector2 p, IslandSettings settings)
+        {
+            float value = 0f, amplitude = 1f, total = 0f;
+            for (int octave = 0; octave < Mathf.Clamp(settings.noiseOctaves, 1, 8); octave++)
+            {
+                value += amplitude * Mathf.PerlinNoise(p.x, p.y);
+                total += amplitude;
+                p = p * Mathf.Max(1f, settings.lacunarity) + new Vector2(17.31f, 9.7f);
+                amplitude *= Mathf.Clamp(settings.persistence, 0.1f, 1f);
+            }
+            return value / total;
         }
 
         static Color HeightColor(float h, float maxHeight)

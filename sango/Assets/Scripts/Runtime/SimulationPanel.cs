@@ -221,7 +221,7 @@ namespace Sango
             m_PreviewImage = previewRect.gameObject.AddComponent<RawImage>();
             m_PreviewImage.raycastTarget = false;
             m_PreviewImage.color = new Color(0.05f, 0.08f, 0.10f, 0.9f);
-            // HDRP 渲染到 RT 的垂直翻转惯例：uv 反转一次（否则船倒立）——EnsurePreviewStage 里设。
+            // 本机 HDRP 预览 RT 已正立；与 Workbench 统一使用原始 UV。
             m_PreviewImage.uvRect = new Rect(0f, 0f, 1f, 1f);
             m_PreviewName = CreateLabel(_panel, "PreviewName", "", 16, TextAnchor.MiddleLeft, new Color(1f, 0.84f, 0.35f));
             AnchorTop(m_PreviewName.rectTransform, 232f, y, k_PanelWidth - 248f, 40f);
@@ -403,6 +403,8 @@ namespace Sango
             if (m_PreviewModel != null) Destroy(m_PreviewModel);
             m_PreviewModel = Instantiate(entry.prefab, k_StagePos + new Vector3(0f, entry.waterlineOffsetY, 0f), Quaternion.identity);
             m_PreviewModel.name = $"PreviewModel.{cls}";
+            foreach (var item in m_PreviewModel.GetComponentsInChildren<Transform>(true)) item.gameObject.layer = 31;
+            if (Camera.main != null) Camera.main.cullingMask &= ~(1 << 31);
 
             // 取景：距离随 LOA（Large 100 m ↔ Small 12 m 同框率），略俯视。
             float d = entry.loaMeters * 2.2f + 8f;
@@ -414,6 +416,12 @@ namespace Sango
             if (m_PreviewName != null) m_PreviewName.text = $"{cls} · LOA {entry.loaMeters:0} m";
         }
 
+        public RenderTexture PreviewTexture => m_PreviewRt;
+        public void SetPreviewActive(bool active)
+        {
+            if (m_PreviewCamera != null) m_PreviewCamera.enabled = active;
+        }
+
         void EnsurePreviewStage()
         {
             if (m_PreviewCamera != null) return;
@@ -422,14 +430,22 @@ namespace Sango
             m_PreviewCamera.fieldOfView = 30f;
             m_PreviewCamera.nearClipPlane = 1f;
             m_PreviewCamera.farClipPlane = 1200f; // 舞台远距 7 km：岛群/两船全在 far 外
-            m_PreviewCamera.cullingMask = ~0;
+            m_PreviewCamera.cullingMask = 1 << 31; // Preview isolation: terrain at the old stage position must not hide the model.
+            var cameraData = camGo.GetComponent<HDAdditionalCameraData>();
+            cameraData.clearColorMode = HDAdditionalCameraData.ClearColorMode.Color;
+            cameraData.backgroundColorHDR = new Color(0.015f, 0.03f, 0.045f);
+            var previewLight = new GameObject("Preview light", typeof(Light), typeof(HDAdditionalLightData));
+            previewLight.transform.SetParent(camGo.transform, false);
+            previewLight.layer = 31;
+            var light = previewLight.GetComponent<Light>(); light.type = LightType.Directional; light.intensity = 20000f;
+            light.cullingMask = 1 << 31;
             m_PreviewRt = new RenderTexture(256, 256, 24);
             m_PreviewCamera.targetTexture = m_PreviewRt;
             if (m_PreviewImage != null)
             {
                 m_PreviewImage.texture = m_PreviewRt;
                 m_PreviewImage.color = Color.white; // texture 到位：取消底板暗色 tint
-                m_PreviewImage.uvRect = new Rect(0f, 1f, 1f, -1f); // HDRP RT 垂直翻转修正
+                m_PreviewImage.uvRect = new Rect(0f, 0f, 1f, 1f);
             }
             Debug.Log("[Sango.M2E2] ship-model preview stage built (render-texture camera @ far corner)");
         }

@@ -30,7 +30,7 @@ namespace Sango
 
         // 量程/转速档位（面板滑条与 Q/E、Z/X 共用同一钳制）。
         public const float RangeMinM = 200f, RangeMaxM = 2000f, RangeStepM = 100f;
-        public const float SweepMinDegPerSec = 15f, SweepMaxDegPerSec = 180f, SweepStepDegPerSec = 15f;
+        public const float SweepMinDegPerSec = 15f, SweepMaxDegPerSec = 720f, SweepStepDegPerSec = 15f;
 
         const int k_DiscPixels = 256;         // 生成纹理边长
         const float k_DiscUiSize = 280f;      // 盘 UI 直径
@@ -85,6 +85,18 @@ namespace Sango
         {
             SweepSpeedDegPerSec = Mathf.Clamp(degPerSec, SweepMinDegPerSec, SweepMaxDegPerSec);
             Debug.Log($"[Sango.M2E2] radar sweep speed -> {SweepSpeedDegPerSec:0} deg/s");
+        }
+
+        public void SetShips(Transform ego, Transform[] targets)
+        {
+            ownShip = ego;
+            otherShips = targets ?? System.Array.Empty<Transform>();
+            if (m_DiscRect == null) return;
+            if (m_Blips != null) foreach (var blip in m_Blips) if (blip != null)
+            {
+                if (Application.isPlaying) Destroy(blip.gameObject); else DestroyImmediate(blip.gameObject);
+            }
+            BuildBlips();
         }
 
         // ── 键位（Q/E 量程、Z/X 转速；每次键入都有日志行，键位账本见类注）─────────────
@@ -150,7 +162,7 @@ namespace Sango
             root.anchoredPosition = new Vector2(-460f, 20f);
             root.sizeDelta = new Vector2(k_DiscUiSize + 24f, k_DiscUiSize + 92f);
 
-            var title = CreateLabel(root, "Title", "RADAR", 18, TextAnchor.MiddleLeft, new Color(0.75f, 0.95f, 0.8f));
+            var title = CreateLabel(root, "Title", "TRUTH RADAR", 18, TextAnchor.MiddleLeft, new Color(0.75f, 0.95f, 0.8f));
             var trt = title.rectTransform;
             trt.anchorMin = trt.anchorMax = trt.pivot = new Vector2(1f, 1f);
             trt.anchoredPosition = new Vector2(-12f, -6f);
@@ -158,7 +170,8 @@ namespace Sango
 
             // 盘面：生成纹理（环 + 刻线 + 外缘一体），北向上。
             m_DiscRect = NewRect("Disc", root);
-            m_DiscRect.anchorMin = m_DiscRect.anchorMax = m_DiscRect.pivot = new Vector2(1f, 1f);
+            m_DiscRect.anchorMin = m_DiscRect.anchorMax = new Vector2(1f, 1f);
+            m_DiscRect.pivot = new Vector2(0.5f, 0.5f);
             m_DiscRect.anchoredPosition = new Vector2(-(k_DiscUiSize + 24f) / 2f, -k_DiscUiSize / 2f - 34f);
             m_DiscRect.sizeDelta = new Vector2(k_DiscUiSize, k_DiscUiSize);
             var disc = m_DiscRect.gameObject.AddComponent<Image>();
@@ -184,17 +197,7 @@ namespace Sango
             ownImg.raycastTarget = false;
 
             // 其他船 blip（真值位置逐帧刷）。
-            m_Blips = new Image[otherShips.Length];
-            for (int i = 0; i < m_Blips.Length; i++)
-            {
-                var b = NewRect($"Blip.{i}", m_DiscRect);
-                b.anchorMin = b.anchorMax = new Vector2(0.5f, 0.5f);
-                b.sizeDelta = new Vector2(k_BlipSize, k_BlipSize);
-                var img = b.gameObject.AddComponent<Image>();
-                img.color = new Color(1f, 0.45f, 0.15f); // 琥珀红：目标回波
-                img.raycastTarget = false;
-                m_Blips[i] = img;
-            }
+            BuildBlips();
 
             // 北标记（盘顶）。
             var north = CreateLabel(m_DiscRect, "North", "N", 18, TextAnchor.MiddleCenter, new Color(0.6f, 1f, 0.7f));
@@ -216,6 +219,21 @@ namespace Sango
             hrt.anchorMin = hrt.anchorMax = hrt.pivot = new Vector2(1f, 1f);
             hrt.anchoredPosition = new Vector2(-12f, -k_DiscUiSize - 68f);
             hrt.sizeDelta = new Vector2(k_DiscUiSize + 12f, 18f);
+        }
+
+        void BuildBlips()
+        {
+            m_Blips = new Image[otherShips.Length];
+            for (int i = 0; i < m_Blips.Length; i++)
+            {
+                var b = NewRect($"Blip.{i}", m_DiscRect);
+                b.anchorMin = b.anchorMax = new Vector2(0.5f, 0.5f);
+                b.sizeDelta = new Vector2(k_BlipSize, k_BlipSize);
+                var image = b.gameObject.AddComponent<Image>();
+                image.color = new Color(1f, 0.45f, 0.15f);
+                image.raycastTarget = false;
+                m_Blips[i] = image;
+            }
         }
 
         /// <summary>

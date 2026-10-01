@@ -53,6 +53,10 @@ namespace Sango
         [Tooltip("加/减速度上限（m/s²，对称）。")]
         public float maxAccelMps2 = 2f;
 
+        public Vector2 currentVelocityMps;
+        public bool useTravelBounds;
+        public Rect travelBounds;
+
         bool m_Initialized;   // 惰性首帧：从 transform 捕获初始位姿（速度 0）
         bool m_DemoRunning;   // G 键暂停/恢复（硬暂停：不步进，浮力照常）
         bool m_Arrived;       // 终点到达：彻底停步，位姿冻结
@@ -126,20 +130,7 @@ namespace Sango
             int len = waypoints?.Length ?? 0;
             if (len == 0) return;
             if (m_Index >= len) m_Index = len - 1; // 消费点兜底钳制（防旁路 setter 的换表路径）
-            if (!m_Initialized)
-            {
-                var pos = transform.position;
-                m_State = new VesselKinematicState
-                {
-                    X = pos.x,
-                    Z = pos.z,
-                    // M2-E1：反解烘焙艏向补偿——导航艏向 psi = 根 euler.y − bowYawDegOffset
-                    // （放置层组合约定 rotation.y = heading + offset；offset 0 时与旧契约逐位一致）。
-                    Psi = (transform.eulerAngles.y - bowYawDegOffset) * Mathf.Deg2Rad,
-                    Speed = 0f,
-                };
-                m_Initialized = true;
-            }
+            EnsureInitialized();
             if (m_Arrived) return;
 
             // 到达半径内推进航点（可连跳多个近点）；终点除外（终点到达 = 停船）。
@@ -160,7 +151,51 @@ namespace Sango
             {
                 OnFinalArrival();
             }
+            ApplyCurrentAndBounds(dt);
             WriteTransform();
+        }
+
+        void EnsureInitialized()
+        {
+            if (!m_Initialized)
+            {
+                var pos = transform.position;
+                m_State = new VesselKinematicState
+                {
+                    X = pos.x,
+                    Z = pos.z,
+                    // M2-E1：反解烘焙艏向补偿——导航艏向 psi = 根 euler.y − bowYawDegOffset
+                    // （放置层组合约定 rotation.y = heading + offset；offset 0 时与旧契约逐位一致）。
+                    Psi = (transform.eulerAngles.y - bowYawDegOffset) * Mathf.Deg2Rad,
+                    Speed = 0f,
+                };
+                m_Initialized = true;
+            }
+        }
+
+        /// <summary>Kinematic helm input; the same state and transform writer as waypoint motion.</summary>
+        public void StepManual(float dt, float throttle, float rudder)
+        {
+            if (dt <= 0f || float.IsNaN(dt) || float.IsInfinity(dt)) return;
+            EnsureInitialized();
+            m_Arrived = false;
+            m_State.Speed = Mathf.Clamp(m_State.Speed + Mathf.Clamp(throttle, -1f, 1f) * maxAccelMps2 * dt, 0f, cruiseSpeedMps);
+            m_State.Psi += Mathf.Clamp(rudder, -1f, 1f) * maxYawRateDegPerSec * Mathf.Deg2Rad * dt * Mathf.Clamp01(m_State.Speed / 1.5f);
+            m_State.X += Mathf.Sin(m_State.Psi) * m_State.Speed * dt;
+            m_State.Z += Mathf.Cos(m_State.Psi) * m_State.Speed * dt;
+            ApplyCurrentAndBounds(dt);
+            WriteTransform();
+        }
+
+        void ApplyCurrentAndBounds(float dt)
+        {
+            m_State.X += currentVelocityMps.x * dt;
+            m_State.Z += currentVelocityMps.y * dt;
+            if (!useTravelBounds) return;
+            float x = Mathf.Clamp(m_State.X, travelBounds.xMin, travelBounds.xMax);
+            float z = Mathf.Clamp(m_State.Z, travelBounds.yMin, travelBounds.yMax);
+            if (x != m_State.X || z != m_State.Z) m_State.Speed = 0f;
+            m_State.X = x; m_State.Z = z;
         }
 
         /// <summary>终点到达收束：减速停船。loopWaypoints=true 时回首航点续跑（M7-B 常动目标

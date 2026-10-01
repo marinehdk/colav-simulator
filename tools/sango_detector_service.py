@@ -133,6 +133,10 @@ def decode_frame(parts: list[bytes], topic: str):
             raise ValueError("invalid source")
         if meta["jpeg_bytes"] != len(parts[2]):
             raise ValueError("JPEG length mismatch")
+        if "confidence_threshold" in meta:
+            confidence = meta["confidence_threshold"]
+            if isinstance(confidence, bool) or not isinstance(confidence, (int, float)) or not math.isfinite(confidence) or not 0.01 <= confidence <= 1.0:
+                raise ValueError("invalid confidence_threshold")
         image = cv2.imdecode(np.frombuffer(parts[2], dtype=np.uint8), cv2.IMREAD_COLOR)
         if image is None or image.shape[:2] != (meta["height"], meta["width"]):
             raise ValueError("JPEG decode or dimensions mismatch")
@@ -194,14 +198,15 @@ def serve(args: argparse.Namespace) -> int:
                 print(f"[detector] WARN: {e}; skipped")
                 continue
 
-            detections, infer_ms = run_inference(model, image, args.conf, [COCO_BOAT_CLASS_ID], args.device)
+            confidence = float(meta.get("confidence_threshold", args.conf))
+            detections, infer_ms = run_inference(model, image, confidence, [COCO_BOAT_CLASS_ID], args.device)
             pub.send_multipart([args.out_topic.encode("utf-8"),
                                 result_json(meta, detections, args.source).encode("utf-8")])
             rx += 1
             tx += 1
             if rx == 1 or rx % args.log_every == 0:
                 print(f"[detector] rx={rx} tx={tx} seq={meta.get('frame_seq')} "
-                      f"infer={infer_ms:.1f}ms detections={len(detections)}")
+                      f"infer={infer_ms:.1f}ms conf={confidence:.2f} detections={len(detections)}")
     except KeyboardInterrupt:
         print(f"[detector] shutdown: rx={rx} tx={tx}")
     finally:

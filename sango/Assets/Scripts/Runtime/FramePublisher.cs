@@ -36,6 +36,9 @@ namespace Sango
 
         [Tooltip("发布源标识（FrameMetadata.source）")]
         public string source = "sango";
+        [Range(0.1f, 2f)] public float publishIntervalS = 0.1f;
+        [Range(0.01f, 1f)] public float confidenceThreshold = 0.25f;
+        public Camera sourceCamera;
 
         PublisherSocket _pub;
         int _seq;
@@ -45,22 +48,27 @@ namespace Sango
             public RenderTexture Target;
             public AsyncGPUReadbackRequest Readback;
             public byte[] Pixels;
-            public byte[] RowScratch;
             public volatile bool Pending, Ready;
             public volatile bool Encoding;
             public double TimeS;
+            public float Confidence;
         }
         sealed class EncodedFrame
         {
             public byte[] Jpeg;
             public int Width, Height, Generation;
             public double TimeS;
+            public float Confidence;
         }
         CaptureSlot[] _slots;
         int _captureWidth, _captureHeight;
         volatile int _captureGeneration;
         double _lastPublishedCaptureTimeS = -1.0;
         Task<EncodedFrame> _encoder;
+        Camera _captureCamera;
+        Action<RenderTargetIdentifier, CommandBuffer> _captureAction;
+        double _lastCaptureRealtime = -1;
+
 
         /// <summary>
         /// Local detector budget: minimum interval 1/10 s, three reusable capture slots and one encoder.
@@ -78,6 +86,7 @@ namespace Sango
         {
             if (runtimeEnabled && !_loopRunning) StartPublishing();
             else if (!runtimeEnabled && _loopRunning) StopPublishing();
+            if (_loopRunning) EnsureCaptureTargets();
             if (_encoder != null && _encoder.IsCompleted)
             {
                 var completed = _encoder;
@@ -97,16 +106,16 @@ namespace Sango
             foreach (var slot in _slots) if (slot.Ready) slot.Ready = false;
             newest.Encoding = true;
             int width = _captureWidth, height = _captureHeight, generation = _captureGeneration, quality = jpegQuality;
-            bool flipRows = SystemInfo.graphicsUVStartsAtTop;
             double timeS = newest.TimeS;
+            float confidence = newest.Confidence;
             _encoder = Task.Run(() =>
             {
                 try
                 {
-                    if (flipRows) FramePublisherCore.FlipRgbaRows(newest.Pixels, width * 4, height, newest.RowScratch);
+                    // HDRP CameraCaptureBridge already supplies an unflipped intermediate in encoder row order.
                     return new EncodedFrame { Jpeg = ImageConversion.EncodeArrayToJPG(newest.Pixels,
                         GraphicsFormat.R8G8B8A8_UNorm, (uint)width, (uint)height, 0, quality),
-                        Width = width, Height = height, TimeS = timeS, Generation = generation };
+                        Width = width, Height = height, TimeS = timeS, Generation = generation, Confidence = confidence };
                 }
                 finally { newest.Encoding = false; }
             });
@@ -133,9 +142,13 @@ namespace Sango
             if (_loopRunning) return;
             if (!EnsureSocket()) return;
             _loopRunning = true;
-            StartCoroutine(PublishLoop());
+            _captureCamera = sourceCamera != null ? sourceCamera : Camera.main;
+            if (_captureCamera == null) { runtimeEnabled = false; StopPublishing(); return; }
+            _captureAction = CaptureScene;
+            CameraCaptureBridge.enabled = true;
+            CameraCaptureBridge.AddCaptureAction(_captureCamera, _captureAction);
             Debug.Log($"[Sango.M3] publishing frames to {endpoint} (topic {SangoSeamConfig.PublisherTopic})");
-            Debug.Log($"[Sango.M3] capture device={SystemInfo.graphicsDeviceType} normalizeTopOriginRows={SystemInfo.graphicsUVStartsAtTop}");
+            Debug.Log($"[Sango.M3] capture device={SystemInfo.graphicsDeviceType} source=CameraCaptureBridge before GUI");
         }
 
         /// <summary>停止发布并释放 socket（回默认 OFF 态）。</summary>
@@ -144,6 +157,8 @@ namespace Sango
             runtimeEnabled = false;
             _loopRunning = false;
             StopAllCoroutines();
+            if (_captureAction != null) CameraCaptureBridge.RemoveCaptureAction(_captureCamera, _captureAction);
+            _captureAction = null; _captureCamera = null;
             ReleaseCapture();
             if (_pub != null)
             {
@@ -166,37 +181,19 @@ namespace Sango
                 _encoder = null;
             }
             if (_slots != null)
+            {
+                // CommandBuffer readback has no request handle until its callback. Teardown runs outside rendering.
+                foreach (var slot in _slots) if (slot.Pending) { AsyncGPUReadback.WaitAllRequests(); break; }
                 foreach (var slot in _slots)
                 {
-                    // Invalidate callbacks first, then finish only our own requests before releasing their targets.
-                    if (slot.Pending) slot.Readback.WaitForCompletion();
                     slot.Target.Release();
                     if (Application.isPlaying) Destroy(slot.Target); else DestroyImmediate(slot.Target);
                 }
+            }
             _slots = null;
         }
 
-        IEnumerator PublishLoop()
-        {
-            double lastPublishRealtime = -1.0;
-            while (_loopRunning && Active)
-            {
-                yield return new WaitForEndOfFrame(); // 屏幕已渲完，捕获完整帧
-                if (lastPublishRealtime > 0.0 && Time.unscaledTime - lastPublishRealtime < MinPublishIntervalS)
-                    continue; // M9 节流：间隔未到跳帧（不读屏不编码，成本≈一次布尔比较）
-                try
-                {
-                    PublishOnce();
-                }
-                catch (Exception e)
-                {
-                    Debug.LogWarning($"[Sango.M3] publish frame failed: {e.GetType().Name} {e.Message}");
-                }
-                lastPublishRealtime = Time.unscaledTime;
-            }
-        }
-
-        void PublishOnce()
+        void EnsureCaptureTargets()
         {
             int width = Screen.width, height = Screen.height;
             if (width <= 0 || height <= 0) return;
@@ -209,20 +206,30 @@ namespace Sango
                 {
                     var target = new RenderTexture(width, height, 0, RenderTextureFormat.ARGB32);
                     target.Create();
-                    _slots[i] = new CaptureSlot { Target = target, Pixels = new byte[width * height * 4], RowScratch = new byte[width * 4] };
+                    _slots[i] = new CaptureSlot { Target = target, Pixels = new byte[width * height * 4] };
                 }
             }
+        }
+
+        void CaptureScene(RenderTargetIdentifier sourceTarget, CommandBuffer command)
+        {
+            if (!_loopRunning || _slots == null) return;
+            double now = Time.unscaledTimeAsDouble;
+            if (_lastCaptureRealtime >= 0 && now - _lastCaptureRealtime < Mathf.Max(MinPublishIntervalS, publishIntervalS)) return;
             CaptureSlot available = null;
             foreach (var slot in _slots)
                 if (!slot.Pending && !slot.Ready && !slot.Encoding) { available = slot; break; }
             if (available == null) return; // Bounded backpressure: skip captures rather than accumulating frames.
             var capture = available;
             capture.TimeS = Time.timeAsDouble;
+            capture.Confidence = Mathf.Clamp(confidenceThreshold, 0.01f, 1f);
             capture.Pending = true;
             int generation = _captureGeneration;
-            ScreenCapture.CaptureScreenshotIntoRenderTexture(capture.Target);
-            capture.Readback = AsyncGPUReadback.Request(capture.Target, 0, TextureFormat.RGBA32, request =>
+            _lastCaptureRealtime = now;
+            command.Blit(sourceTarget, capture.Target);
+            command.RequestAsyncReadback(capture.Target, 0, TextureFormat.RGBA32, request =>
             {
+                capture.Readback = request;
                 if (generation != _captureGeneration) return;
                 if (request.hasError)
                 { capture.Pending = false; runtimeEnabled = false; Debug.LogWarning("[Sango.M3] GPU frame readback failed; publisher disabled"); return; }
@@ -241,6 +248,7 @@ namespace Sango
             if (_pub == null) return; // StopPublishing 已跑（同帧 OnDisable）——丢这帧即可
 
             var metadata = FramePublisherCore.BuildMetadata(_seq, frame.TimeS, w, h, jpeg.Length, source);
+            metadata.confidence_threshold = frame.Confidence;
             var message = new NetMQMessage();
             message.Append(SangoSeamConfig.PublisherTopic);            // 段1：主题（SUB 过滤键）
             message.Append(FramePublisherCore.MetadataToJson(metadata)); // 段2：元数据 JSON

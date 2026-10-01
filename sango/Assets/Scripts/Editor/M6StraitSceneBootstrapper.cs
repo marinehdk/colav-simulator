@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using UnityEditor;
 using UnityEditor.Build;
 using UnityEditor.SceneManagement;
@@ -292,6 +293,7 @@ namespace Sango.Editor
 
             // M7-B 雨 VFX（雷暴雨幡档）：相机挂载（发射器跟相机、粒子世界系），WeatherController 驱动
             weather.rain = cameraGo.AddComponent<RainFall>();
+            weather.cameraEffects = cameraGo.AddComponent<CameraWeatherEffects>();
 
             var radarGo = new GameObject("Radar Overlay", typeof(RadarOverlay));
             var radar = radarGo.GetComponent<RadarOverlay>();
@@ -320,13 +322,31 @@ namespace Sango.Editor
             var overlayGo = new GameObject("Detection Overlay", typeof(DetectionOverlay), typeof(DetectionResultConsumer));
             var overlayShips = new List<Transform> { hero.transform };
             overlayShips.AddRange(anchorage.ShipTransforms());
+            foreach (var moving in Object.FindObjectsByType<WaypointFollower>(FindObjectsSortMode.None))
+                if (!overlayShips.Contains(moving.transform)) overlayShips.Add(moving.transform);
             overlayGo.GetComponent<DetectionOverlay>().ships = overlayShips.ToArray();
+            radar.otherShips = overlayShips.Where(ship => ship != hero.transform).ToArray();
             var pubGo = new GameObject("Frame Publisher", typeof(FramePublisher));
             Debug.Log($"[Sango.M3] wired: detection overlay (B, {overlayShips.Count} ships), frame publisher (default OFF, {pubGo.GetComponent<FramePublisher>().endpoint})");
 
             // k. FpsProbe（overlays fps 行 + Logs/fps-report.jsonl，干净协议读它）
             var fpsProbeGo = new GameObject("M6 Fps Probe", typeof(FpsProbe));
+            fpsProbeGo.GetComponent<FpsProbe>().showOverlay = false;
             fpsProbeGo.GetComponent<FpsProbe>().anchor = FpsProbe.OverlayAnchor.BottomLeft; // review S3：置底避让 WeatherGUI 左上面板
+
+            var workbenchGo = new GameObject("Simulation Workbench", typeof(VisualSimulationSession), typeof(SimulationWorkbench));
+            var session = workbenchGo.GetComponent<VisualSimulationSession>();
+            session.catalog = catalog; session.water = water; session.weather = weather;
+            session.cameraRig = cameraRig; session.radar = radar; session.overlay = overlayGo.GetComponent<DetectionOverlay>();
+            session.publisher = pubGo.GetComponent<FramePublisher>(); session.consumer = overlayGo.GetComponent<DetectionResultConsumer>();
+            session.sceneOrigin = new Vector3(k_HeroBerth.x, 0f, k_HeroBerth.y);
+            session.tileStreaming = Object.FindFirstObjectByType<M8TileStreaming>();
+            session.originalVessels = Object.FindObjectsByType<VesselBuoyancy>(FindObjectsSortMode.None).Select(v => v.gameObject).ToArray();
+            session.realTerrainAndDecor = terrains.Select(t => t.gameObject).Concat(scene.GetRootGameObjects().Where(go => go.name.StartsWith("M7"))).ToArray();
+            var workbench = workbenchGo.GetComponent<SimulationWorkbench>();
+            workbench.session = session; workbench.preview = sim;
+            workbench.legacyWeather = guiGo.GetComponent<WeatherGUI>();
+            workbench.legacyControl = autoGo.GetComponent<AutonomousControlPanel>();
 
             // l. 保存
             if (!AssetDatabase.IsValidFolder(k_SceneDir))
@@ -507,6 +527,7 @@ namespace Sango.Editor
         public static void BuildStraitPlayer()
         {
             PlayerSettings.SetScriptingBackend(NamedBuildTarget.Standalone, ScriptingImplementation.Mono2x);
+            PlayerSettings.SetApplicationIdentifier(NamedBuildTarget.Standalone, "com.colav.sango.workbench");
             PlayerSettings.runInBackground = true; // 失焦不停渲染（自动化采集；WeatherGUI.Awake 同款保险）
             var report = BuildPipeline.BuildPlayer(
                 new[] { k_ScenePath },

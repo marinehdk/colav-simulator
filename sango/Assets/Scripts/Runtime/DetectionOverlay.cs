@@ -25,6 +25,8 @@ namespace Sango
 
         [Tooltip("叠加层可见性（B 切换；默认关）")]
         public bool visible;
+        public bool suppressDisplay;
+        public bool requireLive;
 
         [Tooltip("投影相机；留空 = Camera.main（随 CameraRig 视图切换自动跟随）")]
         public Camera sourceCamera;
@@ -35,6 +37,19 @@ namespace Sango
         DetectionResultConsumer _consumer;   // 自动查找缓存（只找一次，防每帧 Find 开销）
         bool _consumerSearched;
         DetectionResult _liveFrame;          // 本帧 live 结果（Update 取用，OnGUI 只读不消费队列）
+        double _minFrameTimeS;
+        static GUIStyle s_BoxLabel;
+        public DetectionResult CurrentLiveResult => HasFreshLiveResult ? _liveFrame : null;
+        public string DetectionStatus
+        {
+            get
+            {
+                if (HasFreshLiveResult) return _liveFrame.detections.Length == 0 ? "YOLO live · empty result" : "YOLO live · detected";
+                if (Consumer != null && Consumer.Active) return _liveFrame == null ? "YOLO waiting · GT fallback" : "YOLO stale · GT fallback";
+                return requireLive ? "YOLO unavailable · GT fallback" : "Ground truth demo";
+            }
+        }
+        public void ClearLiveResult() { _liveFrame = null; _minFrameTimeS = Time.timeAsDouble; }
         public bool HasFreshLiveResult => Consumer != null && Consumer.Active
             && DetectionFreshness.PreferLiveOverGroundTruth(_liveFrame, Time.timeAsDouble, Consumer.maxAgeS);
 
@@ -65,34 +80,48 @@ namespace Sango
             // 消费端关闸时 TryTakeFresh 一次布尔比较即返回，真值路径成本不变。
             var consumer = Consumer;
             if (consumer == null || !consumer.Active) _liveFrame = null;
-            else if (consumer.TryTakeFresh(Time.timeAsDouble, out var fresh)) _liveFrame = fresh;
+            else if (consumer.TryTakeFresh(Time.timeAsDouble, out var fresh) && fresh.frame_time_s >= _minFrameTimeS) _liveFrame = fresh;
         }
 
         void OnGUI()
         {
-            if (!visible) return; // 关时零绘制
+            if (!visible || suppressDisplay) return; // 关时零绘制；菜单遮蔽不停止消费
             var cam = sourceCamera != null ? sourceCamera : Camera.main;
             if (cam == null) return;
 
             // live/GT 判定（纯函数）：有新鲜 live 结果按像素 xyxy 直绘（渲染时刻再验一次 age，幂等）；
             // 否则回退真值——与 M3 行为逐位一致。
             bool live = HasFreshLiveResult;
-            GUI.Label(new Rect(Screen.width - 260f, 20f, 250f, 24f), live ? "YOLO live" : "Ground truth demo");
+            GUI.Label(new Rect(Screen.width - 380f, 20f, 370f, 26f), DetectionStatus);
             if (live)
             {
                 foreach (var box in _liveFrame.detections)
                 {
                     if (box?.box_xyxy == null || box.box_xyxy.Length != 4) continue;
                     var rect = Rect.MinMaxRect(box.box_xyxy[0], box.box_xyxy[1], box.box_xyxy[2], box.box_xyxy[3]);
-                    GUI.Box(rect, $"{box.class_name}  {OverlayProjection.ConfidenceLabel(box.confidence, false)}");
+                    DrawBox(rect, $"{box.class_name}  {OverlayProjection.ConfidenceLabel(box.confidence, false)}", new Color(0.05f, 1f, 0.3f));
                 }
                 return;
             }
 
             var boxes = CollectBoxes(cam, Screen.width, Screen.height);
             foreach (var box in boxes)
-                GUI.Box(PixelRectFor(box, Screen.width, Screen.height),
-                    $"{box.label}  {OverlayProjection.ConfidenceLabel(1f, true)}");
+                DrawBox(PixelRectFor(box, Screen.width, Screen.height),
+                    $"{box.label}  {OverlayProjection.ConfidenceLabel(1f, true)}", new Color(1f, 0.75f, 0.2f));
+        }
+
+        static void DrawBox(Rect rect, string label, Color color)
+        {
+            var previous = GUI.color;
+            GUI.color = color;
+            GUI.DrawTexture(new Rect(rect.xMin, rect.yMin, rect.width, 2f), Texture2D.whiteTexture);
+            GUI.DrawTexture(new Rect(rect.xMin, rect.yMax - 2f, rect.width, 2f), Texture2D.whiteTexture);
+            GUI.DrawTexture(new Rect(rect.xMin, rect.yMin, 2f, rect.height), Texture2D.whiteTexture);
+            GUI.DrawTexture(new Rect(rect.xMax - 2f, rect.yMin, 2f, rect.height), Texture2D.whiteTexture);
+            if (s_BoxLabel == null) s_BoxLabel = new GUIStyle(GUI.skin.label) { fontStyle = FontStyle.Bold };
+            s_BoxLabel.fontSize = Mathf.Max(16, Screen.height / 70);
+            GUI.Label(new Rect(rect.xMin, Mathf.Max(0f, rect.yMin - 28f), Mathf.Max(180f, rect.width), 28f), label, s_BoxLabel);
+            GUI.color = previous;
         }
 
         /// <summary>

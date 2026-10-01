@@ -1,0 +1,6 @@
+{
+    "passed": true,
+    "failures": [],
+    "windows": [],
+    "model": "yolov8n / COCO boat / local CPU"
+}

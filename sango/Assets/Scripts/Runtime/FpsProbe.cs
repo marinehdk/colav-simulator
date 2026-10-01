@@ -28,6 +28,7 @@ namespace Sango
         public OverlayAnchor anchor = OverlayAnchor.TopLeft;
         [Tooltip("锚角到屏幕边距（像素）。")]
         public Vector2 screenMargin = new Vector2(8f, 8f);
+        public bool showOverlay = true;
 
         float m_WindowStart = -1f;
         int m_Frames;
@@ -149,6 +150,7 @@ namespace Sango
 
         void OnGUI()
         {
+            if (!showOverlay) return;
             if (m_Style == null)
             {
                 m_Style = new GUIStyle(GUI.skin.label)

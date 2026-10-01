@@ -27,7 +27,7 @@ FrameMetadata（`Vessels/FramePublisherCore.cs`）：
 
 - `frame_seq`：发布器内从 0 单调递增（`DetectionResult.frame_seq` 与之对齐）。
 - `frame_time_s`：`Time.timeAsDouble`（秒）。
-- 图像：逐帧全屏 `ReadPixels` → `EncodeToJPG(quality=60)`（场景渲染分辨率 = 玩家窗口分辨率）。
+- 图像：`CameraCaptureBridge` 提供主相机后处理输出，在 ScreenSpaceOverlay/IMGUI 合成前复制到三槽 RenderTexture，异步 GPU 回读与后台 JPEG 编码（quality=60）。尺寸保持玩家窗口像素域，图像不包含 GUI 或旧检测框。
 - PUB 慢加入语义照旧：SUB 连上前发的帧丢弃——探针持续收帧，无需握手。
 
 ## 3. 开关与零成本（验收故事 5）
@@ -57,11 +57,15 @@ uv pip install pyzmq --python .venv/bin/python   # 2026-09-28 实装 pyzmq==27.2
 
 ## 5. 已知边界
 
-- 编辑器 batchmode 无屏，`ReadPixels` 不可用——发布验收只在玩家构建跑（本协议 §3 路径）。
-- 2026-10-01 本机优化后：发布循环带 1/10 s 最小间隔节流（默认最高 10 Hz）（FramePublisher.MinPublishIntervalS，间隔未到跳帧不读屏；复用读屏 Texture2D，JPEG 编码不再重复 GPU 上传）；线协议/seq 单调语义不变，感知宿主按需丢弃照旧（帧带 seq/time，R3 异步消费设计不变）。动机：同机跑检测服务时把编码预算还给渲染循环（实机 DEMO 60→18 fps 实证）。
+- 当前验收目标为本机 Metal/Mono 原生播放器；编辑器离线 Recorder 不作为实时发布性能证据。
+- 最小发布间隔0.1s，默认最高10Hz；可配置0.1..2s，过载跳帧。时间戳在采集时锁存，seq单调递增。检测设置可通过可选 `confidence_threshold`（0.01..1）请求推理阈值；旧发布端缺此字段时，服务端使用CLI `--conf`。必需字段与三段 multipart 不变。
 
-## 2026-10-01 本机异步路径
+## 2026-10-01 纯场景异步路径
 
-开闸后最多三个在途 GPU 回读槽、单个后台 JPEG 编码任务；过载跳帧，不积压。`ScreenCapture.CaptureScreenshotIntoRenderTexture` + `AsyncGPUReadback` 保留全屏像素域。采集时间戳在 GPU 请求前锁存；JPEG 经线程安全的 `ImageConversion.EncodeArrayToJPG` 编码，NetMQ socket 始终由主线程发送。关闸不分配缓冲；停止/分辨率变化递增 generation，等待现有编码与本组件的 GPU 请求完成再释放纹理，旧结果丢弃；正常渲染循环不等待。实际吞吐与新鲜度以本机 `detector-return/report.json` 为准，10Hz为上限而非保证速率。
+主相机通过 Unity `CameraCaptureBridge.AddCaptureAction` 在同一遍 HDRP 渲染内取后处理画面；HDRP负责适配有效视口尺寸。执行一次GPU copy及`CommandBuffer.RequestAsyncReadback`，没有第二次场景 culling/draw。三槽回压、单后台 `ImageConversion.EncodeArrayToJPG` 任务；NetMQ socket始终由主线程发送。
 
-2026-10-01 识别录像补验：上起点 GPU 读回行在后台编码前归一化为编码器所需行序，JPEG 与 Unity 画面同向，检测 xyxy 仍以左上角为原点。Mac Metal 实拍确认天空在上、HUD 文字正向、返回框覆盖对应船体；原先仅验证吞吐/字段的验收不足以发现方向缺陷。旧倒置原帧保留在 `output/sango-yolo-video-20261001/orientation-before-fix/`，不作为交付视频。
+该桥输出已是编码器行序，保留正向输入，不再沿用旧 ScreenCapture 路径的额外翻转。正向/GUI排除的实际证据是 `output/aeolus-workbench-20261001/sensor-frames/` 原始JPEG：天空在上、甲板在下，不含控制文字或旧框；与船载视图相符。旧倒置/黑屏失败存档保留，不用作当前PASS。
+
+停止/resize先注销本组件capture action、失效generation并等待唯一编码任务。CommandBuffer读回没有提前返回request handle，因此仅当本组件仍有pending槽时调用Unity全局`AsyncGPUReadback.WaitAllRequests`，随后释放本组件RT；该teardown等待可能同时等待进程其他读回，正常帧不等待。由CameraCaptureBridge注册字典保留其他订阅者，不关闭全局桥。
+
+新窗口真实1440p性能与其他船检测、模型/参数/源时间戳/返回JSON见本轮原生验收及版本化捕获脚本。10Hz是上限，不保证吞吐；离线编码重复帧不构成更高感知采样率。

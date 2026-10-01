@@ -20,6 +20,8 @@ namespace Sango
         public Transform bridgeMount;
         public Transform bowMount;
         public float tacticalHeightM;
+        public Transform observationTarget;
+        public float observationTargetHeightM = 2f;
 
         [Tooltip("受控相机；留空取同对象上的 Camera。")]
         public Camera controlledCamera;
@@ -74,6 +76,11 @@ namespace Sango
             {
                 target.Position = mount.position;
                 targetRot = mount.rotation * Quaternion.Euler(-target.PitchDeg, 0f, 0f);
+                if (observationTarget != null)
+                {
+                    var direction = observationTarget.position + Vector3.up * observationTargetHeightM - target.Position;
+                    if (direction.sqrMagnitude > 1f) targetRot = Quaternion.LookRotation(direction, mount.up);
+                }
             }
             if (m_Blend < 1f)
             {

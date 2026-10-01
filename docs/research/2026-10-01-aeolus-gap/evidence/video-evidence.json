@@ -1,0 +1,134 @@
+[
+  {
+    "condition": "day",
+    "file": "/Users/marine/Code/Colav-Simulator/output/aeolus-acceptance-20261001/native/videos/onboard-yolo-day.mp4",
+    "source_frame_count": 24,
+    "source_start_time_s": 118.79819596797051,
+    "source_end_time_s": 126.79545067318594,
+    "encoding": "30fps by repeating native sampled frames; not rendering FPS proof",
+    "probe": {
+      "programs": [],
+      "stream_groups": [],
+      "streams": [
+        {
+          "width": 2560,
+          "height": 1440,
+          "r_frame_rate": "30/1"
+        }
+      ],
+      "format": {
+        "duration": "8.633333"
+      }
+    }
+  },
+  {
+    "condition": "dusk",
+    "file": "/Users/marine/Code/Colav-Simulator/output/aeolus-acceptance-20261001/native/videos/onboard-yolo-dusk.mp4",
+    "source_frame_count": 22,
+    "source_start_time_s": 132.13319025651927,
+    "source_end_time_s": 139.86865055272108,
+    "encoding": "30fps by repeating native sampled frames; not rendering FPS proof",
+    "probe": {
+      "programs": [],
+      "stream_groups": [],
+      "streams": [
+        {
+          "width": 2560,
+          "height": 1440,
+          "r_frame_rate": "30/1"
+        }
+      ],
+      "format": {
+        "duration": "8.433333"
+      }
+    }
+  },
+  {
+    "condition": "night",
+    "file": "/Users/marine/Code/Colav-Simulator/output/aeolus-acceptance-20261001/native/videos/onboard-yolo-night.mp4",
+    "source_frame_count": 20,
+    "source_start_time_s": 145.2422064696712,
+    "source_end_time_s": 152.9871861394558,
+    "encoding": "30fps by repeating native sampled frames; not rendering FPS proof",
+    "probe": {
+      "programs": [],
+      "stream_groups": [],
+      "streams": [
+        {
+          "width": 2560,
+          "height": 1440,
+          "r_frame_rate": "30/1"
+        }
+      ],
+      "format": {
+        "duration": "8.566667"
+      }
+    }
+  },
+  {
+    "condition": "fog",
+    "file": "/Users/marine/Code/Colav-Simulator/output/aeolus-acceptance-20261001/native/videos/onboard-yolo-fog.mp4",
+    "source_frame_count": 23,
+    "source_start_time_s": 158.39652456065758,
+    "source_end_time_s": 166.37341160005667,
+    "encoding": "30fps by repeating native sampled frames; not rendering FPS proof",
+    "probe": {
+      "programs": [],
+      "stream_groups": [],
+      "streams": [
+        {
+          "width": 2560,
+          "height": 1440,
+          "r_frame_rate": "30/1"
+        }
+      ],
+      "format": {
+        "duration": "8.666667"
+      }
+    }
+  },
+  {
+    "condition": "rain",
+    "file": "/Users/marine/Code/Colav-Simulator/output/aeolus-acceptance-20261001/native/videos/onboard-yolo-rain.mp4",
+    "source_frame_count": 23,
+    "source_start_time_s": 171.72622288832198,
+    "source_end_time_s": 179.6566445153061,
+    "encoding": "30fps by repeating native sampled frames; not rendering FPS proof",
+    "probe": {
+      "programs": [],
+      "stream_groups": [],
+      "streams": [
+        {
+          "width": 2560,
+          "height": 1440,
+          "r_frame_rate": "30/1"
+        }
+      ],
+      "format": {
+        "duration": "8.633333"
+      }
+    }
+  },
+  {
+    "condition": "rough-sea",
+    "file": "/Users/marine/Code/Colav-Simulator/output/aeolus-acceptance-20261001/native/videos/onboard-yolo-rough-sea.mp4",
+    "source_frame_count": 22,
+    "source_start_time_s": 185.01975685232426,
+    "source_end_time_s": 192.67335359977324,
+    "encoding": "30fps by repeating native sampled frames; not rendering FPS proof",
+    "probe": {
+      "programs": [],
+      "stream_groups": [],
+      "streams": [
+        {
+          "width": 2560,
+          "height": 1440,
+          "r_frame_rate": "30/1"
+        }
+      ],
+      "format": {
+        "duration": "8.366667"
+      }
+    }
+  }
+]

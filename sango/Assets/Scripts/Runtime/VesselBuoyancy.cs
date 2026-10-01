@@ -89,6 +89,12 @@ namespace Sango
             // 收集 hull 三角质心（probe 模式：同物体 MeshFilter 优先，否则全部子物体）。
             var own = GetComponent<MeshFilter>();
             var filters = own != null ? new[] { own } : GetComponentsInChildren<MeshFilter>(false);
+            filters = System.Array.FindAll(filters, filter =>
+            {
+                for (var node = filter.transform; node != null && node != transform; node = node.parent)
+                    if (node.name == "NavigationLightsRig" || node.name == "WakeFoamRig" || node.name == "WaterlineDecalsRig") return false;
+                return true;
+            });
 
             // 先数总三角数（跨 filter 统一编号），再按步进均匀抽样。
             int totalTriangles = 0;
