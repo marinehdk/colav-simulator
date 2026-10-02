@@ -15,20 +15,32 @@ Conventions (frozen for v1):
   the waterline on midship (FCB45 FBX origin convention).
 - Camera model: pinhole, square pixels, ``fx = (width / 2) / tan(HFOV / 2)``,
   optical axis at the mount azimuth (level, no pitch/roll in v1 — flat-sea
-  convention shared with the sensor-model-v1 generator).
+  convention shared with the sensor-model-v1 generator). The LiDAR row is the
+  exception: it carries its install downtilt (``pitch_deg`` = -10, negative =
+  down) — the Unity mast rig rotation and the contact-model blind ring both
+  read it.
 - Georef (contract observations-v1.md §5, backend-side): bearing from the pixel
   x-center, range from the box pixel height against a per-class target height
   prior above the waterline (milliAmpere camera-above-sea ranging), then NE =
   ownship + range * (cos bearing, sin bearing). Covariance is the bearing-frame
   polar sigma rotated into NE (radially elongated, sensor-model-v1 §3 E5 form).
 
-Layout deviation note (S2, documented): the task layout is "EO x5 (bow ±60 deg
+Layout deviation note (S2, documented): the task layout is "EO x5 (bow +-60 deg
 forward pair + beams 90/270 + stern 180), IR x4 (bow/port/stbd/stern), PTZ dual
 spectrum facing forward". The EO ring therefore has no mount at exactly 0 deg —
 the forward-looking EO role is the PTZ white channel (milliAmpere rationale:
 "the forward role is covered by the PTZ tele channel"). The default detection
 feed mount is ``mast_ptz_eo`` (0 deg, forward). With 90 deg HFOV ring mounts the
 ring covers 15-345 deg; the dead-ahead 30 deg sector is the PTZ's own coverage.
+
+LiDAR row (S3, ``mast_lidar``): the point-cloud view / near-field contact
+channel (sensor_id=4, bypass — never enters the IPDA, contract sensor-model-v1
+§2). The mount is the milliampere-ch5 §4.2 flange row: 11 m above the waterline
+on the mast centreline (+2.1 m forward of midship), 10 deg install downtilt for
+near-field coverage (with the +-15 deg vertical band the lower edge reaches
+-25 deg => near blind ring 11/tan(25 deg) ~= 23.6 m). The pixel intrinsics are
+the Unity depth-capture raster (640x184 = a 90x32 deg pinhole, tan(45)/tan(16)
+aspect); the contact model uses only height/pitch/range from this row.
 """
 
 from __future__ import annotations
@@ -39,6 +51,7 @@ from dataclasses import dataclass
 #: observation frame sensor_id vocabulary (contract observations-v1.md §2).
 SENSOR_ID_EO = 2
 SENSOR_ID_IR = 3
+SENSOR_ID_LIDAR = 4  # bypass channel (sensor-model-v1 §2: never enters the IPDA)
 
 #: 2 nautical miles in metres (external-camera default max range).
 DEFAULT_MAX_RANGE_M = 2.0 * 1852.0
@@ -82,11 +95,12 @@ class MastMount:
     hfov_deg: float  # horizontal field of view (FOV "档" per milliampere §4.2)
     reference_width_px: int  # reference raster for the intrinsics (fx scales with the actual frame)
     reference_height_px: int
-    height_m: float  # above the waterline (mast rail 10.5, PTZ bracket 11.5)
+    height_m: float  # above the waterline (mast rail 10.5, PTZ bracket 11.5, LiDAR flange 11.0)
     forward_offset_m: float  # + forward of midship (mast at +2.1, PTZ bracket +2.5)
     starboard_offset_m: float = 0.0  # all mounts sit on the mast centerline
     published_width_px: int = 0  # raster the Unity publisher emits (0 = reference)
     published_height_px: int = 0
+    pitch_deg: float = 0.0  # install downtilt (negative = down; LiDAR row only)
 
     @property
     def fx_reference_px(self) -> float:
@@ -178,7 +192,25 @@ _PTZ_IR = MastMount(
     forward_offset_m=2.5,
 )
 
-#: The whole family (EO x5 + IR x4 + PTZ dual x2 = 11 calibration rows).
+#: LiDAR depth camera (S3, milliampere-ch5 §4.2 flange row: mast-top radar
+#: 下方法兰 11 m, mast centreline; 10 deg install downtilt). The reference
+#: raster is the Unity depth-capture pinhole (640x184 = 90x32 deg FOV,
+#: aspect = tan(45 deg)/tan(16 deg)); the contact model reads only
+#: height/pitch/range from this row. sensor_id=4 = bypass channel.
+_LIDAR = MastMount(
+    mount_id="mast_lidar",
+    sensor_id=SENSOR_ID_LIDAR,
+    channel="lidar",
+    azimuth_deg=0.0,
+    hfov_deg=90.0,
+    reference_width_px=640,
+    reference_height_px=184,
+    height_m=11.0,
+    forward_offset_m=2.1,
+    pitch_deg=-10.0,
+)
+
+#: The whole family (EO x5 + IR x4 + PTZ dual x2 + LiDAR x1 = 12 calibration rows).
 MAST_MOUNTS: tuple[MastMount, ...] = (
     _EO_BOW_STBD,
     _EO_BOW_PORT,
@@ -191,6 +223,7 @@ MAST_MOUNTS: tuple[MastMount, ...] = (
     _IR_QUARTER,
     _PTZ_EO,
     _PTZ_IR,
+    _LIDAR,
 )
 
 MAST_MOUNTS_BY_ID: dict[str, MastMount] = {mount.mount_id: mount for mount in MAST_MOUNTS}

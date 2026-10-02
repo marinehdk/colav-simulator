@@ -197,7 +197,7 @@ export function createDeploymentTwinViewport({
     }
     if (sensorModeEl) {
       const item = sensorModeItems(mode).find(entry => entry.value === mode);
-      sensorModeEl.textContent = `SENSOR ${item?.label ?? mode.toUpperCase()}${item?.pending ? ' · PENDING S3' : ''}`;
+      sensorModeEl.textContent = `SENSOR ${item?.label ?? mode.toUpperCase()}`;
     }
     publishDebug();
   }

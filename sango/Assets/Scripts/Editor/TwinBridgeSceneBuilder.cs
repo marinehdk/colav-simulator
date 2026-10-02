@@ -115,6 +115,15 @@ namespace Sango.Editor.TwinBridge
             irVolume.priority = 10;
             irVolume.AddPassOfType(typeof(Sango.Vessels.Mast.IrViewPass));
 
+            // P3-S3 (spec #90): LiDAR 点云视角 pass 体积（sensor_mode=lidar 才激活：
+            // 深色背景 16 线点云（流相机深度场）；静态闸默认关，Demo 渲染零变化）。
+            var lidarVolumeGo = new GameObject("Twin Lidar PointCloud Pass");
+            var lidarVolume = lidarVolumeGo.AddComponent<UnityEngine.Rendering.HighDefinition.CustomPassVolume>();
+            lidarVolume.isGlobal = true;
+            lidarVolume.injectionPoint = UnityEngine.Rendering.HighDefinition.CustomPassInjectionPoint.BeforePostProcess;
+            lidarVolume.priority = 11;
+            lidarVolume.AddPassOfType(typeof(Sango.Vessels.Mast.LidarViewPass));
+
             EditorSceneManager.MarkSceneDirty(scene);
             EditorSceneManager.SaveScene(scene, k_TwinScene);
             AssetDatabase.SaveAssets();

@@ -84,10 +84,25 @@ namespace Sango.Vessels.Mast
             holder.transform.localRotation = MastCameraTable.LocalRotation(mount);
             var camera = holder.AddComponent<Camera>();
             camera.enabled = false; // attitude carrier; only the feed renders
-            camera.fieldOfView = mount.HFovDeg;
-            camera.nearClipPlane = 0.3f;
-            camera.farClipPlane = 20000f;
-            camera.clearFlags = CameraClearFlags.Skybox;
+            if (mount.Channel == MastSensorChannel.Lidar)
+            {
+                // P3-S3 LiDAR depth camera: pinhole profile = the LidarPattern
+                // mapping (32° vertical FOV, 640×184 target ⇒ 90° horizontal),
+                // far clip = the 100 m sensor range clip (free range gating).
+                // Rendering is driven by LidarViewPass only in sensor_mode=lidar.
+                camera.fieldOfView = LidarPattern.DepthCameraFovDeg;
+                camera.nearClipPlane = 0.5f;
+                camera.farClipPlane = LidarPattern.MaxRangeM;
+                camera.clearFlags = CameraClearFlags.SolidColor;
+                camera.backgroundColor = Color.black;
+            }
+            else
+            {
+                camera.fieldOfView = mount.HFovDeg;
+                camera.nearClipPlane = 0.3f;
+                camera.farClipPlane = 20000f;
+                camera.clearFlags = CameraClearFlags.Skybox;
+            }
             _cameras[mount.MountId] = camera;
         }
 

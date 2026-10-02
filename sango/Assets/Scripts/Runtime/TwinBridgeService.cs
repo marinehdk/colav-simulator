@@ -77,6 +77,7 @@ namespace Sango
         // P3-S2 sensor_mode（契约 §2/§8；默认 eo，state 回显）
         string m_SensorMode = TwinBridge.DefaultSensorMode;
         FramePublisher m_FeedPublisher; // 桅杆馈送改接（rig attach 后一次性）
+        bool m_LidarViewLogged; // P3-S3 lidar 视角激活日志（每次进入模式记一条，探针双证）
 
         // clock 消息面（DataChannel 回调主线程写、泵/状态读；fetch 线程只读 playhead——
         // C# 禁 volatile double，跨线程取值允许一个 tick 的陈旧，泵按 100ms 轮询无碍）
@@ -190,7 +191,28 @@ namespace Sango
                 if (mastRig == null) mastRig = new GameObject("Mast sensor rig").AddComponent<Vessels.Mast.MastSensorRig>();
             }
             EnsureIrPassVolume();
+            EnsureLidarPassVolume();
             driver.autoReconnect = true; // 契约 §5：数据面断线自动重连（bridge 托管态）
+        }
+
+        /// <summary>
+        /// LiDAR 点云 Custom Pass 体积自举（P3-S3）：SangoTwin 场景由 BuildTwinScene
+        /// 预烘焙；场景缺体积时（旧构建/手工场景）运行期补建——同一静态闸
+        /// LidarViewPass（默认 Requested=false = 零渲染成本），Demo 路径零影响。
+        /// </summary>
+        void EnsureLidarPassVolume()
+        {
+            var volumes = FindObjectsByType<UnityEngine.Rendering.HighDefinition.CustomPassVolume>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+            foreach (var volume in volumes)
+                foreach (var pass in volume.customPasses)
+                    if (pass is Vessels.Mast.LidarViewPass) return;
+            var volumeGo = new GameObject("Twin Lidar PointCloud Pass (bootstrap)");
+            var lidarVolume = volumeGo.AddComponent<UnityEngine.Rendering.HighDefinition.CustomPassVolume>();
+            lidarVolume.isGlobal = true;
+            lidarVolume.injectionPoint = UnityEngine.Rendering.HighDefinition.CustomPassInjectionPoint.BeforePostProcess;
+            lidarVolume.priority = 11;
+            lidarVolume.AddPassOfType(typeof(Vessels.Mast.LidarViewPass));
+            Debug.Log("[Sango.TwinBridge] lidar point-cloud pass volume bootstrapped at runtime");
         }
 
         /// <summary>
@@ -227,6 +249,7 @@ namespace Sango
             GatePausedClock();
             PollLiveAttached();
             AttachMastRigWhenOwnShipReady();
+            DriveLidarView();
             SendStateHeartbeat();
         }
 
@@ -506,9 +529,11 @@ namespace Sango
         }
 
         /// <summary>
-        /// sensor_mode（P3-S2，契约 §2/§8 演进；spec #90）：主视口传感器模式——
-        /// eo=默认正常渲染 / ir=流相机 IR pass（黑白热像+温度 tag）/ lidar=本段
-        /// 占位（接受+state 回显，点云渲染留 S3，UI pending 态明示）。
+        /// sensor_mode（P3-S2 接线 / P3-S3 真实现，契约 §2/§8 演进；spec #90）：
+        /// 主视口传感器模式——eo=默认正常渲染 / ir=流相机 IR pass（黑白热像+
+        /// 温度 tag）/ lidar=流相机点云视角（P3-S3 LidarViewPass 真实现，
+        /// 深色背景 + mast_lidar 深度 16 线点云；渲染驱动在 DriveLidarView，
+        /// own-ship 槽位落地即生效）。
         /// 与 camera 预设正交叠加（不改 CameraRig 状态，契约 §2）。
         /// </summary>
         void HandleSensorMode(TwinBridgeCommand cmd)
@@ -526,14 +551,31 @@ namespace Sango
         /// <summary>sensor_mode → 渲染效果（状态机效果面 = TwinBridge.SensorModeEffect 纯函数）。</summary>
         void ApplySensorMode()
         {
-            TwinBridge.SensorModeEffect(m_SensorMode, out bool irActive, out bool lidarPending);
+            TwinBridge.SensorModeEffect(m_SensorMode, out bool irActive, out bool lidarActive);
             var streamCamera = Camera.main;
             Vessels.Mast.IrViewPass.SetActive(irActive, streamCamera);
             if (irActive) Vessels.Mast.ThermalTagApplier.Apply();
             else Vessels.Mast.ThermalTagApplier.Revert();
-            if (lidarPending)
-                Debug.Log("[Sango.TwinBridge] sensor_mode=lidar accepted (echoed in state); point-cloud view lands in S3");
+            Vessels.Mast.LidarViewPass.SetActive(lidarActive, streamCamera); // P3-S3：点云视角真实现
+            if (!lidarActive) m_LidarViewLogged = false; // 复位：每次进入 lidar 模式记一条激活日志（探针双证）
         }
+
+        /// <summary>
+        /// P3-S3 点云视角逐帧驱动（lidar 模式激活中）：mast rig 落地后启用
+        /// mast_lidar 深度相机并回填 uniforms（10Hz 种子/外参/深度纹理）——
+        /// 模式先于 rig 到达（attach 前/重挂窗口）时静默等待，落地即出点云。
+        /// </summary>
+        void DriveLidarView()
+        {
+            if (!Vessels.Mast.LidarViewPass.Requested) return;
+            if (!m_LidarViewLogged)
+            {
+                m_LidarViewLogged = true;
+                Debug.Log($"[Sango.TwinBridge] lidar point-cloud view active (channels={Vessels.Mast.LidarPattern.ChannelCount}, " +
+                          $"span={Vessels.Mast.LidarPattern.ChannelSpanDeg:0.#}deg, rate={Vessels.Mast.LidarPattern.FrameRateHz:0.#}Hz)");
+            }
+        }
+
 
         // ── replay 泵：后台取数 + 主线程计量喂帧 ────────────────────────────────
 

@@ -5,8 +5,9 @@ namespace Sango.Vessels.Mast
     /// <summary>Sensor channel of a mast mount (sensor-model-v1 §2 / observations-v1 §2 vocabulary).</summary>
     public enum MastSensorChannel
     {
-        Eo = 2, // camera_eo
-        Ir = 3, // camera_ir
+        Eo = 2,     // camera_eo
+        Ir = 3,     // camera_ir
+        Lidar = 4,  // lidar (bypass channel — sensor-model-v1 §2; P3-S3 point-cloud view)
     }
 
     /// <summary>
@@ -38,6 +39,7 @@ namespace Sango.Vessels.Mast
         public float HeightM;          // above the waterline (ship local +y)
         public float ForwardOffsetM;   // + forward of midship (ship local +z)
         public float StarboardOffsetM; // + starboard (ship local +x)
+        public float PitchDeg;         // install downtilt (negative = down; 0 for the camera family, LiDAR only)
 
         public int FrameWidthPx => PublishedWidthPx > 0 ? PublishedWidthPx : ReferenceWidthPx;
         public int FrameHeightPx => PublishedHeightPx > 0 ? PublishedHeightPx : ReferenceHeightPx;
@@ -50,6 +52,9 @@ namespace Sango.Vessels.Mast
     /// pair + beams 90°/270° + stern 180°, 90° HFOV) + IR×4 (bow/stbd/port/stern,
     /// 90° HFOV, 640×512 Boson-class) + PTZ dual spectrum ×2 channels (forward
     /// bracket +2.5 m; fixed mount in S2 — pan/tilt control out of segment).
+    /// P3-S3 adds the LiDAR depth camera row (mast_lidar, milliampere §4.2
+    /// flange row: 11 m above the waterline, 10° install downtilt for
+    /// near-field blind-ring mitigation).
     ///
     /// Layout deviation note (frozen here + in the Python twin
     /// ``colav_simulator/core/mast_cameras.py``): the EO ring owns no mount at
@@ -70,6 +75,7 @@ namespace Sango.Vessels.Mast
         public const float MastForwardOffsetM = 2.1f;
         public const float PtzBracketHeightM = 11.5f;
         public const float PtzForwardOffsetM = 2.5f;
+        public const float LidarFlangeHeightM = 11.0f; // milliampere §4.2: 桅顶雷达下方法兰
 
         public static readonly MastMount[] Mounts =
         {
@@ -110,6 +116,12 @@ namespace Sango.Vessels.Mast
             new MastMount { MountId = "mast_ptz_ir", Channel = MastSensorChannel.Ir, AzimuthDeg = 0f,
                 HFovDeg = 45f, ReferenceWidthPx = 640, ReferenceHeightPx = 512,
                 HeightM = PtzBracketHeightM, ForwardOffsetM = PtzForwardOffsetM },
+            // ── LiDAR depth camera ×1 (P3-S3; milliampere §4.2 flange row: mast-top
+            //    radar下方 11 m, mast centreline; 10° downtilt for the near-field role) ──
+            new MastMount { MountId = LidarPattern.MountId, Channel = MastSensorChannel.Lidar, AzimuthDeg = 0f,
+                HFovDeg = LidarPattern.HorizontalFovDeg, ReferenceWidthPx = LidarPattern.DepthTextureWidthPx,
+                ReferenceHeightPx = LidarPattern.DepthTextureHeightPx,
+                HeightM = LidarFlangeHeightM, ForwardOffsetM = MastForwardOffsetM, PitchDeg = LidarPattern.MountPitchDeg },
         };
 
         /// <summary>Table lookup by mount_id (contract observations-v1 §3 reference key).</summary>
@@ -137,11 +149,15 @@ namespace Sango.Vessels.Mast
 
         /// <summary>
         /// Ship-local rotation of a mount camera: look along the mount azimuth
-        /// (level). Unity rotation.y = azimuthDeg (yaw 0 = +z bow, positive =
-        /// clockwise from above = toward +x starboard — the scene yaw convention).
+        /// with the mount pitch (level for the camera family — pitch 0; the
+        /// LiDAR row carries its install downtilt). Unity rotation.y = azimuthDeg
+        /// (yaw 0 = +z bow, positive = clockwise from above = toward +x
+        /// starboard — the scene yaw convention); pitch follows the CameraPose
+        /// semantics "negative = down" (CameraRig.ApplyPose: Unity Euler.x =
+        /// −PitchDeg).
         /// </summary>
         public static UnityEngine.Quaternion LocalRotation(in MastMount mount)
-            => UnityEngine.Quaternion.Euler(0f, mount.AzimuthDeg, 0f);
+            => UnityEngine.Quaternion.Euler(-mount.PitchDeg, mount.AzimuthDeg, 0f);
 
         /// <summary>True when the azimuth (relative bow, degrees) is inside the mount HFOV.</summary>
         public static bool CoversAzimuth(in MastMount mount, float azimuthDeg)

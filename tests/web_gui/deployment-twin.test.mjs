@@ -341,15 +341,14 @@ test('sensor-mode click sends the contract literal; §5 realignment rides the at
   h.viewport.destroy();
 });
 
-test('state echo is the authority: chip text and buttons mirror sensor_mode, lidar shows the S3 pending mark', async () => {
+test('state echo is the authority: chip text and buttons mirror sensor_mode, lidar is a real mode in S3', async () => {
   const group = fakeSensorGroup();
   const chip = { textContent: '' };
   const h = viewportHarness({ sensorGroup: group, sensorModeEl: chip });
   await h.viewport.attach();
   h.client.lastState = { _receivedAt: Date.now(), stream: { state: 'ok', latency_ms: 0 }, fps: 60, sensor_mode: 'lidar' };
   h.scheduler.run(); // HUD tick
-  assert.match(chip.textContent, /SENSOR LiDAR·S3 · PENDING S3/,
-    '占位 UI 明示（契约 §2 注：渲染属 S3，按钮不禁用）');
+  assert.equal(chip.textContent, 'SENSOR LiDAR', 'S3 起 lidar = 真实现（点云视角），S2 pending 徽标移除');
   assert.equal(group.of('lidar').activeState, true);
   assert.equal(group.of('eo').activeState, false);
   h.client.lastState = { _receivedAt: Date.now(), stream: { state: 'ok', latency_ms: 0 }, sensor_mode: 'ir' };

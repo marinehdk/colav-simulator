@@ -16,17 +16,19 @@ namespace Sango.Tests
         [Test]
         public void Family_Composition_MatchesTaskLayout()
         {
-            Assert.That(MastCameraTable.Mounts.Length, Is.EqualTo(11), "EO×5 + IR×4 + PTZ 双光谱×2 通道");
-            int eo = 0, ir = 0, ptz = 0;
+            Assert.That(MastCameraTable.Mounts.Length, Is.EqualTo(12), "EO×5 + IR×4 + PTZ 双光谱×2 通道 + LiDAR×1（P3-S3）");
+            int eo = 0, ir = 0, ptz = 0, lidar = 0;
             foreach (var mount in MastCameraTable.Mounts)
             {
                 if (mount.MountId.StartsWith("mast_ptz")) ptz++;
+                else if (mount.Channel == MastSensorChannel.Lidar) lidar++;
                 else if (mount.Channel == MastSensorChannel.Eo) eo++;
                 else ir++;
             }
             Assert.That(eo, Is.EqualTo(5), "EO 固定环视 ×5");
             Assert.That(ir, Is.EqualTo(4), "IR 固定 ×4");
             Assert.That(ptz, Is.EqualTo(2), "PTZ 双光谱 = 白光 + LWIR 两通道机位");
+            Assert.That(lidar, Is.EqualTo(1), "LiDAR 深度相机 ×1（P3-S3 点云视角）");
         }
 
         [Test]
@@ -63,6 +65,11 @@ namespace Sango.Tests
                 {
                     Assert.That(mount.HeightM, Is.EqualTo(11.5f), "桅顶前伸托架（milliampere §4.2）");
                     Assert.That(mount.ForwardOffsetM, Is.EqualTo(2.5f));
+                }
+                else if (mount.Channel == MastSensorChannel.Lidar)
+                {
+                    Assert.That(mount.HeightM, Is.EqualTo(11.0f), "桅顶下法兰 11 m（milliampere §4.2 LiDAR 行）");
+                    Assert.That(mount.ForwardOffsetM, Is.EqualTo(2.1f), "桅位舯前 2.1 m");
                 }
                 else
                 {
@@ -119,6 +126,14 @@ namespace Sango.Tests
             Assert.That(stbdLook.z, Is.EqualTo(0f).Within(1e-5));
             var stbdPosition = MastCameraTable.LocalPosition(stbd);
             Assert.That(stbdPosition, Is.EqualTo(new Vector3(0f, 10.5f, 2.1f)));
+
+            // P3-S3: the camera family stays level (pitch 0); only the LiDAR row
+            // carries its install downtilt.
+            foreach (var mount in MastCameraTable.Mounts)
+            {
+                float expectedPitch = mount.Channel == MastSensorChannel.Lidar ? LidarPattern.MountPitchDeg : 0f;
+                Assert.That(mount.PitchDeg, Is.EqualTo(expectedPitch), mount.MountId);
+            }
         }
 
         [Test]
@@ -198,9 +213,9 @@ namespace Sango.Tests
             Assert.That(irActive, Is.True, "ir = 流相机黑白热像");
             Assert.That(irLidar, Is.False);
 
-            TwinBridge.SensorModeEffect("lidar", out bool lidarIr, out bool lidarPending);
-            Assert.That(lidarIr, Is.False, "lidar 本段不渲染（S3 点云视角）");
-            Assert.That(lidarPending, Is.True, "占位：接受+回显，UI pending 明示");
+            TwinBridge.SensorModeEffect("lidar", out bool lidarIr, out bool lidarRender);
+            Assert.That(lidarIr, Is.False, "lidar 不开 IR pass");
+            Assert.That(lidarRender, Is.True, "P3-S3：lidar = 点云视角真实现（LidarViewPass）");
 
             TwinBridge.SensorModeEffect("thermal", out bool badIr, out bool badLidar);
             Assert.That(badIr, Is.False);

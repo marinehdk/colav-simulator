@@ -415,20 +415,21 @@ test('twin runs table paginates with the same footer controls and page sizes as 
 
 /* ── P3-S2 sensor_mode 按钮组（spec #90；contract §2/§8；Deployment twin 侧见 deployment-twin.test.mjs） ── */
 
-test('sensorModeItems projects the frozen vocabulary with the lidar S3 pending mark (pure)', async () => {
+test('sensorModeItems projects the frozen vocabulary; S3 un-pends lidar (pure)', async () => {
   const { sensorModeItems, TWIN_SENSOR_MODE_DEFAULT, projectSensorMode } = await import(
     '../../web_gui/modules/twin-view.js?v=20261002-sensor-mode-v1'
   );
   assert.deepEqual(TWIN_SENSOR_MODES, ['eo', 'ir', 'lidar']);
   assert.equal(TWIN_SENSOR_MODE_DEFAULT, 'eo');
   const items = sensorModeItems('ir');
-  assert.deepEqual(items.map(item => [item.value, item.active, item.pending]), [
-    ['eo', false, false],
-    ['ir', true, false],
-    ['lidar', false, true],
-  ], 'ir active, lidar pending (占位明示，按钮不禁用)');
+  assert.deepEqual(items.map(item => [item.value, item.active]), [
+    ['eo', false],
+    ['ir', true],
+    ['lidar', false],
+  ], 'ir active; S3 起 lidar 无 pending 徽标（契约 §8 台账）');
   assert.equal(items.find(item => item.value === 'ir').label, 'IR');
-  assert.equal(items.find(item => item.value === 'lidar').label, 'LiDAR·S3');
+  assert.equal(items.find(item => item.value === 'lidar').label, 'LiDAR', 'S2 的 "LiDAR·S3" 徽标移除（真实现）');
+  assert.equal(items.find(item => item.value === 'lidar').pending, undefined, 'pending 字段不复存在');
   assert.deepEqual(sensorModeItems('bogus').find(item => item.active).value, 'eo', 'unknown mode falls back to the contract default');
   assert.equal(projectSensorMode({ sensor_mode: 'ir' }), 'ir', 'state echo is the authority');
   assert.equal(projectSensorMode({}), 'eo', 'old Unity build (missing field) = default');

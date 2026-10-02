@@ -457,6 +457,10 @@ class KF(ITracker):
 
                 if sensor_measurements:
                     for sensor_id in range(len(self.sensors)):
+                        if self.sensors[sensor_id].bypass_fusion:
+                            # sensor-model-v1 §1: bypass channels (lidar/ais-vocab) ride the
+                            # measurement cache but never update the KF main chain (hard boundary).
+                            continue
                         sensed_dos = [do_meas[0] for do_meas in sensor_measurements[sensor_id]]
 
                         if self._labels[i] in sensed_dos:  # Automatic data association

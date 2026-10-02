@@ -19,10 +19,16 @@ from scipy.special import erfc
 
 import colav_simulator.common.config_parsing as cp
 import colav_simulator.common.math_functions as mf
+from colav_simulator.core.mast_cameras import MAST_MOUNTS_BY_ID
 from colav_simulator.core.radar_occlusion import TerrainGrid, load_occlusion_grid
 
 
 class ISensor(ABC):
+    #: sensor-model-v1 §1 bypass mark: bypass channels (lidar/ais per contract §2)
+    #: ride the measurement cache for display/fusion-adjacent consumers but never
+    #: update the KF main chain (the tracker skips them). Fusing sensors stay False.
+    bypass_fusion: bool = False
+
     @abstractmethod
     def R(self, xs: np.ndarray) -> np.ndarray:
         """Returns the measurement noise covariance matrix for the input state."""
@@ -156,12 +162,14 @@ class Config:
                 sensor_dict["radar_x"] = sensor.to_dict()
             elif isinstance(sensor, AISParams):
                 sensor_dict["ais"] = sensor.to_dict()
+            elif isinstance(sensor, LidarParams):
+                sensor_dict["lidar"] = sensor.to_dict()
             output_list.append(sensor_dict)
 
         return output_list
 
     @classmethod
-    def from_dict(cls, config_dict: dict) -> "Config":  # noqa: D102
+    def from_dict(cls, config_dict: dict) -> "Config":
         config = Config(sensor_list=[])
         for sensor_dict in config_dict:
             if "radar" in sensor_dict:
@@ -170,6 +178,8 @@ class Config:
                 config.sensor_list.append(RadarXParams.from_dict(sensor_dict["radar_x"]))
             elif "ais" in sensor_dict:
                 config.sensor_list.append(cp.convert_settings_dict_to_dataclass(AISParams, sensor_dict["ais"]))
+            elif "lidar" in sensor_dict:
+                config.sensor_list.append(LidarParams.from_dict(sensor_dict["lidar"]))
 
         return config
 
@@ -194,6 +204,8 @@ class SensorSuiteBuilder:
                     sensors.append(RadarXBand(sensor_config))
                 elif isinstance(sensor_config, AISParams):
                     sensors.append(AIS(sensor_config))
+                elif isinstance(sensor_config, LidarParams):
+                    sensors.append(LidarContactSensor(sensor_config))
         else:
             sensors = [Radar()]
         return sensors
@@ -1111,4 +1123,219 @@ class ExternalCameraSensor(ISensor):
 
     @property
     def params(self) -> ExternalCameraParams:
+        return self._params
+
+
+MOUNT_ID_LIDAR_DEFAULT = "mast_lidar"
+
+#: Mast-table source of the LiDAR mount geometry (backend-authoritative single
+#: copy in ``colav_simulator/core/mast_cameras.py``; Unity MastCameraTable
+#: mirrors the same literals — parity pinned by tests on both sides).
+_LIDAR_MOUNT = MAST_MOUNTS_BY_ID[MOUNT_ID_LIDAR_DEFAULT]
+
+
+@dataclass
+class LidarParams:
+    """LiDAR near-field contact parameters (P3-S3, sensor-model-v1 sensor_id=4 ``lidar``).
+
+    Anchors (milliampere-ch5 §5.2 table + contract §4):
+    - mount = ``colav_simulator.core.mast_cameras`` ``mast_lidar`` row (11 m
+      flange under the mast top, +2.1 m forward, 10 deg install downtilt);
+    - 16 lines, +-15 deg band, 10 Hz, 100 m range (VLP-16 class, report 03
+      minimum-fidelity baseline);
+    - noise = AWSIM/RGL range Gaussian (sigma base 0.02 m + 2 mm/m rise) +
+      VIMM cross-range calibration ``lidar_sigma_c_m = 6.6 m`` (contract §4);
+    - visibility = VIMM per-target Markov chain (w11/w01) + global PD
+      (contract §4 ``visibility``);
+    - near blind ring follows the tilted install: lower band edge
+      |pitch| + 15 deg => R_min = h / tan(edge) (milliampere-ch5 §4.3).
+    """
+
+    sensor_id: int = 4
+    mount_id: str = MOUNT_ID_LIDAR_DEFAULT
+    max_range_m: float = 100.0
+    measurement_rate_hz: float = 10.0
+    channel_count: int = 16
+    vertical_fov_deg: float = 30.0
+    mount_height_m: float = _LIDAR_MOUNT.height_m
+    mount_pitch_deg: float = _LIDAR_MOUNT.pitch_deg
+    # Noise: AWSIM/RGL range Gaussian + VIMM lidar_sigma_c cross-range (m).
+    sigma_range_base_m: float = 0.02
+    sigma_range_rise_per_m: float = 0.002
+    sigma_cross_range_m: float = 6.6
+    # Visibility (contract §4 VIMM chain): w11 stay-visible / w01 enter-visible.
+    visibility_w11: float = 0.90
+    visibility_w01: float = 0.52
+    detection_probability: float = 0.92
+    # Terrain occlusion (S1 tool reuse; same defaults/semantics as RadarXParams).
+    occlusion_dem_path: str | None = None
+    occlusion_mode: str = "elevation"  # "elevation" | "landmask"
+    occlusion_downsample: int = 4
+    occlusion_grid: TerrainGrid | None = None
+
+    def __post_init__(self) -> None:  # noqa: D105
+        if self.occlusion_mode not in {"elevation", "landmask"}:
+            msg = f"occlusion_mode must be 'elevation' or 'landmask', got {self.occlusion_mode!r}"
+            raise ValueError(msg)
+
+    @classmethod
+    def from_dict(cls, config_dict: dict) -> "LidarParams":
+        known = {f: config_dict[f] for f in cls.__dataclass_fields__ if f in config_dict}
+        return cls(**known)
+
+    def to_dict(self) -> dict:
+        output_dict = asdict(self)
+        output_dict.pop("occlusion_grid", None)
+        return output_dict
+
+
+class LidarContactSensor(ISensor):
+    """LiDAR near-field contact model (P3-S3, sensor-model-v1 sensor_id=4 ``lidar``).
+
+    Bypass semantics (contract §1/§2 hard boundary): the sensor feeds the
+    measurement cache (display / S5 fusion-adjacent consumers) but NEVER the
+    IPDA — ``bypass_fusion`` is True and the KF main chain skips it. Contact
+    points are synthesized from the simulator's own geometric truth (the Unity
+    point cloud never crosses the Unity↔backend boundary — the two channels are
+    independent by design). Per target within [blind ring, 100 m], visible per
+    the VIMM Markov chain and DEM-occlusion-checked: a polar-noisy NE point at
+    10 Hz. No sea clutter in v1 (milliampere §5.2 浪致点噪 left to a later
+    segment; the visual cloud carries the per-point CARLA dropout instead).
+    """
+
+    type: str = "lidar"
+    bypass_fusion = True  # sensor-model-v1 §1: 旁路通道，不进 IPDA（硬边界）
+
+    def __init__(self, params: LidarParams | None = None) -> None:
+        self._params: LidarParams = params if params is not None else LidarParams()
+        self._H: np.ndarray = np.array([[1.0, 0.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0]])
+        self._rng: np.random.Generator = np.random.default_rng()
+        self._prev_t: float = 0.0
+        self._initialized: bool = False
+        self._visible: dict[int, bool] = {}  # per-target visibility Markov state
+        self._occlusion_grid: TerrainGrid | None = self._params.occlusion_grid
+        self._occlusion_resolved: bool = self._params.occlusion_grid is not None
+
+    # ------------------------------------------------------------------ ISensor
+    def reset(self, seed: int | None) -> None:
+        self.seed(seed)
+        self._prev_t = 0.0
+        self._initialized = False
+        self._visible = {}
+
+    def seed(self, seed: int | None) -> None:
+        self._rng = np.random.default_rng(seed)
+
+    def R(self, xs: np.ndarray) -> np.ndarray:  # noqa: ARG002
+        return self.position_cov_ne(self.blind_ring_m)
+
+    def H(self, xs: np.ndarray) -> np.ndarray:  # noqa: ARG002
+        return self._H
+
+    def h(self, xs: np.ndarray) -> np.ndarray:
+        return self._H @ xs
+
+    def generate_measurements(
+        self, t: float, true_do_states: list[tuple[int, np.ndarray, float, float]], ownship_state: np.ndarray
+    ) -> list[tuple[int, np.ndarray]]:
+        """Legacy ISensor output: per-target NE contact points (NaN placeholders).
+
+        The 10 Hz rate gate holds the contacts back between frames (cache keeps
+        the last valid point per target); undetected/unvisible/occluded targets
+        yield NaN placeholders.
+        """
+        placeholders = [(do_tup[0], np.nan * np.ones(2)) for do_tup in true_do_states]
+        if not self._initialized or t < 0.0001:
+            self._prev_t = t
+            self._initialized = True
+            return placeholders
+        if (t - self._prev_t) < (1.0 / self._params.measurement_rate_hz) - 1e-9:
+            # The 1e-9 epsilon absorbs float accumulation in t (0.1+0.1+... drifts
+            # below the exact period and would silently skip frames).
+            return placeholders
+        self._prev_t = t
+
+        own_ne = np.asarray(ownship_state, dtype=float)[:2]
+        measurements: list[tuple[int, np.ndarray]] = []
+        for do_idx, do_state, _do_length, _do_width in true_do_states:
+            delta = np.asarray(do_state, dtype=float)[:2] - own_ne
+            distance = float(np.hypot(delta[0], delta[1]))
+            if distance <= self.blind_ring_m or distance > self._params.max_range_m:
+                measurements.append((do_idx, np.nan * np.ones(2)))
+                continue
+            if not self._is_visible(do_idx):
+                measurements.append((do_idx, np.nan * np.ones(2)))
+                continue
+            if self._occluded(own_ne, delta, distance):
+                measurements.append((do_idx, np.nan * np.ones(2)))
+                continue
+            bearing = float(np.arctan2(delta[1], delta[0]))
+            noisy_distance = distance + float(self._rng.normal(0.0, self.range_sigma_m(distance)))
+            noisy_bearing = bearing + float(
+                self._rng.normal(0.0, self._params.sigma_cross_range_m / max(distance, 1.0))
+            )
+            position = own_ne + noisy_distance * np.array([np.cos(noisy_bearing), np.sin(noisy_bearing)])
+            measurements.append((do_idx, position))
+        return measurements
+
+    # ------------------------------------------------------------------ internals
+    def _is_visible(self, do_idx: int) -> bool:
+        """Per-target visibility Markov chain (VIMM w11/w01) + global PD gate."""
+        p = self._params
+        was_visible = self._visible.get(do_idx, False)
+        enter_probability = p.visibility_w11 if was_visible else p.visibility_w01
+        visible = bool(self._rng.random() < enter_probability)
+        self._visible[do_idx] = visible
+        return visible and bool(self._rng.random() < p.detection_probability)
+
+    def _occluded(self, own_ne: np.ndarray, delta: np.ndarray, distance: float) -> bool:
+        """Terrain line-of-sight check; lazily resolves the DEM path once. False = visible."""
+        if not self._occlusion_resolved:
+            self._occlusion_grid = load_occlusion_grid(
+                self._params.occlusion_dem_path,
+                downsample=self._params.occlusion_downsample,
+                mode=self._params.occlusion_mode,
+            )
+            self._occlusion_resolved = True
+        if self._occlusion_grid is None:
+            return False
+        target_ne = own_ne + delta
+        return self._occlusion_grid.line_of_sight_blocked(
+            antenna_e=own_ne[1],
+            antenna_n=own_ne[0],
+            target_e=target_ne[1],
+            target_n=target_ne[0],
+            antenna_height_m=self._params.mount_height_m,
+            target_height_m=2.0,
+        )
+
+    # ------------------------------------------------------------------ helpers
+    def range_sigma_m(self, distance_m: float) -> float:
+        """AWSIM/RGL range Gaussian sigma at a distance (base + rise·d)."""
+        return self._params.sigma_range_base_m + self._params.sigma_range_rise_per_m * max(0.0, distance_m)
+
+    def position_cov_ne(self, distance_m: float) -> np.ndarray:
+        """Polar (sigma_r, sigma_c) Jacobian-projected NE covariance (isotropic form).
+
+        Same azimuth-averaged shape as RadarXBand: eigenvalues
+        0.5 (sigma_r^2 + sigma_c^2) with the VIMM cross-range calibration held
+        constant in range.
+        """
+        sigma2_r = self.range_sigma_m(distance_m) ** 2
+        sigma2_c = self._params.sigma_cross_range_m**2
+        sigma2 = 0.5 * (sigma2_r + sigma2_c)
+        return np.diag([sigma2, sigma2])
+
+    @property
+    def blind_ring_m(self) -> float:
+        """Near blind ring of the tilted install: lower edge = |pitch| + band/2."""
+        lower_edge_deg = abs(self._params.mount_pitch_deg) + 0.5 * self._params.vertical_fov_deg
+        return self._params.mount_height_m / np.tan(np.radians(lower_edge_deg))
+
+    @property
+    def max_range(self) -> float:
+        return self._params.max_range_m
+
+    @property
+    def params(self) -> LidarParams:
         return self._params

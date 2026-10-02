@@ -29,6 +29,7 @@ from colav_simulator.core.mast_cameras import (
     MAST_MOUNTS_BY_ID,
     SENSOR_ID_EO,
     SENSOR_ID_IR,
+    SENSOR_ID_LIDAR,
     focal_px,
     georeference_box,
 )
@@ -77,15 +78,18 @@ class TestMastMountTable:
         eo_ring = [m for m in MAST_MOUNTS if m.sensor_id == SENSOR_ID_EO and not m.mount_id.startswith("mast_ptz")]
         ir_ring = [m for m in MAST_MOUNTS if m.sensor_id == SENSOR_ID_IR and not m.mount_id.startswith("mast_ptz")]
         ptz = [m for m in MAST_MOUNTS if m.mount_id.startswith("mast_ptz")]
+        lidar = [m for m in MAST_MOUNTS if m.sensor_id == SENSOR_ID_LIDAR]
         assert len(eo_ring) == 5, "EO ring is 5 fixed cameras"
         assert len(ir_ring) == 4, "IR ring is 4 fixed cameras"
         assert len(ptz) == 2, "dual-spectrum PTZ = white + LWIR channel mounts"
+        assert len(lidar) == 1, "LiDAR depth camera row (P3-S3 point-cloud view / contact model)"
 
     def test_mount_ids_unique_and_contract_vocabulary(self) -> None:
         ids = [m.mount_id for m in MAST_MOUNTS]
         assert len(ids) == len(set(ids))
         assert "mast_ir_bow" in ids, "contract observations-v1 §3 sample vocabulary"
         assert FEED_MOUNT_ID in ids
+        assert "mast_lidar" in ids, "sensor-model-v1 §3 mount vocabulary (P3-S3)"
 
     def test_ring_layout_matches_task_azimuths(self) -> None:
         azimuths = {m.mount_id: m.azimuth_deg for m in MAST_MOUNTS}
@@ -96,15 +100,33 @@ class TestMastMountTable:
         assert azimuths["mast_eo_quarter"] == 180.0
         assert azimuths["mast_ir_bow"] == 0.0
         assert azimuths["mast_ptz_eo"] == 0.0, "PTZ white channel is the forward EO role"
+        assert azimuths["mast_lidar"] == 0.0, "LiDAR flange on the mast centreline (milliampere §4.2)"
 
     def test_heights_anchor_on_fbx_mast_measurements(self) -> None:
         for mount in MAST_MOUNTS:
             if mount.mount_id.startswith("mast_ptz"):
                 assert mount.height_m == pytest.approx(11.5)
                 assert mount.forward_offset_m == pytest.approx(2.5)
+                assert mount.pitch_deg == pytest.approx(0.0)
+            elif mount.sensor_id == SENSOR_ID_LIDAR:
+                assert mount.height_m == pytest.approx(11.0), "mast-top flange 11 m (milliampere §4.2 LiDAR row)"
+                assert mount.forward_offset_m == pytest.approx(2.1), "mast centreline +2.1 m"
+                assert mount.pitch_deg == pytest.approx(-10.0), "install downtilt (Unity table mirrors)"
             else:
                 assert mount.height_m == pytest.approx(10.5), "mast rail ring (milliampere §4.2)"
                 assert mount.forward_offset_m == pytest.approx(2.1), "FBX mast at +2.1 m"
+                assert mount.pitch_deg == pytest.approx(0.0)
+
+    def test_lidar_row_is_the_bypass_depth_camera(self) -> None:
+        """P3-S3: pixel intrinsics = the Unity depth-capture pinhole (90x32 deg)."""
+        mount = MAST_MOUNTS_BY_ID["mast_lidar"]
+        assert mount.channel == "lidar"
+        assert mount.sensor_id == 4
+        assert mount.hfov_deg == 90.0
+        assert mount.reference_width_px == 640 and mount.reference_height_px == 184
+        expected_aspect = math.tan(math.radians(45.0)) / math.tan(math.radians(16.0))
+        assert mount.reference_width_px / mount.reference_height_px == pytest.approx(expected_aspect, rel=0.01)
+        assert mount.fx_reference_px == pytest.approx(focal_px(90.0, 640))
 
     def test_feed_mount_publishes_640x480(self) -> None:
         feed = MAST_MOUNTS_BY_ID[FEED_MOUNT_ID]
@@ -112,7 +134,7 @@ class TestMastMountTable:
         assert feed.hfov_deg == 60.0
 
     def test_sensor_ids_restricted_to_contract_vocabulary(self) -> None:
-        assert {m.sensor_id for m in MAST_MOUNTS} == {SENSOR_ID_EO, SENSOR_ID_IR}
+        assert {m.sensor_id for m in MAST_MOUNTS} == {SENSOR_ID_EO, SENSOR_ID_IR, SENSOR_ID_LIDAR}
 
     def test_eo_ring_dead_ahead_sector_is_the_ptz_role(self) -> None:
         """Documented S2 deviation: with 90 deg HFOV the EO ring covers 15-345 deg.

@@ -28,10 +28,9 @@ export const TWIN_REPLAY_RATES = [0.5, 1, 5, 20];
 // lidar=点云视角；雷达 PPI/AIS 为 web 面板态不经此桥。
 export const TWIN_SENSOR_MODES = ['eo', 'ir', 'lidar'];
 export const TWIN_SENSOR_MODE_DEFAULT = 'eo';
-// P3-S2 按钮组标签（spec #90）：lidar 本段为占位——切换被 Unity 接受并经 state 回显，
-// 点云渲染属 S3（契约 §2 注）；按钮保持可用但标 pending（UI 明示方案，任务书二选一）。
-export const TWIN_SENSOR_MODE_LABELS = { eo: 'EO', ir: 'IR', lidar: 'LiDAR·S3' };
-export const TWIN_SENSOR_MODE_PENDING = ['lidar'];
+// P3-S3 按钮组标签（spec #90）：lidar 自 S3 起为真实现（Unity LidarViewPass 点云视角），
+// S2 的 "LiDAR·S3" pending 徽标移除——三键均可用（契约 §8 台账）。
+export const TWIN_SENSOR_MODE_LABELS = { eo: 'EO', ir: 'IR', lidar: 'LiDAR' };
 // P2-S4 联动 spike（契约 §8）：Cesium 相机变更上报阈值（camera.changed percentageChanged）。
 export const TWIN_LINK_CHANGE_PERCENT = 0.01;
 
@@ -97,11 +96,9 @@ export function projectSensorMode(state) {
 }
 
 /**
- * P3-S2 (spec #90): sensor-mode button group projection. `active` = the
- * authoritative mode (state echo, or the optimistic local pick before Unity
- * answers). `pending` marks the S3 placeholder (lidar: accepted + echoed, no
- * point-cloud rendering yet — contract §2 note); the page shows the pending
- * chip instead of disabling, so the message path stays E2E-testable.
+ * P3-S2 (spec #90) sensor-mode button group projection; P3-S3 un-pends lidar
+ * (真实现 — contract §8 台账). `active` = the authoritative mode (state echo,
+ * or the optimistic local pick before Unity answers).
  */
 export function sensorModeItems(active = TWIN_SENSOR_MODE_DEFAULT) {
   const mode = TWIN_SENSOR_MODES.includes(active) ? active : TWIN_SENSOR_MODE_DEFAULT;
@@ -109,7 +106,6 @@ export function sensorModeItems(active = TWIN_SENSOR_MODE_DEFAULT) {
     value,
     label: TWIN_SENSOR_MODE_LABELS[value] ?? value.toUpperCase(),
     active: value === mode,
-    pending: TWIN_SENSOR_MODE_PENDING.includes(value),
   }));
 }
 
@@ -626,7 +622,7 @@ export function createTwinViewController({
     const chip = chipEl ?? el('twinSensorMode');
     if (chip) {
       const item = sensorModeItems(mode).find(entry => entry.value === mode);
-      chip.textContent = `SENSOR ${item?.label ?? mode.toUpperCase()}${item?.pending ? ' · PENDING S3' : ''}`;
+      chip.textContent = `SENSOR ${item?.label ?? mode.toUpperCase()}`;
     }
   }
 

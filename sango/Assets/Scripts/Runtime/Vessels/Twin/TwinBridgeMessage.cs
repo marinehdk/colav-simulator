@@ -71,15 +71,16 @@ namespace Sango
         }
 
         /// <summary>
-        /// sensor_mode 渲染/语义效果（P3-S2 接线，spec #90；纯函数，EditMode 可测）：
-        /// eo = 默认正常渲染；ir = 流相机开 IR pass（黑白热像 + 温度 tag）；
-        /// lidar = 本段占位——切换被接受且 state 回显，点云渲染留 S3（契约 §2 注，
-        /// UI 以 pending 态明示而非禁用）。任何模式都不改相机预设（正交叠加，契约 §2）。
+        /// sensor_mode 渲染/语义效果（P3-S2 接线，spec #90；P3-S3 起为真实现表；
+        /// 纯函数，EditMode 可测）：eo = 默认正常渲染；ir = 流相机开 IR pass
+        /// （黑白热像 + 温度 tag）；lidar = 流相机开点云视角（P3-S3：深色背景 +
+        /// mast_lidar 深度 16 线点云，LidarViewPass 真实现替换 S2 占位）。任何
+        /// 模式都不改相机预设（正交叠加，契约 §2）。
         /// </summary>
-        public static void SensorModeEffect(string sensorMode, out bool irRenderActive, out bool lidarPending)
+        public static void SensorModeEffect(string sensorMode, out bool irRenderActive, out bool lidarRenderActive)
         {
             irRenderActive = sensorMode == "ir";
-            lidarPending = sensorMode == "lidar";
+            lidarRenderActive = sensorMode == "lidar";
         }
 
         /// <summary>错误码表（契约 §4 冻结）。</summary>
