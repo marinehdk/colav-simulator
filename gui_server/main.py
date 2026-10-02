@@ -163,6 +163,29 @@ def _telemetry_colav(colav: dict[str, Any]) -> dict[str, Any]:
     return jsonable(colav)
 
 
+def _radar_ppi_descriptor(prepared: PreparedRun | None) -> dict[str, Any] | None:
+    """Ownship sensor PPI parameterization for the web radar-ppi panel (P3-S1, spec #90).
+
+    Additive duck-typed seam: any ownship sensor exposing ``ppi_descriptor()``
+    (currently sensing.RadarXBand, sensor-model-v1 sensor_id=1) contributes the
+    envelope-level ``radar_ppi`` field. Null keeps the payload shape for sessions
+    without an X-band model, so the legacy web consumers stay untouched.
+    """
+    if prepared is None:
+        return None
+    ships = getattr(getattr(prepared, "session", None), "ship_list", None) or []
+    if not ships:
+        return None
+    for sensor in getattr(ships[0], "sensors", None) or []:
+        descriptor = getattr(sensor, "ppi_descriptor", None)
+        if callable(descriptor):
+            try:
+                return jsonable(descriptor())
+            except Exception:  # noqa: BLE001 (descriptor defects must never break telemetry)
+                return None
+    return None
+
+
 def _compact_stream_payload(payload: dict[str, Any], *, include_static: bool) -> dict[str, Any]:
     repeated_prediction_fields = {
         "evidence_timeline",
@@ -1566,6 +1589,11 @@ class WebSessionManager:
             "failure_reason": session.failure_reason,
             "baseline_threat_failure_reason": session.baseline_threat_failure_reason,
             "reproduction_status": self.result.manifest.reproduction_status if self.result else "running",
+            # P3-S1 additive field (spec #90): radar_x PPI parameterization for the
+            # web PPI panel. Null when no sensor exposes a ppi_descriptor. Top-level
+            # envelope key survives all transports (_compact_stream_payload only
+            # strips truth[]-level keys); web consumes leniently.
+            "radar_ppi": _radar_ppi_descriptor(self.prepared),
         }
 
     @staticmethod

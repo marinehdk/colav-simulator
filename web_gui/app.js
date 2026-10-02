@@ -13,6 +13,7 @@ import {
   simplifiedMpcFanGeometry,
 } from './modules/situation-display.js?v=20260923-vo-disc-v1';
 import { buildRadarModel, createRadarMiniMap } from './modules/radar-mini-map.js?v=20260827-instrument-polish-v1';
+import { buildPpiModel, createRadarPpi } from './modules/radar-ppi.js?v=20261002-ppi-v1';
 import { routeLegs, routeProgress } from './modules/route-progress.js?v=20260901-route-card-v1';
 
 /**
@@ -126,6 +127,23 @@ const situationDisplay = createSituationDisplay({
   onTargetMarkersChange: renderVesselMarkers,
 });
 const radarMiniMap = createRadarMiniMap({ canvas: document.getElementById('liveRadarMiniMap') });
+// P3-S1 radar PPI panel (spec #90): overlay toggle + range-scale buttons; the
+// panel draws from the same envelope the chart consumes (additive `radar_ppi`).
+const radarPpiPanel = document.getElementById('ppiPanel');
+const radarPpi = createRadarPpi({ canvas: document.getElementById('ppiCanvas') });
+function setPpiPanelVisible(visible) {
+  if (radarPpiPanel) radarPpiPanel.hidden = !visible;
+  document.getElementById('ppiBtn')?.setAttribute('aria-pressed', String(visible));
+  radarPpi.setVisible(visible);
+}
+document.getElementById('ppiBtn')?.addEventListener('click', () => setPpiPanelVisible(!radarPpi.visible()));
+document.getElementById('ppiCloseBtn')?.addEventListener('click', () => setPpiPanelVisible(false));
+document.querySelectorAll('[data-ppi-range]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    radarPpi.setRangeScale(Number(btn.dataset.ppiRange));
+    document.querySelectorAll('[data-ppi-range]').forEach(other => other.classList.toggle('active', other === btn));
+  });
+});
 
 deploymentView = createDeploymentView({
   chart: situationDisplay,
@@ -2516,6 +2534,9 @@ function renderProjection(proj) {
     );
     const radarModel = buildRadarModel(data, RADAR_DETECTION_RANGE_M, targetThreatLevels);
     radarMiniMap.render(radarModel);
+    // Radar PPI overlay (P3-S1): descriptor arrives additively per envelope.
+    radarPpi.setDescriptor(data.radar_ppi);
+    if (radarPpi.visible()) radarPpi.render(buildPpiModel(data, radarPpi.options()));
     situationDisplay.setTargetThreatLevels(targetThreatLevels);
     deploymentView.render(proj);
     renderTimelineLog(proj);

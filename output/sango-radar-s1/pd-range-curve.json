@@ -1,0 +1,87 @@
+{
+  "artifact": "pd-range-curve",
+  "sensor": "RadarXBand",
+  "params": {
+    "snr_ref_db": 13.0,
+    "snr_ref_range_m": 5556.0,
+    "rcs_ref_m2": 10.0,
+    "decay_db_per_decade": 40.0,
+    "pfa": 0.0001,
+    "target_length_m": 10.0,
+    "target_width_m": 4.0
+  },
+  "curve": [
+    {
+      "range_nm": 0.5,
+      "range_m": 926.0,
+      "snr_db": 47.13634997198556,
+      "pd_analytic": 1.0,
+      "pd_measured": 1.0,
+      "note": "per-revolution Monte-Carlo (400 scans, seed 99): beam crossing + PD(SNR) draw"
+    },
+    {
+      "range_nm": 1.0,
+      "range_m": 1852.0,
+      "snr_db": 35.09515014542631,
+      "pd_analytic": 1.0,
+      "pd_measured": 1.0,
+      "note": "per-revolution Monte-Carlo (400 scans, seed 99): beam crossing + PD(SNR) draw"
+    },
+    {
+      "range_nm": 2.0,
+      "range_m": 3704.0,
+      "snr_db": 23.053950318867063,
+      "pd_analytic": 1.0,
+      "pd_measured": 1.0,
+      "note": "per-revolution Monte-Carlo (400 scans, seed 99): beam crossing + PD(SNR) draw"
+    },
+    {
+      "range_nm": 3.0,
+      "range_m": 5556.0,
+      "snr_db": 16.010299956639813,
+      "pd_analytic": 0.9999989121746696,
+      "pd_measured": 1.0,
+      "note": "per-revolution Monte-Carlo (400 scans, seed 99): beam crossing + PD(SNR) draw"
+    },
+    {
+      "range_nm": 6.0,
+      "range_m": 11112.0,
+      "snr_db": 3.969100130080564,
+      "pd_analytic": 0.044024044230571054,
+      "pd_measured": 0.0425,
+      "note": "per-revolution Monte-Carlo (400 scans, seed 99): beam crossing + PD(SNR) draw"
+    },
+    {
+      "range_nm": 9.0,
+      "range_m": 16668.0,
+      "snr_db": -3.0745502321466844,
+      "pd_analytic": 0.0039861692585655825,
+      "pd_measured": 0.0,
+      "note": "per-revolution Monte-Carlo (400 scans, seed 99): beam crossing + PD(SNR) draw"
+    },
+    {
+      "range_nm": 12.0,
+      "range_m": 22224.0,
+      "snr_db": -8.072099696478684,
+      "pd_analytic": 0.0020293256176176053,
+      "pd_measured": 0.0,
+      "note": "per-revolution Monte-Carlo (400 scans, seed 99): beam crossing + PD(SNR) draw"
+    },
+    {
+      "range_nm": 18.0,
+      "range_m": 33336.0,
+      "snr_db": -15.115750058705935,
+      "pd_analytic": 0.0015149602457457392,
+      "pd_measured": 0.0,
+      "note": "per-revolution Monte-Carlo (400 scans, seed 99): beam crossing + PD(SNR) draw"
+    },
+    {
+      "range_nm": 24.0,
+      "range_m": 44448.0,
+      "snr_db": -20.11329952303793,
+      "pd_analytic": 0.001438230277383016,
+      "pd_measured": 0.0,
+      "note": "per-revolution Monte-Carlo (400 scans, seed 99): beam crossing + PD(SNR) draw"
+    }
+  ]
+}

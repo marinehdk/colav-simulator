@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>Radar PPI visual acceptance (P3-S1)</title>
+<style>
+  body { margin: 0; background: #0d1117; font: 13px system-ui; color: #e6edf3; }
+  header { padding: 8px 12px; display: flex; gap: 12px; align-items: center; }
+  button { padding: 5px 10px; cursor: pointer; }
+  button.active { outline: 2px solid #39d98a; }
+  .stage { position: relative; width: 480px; height: 480px; margin: 0 auto; }
+  #ppiCanvas { width: 100%; height: 100%; }
+  #status { padding: 6px 12px; font: 12px/16px monospace; color: #9fb8ad; }
+</style>
+</head>
+<body>
+<header>
+  <strong>X-BAND PPI — mock envelope</strong>
+  <span id="ranges"></span>
+</header>
+<div class="stage"><canvas id="ppiCanvas"></canvas></div>
+<div id="status">loading…</div>
+<script type="module">
+import { buildPpiModel, createRadarPpi, N_METERS_PER_NM } from '../../web_gui/modules/radar-ppi.js';
+
+const descriptor = {
+  schema_version: 'radar-ppi@1',
+  sensor_label: 'radar_x',
+  mount_id: 'mast_top_xband',
+  seed: 20261002,
+  spokes: 2048,
+  scan_period_s: 2.5,
+  range_scales_nm: [0.75, 1.5, 3, 6, 12, 24],
+  range_scale_nm: 6,
+  blind_ring_m: 54.0,
+  blind_sectors_deg: [[0.0, 2.5]],
+  clutter_rate_per_m2: 5e-7,
+  clutter_range_decay: 2.0,
+  clutter_ref_range_m: 1000.0,
+  sea_state_beaufort: 4,
+  clutter_db_per_beaufort: 3.0,
+  max_measurements_per_scan: 400,
+  snr_model: { snr_ref_db: 13.0, ref_range_m: 5556.0, ref_rcs_m2: 10.0, decay_db_per_decade: 40.0, pfa: 1e-4 },
+  occlusion: true,
+};
+
+// Mock ownship + two detected targets + one land-shadowed target that the
+// backend model dropped (absent from measurements), world NE meters.
+const osNorth = 6955000, osEast = 37000;
+function makeEnvelope(simTimeS) {
+  return {
+    sim_time: simTimeS,
+    radar_ppi: descriptor,
+    os: { north: osNorth, east: osEast, psi: 0.35 },
+    measurements: [[
+      // one radar_x sensor group: latest-scan blips (do_idx >= 0); the 5th
+      // target is land-shadowed in the mock scene and correctly absent
+      [[0, [osNorth + 3200, osEast + 1800]], [3, [osNorth - 2600, osEast + 4100]], [5, [osNorth + 5200, osEast - 7000]]],
+    ]],
+  };
+}
+
+const canvas = document.getElementById('ppiCanvas');
+const ppi = createRadarPpi({ canvas });
+ppi.setDescriptor(descriptor);
+ppi.setVisible(true);
+const status = document.getElementById('status');
+const ranges = document.getElementById('ranges');
+for (const nm of descriptor.range_scales_nm) {
+  const btn = document.createElement('button');
+  btn.textContent = nm;
+  btn.className = nm === 6 ? 'active' : '';
+  btn.onclick = () => {
+    ppi.setRangeScale(nm);
+    ranges.querySelectorAll('button').forEach(b => b.classList.toggle('active', b === btn));
+  };
+  ranges.appendChild(btn);
+}
+
+let simTime = 1.55; // mid-scan sweep for the acceptance frame
+let last = performance.now();
+function frame(now) {
+  simTime += (now - last) / 1000;
+  last = now;
+  const envelope = makeEnvelope(simTime);
+  ppi.render(buildPpiModel(envelope, ppi.options()));
+  status.textContent = `sim_time ${simTime.toFixed(1)} s | blips ${ppi.options().rangeScaleNm} nm scale | sweep ${(simTime / 2.5 % 1 * 360).toFixed(0)}°`;
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+window.__ppiReady = true;
+</script>
+</body>
+</html>

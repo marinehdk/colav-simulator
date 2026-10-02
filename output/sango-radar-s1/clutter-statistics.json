@@ -1,0 +1,12 @@
+{
+  "artifact": "clutter-statistics",
+  "expected_count_per_scan": 16.727158748188984,
+  "empirical_mean": 17.218487394957982,
+  "empirical_variance": 19.380834686815906,
+  "scans": 119,
+  "sea_state_beaufort": 3.0,
+  "clutter_rate_per_m2": 5e-07,
+  "clutter_range_decay": 2.0,
+  "min_radius_m": 54.12850204394468,
+  "blind_ring_m": 54.128502043944685
+}
