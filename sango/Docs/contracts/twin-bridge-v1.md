@@ -37,6 +37,7 @@ web 侧：`web_gui/modules/twin-view.js` + `web_gui/vendor/urs/`（URS 官方 re
 | `camera_free` | `pos:{east,north,height_m}`, `yaw_deg`, `pitch_deg`, `fov_deg` | **P2-S4 演进新增（§8）**：Cesium↔Twin 分屏主从联动的自由位姿（单向 Cesium 主→Twin 从，web 侧默认关，逐帧锁步不做）。`pos` 为相机锚点**全域 UTM 米**（与 `attached.anchor` 同一框架，Unity 侧减锚得场景坐标）；`height_m` 椭球零视觉约定（ENC 网格 h=0 同基准）；`yaw_deg` 北向东顺时针；**`pitch_deg` 负=俯**（CameraPose 语义沿用）；`fov_deg` 垂直向度。生效中 `state.camera`/`attached.camera` 回显 `"free"`；任何 `camera` 预设消息收回控制权 |
 | `theme` | `value:"day"\|"night"\|"dusk"` | 映射 Unity 时刻档：`day=12h, dusk=17.5h, night=0h`（`WeatherGUI.k_TimePresets` 同源） |
 | `detection` | `enabled`, `source:"yolo"\|"truth"` | `enabled=false` = overlay 关；`truth` = 地面真值路径（`requireLive=false`）；`yolo` = live 优先路径（`requireLive=true`，无新鲜结果按 DetectionFreshness 既有规则回退）。复用 M9 `DetectionOverlay` |
+| `sensor_mode` | `value:"eo"\|"ir"\|"lidar"` | **P3-S0 演进新增（§8，spec #90）**：主孪生视口传感器模式——eo=可见光（默认，驾驶舱视角）/ ir=黑白热像 / lidar=点云视角；雷达 PPI/AIS 为 web 面板态不经此桥。词汇 = `TwinBridge.SensorModes` / web `TWIN_SENSOR_MODES`；视口按钮组接线属 S2 |
 
 时钟节流：web 端以 `ReplayClock` 驱动，10Hz 定时器对 `playhead_s` 采样发送；`rate` 变更即时补发。
 Unity 渲染钟把 `rate` 写进所喂帧的 `playback.effective_multiplier`（S1 管线零改动消费）。
@@ -47,7 +48,7 @@ Unity 渲染钟把 `rate` 写进所喂帧的 `playback.effective_multiplier`（S
 |---|---|---|
 | `ready` | `protocol`, `build`, `scene`, `modes_supported[]` | 对 `hello` 的应答；`modes_supported` ⊆ `["live","replay"]` |
 | `attached` | `run_id`, `mode`, `anchor:{east,north}`（全域 UTM 米）, `ships`（int，已挂槽位数）, `camera`（当前预设名） | 数据面就绪：replay = context（ENC 原点）取到后发；live = 首帧锚定后发。**数据面重连恢复后重发**（§5） |
-| `state` | `fps`, `frame_seq`, `sim_time`, `clock_skew_ms`, `stream:{state:"ok"\|"degraded"\|"down", latency_ms}`, `detection:{source,enabled,live}`, `camera` | ~1Hz 心跳。`sim_time` = Unity 渲染插值钟；`clock_skew_ms` = 渲染钟 − web playhead（ms）；`stream`：replay = 帧泵健康（帧前进 ok / 停滞 degraded / 取数失败 down），live = WS 连接态；`latency_ms` = \|clock_skew\|；未知为 0；`detection.enabled` = web 既有开关态回显（P3 演进只加字段，§8） |
+| `state` | `fps`, `frame_seq`, `sim_time`, `clock_skew_ms`, `stream:{state:"ok"\|"degraded"\|"down", latency_ms}`, `detection:{source,enabled,live}`, `camera`, `sensor_mode` | ~1Hz 心跳。`sim_time` = Unity 渲染插值钟；`clock_skew_ms` = 渲染钟 − web playhead（ms）；`stream`：replay = 帧泵健康（帧前进 ok / 停滞 degraded / 取数失败 down），live = WS 连接态；`latency_ms` = \|clock_skew\|；未知为 0；`detection.enabled` = web 既有开关态回显（P3 演进只加字段，§8）；`sensor_mode` = 当前主视口传感器模式回显，默认 `"eo"`（P3-S0 演进只加字段，§8，spec #90） |
 | `error` | `code`, `message` | 码表见 §4 |
 
 ## 4. 错误码表（冻结）
@@ -87,9 +88,10 @@ Unity 渲染钟把 `rate` 写进所喂帧的 `playback.effective_multiplier`（S
 {"type":"camera_free","pos":{"east":37012.5,"north":6955012.25,"height_m":120},"yaw_deg":45,"pitch_deg":-35,"fov_deg":60}
 {"type":"theme","value":"night"}
 {"type":"detection","enabled":true,"source":"truth"}
+{"type":"sensor_mode","value":"ir"}
 {"type":"ready","protocol":"twin-bridge@1","build":"1.0","scene":"SangoTwin","modes_supported":["live","replay"]}
 {"type":"attached","run_id":"3e19f9e6-741c-48b2-84bf-3ec5e90e1ceb","mode":"replay","anchor":{"east":544302.5,"north":6323000.25},"ships":3,"camera":"bridge"}
-{"type":"state","fps":30.5,"frame_seq":41,"sim_time":12.4,"clock_skew_ms":35.0,"stream":{"state":"ok","latency_ms":35.0},"detection":{"source":"truth","enabled":true,"live":false},"camera":"bridge"}
+{"type":"state","fps":30.5,"frame_seq":41,"sim_time":12.4,"clock_skew_ms":35.0,"stream":{"state":"ok","latency_ms":35.0},"detection":{"source":"truth","enabled":true,"live":false},"camera":"bridge","sensor_mode":"eo"}
 {"type":"error","code":"RUN_NOT_FOUND","message":"backend returned 404 for run 3e19…"}
 ```
 
@@ -108,3 +110,4 @@ Unity 渲染钟把 `rate` 写进所喂帧的 `playback.effective_multiplier`（S
 | 2026-10-02 | P2-S3 | 契约冻结（§1-§7） | spec #89，`a430fc62` |
 | 2026-10-02 | P2-S4 | web→Unity 新增 `camera_free` 消息（§2 表 + §6 样例）；`state.camera`/`attached.camera` 新增回显词汇 `"free"`（§3 注）。**只加字段/只加词汇**：既有消息形状零改动（`JsonUtility` 忽略未知字段、web `JSON.parse` 宽松消费，双侧旧实现互通）。语义边界：仅 Deployment twin 态的默认关联动开关产生此消息；单向 Cesium 主→Twin 从，反向不做，逐帧锁步不做 | spec #89 S4；CesiumJS `camera.changed`（`percentageChanged` 0.01）位姿折算纯函数 = web `twin-view.js#cameraFreePose`，Unity 应用 = `CameraRig.SetFreePose` |
 | 2026-10-02 | P3 清零批 | `state.detection` 新增 `enabled`（bool，web 既有 detection 开关态回显；此前 `m_DetectionEnabled` 为死字段）。**只加字段**：`detection:{source,enabled,live}`，旧 web 侧宽松消费零影响；§6 样例同步；附 §4 `REBUILD` 保留注（无显式发出路径，重建以 `attached` 重发体现） | spec #89 P3 残留清零批（review F7/F8 同批） |
+| 2026-10-02 | P3-S0 | web→Unity 新增 `sensor_mode` 消息（§2 表 + §6 样例，复用 theme 同款 `value` 字段面）；`state` 新增 `sensor_mode` 回显字段（默认 `"eo"`，词汇 `eo\|ir\|lidar`；§3/§6 同步）。**只加 type/只加字段**：既有消息形状零改动（Unity `JsonUtility` 忽略未知字段、web `JSON.parse` 宽松消费，双侧旧实现互通；旧 Unity 构建的 state 无此字段 = web 侧 undefined，已测）。语义边界：雷达 PPI/AIS 为 web 面板态不经此桥；视口按钮组与渲染切换接线属 S2/S3（本段零运行时行为变化，仅 DTO 词汇面 + 回环测试） | spec #90；词汇/默认值 = `TwinBridge.SensorModes`/`DefaultSensorMode`，web = `TWIN_SENSOR_MODES`/`TWIN_SENSOR_MODE_DEFAULT`，sender = `client.sendSensorMode` |

@@ -24,6 +24,10 @@ export const TWIN_SIGNALING_URL_DEFAULT = 'ws://127.0.0.1:8080';
 export const TWIN_CAMERA_PRESETS = ['bridge', 'bow', 'chase', 'top', 'overlook'];
 export const TWIN_THEMES = ['day', 'dusk', 'night'];
 export const TWIN_REPLAY_RATES = [0.5, 1, 5, 20];
+// P3-S0 sensor_mode 词汇（契约 §2/§8 演进，spec #90）：主视口 eo=可见光（默认）/ ir=黑白热像 /
+// lidar=点云视角；雷达 PPI/AIS 为 web 面板态不经此桥。视口按钮组接线属 S2。
+export const TWIN_SENSOR_MODES = ['eo', 'ir', 'lidar'];
+export const TWIN_SENSOR_MODE_DEFAULT = 'eo';
 // P2-S4 联动 spike（契约 §8）：Cesium 相机变更上报阈值（camera.changed percentageChanged）。
 export const TWIN_LINK_CHANGE_PERCENT = 0.01;
 
@@ -272,6 +276,14 @@ export function createTwinBridgeClient({ channel = null, now = () => Date.now(),
 
     sendDetection(enabled, source) {
       return send({ type: 'detection', enabled, source });
+    },
+
+    /**
+     * P3-S0 演进（契约 §8，只加 type）：主视口传感器模式。词汇 = TWIN_SENSOR_MODES；
+     * Unity 侧 state.sensor_mode 回显（默认 eo）。接线（工具条按钮组）属 S2。
+     */
+    sendSensorMode(value) {
+      return send({ type: 'sensor_mode', value });
     },
 
     /** Inbound Unity→web frame. Returns the parsed message; unknown/malformed tolerated. */

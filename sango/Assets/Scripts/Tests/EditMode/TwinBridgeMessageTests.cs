@@ -25,6 +25,9 @@ namespace Sango.Tests
 
         const string k_DetectionSample = "{\"type\":\"detection\",\"enabled\":true,\"source\":\"truth\"}";
 
+        // P3-S0 契约 §8 演进记录新增（只加字段；web twin-view.test.mjs 同源对拍，spec #90）
+        const string k_SensorModeSample = "{\"type\":\"sensor_mode\",\"value\":\"ir\"}";
+
         // P2-S4 契约 §8 演进记录新增（只加字段；web twin-view.test.mjs 同源对拍）
         const string k_CameraFreeSample =
             "{\"type\":\"camera_free\",\"pos\":{\"east\":37012.5,\"north\":6955012.25,\"height_m\":120}," +
@@ -39,7 +42,7 @@ namespace Sango.Tests
         const string k_StateSample =
             "{\"type\":\"state\",\"fps\":30.5,\"frame_seq\":41,\"sim_time\":12.4,\"clock_skew_ms\":35," +
             "\"stream\":{\"state\":\"ok\",\"latency_ms\":35},\"detection\":{\"source\":\"truth\",\"enabled\":true,\"live\":false}," +
-            "\"camera\":\"bridge\"}";
+            "\"camera\":\"bridge\",\"sensor_mode\":\"eo\"}";
 
         const string k_ErrorSample = "{\"type\":\"error\",\"code\":\"RUN_NOT_FOUND\",\"message\":\"backend 404\"}";
 
@@ -99,6 +102,14 @@ namespace Sango.Tests
             var back = TwinBridgeCommand.FromJson(once);
             var twice = JsonUtility.ToJson(back);
             Assert.That(twice, Is.EqualTo(once), "camera_free 信封 serialize→deserialize→serialize 逐位无损");
+        }
+
+        [Test]
+        public void SensorModeSample_DeserializesToDocumentedFields()
+        {
+            var cmd = TwinBridgeCommand.FromJson(k_SensorModeSample);
+            Assert.That(cmd.type, Is.EqualTo("sensor_mode"));
+            Assert.That(cmd.value, Is.EqualTo("ir"), "P3-S0 演进只加 type（§8）：复用 theme 同款 value 字段面");
         }
 
         [Test]
@@ -198,6 +209,7 @@ namespace Sango.Tests
             Assert.That(msg.detection.enabled, Is.True, "P3 演进只加字段（§8）：detection.enabled 回显 web 开关态");
             Assert.That(msg.detection.live, Is.False);
             Assert.That(msg.camera, Is.EqualTo("bridge"));
+            Assert.That(msg.sensor_mode, Is.EqualTo("eo"), "P3-S0 演进只加字段（§8）：state.sensor_mode 回显，默认 eo");
         }
 
         [Test]
@@ -212,6 +224,7 @@ namespace Sango.Tests
                 stream = new TwinBridgeStreamHealth { state = "ok", latency_ms = 35.0 },
                 detection = new TwinBridgeDetectionState { source = "truth", live = false },
                 camera = "top",
+                sensor_mode = "ir",
             };
             var once = original.ToJson();
             var back = TwinBridgeState.FromJson(once);
@@ -264,6 +277,11 @@ namespace Sango.Tests
             Assert.That(TwinBridge.IsValidTheme("night"), Is.True);
             Assert.That(TwinBridge.IsValidTheme("dusk"), Is.True);
             Assert.That(TwinBridge.IsValidTheme("dark"), Is.False);
+            Assert.That(TwinBridge.IsValidSensorMode("eo"), Is.True, "P3-S0 词汇（§2/§8）：eo/ir/lidar");
+            Assert.That(TwinBridge.IsValidSensorMode("ir"), Is.True);
+            Assert.That(TwinBridge.IsValidSensorMode("lidar"), Is.True);
+            Assert.That(TwinBridge.IsValidSensorMode("radar"), Is.False, "雷达 PPI 为 web 面板态不经此桥");
+            Assert.That(TwinBridge.DefaultSensorMode, Is.EqualTo("eo"));
         }
 
         // ── 重连退避（契约 §5：1s/2s/5s 封顶） ───────────────────────────────

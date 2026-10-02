@@ -5,6 +5,7 @@ import test from 'node:test';
 import {
   TWIN_BRIDGE_PROTOCOL,
   TWIN_CAMERA_PRESETS,
+  TWIN_SENSOR_MODES,
   TWIN_SIGNALING_URL_DEFAULT,
   createTwinBridgeClient,
   createTwinClockDriver,
@@ -153,6 +154,20 @@ test('bridge client control messages: camera/theme/detection/detach match contra
   assert.equal(client.sendDetach(), '{"type":"detach"}');
 });
 
+/* ── P3-S0 sensor_mode（契约 §8 演进，spec #90；EditMode TwinBridgeMessageTests 同源对拍） ── */
+
+test('sensor_mode message matches the frozen contract §8 literal (只加 type 演进)', () => {
+  assert.deepEqual(TWIN_SENSOR_MODES, ['eo', 'ir', 'lidar']);
+  const channel = recordingChannel();
+  const client = createTwinBridgeClient({ channel });
+  assert.equal(client.sendSensorMode('ir'), '{"type":"sensor_mode","value":"ir"}');
+  assert.equal(client.sendSensorMode('eo'), '{"type":"sensor_mode","value":"eo"}');
+  assert.equal(client.sendSensorMode('lidar'), '{"type":"sensor_mode","value":"lidar"}');
+  // Closed channel no-op, like every other message.
+  const closed = createTwinBridgeClient({ channel: { ...recordingChannel(), isOpen: () => false } });
+  assert.equal(closed.sendSensorMode('ir'), null);
+});
+
 test('bridge client clock: ~10Hz throttle while PLAYING, transitions always sent, force bypasses', () => {
   let now = 10_000;
   const channel = recordingChannel();
@@ -223,11 +238,12 @@ test('bridge client parses ready/attached/state and records HUD samples', () => 
   assert.equal(client.attached.ships, 3);
 
   now = 600;
-  client.onMessage('{"type":"state","fps":30.5,"frame_seq":41,"sim_time":12.4,"clock_skew_ms":35,"stream":{"state":"ok","latency_ms":35},"detection":{"source":"truth","enabled":true,"live":false},"camera":"bridge"}');
+  client.onMessage('{"type":"state","fps":30.5,"frame_seq":41,"sim_time":12.4,"clock_skew_ms":35,"stream":{"state":"ok","latency_ms":35},"detection":{"source":"truth","enabled":true,"live":false},"camera":"bridge","sensor_mode":"eo"}');
   assert.equal(client.lastState.fps, 30.5);
   assert.equal(client.lastState.sim_time, 12.4);
   assert.equal(client.lastState.camera, 'bridge');
   assert.equal(client.lastState.detection.enabled, true, 'P3 演进只加字段（contract §8）：detection.enabled 宽松透传');
+  assert.equal(client.lastState.sensor_mode, 'eo', 'P3-S0 演进只加字段（contract §8）：sensor_mode 回显默认 eo');
   assert.equal(client.samples.length, 1);
   assert.equal(client.samples[0].sim, 12.4);
   assert.equal(client.received, 3);
@@ -237,6 +253,12 @@ test('bridge client parses ready/attached/state and records HUD samples', () => 
   client.onMessage('{"type":"error","code":"REBUILD","message":"seq regression"}');
   assert.equal(client.errorCount, 1);
   assert.equal(client.lastError.code, 'REBUILD');
+});
+
+test('state frames without sensor_mode (old Unity build) still parse — only-additive evolution', () => {
+  const client = createTwinBridgeClient({ channel: recordingChannel() });
+  client.onMessage('{"type":"state","fps":30,"frame_seq":1,"sim_time":0.1,"clock_skew_ms":0,"camera":"bridge"}');
+  assert.equal(client.lastState.sensor_mode, undefined, '缺字段 = 宽松消费默认（契约 §1 只加不减）');
 });
 
 /* ── HUD projection ── */

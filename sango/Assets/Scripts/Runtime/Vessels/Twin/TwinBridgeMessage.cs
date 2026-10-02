@@ -36,6 +36,16 @@ namespace Sango
         /// <summary>theme 词汇 → WeatherController.timeOfDayHours（契约 §2：day=12, dusk=17.5, night=0）。</summary>
         public static readonly string[] ThemeValues = { "day", "dusk", "night" };
 
+        /// <summary>
+        /// sensor_mode 词汇（P3-S0 契约 §2/§8 演进新增，spec #90）：主孪生视口传感器模式——
+        /// eo=可见光（默认）/ ir=黑白热像 / lidar=点云视角；雷达 PPI/AIS 为 web 面板态不经此桥。
+        /// 视口切换接线属 S2；本段只冻结词汇与 DTO 字段面（零运行时行为变化）。
+        /// </summary>
+        public static readonly string[] SensorModes = { "eo", "ir", "lidar" };
+
+        /// <summary>sensor_mode 默认值（契约 §3 state 回显：驾驶舱视角默认可见光）。</summary>
+        public const string DefaultSensorMode = "eo";
+
         public static bool IsValidMode(string mode)
         {
             foreach (var candidate in ModesSupported) if (candidate == mode) return true;
@@ -51,6 +61,12 @@ namespace Sango
         public static bool IsValidTheme(string value)
         {
             foreach (var candidate in ThemeValues) if (candidate == value) return true;
+            return false;
+        }
+
+        public static bool IsValidSensorMode(string value)
+        {
+            foreach (var candidate in SensorModes) if (candidate == value) return true;
             return false;
         }
 
@@ -179,7 +195,8 @@ namespace Sango
         public bool live;
     }
 
-    /// <summary>Unity→web `state`（~1Hz 心跳；契约 §3/§6）。</summary>
+    /// <summary>Unity→web `state`（~1Hz 心跳；契约 §3/§6）。sensor_mode = P3-S0 演进只加字段
+    /// （契约 §8 台账）：主视口传感器模式回显，默认 eo（JsonUtility 恒写全字段——旧 web 宽松消费零影响）。</summary>
     [Serializable]
     public class TwinBridgeState
     {
@@ -191,6 +208,7 @@ namespace Sango
         public TwinBridgeStreamHealth stream = new TwinBridgeStreamHealth();
         public TwinBridgeDetectionState detection = new TwinBridgeDetectionState();
         public string camera = "bridge";
+        public string sensor_mode = TwinBridge.DefaultSensorMode;
 
         public string ToJson() => JsonUtility.ToJson(this);
 
