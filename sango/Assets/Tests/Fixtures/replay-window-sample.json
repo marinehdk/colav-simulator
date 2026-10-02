@@ -1,0 +1,112 @@
+{
+ "provenance": "P2-S1 fixture: real GET /api/runs/745d63fd-8be9-4f59-9813-87ca2846f9b1/replay/window?from=10&to=12 (READY sealed run, head_on, recorded 2026-09-23), captured 2026-10-02 for spec issue #89. Trimmed for size: only frames[0..1] kept; per-ship payload reduced to id/mmsi/state/csog_state/turn_rate/active (colav, waypoints, references, do_*, sensor_measurements dropped); before/after/history/decision_space events emptied. Untrimmed evidence lives on the backend run; shape reference: gui_server/replay.py window() and web_gui/modules/replay-source.js localShips().",
+ "schema_version": "colav.run-replay.window@1",
+ "run_id": "745d63fd-8be9-4f59-9813-87ca2846f9b1",
+ "requested": {
+  "from_s": 10.0,
+  "to_s": 12.0
+ },
+ "state": "READY",
+ "trusted_t_end": 747.5,
+ "truncated": false,
+ "frames": [
+  {
+   "sequence": 21,
+   "sim_time": 10.0,
+   "state": "RUNNING",
+   "payload": {
+    "Ship0": {
+     "id": 0,
+     "mmsi": 100,
+     "state": [
+      6957549.216074138,
+      39548.20092363636,
+      0.7781187775120504,
+      6.883435299073715,
+      -0.08693168453614199,
+      -0.001407248247167543
+     ],
+     "csog_state": [
+      6957549.216074138,
+      39548.20092363636,
+      6.883984212235697,
+      0.7654903355360728
+     ],
+     "turn_rate": -0.001407248247167543,
+     "active": true
+    },
+    "Ship1": {
+     "id": 1,
+     "mmsi": 101,
+     "state": [
+      6959450.502525316,
+      41450.5025253177,
+      -2.3561944902946994,
+      7.0,
+      4.1467822342310037e-10,
+      5.88112353388043e-11
+     ],
+     "csog_state": [
+      6959450.502525316,
+      41450.5025253177,
+      7.0,
+      -2.3561944902354597
+     ],
+     "turn_rate": 5.88112353388043e-11,
+     "active": true
+    }
+   }
+  },
+  {
+   "sequence": 22,
+   "sim_time": 10.5,
+   "state": "RUNNING",
+   "payload": {
+    "Ship0": {
+     "id": 0,
+     "mmsi": 100,
+     "state": [
+      6957551.699746595,
+      39550.58404934977,
+      0.7775664008802594,
+      6.8837402326653185,
+      -0.09142695849126663,
+      -0.001110230993627711
+     ],
+     "csog_state": [
+      6957551.699746595,
+      39550.58404934977,
+      6.884347353203071,
+      0.7642856000289125
+     ],
+     "turn_rate": -0.001110230993627711,
+     "active": true
+    },
+    "Ship1": {
+     "id": 1,
+     "mmsi": 101,
+     "state": [
+      6959448.027651581,
+      41448.02765158366,
+      -2.3561944902628533,
+      7.0,
+      1.8417209112432925e-10,
+      6.852120379201593e-11
+     ],
+     "csog_state": [
+      6959448.027651581,
+      41448.02765158366,
+      7.0,
+      -2.356194490236543
+     ],
+     "turn_rate": 6.852120379201593e-11,
+     "active": true
+    }
+   }
+  }
+ ],
+ "before": null,
+ "after": null,
+ "history": [],
+ "decision_space_before": null
+}

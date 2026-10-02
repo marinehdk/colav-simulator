@@ -31,5 +31,14 @@ namespace Sango
 
         /// <summary>消费端 CLI 旗标：与 PublisherCliFlag 同值——seam 总闸一处开闸，发布/消费两侧同使能。</summary>
         public const string ConsumerCliFlag = PublisherCliFlag;
+
+        /// <summary>
+        /// P2-S1 Twin 数据面（spec #89）：Demo/Twin 模式开关的 Twin 启动旗标。
+        /// 播放器命令行带此参数时 TwinSessionDriver 开闸（默认关闸，Demo 行为零变化）。
+        /// </summary>
+        public const string TwinCliFlag = "--sango-twin";
+
+        /// <summary>Twin 数据面后端基址（gui_server 本机常驻，00-REPORT.md §2.2）。</summary>
+        public const string TwinBackendBase = "http://127.0.0.1:8010";
     }
 }
