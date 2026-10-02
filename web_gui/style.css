@@ -669,7 +669,7 @@ obc-clock:not(:defined),
   min-height: 100%;
 }
 #evalViewReplay { height: 100%; }
-.evaluation-progress .config-progress-track i { width: 25%; }
+.evaluation-progress .config-progress-track i { width: 50%; }
 .evaluation-step[aria-pressed="true"] { background: var(--ob-accent-pale); box-shadow: inset 3px 0 0 var(--ob-accent); }
 .evaluation-step:disabled { opacity: .5; cursor: not-allowed; }
 .evaluation-step:disabled:hover { background: transparent; }
@@ -3873,3 +3873,11 @@ canvas#simCanvas.route-pick-mode { cursor: crosshair; }
 .scene3d-model-choice { display: grid; gap: 4px; padding: 8px 12px; font-size: 11px; background: var(--container-background-color, #f0f2f4); }
 .scene3d-model-choice[hidden] { display: none; }
 .scene3d-model-choice select { max-width: 100%; padding: 6px; font: inherit; }
+
+/* ── Evaluation > Digital Twin (#89 P2-S3) — twin viewport over the local URS pixel stream ── */
+#evalViewTwin { height: 100%; }
+.twin-stream-note { margin: 0; padding: 0 var(--s-3); font-size: 11px; line-height: 16px; color: var(--ob-muted); }
+.twin-viewer-main { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
+.twin-canvas-wrapper { position: relative; display: flex; flex: 1 1 auto; min-height: 0; overflow: hidden; border: 1px solid var(--ob-border); border-radius: var(--radius); background: #000; }
+.twin-video { width: 100%; height: 100%; object-fit: contain; background: #000; }
+.twin-hud { position: absolute; top: 12px; left: 12px; z-index: 6; background: color-mix(in srgb, var(--ob-surface) 86%, transparent); }

@@ -1,0 +1,123 @@
+{
+  "run_id": "745d63fd-8be9-4f59-9813-87ca2846f9b1",
+  "window_s": 10,
+  "sample_every_ms": 1000,
+  "twin": [
+    {
+      "at": 0,
+      "sim": 0.000021374999999324018,
+      "playhead": 0
+    },
+    {
+      "at": 1,
+      "sim": 0.7246919170000012,
+      "playhead": 0.8679999999999999
+    },
+    {
+      "at": 2,
+      "sim": 1.7307906660000008,
+      "playhead": 1.8679999999999999
+    },
+    {
+      "at": 3,
+      "sim": 2.7356837499999997,
+      "playhead": 2.868
+    },
+    {
+      "at": 4,
+      "sim": 3.7501381659999993,
+      "playhead": 3.869
+    },
+    {
+      "at": 5,
+      "sim": 4.750159042,
+      "playhead": 4.869
+    },
+    {
+      "at": 6,
+      "sim": 5.655880582999998,
+      "playhead": 5.867999999999999
+    },
+    {
+      "at": 7,
+      "sim": 6.761672957999998,
+      "playhead": 6.8679999999999986
+    },
+    {
+      "at": 8,
+      "sim": 7.652388542000004,
+      "playhead": 7.867
+    },
+    {
+      "at": 9,
+      "sim": 8.766286207999997,
+      "playhead": 8.868000000000004
+    }
+  ],
+  "replay": [
+    {
+      "at": 0,
+      "sim": "0.0",
+      "playhead": null
+    },
+    {
+      "at": 1,
+      "sim": "1.0",
+      "playhead": null
+    },
+    {
+      "at": 2,
+      "sim": "2.0",
+      "playhead": null
+    },
+    {
+      "at": 3,
+      "sim": "3.0",
+      "playhead": null
+    },
+    {
+      "at": 4,
+      "sim": "4.0",
+      "playhead": null
+    },
+    {
+      "at": 5,
+      "sim": "4.9",
+      "playhead": null
+    },
+    {
+      "at": 6,
+      "sim": "5.9",
+      "playhead": null
+    },
+    {
+      "at": 7,
+      "sim": "7.0",
+      "playhead": null
+    },
+    {
+      "at": 8,
+      "sim": "8.0",
+      "playhead": null
+    },
+    {
+      "at": 9,
+      "sim": "9.0",
+      "playhead": null
+    }
+  ],
+  "twin_stats": {
+    "first": 0.000021374999999324018,
+    "last": 8.766286207999997,
+    "delta": 8.766264832999997,
+    "samples": 10
+  },
+  "replay_stats": {
+    "first": 0,
+    "last": 9,
+    "delta": 9,
+    "samples": 10
+  },
+  "delta_diff_s": 0.23373516700000252,
+  "captured_at": "2026-10-02T10:22:03.750Z"
+}

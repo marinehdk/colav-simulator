@@ -170,7 +170,7 @@ PlayerSettings:
   androidMaxAspectRatio: 2.4
   androidMinAspectRatio: 1
   applicationIdentifier:
-    Standalone: com.colav.sango.ursspike
+    Standalone: com.colav.sango.twin
   buildNumber:
     Standalone: 0
     VisionOS: 0

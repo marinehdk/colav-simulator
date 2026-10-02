@@ -1,0 +1,98 @@
+# twin-bridge-v1 — web ↔ Unity Digital Twin 控制桥契约
+
+状态：**已冻结**（2026-10-02，P2-S3，spec #89）。本文由
+`docs/research/2026-10-02-phase2-unity-web-integration/twin-bridge-v1-draft.md` 冻结落地，补实现级细节。
+定位：web 页面（唯一 UI 编排权威）↔ Unity sango（渲染端）之间的**控制+状态**通道。遥测不走此桥——
+Unity 直连后端（live=WS compact-v1；replay=window REST），浏览器不做中继（00-REPORT §4 原则 1/2）。
+
+实现：`Assets/Scripts/Runtime/TwinBridgeService.cs`（编排）+ `TwinBridgeChannel.cs`（URS DataChannel 载体）+
+`Vessels/Twin/TwinBridgeMessage.cs`（DTO/序列化，EditMode 回环已测）+ `Vessels/Twin/TwinReconnectPolicy.cs`（退避纯函数）。
+web 侧：`web_gui/modules/twin-view.js` + `web_gui/vendor/urs/`（URS 官方 receiver 模块本地化）。
+
+## 1. 传输绑定
+
+| 路线 | 载体 | 说明 |
+|---|---|---|
+| **像素流主线（本版冻结）** | URS WebRTC DataChannel，label 恒 `twin-bridge` | Unity 侧 local=true（Unity 创建，浏览器 `createDataChannel` 不需要——onAddChannel 收）；与视频轨同一 PeerConnection |
+| 伴生辅线（未启用，保留形状） | `ws://127.0.0.1:5558`（localhost only） | Unity 侧内嵌 WS 服务；5556/5557 已被 frame/detection 占用 |
+
+约束：
+
+- 单页单连接；消息 = **单个 UTF-8 JSON 文本帧**；无二进制。
+- 可靠有序（WebRTC DataChannel 默认 reliable/ordered）。
+- 连接 ID 约定：URS `connectionId`（uuid）为不透明对端标识，Unity 侧只绑定**最近一次打开**的
+  `twin-bridge` 通道；旧通道关闭即失效，不寻址（无 per-connection 路由语义）。
+- 演进只加字段不删不改（Unity `JsonUtility` 忽略未知字段；web `JSON.parse` 宽松消费）。
+- 握手：web 通道 open 后**必须先发 `hello`**；Unity 回 `ready`。`hello` 之前的其它消息 Unity 静默丢弃（防半开连接脏命令）。
+
+## 2. 消息（web → Unity）
+
+| type | 字段 | 语义 |
+|---|---|---|
+| `hello` | `protocol:"twin-bridge@1"`, `page` (nonce 字符串) | 握手；Unity 回 `ready` |
+| `attach` | `run_id`, `mode:"live"\|"replay"`, `backend_base`, `replay:{t_start,t_end,trusted_t_end}`（replay 必带，秒） | Unity 自连后端取数；新 attach 替换旧（幂等重挂，同 run 重挂 = 重置数据面） |
+| `detach` | — | 断开数据面，回空场景态（船清空、泵停、流状态 down→idle） |
+| `clock` | `playhead_s`, `rate`, `state:"PLAYING"\|"PAUSED"\|"ENDED"` | **仅 replay 模式**：PLAYING 时 ~10Hz；PAUSED/ENDED 状态切换时至少发一条；Unity 软对齐渲染钟（与 compact-v1 同哲学）；live 模式时钟权威在后端，web 不发此消息 |
+| `camera` | `preset:"bridge"\|"bow"\|"chase"\|"top"\|"overlook"` | 预设词汇统一表 → `CameraView.{Bridge,Bow,Chase,TopDown,Overlook}`（00-REPORT §5.3） |
+| `theme` | `value:"day"\|"night"\|"dusk"` | 映射 Unity 时刻档：`day=12h, dusk=17.5h, night=0h`（`WeatherGUI.k_TimePresets` 同源） |
+| `detection` | `enabled`, `source:"yolo"\|"truth"` | `enabled=false` = overlay 关；`truth` = 地面真值路径（`requireLive=false`）；`yolo` = live 优先路径（`requireLive=true`，无新鲜结果按 DetectionFreshness 既有规则回退）。复用 M9 `DetectionOverlay` |
+
+时钟节流：web 端以 `ReplayClock` 驱动，10Hz 定时器对 `playhead_s` 采样发送；`rate` 变更即时补发。
+Unity 渲染钟把 `rate` 写进所喂帧的 `playback.effective_multiplier`（S1 管线零改动消费）。
+
+## 3. 消息（Unity → web）
+
+| type | 字段 | 语义 |
+|---|---|---|
+| `ready` | `protocol`, `build`, `scene`, `modes_supported[]` | 对 `hello` 的应答；`modes_supported` ⊆ `["live","replay"]` |
+| `attached` | `run_id`, `mode`, `anchor:{east,north}`（全域 UTM 米）, `ships`（int，已挂槽位数）, `camera`（当前预设名） | 数据面就绪：replay = context（ENC 原点）取到后发；live = 首帧锚定后发。**数据面重连恢复后重发**（§5） |
+| `state` | `fps`, `frame_seq`, `sim_time`, `clock_skew_ms`, `stream:{state:"ok"\|"degraded"\|"down", latency_ms}`, `detection:{source,live}`, `camera` | ~1Hz 心跳。`sim_time` = Unity 渲染插值钟；`clock_skew_ms` = 渲染钟 − web playhead（ms）；`stream`：replay = 帧泵健康（帧前进 ok / 停滞 degraded / 取数失败 down），live = WS 连接态；`latency_ms` = \|clock_skew\|；未知为 0 |
+| `error` | `code`, `message` | 码表见 §4 |
+
+## 4. 错误码表（冻结）
+
+| code | 致命性 | 触发 |
+|---|---|---|
+| `BAD_MESSAGE` | 非致命（连接保持） | JSON 解析失败 / 必需字段缺失或非法（未知 `type`、`attach` 缺 `run_id`/`mode`、replay 缺 span 等） |
+| `UNSUPPORTED_MODE` | attach 拒绝 | `mode` ∉ `modes_supported` |
+| `UNSUPPORTED_PROTOCOL` | 握手拒绝 | `hello.protocol` ≠ `twin-bridge@1` |
+| `BACKEND_UNREACHABLE` | 数据面失败 | `backend_base` 连接/超时失败（传输层） |
+| `RUN_NOT_FOUND` | attach 拒绝 | 后端 404（run id 无效或已删除） |
+| `RUN_NOT_PLAYABLE` | attach 拒绝 | descriptor 状态不可播（非 READY / INCOMPLETE 且不可 seek） |
+| `REPLAY_FETCH_FAILED` | 数据面失败 | replay window/context 取数中途失败（非 404/传输层失败归 `BACKEND_UNREACHABLE`）；`state.stream=down`，泵自动重试 |
+| `REBUILD` | **非错误**（信息性） | seq 倒退重建（live 会话重建 / replay 回退 seek）；Unity 清船重挂，`attached` 重发 |
+
+错误不关桥：桥通道存活期间 Unity 持续可用；数据面级错误（`BACKEND_UNREACHABLE`/`REPLAY_FETCH_FAILED`）由泵按 §5 重试。
+
+## 5. 断线与重连
+
+- **数据面断（live）**：WS 收包线程退出后若 `autoReconnect`（bridge 侧恒 true）→ 退避
+  `1s → 2s → 5s → 5s …`（`TwinReconnectPolicy`，封顶 5s）重连同会话；恢复后 Unity 清管线
+  （seq 闸门 Rebuild 语义）并**重发 `attached`**；重连期间 `state.stream=down`。
+- **数据面断（replay）**：window 取数失败 → `error REPLAY_FETCH_FAILED` + 退避同表重试当前窗口；连续失败保持 down，playhead 推进后自愈。
+- **桥断**：DataChannel 随 PeerConnection 重建（页面刷新 = 新 hello/attach，Unity 幂等重挂，旧槽清空）。
+- web 端重连语义：页面只重发 `hello` + `attach` + 当前 `camera`/`theme`/`detection`，随后恢复 clock 节拍。
+
+## 6. 序列化样例（冻结字面量，双侧测试对拍同源）
+
+```json
+{"type":"hello","protocol":"twin-bridge@1","page":"s3-probe"}
+{"type":"attach","run_id":"3e19f9e6-741c-48b2-84bf-3ec5e90e1ceb","mode":"replay","backend_base":"http://127.0.0.1:8010","replay":{"t_start":0.1,"t_end":40,"trusted_t_end":40}}
+{"type":"detach"}
+{"type":"clock","playhead_s":12.5,"rate":1,"state":"PLAYING"}
+{"type":"camera","preset":"top"}
+{"type":"theme","value":"night"}
+{"type":"detection","enabled":true,"source":"truth"}
+{"type":"ready","protocol":"twin-bridge@1","build":"1.0","scene":"SangoTwin","modes_supported":["live","replay"]}
+{"type":"attached","run_id":"3e19f9e6-741c-48b2-84bf-3ec5e90e1ceb","mode":"replay","anchor":{"east":544302.5,"north":6323000.25},"ships":3,"camera":"bridge"}
+{"type":"state","fps":30.5,"frame_seq":41,"sim_time":12.4,"clock_skew_ms":35.0,"stream":{"state":"ok","latency_ms":35.0},"detection":{"source":"truth","live":false},"camera":"bridge"}
+{"type":"error","code":"RUN_NOT_FOUND","message":"backend returned 404 for run 3e19…"}
+```
+
+注：`JsonUtility` 序列化恒写全字段（无可空省略）——`stream.latency_ms` 未知时为 `0`；web 侧按"缺字段 = 取默认"宽松消费。
+
+## 7. 验收钩子
+
+- C# 回环：`TwinBridgeMessageTests`（EditMode）——§6 样例字面量反序列化 + serialize→deserialize→serialize 逐位无损 + 未知字段容忍。
+- web 侧：`tests/web_gui/twin-view.test.mjs`——同一批 §6 字面量为期望构造/解析。
+- E2E：`tools/sango_twin_bridge_probe.mjs`——伪 UI 驱动真 web_gui 页面走 hello→attach→clock→camera 全消息面，断言 ready/attached/state 回包与 SIM TIME 对拍。

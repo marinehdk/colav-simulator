@@ -38,6 +38,13 @@ namespace Sango
         /// </summary>
         public const string TwinCliFlag = "--sango-twin";
 
+        /// <summary>
+        /// P2-S3 twin-bridge 控制桥旗标（spec #89；twin-bridge-v1.md）：播放器命令行带此参数时
+        /// TwinBridgeService 开桥（URS DataChannel twin-bridge 通道收发；场景需预接线，见
+        /// Sango.Editor.TwinBridge.TwinBridgeSceneBuilder）。与 TwinCliFlag 同家族。
+        /// </summary>
+        public const string TwinBridgeCliFlag = "--sango-twin-bridge";
+
         /// <summary>Twin 数据面后端基址（gui_server 本机常驻，00-REPORT.md §2.2）。</summary>
         public const string TwinBackendBase = "http://127.0.0.1:8010";
     }

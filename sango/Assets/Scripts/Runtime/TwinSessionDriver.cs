@@ -45,6 +45,9 @@ namespace Sango
         public string algorithmId = "vo";
         public string trackerId = "god";
 
+        [Tooltip("数据面断线自动重连（P2-S3 留尾收口：退避 1s/2s/5s 封顶，TwinReconnectPolicy）。默认关 = S1 行为零变化；TwinBridgeService 开启")]
+        public bool autoReconnect = false;
+
         [Tooltip("船槽 prefab 来源（自举时取场景 VisualSimulationSession.catalog）")]
         public VesselCatalog catalog;
 
@@ -93,6 +96,33 @@ namespace Sango
         public string ConnectedSessionId => m_ConnectedSessionId;
         volatile string m_ConnectedSessionId;
 
+        /// <summary>live WS 是否处于已连接态（重连等待期为 false；bridge state.stream 用）。</summary>
+        public bool IsLiveConnected => m_SocketUp;
+        volatile bool m_SocketUp;
+
+        /// <summary>最近接受帧 seq（bridge state 消息 frame_seq 用；未收帧 -1）。</summary>
+        public int LastSeq => m_LastSeq;
+
+        /// <summary>当前船槽数（bridge attached.ships 用）。</summary>
+        public int SlotCount => m_Slots.Count;
+
+        /// <summary>首帧锚定原点（bridge attached.anchor 用；未锚定 null）。</summary>
+        public TwinAnchor? Anchor => m_Anchor;
+
+        /// <summary>渲染插值 sim_time（未同步 NaN；bridge state 消息 sim_time 用）。</summary>
+        public double RenderSimTime => m_Clock.Sample(Time.realtimeSinceStartupAsDouble);
+
+        /// <summary>
+        /// replay 暂停门控（P2-S3；twin-bridge-v1 §2 "PAUSED 时钟权威在 web"）：渲染钟直接锚到
+        /// web playhead——TwinClock 本身无暂停概念（锚点+墙钟×倍率恒推进），sealed 回放暂停时
+        /// 由 TwinBridgeService 持续调用本方法，渲染 sim 恒等 playhead 不漂移。
+        /// </summary>
+        public void AnchorReplayClock(double simTime, double multiplier)
+        {
+            m_Clock.Reset();
+            m_Clock.OnFrame(simTime, Time.realtimeSinceStartupAsDouble, multiplier);
+        }
+
         /// <summary>单行诊断（HUD/日志同款式）。</summary>
         public string Status
         {
@@ -138,6 +168,7 @@ namespace Sango
             }
             if (m_Cancel != null) { m_Cancel.Dispose(); m_Cancel = null; }
             m_Inbox = null;
+            m_SocketUp = false;
             ClearSlots();
             m_Prev = m_Latest = null;
             m_Anchor = null;
@@ -179,6 +210,7 @@ namespace Sango
         {
             CancellationToken cancellation = m_Cancel.Token;
             var inbox = m_Inbox; // 线程持有本地引用（DetectionResultConsumer 同款，收尾竞态不炸）
+            int reconnectAttempt = 0;
             try
             {
                 string id = sessionId;
@@ -188,20 +220,33 @@ namespace Sango
                     TwinRest.StartSession(backendBase, id);
                 }
                 m_ConnectedSessionId = id;
-                using (var socket = new ClientWebSocket())
+                // P2-S3 留尾收口：autoReconnect=true 时断线按 1s/2s/5s 封顶退避重连（TwinReconnectPolicy，
+                // twin-bridge-v1.md §5）；默认 false = S1 行为零变化（断线关闸等人为重开）。
+                while (m_Running)
                 {
-                    socket.ConnectAsync(new Uri(TwinWs.CompactUrl(backendBase, id)), cancellation).GetAwaiter().GetResult();
-                    Debug.Log("[Sango.Twin] connected " + TwinWs.CompactUrl(backendBase, id));
-                    while (m_Running)
+                    using (var socket = new ClientWebSocket())
                     {
-                        string json = TwinWs.ReceiveText(socket, cancellation);
-                        if (json == null) break; // 服务端关闭 / 停止取消
-                        var frame = ColavTelemetry.FromJson(json);
-                        if (!TwinEnvelope.IsValidCompact(frame)) { m_MalformedCount++; continue; }
-                        Interlocked.Increment(ref m_RxCount);
-                        while (inbox.Count >= QueueCap && inbox.TryDequeue(out _)) { }
-                        inbox.Enqueue(frame);
+                        socket.ConnectAsync(new Uri(TwinWs.CompactUrl(backendBase, id)), cancellation).GetAwaiter().GetResult();
+                        m_SocketUp = true;
+                        Debug.Log("[Sango.Twin] connected " + TwinWs.CompactUrl(backendBase, id) +
+                                  (reconnectAttempt > 0 ? $" (reconnect #{reconnectAttempt})" : ""));
+                        reconnectAttempt = 0; // 连接成功即复位退避
+                        while (m_Running)
+                        {
+                            string json = TwinWs.ReceiveText(socket, cancellation);
+                            if (json == null) break; // 服务端关闭 / 停止取消
+                            var frame = ColavTelemetry.FromJson(json);
+                            if (!TwinEnvelope.IsValidCompact(frame)) { m_MalformedCount++; continue; }
+                            Interlocked.Increment(ref m_RxCount);
+                            while (inbox.Count >= QueueCap && inbox.TryDequeue(out _)) { }
+                            inbox.Enqueue(frame);
+                        }
                     }
+                    m_SocketUp = false;
+                    if (!m_Running || !autoReconnect) break;
+                    double delayS = TwinReconnectPolicy.DelaySeconds(reconnectAttempt++);
+                    Debug.LogWarning($"[Sango.Twin] connection lost; reconnect in {delayS:0.#}s (attempt {reconnectAttempt})");
+                    if (cancellation.WaitHandle.WaitOne(TimeSpan.FromSeconds(delayS))) break; // 停止取消即刻收线程
                 }
             }
             catch (Exception error)
@@ -212,6 +257,7 @@ namespace Sango
             finally
             {
                 m_Running = false;
+                m_SocketUp = false;
                 runtimeEnabled = false; // Update 闸不再重试，直至人为重新开闸（FramePublisher 同款）
             }
         }

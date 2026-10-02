@@ -950,10 +950,12 @@ export function createEvaluationReplayController({
   }
   el('replayCloseBtn')?.addEventListener('click', close);
 
-  // ── #74 Evaluation local views: Replay | Results | Evidence | Historical AIS ──
+  // ── #74 Evaluation local views: Replay | Digital Twin | Results | Evidence | Historical AIS ──
   // Switching a local view changes Inspection Context only — it never
-  // creates, replaces or mutates the Active Session.
-  const evaluationViews = ['replay', 'results', 'evidence', 'hais'];
+  // creates, replaces or mutates the Active Session. Digital Twin (#89 P2-S3)
+  // owns its own section/module (twin-view.js); registration here is the
+  // shared show/hide switch only.
+  const evaluationViews = ['replay', 'twin', 'results', 'evidence', 'hais'];
   const STALE_RUN_DOCUMENT = Symbol('STALE_RUN_DOCUMENT');
   let selectedEvaluationView = 'replay';
 
