@@ -170,11 +170,12 @@ namespace Sango
         public double latency_ms;
     }
 
-    /// <summary>state.detection 子对象（契约 §3）。</summary>
+    /// <summary>state.detection 子对象（契约 §3；enabled = P3 演进只加字段，§8 台账）。</summary>
     [Serializable]
     public class TwinBridgeDetectionState
     {
         public string source = "truth";
+        public bool enabled;
         public bool live;
     }
 

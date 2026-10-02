@@ -1,19 +1,19 @@
 {
-  "session_id": "f82da2ee-e75f-402d-9aa5-5202f8e038af",
-  "attached_run_id": "f82da2ee-e75f-402d-9aa5-5202f8e038af",
+  "session_id": "14817908-1844-4967-9909-f7236c4edfe1",
+  "attached_run_id": "14817908-1844-4967-9909-f7236c4edfe1",
   "window_s": 6,
   "sample_every_ms": 1000,
   "first_attach": {
     "first": 0,
-    "last": 17.199473592694055,
-    "delta": 17.199473592694055,
+    "last": 17.16670263706751,
+    "delta": 17.16670263706751,
     "samples": 6
   },
   "after_restart": {
     "first": 0,
-    "last": 76.01672210362528,
-    "delta": 76.01672210362528,
+    "last": 75.51718366024114,
+    "delta": 75.51718366024114,
     "samples": 6
   },
-  "captured_at": "2026-10-02T13:17:11.853Z"
+  "captured_at": "2026-10-02T14:09:18.944Z"
 }

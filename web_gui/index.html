@@ -921,6 +921,20 @@
         <div class="replay-runs-table-wrap">
           <obc-table id="twinRunsTable" class="replay-runs-table" rowdivider narrowheader aria-label="Digital Twin runs"></obc-table>
         </div>
+        <footer class="replay-runs-pagination" aria-label="Digital Twin pagination">
+          <span class="replay-runs-pagination-summary" id="twinRunsPaginationSummary">0–0 of 0</span>
+          <div class="replay-runs-pagination-controls">
+            <label for="twinRunsPageSize">Rows per page</label>
+            <select id="twinRunsPageSize" aria-label="Rows per page">
+              <option value="10" selected>10</option>
+              <option value="20">20</option>
+              <option value="50">50</option>
+            </select>
+            <obc-icon-button id="twinRunsPrevBtn" variant="flat" aria-label="Previous page" title="Previous page"><obi-chevron-left-google></obi-chevron-left-google></obc-icon-button>
+            <span class="replay-runs-page-indicator" id="twinRunsPageIndicator" aria-live="polite">1 / 1</span>
+            <obc-icon-button id="twinRunsNextBtn" variant="flat" aria-label="Next page" title="Next page"><obi-chevron-right-google></obi-chevron-right-google></obc-icon-button>
+          </div>
+        </footer>
       </div>
       <section class="replay-viewer" id="twinViewerPanel" aria-label="Digital Twin viewer" hidden>
         <div class="twin-viewer-main" id="twinViewerMain">

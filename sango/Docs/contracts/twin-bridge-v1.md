@@ -47,7 +47,7 @@ Unity 渲染钟把 `rate` 写进所喂帧的 `playback.effective_multiplier`（S
 |---|---|---|
 | `ready` | `protocol`, `build`, `scene`, `modes_supported[]` | 对 `hello` 的应答；`modes_supported` ⊆ `["live","replay"]` |
 | `attached` | `run_id`, `mode`, `anchor:{east,north}`（全域 UTM 米）, `ships`（int，已挂槽位数）, `camera`（当前预设名） | 数据面就绪：replay = context（ENC 原点）取到后发；live = 首帧锚定后发。**数据面重连恢复后重发**（§5） |
-| `state` | `fps`, `frame_seq`, `sim_time`, `clock_skew_ms`, `stream:{state:"ok"\|"degraded"\|"down", latency_ms}`, `detection:{source,live}`, `camera` | ~1Hz 心跳。`sim_time` = Unity 渲染插值钟；`clock_skew_ms` = 渲染钟 − web playhead（ms）；`stream`：replay = 帧泵健康（帧前进 ok / 停滞 degraded / 取数失败 down），live = WS 连接态；`latency_ms` = \|clock_skew\|；未知为 0 |
+| `state` | `fps`, `frame_seq`, `sim_time`, `clock_skew_ms`, `stream:{state:"ok"\|"degraded"\|"down", latency_ms}`, `detection:{source,enabled,live}`, `camera` | ~1Hz 心跳。`sim_time` = Unity 渲染插值钟；`clock_skew_ms` = 渲染钟 − web playhead（ms）；`stream`：replay = 帧泵健康（帧前进 ok / 停滞 degraded / 取数失败 down），live = WS 连接态；`latency_ms` = \|clock_skew\|；未知为 0；`detection.enabled` = web 既有开关态回显（P3 演进只加字段，§8） |
 | `error` | `code`, `message` | 码表见 §4 |
 
 ## 4. 错误码表（冻结）
@@ -64,6 +64,8 @@ Unity 渲染钟把 `rate` 写进所喂帧的 `playback.effective_multiplier`（S
 | `REBUILD` | **非错误**（信息性） | seq 倒退重建（live 会话重建 / replay 回退 seek）；Unity 清船重挂，`attached` 重发 |
 
 错误不关桥：桥通道存活期间 Unity 持续可用；数据面级错误（`BACKEND_UNREACHABLE`/`REPLAY_FETCH_FAILED`）由泵按 §5 重试。
+
+注（P3 台账）：`REBUILD` 现无显式 error 发出路径——重建以 `attached` 重发体现（§3/§5），错误码保留给未来显式场景。
 
 ## 5. 断线与重连
 
@@ -87,7 +89,7 @@ Unity 渲染钟把 `rate` 写进所喂帧的 `playback.effective_multiplier`（S
 {"type":"detection","enabled":true,"source":"truth"}
 {"type":"ready","protocol":"twin-bridge@1","build":"1.0","scene":"SangoTwin","modes_supported":["live","replay"]}
 {"type":"attached","run_id":"3e19f9e6-741c-48b2-84bf-3ec5e90e1ceb","mode":"replay","anchor":{"east":544302.5,"north":6323000.25},"ships":3,"camera":"bridge"}
-{"type":"state","fps":30.5,"frame_seq":41,"sim_time":12.4,"clock_skew_ms":35.0,"stream":{"state":"ok","latency_ms":35.0},"detection":{"source":"truth","live":false},"camera":"bridge"}
+{"type":"state","fps":30.5,"frame_seq":41,"sim_time":12.4,"clock_skew_ms":35.0,"stream":{"state":"ok","latency_ms":35.0},"detection":{"source":"truth","enabled":true,"live":false},"camera":"bridge"}
 {"type":"error","code":"RUN_NOT_FOUND","message":"backend returned 404 for run 3e19…"}
 ```
 
@@ -105,3 +107,4 @@ Unity 渲染钟把 `rate` 写进所喂帧的 `playback.effective_multiplier`（S
 |---|---|---|---|
 | 2026-10-02 | P2-S3 | 契约冻结（§1-§7） | spec #89，`a430fc62` |
 | 2026-10-02 | P2-S4 | web→Unity 新增 `camera_free` 消息（§2 表 + §6 样例）；`state.camera`/`attached.camera` 新增回显词汇 `"free"`（§3 注）。**只加字段/只加词汇**：既有消息形状零改动（`JsonUtility` 忽略未知字段、web `JSON.parse` 宽松消费，双侧旧实现互通）。语义边界：仅 Deployment twin 态的默认关联动开关产生此消息；单向 Cesium 主→Twin 从，反向不做，逐帧锁步不做 | spec #89 S4；CesiumJS `camera.changed`（`percentageChanged` 0.01）位姿折算纯函数 = web `twin-view.js#cameraFreePose`，Unity 应用 = `CameraRig.SetFreePose` |
+| 2026-10-02 | P3 清零批 | `state.detection` 新增 `enabled`（bool，web 既有 detection 开关态回显；此前 `m_DetectionEnabled` 为死字段）。**只加字段**：`detection:{source,enabled,live}`，旧 web 侧宽松消费零影响；§6 样例同步；附 §4 `REBUILD` 保留注（无显式发出路径，重建以 `attached` 重发体现） | spec #89 P3 残留清零批（review F7/F8 同批） |

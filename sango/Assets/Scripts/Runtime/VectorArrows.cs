@@ -123,23 +123,23 @@ namespace Sango
             }
         }
 
-    // ── rig 构建（杆 + 锥头，+Z 为指向）──────────────────────────────────────────
+        // ── rig 构建（杆 + 锥头，+Z 为指向）──────────────────────────────────────────
 
-    /// <summary>EditMode 可建 rig 的资源收口（WakeFoamRig.DestroyOwned 同款：编辑态 DestroyImmediate，运行态 Destroy）。</summary>
-    static void DestroyOwned(Object resource)
-    {
-        if (resource == null) return;
-        if (Application.isPlaying) Destroy(resource);
-        else DestroyImmediate(resource);
-    }
+        /// <summary>EditMode 可建 rig 的资源收口（WakeFoamRig.DestroyOwned 同款：编辑态 DestroyImmediate，运行态 Destroy）。</summary>
+        static void DestroyOwned(Object resource)
+        {
+            if (resource == null) return;
+            if (Application.isPlaying) Destroy(resource);
+            else DestroyImmediate(resource);
+        }
 
-    (Transform shaft, Transform head) BuildArrow(string name, Material mat)
-    {
-        var arrow = new GameObject($"{name}Arrow").transform;
-        arrow.SetParent(m_Root, false);
+        (Transform shaft, Transform head) BuildArrow(string name, Material mat)
+        {
+            var arrow = new GameObject($"{name}Arrow").transform;
+            arrow.SetParent(m_Root, false);
 
-        var shaft = GameObject.CreatePrimitive(PrimitiveType.Cube);
-        DestroyOwned(shaft.GetComponent<Collider>()); // 标记非碰撞体
+            var shaft = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            DestroyOwned(shaft.GetComponent<Collider>()); // 标记非碰撞体
             shaft.name = $"{name}.Shaft";
             shaft.transform.SetParent(arrow, false);
             shaft.GetComponent<MeshRenderer>().sharedMaterial = mat;

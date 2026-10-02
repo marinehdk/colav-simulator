@@ -38,7 +38,7 @@ namespace Sango.Tests
 
         const string k_StateSample =
             "{\"type\":\"state\",\"fps\":30.5,\"frame_seq\":41,\"sim_time\":12.4,\"clock_skew_ms\":35," +
-            "\"stream\":{\"state\":\"ok\",\"latency_ms\":35},\"detection\":{\"source\":\"truth\",\"live\":false}," +
+            "\"stream\":{\"state\":\"ok\",\"latency_ms\":35},\"detection\":{\"source\":\"truth\",\"enabled\":true,\"live\":false}," +
             "\"camera\":\"bridge\"}";
 
         const string k_ErrorSample = "{\"type\":\"error\",\"code\":\"RUN_NOT_FOUND\",\"message\":\"backend 404\"}";
@@ -195,6 +195,7 @@ namespace Sango.Tests
             Assert.That(msg.stream.state, Is.EqualTo("ok"));
             Assert.That(msg.stream.latency_ms, Is.EqualTo(35.0).Within(1e-9));
             Assert.That(msg.detection.source, Is.EqualTo("truth"));
+            Assert.That(msg.detection.enabled, Is.True, "P3 演进只加字段（§8）：detection.enabled 回显 web 开关态");
             Assert.That(msg.detection.live, Is.False);
             Assert.That(msg.camera, Is.EqualTo("bridge"));
         }

@@ -454,6 +454,11 @@ export function createTwinViewController({
   let range = null;
   let generation = 0;
   let debug = null;
+  // Twin runs pagination (same vocabulary as replay-runs.js: 10/20/50 rows per page).
+  const TWIN_PAGE_SIZES = [10, 20, 50];
+  let twinRunsRows = [];
+  let twinRunsPage = 1;
+  let twinRunsPageSize = TWIN_PAGE_SIZES[0];
 
   function setConnectionState(next) {
     connectionState = next;
@@ -463,7 +468,10 @@ export function createTwinViewController({
   function publishDebug() {
     if (!debug) return;
     debug.connection = connectionState;
-    debug.channelOpen = Boolean(streamCtl?.stream?.channel?.isOpen?.());
+    // P3 fix: stream.channel is the RAW RTCDataChannel (the isOpen() facade lives
+    // only inside the bridge client), so channelOpen must read readyState — the
+    // old `channel.isOpen?.()` resolved to undefined and always reported false.
+    debug.channelOpen = streamCtl?.stream?.channel?.readyState === 'open';
     debug.ready = client?.ready ?? false;
     debug.attached = client?.attached ?? null;
     debug.lastState = client?.lastState ?? null;
@@ -569,12 +577,43 @@ export function createTwinViewController({
     } catch {
       rows = [];
     }
-    table.columns = twinTableColumns(documentRef);
-    table.data = projectTwinTableRows(rows);
-    table.rowDivider = true;
-    table.narrowHeader = true;
-    table.showHeader = true;
+    // P3: twin runs paginate like the Replay list (same footer controls and page
+    // sizes) — probe/backlog "target run pushed to page 2" no longer hides rows.
+    twinRunsRows = rows;
+    renderTwinRunsPage();
     if (status) status.textContent = rows.length ? `${rows.length} RUNS` : 'NO RUNS';
+  }
+
+  // ── twin runs pagination (mirrors replay-runs.js semantics; P2 P3 residue) ──
+
+  function twinPageCount() {
+    return Math.max(1, Math.ceil(twinRunsRows.length / twinRunsPageSize));
+  }
+
+  function renderTwinRunsPage() {
+    twinRunsPage = Math.max(1, Math.min(twinRunsPage, twinPageCount()));
+    const table = el('twinRunsTable');
+    if (table) {
+      const pageStart = (twinRunsPage - 1) * twinRunsPageSize;
+      table.columns = twinTableColumns(documentRef);
+      table.data = projectTwinTableRows(twinRunsRows.slice(pageStart, pageStart + twinRunsPageSize));
+      table.rowDivider = true;
+      table.narrowHeader = true;
+      table.showHeader = true;
+    }
+    const total = twinRunsRows.length;
+    const first = total === 0 ? 0 : (twinRunsPage - 1) * twinRunsPageSize + 1;
+    const last = total === 0 ? 0 : Math.min(twinRunsPage * twinRunsPageSize, total);
+    const summary = el('twinRunsPaginationSummary');
+    if (summary) summary.textContent = `${first}–${last} of ${total}`;
+    const indicator = el('twinRunsPageIndicator');
+    if (indicator) indicator.textContent = `${twinRunsPage} / ${twinPageCount()}`;
+    const pageSize = el('twinRunsPageSize');
+    if (pageSize) pageSize.value = String(twinRunsPageSize);
+    const previous = el('twinRunsPrevBtn');
+    if (previous) previous.disabled = twinRunsPage <= 1;
+    const next = el('twinRunsNextBtn');
+    if (next) next.disabled = twinRunsPage >= twinPageCount();
   }
 
   async function openRun(nextRunId) {
@@ -710,6 +749,23 @@ export function createTwinViewController({
 
   function bindControls() {
     el('twinRunsRefreshBtn')?.addEventListener('click', () => void refreshRuns());
+    el('twinRunsPageSize')?.addEventListener('change', event => {
+      const candidate = Number(event?.target?.value);
+      if (!TWIN_PAGE_SIZES.includes(candidate)) return;
+      twinRunsPageSize = candidate;
+      twinRunsPage = 1;
+      renderTwinRunsPage();
+    });
+    el('twinRunsPrevBtn')?.addEventListener('click', () => {
+      if (twinRunsPage <= 1) return;
+      twinRunsPage -= 1;
+      renderTwinRunsPage();
+    });
+    el('twinRunsNextBtn')?.addEventListener('click', () => {
+      if (twinRunsPage >= twinPageCount()) return;
+      twinRunsPage += 1;
+      renderTwinRunsPage();
+    });
     el('twinCloseBtn')?.addEventListener('click', closeViewer);
     el('twinPlayPauseBtn')?.addEventListener('click', playPause);
     el('twinStartBtn')?.addEventListener('click', () => seekTo(range?.start ?? 0));

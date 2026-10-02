@@ -98,11 +98,17 @@ namespace Sango
         bool m_WasLiveConnected;
         bool m_BridgeUp;
 
+        /// <summary>clock.playhead_s 非有限值拒绝计数（F10 诊断；DataChannel 回调主线程独占写）。</summary>
+        int m_MalformedClockCount;
+
         /// <summary>当前挂接的 run（探针/诊断；未挂 null）。</summary>
         public string AttachedRunId => m_RunId;
 
         /// <summary>当前相机预设词汇（bridge state.camera 同源）。</summary>
         public string CurrentPreset => m_CurrentPreset;
+
+        /// <summary>HandleClock 拒绝的非有限 playhead 计数（探针/诊断用）。</summary>
+        public int MalformedClockCount => m_MalformedClockCount;
 
         // ── 启停 ────────────────────────────────────────────────────────────────
 
@@ -330,6 +336,14 @@ namespace Sango
         void HandleClock(TwinBridgeCommand cmd)
         {
             if (m_Mode != "replay") return; // 契约 §2：live 模式 web 不发 clock；发也不消费
+            // F10：非有限 playhead（NaN/Inf，非 web 端 JSON 合法输出，防御性拒绝）不进钳位/重建
+            // 判定——否则 NaN 污染 m_Playhead 让计量/对拍全失真。拒绝并计 malformed（诊断计数）。
+            if (double.IsNaN(cmd.playhead_s) || double.IsInfinity(cmd.playhead_s))
+            {
+                m_MalformedClockCount++;
+                Debug.LogWarning($"[Sango.TwinBridge] clock rejected: playhead_s {cmd.playhead_s} not finite (#{m_MalformedClockCount})");
+                return;
+            }
             double playhead = ClampSpan(cmd.playhead_s);
             double rate = Mathf.Clamp((float)cmd.rate, 0.1f, 20f);
             string state = cmd.state ?? "PAUSED";
@@ -440,13 +454,20 @@ namespace Sango
         void StopReplayFetch()
         {
             if (m_Cancel != null) { try { m_Cancel.Cancel(); } catch (ObjectDisposedException) { } }
+            // F9 守卫：线程仍阻塞在 token WaitHandle 上时（Join 超时窗口）Dispose 会向后台线程
+            // 抛 ObjectDisposedException（同 run 幂等重挂时还会借 m_RunId==runId 串成假
+            // REPLAY_FETCH_FAILED）——Dispose 延后到确认线程退场（下次 Stop 收尾，最坏 GC 兜底）。
+            bool fetchThreadSettled = true;
             if (m_FetchThread != null)
             {
                 if (m_FetchThread.IsAlive && !m_FetchThread.Join(2000))
+                {
                     Debug.LogWarning("[Sango.TwinBridge] fetch thread did not exit within 2s");
-                m_FetchThread = null;
+                    fetchThreadSettled = false;
+                }
+                if (fetchThreadSettled) m_FetchThread = null;
             }
-            if (m_Cancel != null) { m_Cancel.Dispose(); m_Cancel = null; }
+            if (m_Cancel != null && fetchThreadSettled) { m_Cancel.Dispose(); m_Cancel = null; }
             m_WindowQueue = null;
             m_Pending.Clear();
             m_Context = null;
@@ -643,15 +664,20 @@ namespace Sango
         void SendAttached(double anchorEast, double anchorNorth)
         {
             m_AttachedSent = true;
+            // F8：replay 在 context 取到后即发 attached（槽位未建，SlotCount 恒 0）——契约 §6 样例
+            // 语义 = 该 run 船数，上报 context.ships 静态面；live 无 context，维持已挂槽位数（契约 §3）。
+            int ships = m_Mode == "replay"
+                ? (m_Context?.ships?.Length ?? 0)
+                : (driver != null ? driver.SlotCount : 0);
             Send(new TwinBridgeAttached
             {
                 run_id = m_RunId,
                 mode = m_Mode,
                 anchor = new TwinBridgeAnchor { east = anchorEast, north = anchorNorth },
-                ships = driver != null ? driver.SlotCount : 0,
+                ships = ships,
                 camera = m_CurrentPreset,
             });
-            Debug.Log($"[Sango.TwinBridge] attached run={m_RunId} mode={m_Mode} anchor=({anchorEast:0.#},{anchorNorth:0.#})");
+            Debug.Log($"[Sango.TwinBridge] attached run={m_RunId} mode={m_Mode} anchor=({anchorEast:0.#},{anchorNorth:0.#}) ships={ships}");
         }
 
         void SendStateHeartbeat()
@@ -687,6 +713,7 @@ namespace Sango
             state.detection = new TwinBridgeDetectionState
             {
                 source = m_DetectionSource,
+                enabled = m_DetectionEnabled, // F7：死字段接线（契约 §8 演进只加字段）——心跳回显 web 既有开关态
                 live = overlay != null && overlay.HasFreshLiveResult,
             };
             Send(state);

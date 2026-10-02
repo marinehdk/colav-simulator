@@ -225,11 +225,27 @@ try {
 
   // 2) Open the sealed run in the twin viewer (real row button; obc-table
   //    renders row cells into its shadow root, so probe light DOM first).
-  await cdp.evaluate(`(() => {
+  //    The runs table paginates (10/20/50 per page): bump the page size to the
+  //    max, then walk the footer next control, before declaring the run missing
+  //    (probe-run accumulation used to push the target run off page 1 → false
+  //    'run row missing' failures).
+  const twinRowFound = await waitFor('twin run row (paginated)', () => cdp.evaluate(`(() => {
     const table = document.getElementById('twinRunsTable');
-    if (!table.data.some(row => row.id === '${runId}')) throw new Error('run row missing');
+    if (!table || !table.data) return null;
+    if (!table.data.some(row => row.id === '${runId}')) {
+      const size = document.getElementById('twinRunsPageSize');
+      if (size && size.value !== '50') {
+        size.value = '50';
+        size.dispatchEvent(new Event('change', { bubbles: true }));
+        return null;
+      }
+      const next = document.getElementById('twinRunsNextBtn');
+      if (next && !next.disabled) { next.click(); return null; }
+      throw new Error('run row missing (all pages walked)');
+    }
     return true;
-  })()`);
+  })()`), 20000, 400);
+  check('twin row reachable (page size + footer pagination)', twinRowFound === true);
   await cdp.evaluate(`(() => {
     const find = root => root && root.querySelector('[aria-label="Open digital twin ${runId.slice(0, 8)}"]');
     const button = find(document) || find(document.getElementById('twinRunsTable')?.shadowRoot);
@@ -255,6 +271,14 @@ try {
   await waitFor('bridge state echo', () => cdp.evaluate(
     `(() => (window.__twinBridge?.lastState && window.__twinBridge.lastState.frame_seq >= 0) ? window.__twinBridge.lastState : null)()`), 90000);
   check('bridge state echo received (frame_seq >= 0)', true);
+
+  // 4.5) F8: replay attached.ships = the run's ship count (contract §6 sample
+  //      semantics = ships of the run; used to report a hard-wired 0 because the
+  //      slot builds only happen once frames are metered, after `attached`).
+  const contextShips = await fetch(`${BACKEND}/api/runs/${runId}/replay/context`)
+    .then(r => r.json()).then(c => (c?.ships ?? []).length).catch(() => -1);
+  check('attached.ships == run ship count (replay context semantics)', attached?.ships === contextShips && contextShips > 0,
+    `attached.ships=${attached?.ships} context.ships=${contextShips}`);
 
   // 5) Play 10 s and record the twin SIM TIME series (Unity echo).
   await cdp.evaluate(`document.getElementById('twinPlayPauseBtn').click()`);
@@ -307,6 +331,14 @@ try {
   check('detection toggle sends bridge messages', detectionAfter - detectionBefore >= 2, `sent +${detectionAfter - detectionBefore}`);
   check('no bridge errors during probe', bridgeErrors === 0, `errorCount=${bridgeErrors}`);
 
+  // 8.2) F7: state.detection.enabled now echoes the web toggle (the field used
+  //      to be a dead service-side flag and never reported). Toggle ended on
+  //      truth/enabled=true; the ~1Hz heartbeat must reflect exactly that.
+  const detectionEcho = await waitFor('state.detection echo (enabled/source)', () => cdp.evaluate(
+    `(() => { const d = window.__twinBridge?.lastState?.detection; return d && d.enabled === true && d.source === 'truth' ? d : null; })()`), 20000);
+  check('state.detection.enabled echoes the web toggle (F7)', detectionEcho?.enabled === true && detectionEcho?.source === 'truth',
+    `enabled=${detectionEcho?.enabled} source=${detectionEcho?.source}`);
+
   // 8.5) Re-attach on the SAME bridge channel (contract §2/§4): close viewer
   // (web sends detach) → open another run without re-hello — Unity must accept
   // the new attach (hello belongs to the channel lifecycle, not the data plane).
@@ -331,6 +363,23 @@ try {
   await waitFor('viewer closed (runs panel back)', () => cdp.evaluate(
     `(() => { const v = document.getElementById('twinViewerPanel'); const r = document.getElementById('twinRunsPanel'); return v && v.hidden && r && !r.hidden ? true : null; })()`), 15000);
   check('viewer closed, detach sent (runs panel back)', true);
+  const runBRowFound = await waitFor('twin run B row (paginated)', () => cdp.evaluate(`(() => {
+    const table = document.getElementById('twinRunsTable');
+    if (!table || !table.data) return null;
+    if (!table.data.some(row => row.id === '${runBId}')) {
+      const size = document.getElementById('twinRunsPageSize');
+      if (size && size.value !== '50') {
+        size.value = '50';
+        size.dispatchEvent(new Event('change', { bubbles: true }));
+        return null;
+      }
+      const next = document.getElementById('twinRunsNextBtn');
+      if (next && !next.disabled) { next.click(); return null; }
+      throw new Error('run row missing (all pages walked)');
+    }
+    return true;
+  })()`), 20000, 400);
+  check('run B row reachable (page size + footer pagination)', runBRowFound === true);
   await cdp.evaluate(`(() => {
     const find = root => root && root.querySelector('[aria-label="Open digital twin ${runBId.slice(0, 8)}"]');
     const button = find(document) || find(document.getElementById('twinRunsTable')?.shadowRoot);
@@ -355,12 +404,20 @@ try {
   // 9) 对拍: same run in the Replay (web 2D) view for the same window.
   await cdp.evaluate(`document.getElementById('evalViewTabReplay')?.click()`);
   await sleep(500);
-  // The replay table paginates (10/page): walk pages until the run's row shows.
+  // The replay table paginates (10/page): bump the page size to the max, then
+  // walk the footer next control until the run's row shows (robust to probe-run
+  // accumulation pushing the target run past page 1).
   const replayButton = await waitFor('replay open button (paginated)', () => cdp.evaluate(`(() => {
     const find = root => root && root.querySelector('[aria-label^="Open replay ${runId.slice(0, 8)}"]');
     const table = document.getElementById('replayRunsTable');
     let button = find(document) || find(table?.shadowRoot);
     if (button) return true;
+    const size = document.getElementById('replayRunsPageSize');
+    if (size && size.value !== '50') {
+      size.value = '50';
+      size.dispatchEvent(new Event('change', { bubbles: true }));
+      return null;
+    }
     document.getElementById('replayRunsNextBtn')?.click();
     return null;
   })()`), 20000, 400);

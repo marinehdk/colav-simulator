@@ -161,13 +161,20 @@ namespace Sango
             runtimeEnabled = false;
             m_Running = false;
             if (m_Cancel != null) { try { m_Cancel.Cancel(); } catch (ObjectDisposedException) { } }
+            // F9 守卫（TwinBridgeService.StopReplayFetch 同款）：Join 超时窗口里线程可能仍阻塞在
+            // token WaitHandle 上，立即 Dispose 会向后台线程抛 ObjectDisposedException——延后到
+            // 确认线程退场再 Dispose（下次 Stop 收尾，最坏 GC 兜底）。
+            bool receiveThreadSettled = true;
             if (m_Thread != null)
             {
                 if (m_Thread.IsAlive && !m_Thread.Join(2000))
+                {
                     Debug.LogWarning("[Sango.Twin] receive thread did not exit within 2s");
-                m_Thread = null;
+                    receiveThreadSettled = false;
+                }
+                if (receiveThreadSettled) m_Thread = null;
             }
-            if (m_Cancel != null) { m_Cancel.Dispose(); m_Cancel = null; }
+            if (m_Cancel != null && receiveThreadSettled) { m_Cancel.Dispose(); m_Cancel = null; }
             m_Inbox = null;
             m_SocketUp = false;
             ClearSlots();

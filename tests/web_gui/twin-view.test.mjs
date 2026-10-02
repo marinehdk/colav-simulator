@@ -223,10 +223,11 @@ test('bridge client parses ready/attached/state and records HUD samples', () => 
   assert.equal(client.attached.ships, 3);
 
   now = 600;
-  client.onMessage('{"type":"state","fps":30.5,"frame_seq":41,"sim_time":12.4,"clock_skew_ms":35,"stream":{"state":"ok","latency_ms":35},"detection":{"source":"truth","live":false},"camera":"bridge"}');
+  client.onMessage('{"type":"state","fps":30.5,"frame_seq":41,"sim_time":12.4,"clock_skew_ms":35,"stream":{"state":"ok","latency_ms":35},"detection":{"source":"truth","enabled":true,"live":false},"camera":"bridge"}');
   assert.equal(client.lastState.fps, 30.5);
   assert.equal(client.lastState.sim_time, 12.4);
   assert.equal(client.lastState.camera, 'bridge');
+  assert.equal(client.lastState.detection.enabled, true, 'P3 演进只加字段（contract §8）：detection.enabled 宽松透传');
   assert.equal(client.samples.length, 1);
   assert.equal(client.samples[0].sim, 12.4);
   assert.equal(client.received, 3);
@@ -363,4 +364,29 @@ test('createTwinStreamClient extraction keeps the official receiver flow (source
     'Evaluation hello nonce unchanged; deployment twin gets its own page tag');
   assert.match(moduleSource, /await current\.renderstreaming\.stop\?\.\(\)/, 'close() tears the PC down');
   assert.equal(TWIN_LINK_CHANGE_PERCENT, 0.01, 'camera.changed threshold per spike spec');
+});
+
+/* ── P3 残留清零批（spec #89 收尾）：channelOpen 失真修复 + twin 表翻页 ── */
+
+test('debug.channelOpen reads the raw RTCDataChannel readyState (was always false via the client-only isOpen facade)', () => {
+  // stream.channel 是裸 RTCDataChannel；isOpen() 门面只在桥客户端内部——旧实现
+  // `channel.isOpen?.()` 恒 undefined → channelOpen 恒 false（诊断/探针失真）。
+  assert.match(moduleSource, /debug\.channelOpen = streamCtl\?\.stream\?\.channel\?\.readyState === 'open'/);
+  assert.doesNotMatch(moduleSource, /channelOpen = Boolean\(streamCtl\?\.stream\?\.channel\?\.isOpen/);
+});
+
+test('twin runs table paginates with the same footer controls and page sizes as replay (P3: target run on page 2 reachable)', () => {
+  for (const id of ['twinRunsPaginationSummary', 'twinRunsPageSize', 'twinRunsPrevBtn', 'twinRunsPageIndicator', 'twinRunsNextBtn']) {
+    assert.equal(html.includes(`id="${id}"`), true, `missing #${id}`);
+  }
+  assert.match(html, /<footer class="replay-runs-pagination" aria-label="Digital Twin pagination">/,
+    'twin footer reuses the replay pagination controls/classes');
+  const twinSelect = html.match(/id="twinRunsPageSize"[\s\S]*?<\/select>/)?.[0] ?? '';
+  for (const size of ['10', '20', '50']) {
+    assert.match(twinSelect, new RegExp(`<option value="${size}"`), `page size ${size} offered`);
+  }
+  assert.match(moduleSource, /slice\(pageStart, pageStart \+ twinRunsPageSize\)/,
+    'table.data carries the current page slice (replay-runs.js renderReplayRuns semantics)');
+  assert.match(moduleSource, /twinRunsNextBtn/, 'footer next control wired in twin-view.js');
+  assert.match(moduleSource, /twinRunsPageSize/, 'page-size control wired in twin-view.js');
 });
