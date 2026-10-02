@@ -763,7 +763,7 @@
           <button type="button" class="assembly-step evaluation-step" id="evalViewTabEvidence" data-eval-view="evidence" aria-pressed="false" data-complete="false" disabled><span class="step-circle">04</span><strong>Evidence</strong><small>Not open</small><i class="step-state-dot" aria-hidden="true"></i></button>
           <button type="button" class="assembly-step evaluation-step" id="evalViewTabHistoricalAIS" data-eval-view="hais" aria-pressed="false" data-complete="false" disabled><span class="step-circle">05</span><strong>Historical AIS</strong><small>Not open</small><i class="step-state-dot" aria-hidden="true"></i></button>
         </div>
-        <div class="config-progress evaluation-progress" aria-label="Evaluation availability"><strong>2 of 4 available</strong><span>Replay and Digital Twin are the open evaluation views</span><div class="config-progress-track"><i></i></div></div>
+        <div class="config-progress evaluation-progress" aria-label="Evaluation availability"><strong>2 of 5 available</strong><span>Replay and Digital Twin are the open evaluation views</span><div class="config-progress-track"><i></i></div></div>
       </aside>
       <div class="evaluation-content">
       <section class="evaluation-view" id="evalViewReplay" aria-label="Replay local view">
@@ -952,7 +952,7 @@
               <obc-toggle-button-option id="twinRate5" value="5">5×</obc-toggle-button-option>
               <obc-toggle-button-option id="twinRate20" value="20">20×</obc-toggle-button-option>
             </obc-toggle-button-group>
-            <div class="map-mode-control" aria-label="Twin camera preset" id="twinCameraGroup" hidden>
+            <div class="map-mode-control" aria-label="Twin camera preset" id="twinCameraGroup">
               <button class="map-mode-button active" type="button" data-twin-camera="bridge" aria-pressed="true" aria-label="Bridge view" title="Bridge">B</button>
               <button class="map-mode-button" type="button" data-twin-camera="bow" aria-pressed="false" aria-label="Bow view" title="Bow">W</button>
               <button class="map-mode-button" type="button" data-twin-camera="chase" aria-pressed="false" aria-label="Chase view" title="Chase">C</button>
@@ -1076,6 +1076,6 @@
   <script type="module" src="/static/modules/historical-ais-workbench.js?v=20260923-vo-primitive-v1"></script>
   <script type="module" src="/static/modules/replay-runs.js?v=20260916-replay-layout-v4"></script>
   <script type="module" src="/static/modules/evaluation-replay.js?v=20261002-eval-twin-v1"></script>
-  <script type="module" src="/static/modules/twin-view.js?v=20261002-twin-view-v1"></script>
+  <script type="module" src="/static/modules/twin-view.js?v=20261002-twin-view-v2"></script>
 </body>
 </html>

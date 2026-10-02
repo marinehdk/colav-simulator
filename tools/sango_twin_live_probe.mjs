@@ -324,6 +324,12 @@ try {
   check('attach used the active live session', attachedFirst?.run_id === sessionId || Boolean(attachedFirst?.run_id),
     `page attached ${attachedFirst?.run_id?.slice(0, 8)} (created ${sessionId.slice(0, 8)})`);
 
+  // 3.5) Live clock skew: playhead is replay-only — Unity must report
+  // clock_skew_ms == 0 in live mode (not (sim-0)×1000 clamped to ±60s).
+  const liveSkew = await waitFor('live state echo (clock_skew_ms present)', () => cdp.evaluate(
+    `(() => { const s = window.__deploymentTwin?.lastState; return s && typeof s.clock_skew_ms === 'number' ? { skew: s.clock_skew_ms } : null; })()`), 20000);
+  check('live clock_skew_ms == 0 (playhead replay-only)', liveSkew?.skew === 0, `clock_skew_ms=${liveSkew?.skew}`);
+
   // 4) Live clock: SIM TIME advances with NO clock messages from the page.
   const firstSeries = await recordSimSeries(cdp, SIM_WINDOW_S);
   simFirst = seriesStats(firstSeries);

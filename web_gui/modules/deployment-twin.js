@@ -23,7 +23,7 @@ import {
   observeTheme,
   projectTwinHud,
   themeValue,
-} from './twin-view.js?v=20261002-s4-v1';
+} from './twin-view.js?v=20261002-twin-view-v2';
 import { createGeography } from './scene-geography.js?v=20261002-s4-v1';
 
 // HUD refresh cadence (Unity state echo is ~1Hz; same as the Evaluation twin).

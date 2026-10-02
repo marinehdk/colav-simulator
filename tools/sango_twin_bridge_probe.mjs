@@ -307,6 +307,51 @@ try {
   check('detection toggle sends bridge messages', detectionAfter - detectionBefore >= 2, `sent +${detectionAfter - detectionBefore}`);
   check('no bridge errors during probe', bridgeErrors === 0, `errorCount=${bridgeErrors}`);
 
+  // 8.5) Re-attach on the SAME bridge channel (contract §2/§4): close viewer
+  // (web sends detach) → open another run without re-hello — Unity must accept
+  // the new attach (hello belongs to the channel lifecycle, not the data plane).
+  // Same-channel proof = Player.log 'bridge channel open' count unchanged
+  // (no stream rebuild) while run B still gets its `attached`.
+  let runBId = null;
+  const entries = await (await fetch(`${BACKEND}/api/runs?limit=50&summary=true`)).json();
+  for (const entry of entries) {
+    if (entry.run_id === runId) continue;
+    const descriptor = await (await fetch(`${BACKEND}/api/runs/${entry.run_id}/replay`)).json();
+    const facts = descriptor?.replay ?? {};
+    if (String(facts.state).toUpperCase() === 'READY' && Number(facts.t_end) - Number(facts.t_start) >= 5) {
+      runBId = entry.run_id;
+      break;
+    }
+  }
+  check('second sealed READY run available for re-attach step', Boolean(runBId), runBId ?? 'none found');
+  const logBefore860 = playerLogTail(2_000_000);
+  const channelOpensBefore = (logBefore860?.text?.match(/bridge channel open/g) ?? []).length;
+  const countersBefore = await cdp.evaluate(`(() => ({ sent: window.__twinBridge?.sent ?? 0, received: window.__twinBridge?.received ?? 0 }))()`);
+  await cdp.evaluate(`document.getElementById('twinCloseBtn')?.click()`);
+  await waitFor('viewer closed (runs panel back)', () => cdp.evaluate(
+    `(() => { const v = document.getElementById('twinViewerPanel'); const r = document.getElementById('twinRunsPanel'); return v && v.hidden && r && !r.hidden ? true : null; })()`), 15000);
+  check('viewer closed, detach sent (runs panel back)', true);
+  await cdp.evaluate(`(() => {
+    const find = root => root && root.querySelector('[aria-label="Open digital twin ${runBId.slice(0, 8)}"]');
+    const button = find(document) || find(document.getElementById('twinRunsTable')?.shadowRoot);
+    if (!button) throw new Error('twin open button (run B) missing');
+    button.click();
+    return true;
+  })()`);
+  const attachedB = await waitFor('bridge attached for run B (same channel, no re-hello)', () => cdp.evaluate(
+    `(() => window.__twinBridge?.attached?.run_id === '${runBId}' ? window.__twinBridge.attached : null)()`), 90000);
+  check('attach after detach accepted (幂等重挂)', attachedB?.run_id === runBId,
+    `runB=${attachedB?.run_id?.slice(0, 8)} mode=${attachedB?.mode} anchor=(${attachedB?.anchor?.east},${attachedB?.anchor?.north})`);
+  const logAfter860 = playerLogTail(2_000_000);
+  const channelOpensAfter = (logAfter860?.text?.match(/bridge channel open/g) ?? []).length;
+  const runBAttachedLogged = logAfter860?.text?.includes(`attach run=${runBId}`) ?? false;
+  check('no channel rebuild on re-attach (Player.log: no new bridge channel open, attach logged)',
+    channelOpensAfter === channelOpensBefore && runBAttachedLogged,
+    `channel opens ${channelOpensBefore}→${channelOpensAfter}, attach run=${runBId.slice(0, 8)} logged=${runBAttachedLogged}`);
+  const countersAfter = await cdp.evaluate(`(() => ({ sent: window.__twinBridge?.sent ?? 0, received: window.__twinBridge?.received ?? 0 }))()`);
+  check('same client instance reused (message counters grew)', countersAfter.sent > countersBefore.sent && countersAfter.received > countersBefore.received,
+    `sent ${countersBefore.sent}→${countersAfter.sent}, received ${countersBefore.received}→${countersAfter.received}`);
+
   // 9) 对拍: same run in the Replay (web 2D) view for the same window.
   await cdp.evaluate(`document.getElementById('evalViewTabReplay')?.click()`);
   await sleep(500);

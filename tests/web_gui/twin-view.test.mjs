@@ -11,7 +11,7 @@ import {
   projectTwinHud,
   themeValue,
   twinReplayRange,
-} from '../../web_gui/modules/twin-view.js?v=20261002-twin-view-v1';
+} from '../../web_gui/modules/twin-view.js?v=20261002-twin-view-v2';
 
 const html = await readFile(new URL('../../web_gui/index.html', import.meta.url), 'utf8');
 const styles = await readFile(new URL('../../web_gui/style.css', import.meta.url), 'utf8');
@@ -51,7 +51,21 @@ test('Evaluation left column exposes Digital Twin as view 02 with Results/Eviden
   assert.match(html, /id="evalViewTabHistoricalAIS"[\s\S]{0,200}?<span class="step-circle">05<\/span><strong>Historical AIS<\/strong>/);
   assert.match(html, /id="evalViewTabResults"[^>]*disabled/);
   assert.match(html, /id="evalViewTabHistoricalAIS"[^>]*disabled/);
-  assert.equal(html.includes('<strong>2 of 4 available</strong>'), true);
+  assert.equal(html.includes('<strong>2 of 5 available</strong>'), true);
+});
+
+test('twin-view.js import specifier is unified across shell, deployment-twin and this file (one ES module instance)', async () => {
+  const deploymentTwinSource = await readFile(new URL('../../web_gui/modules/deployment-twin.js', import.meta.url), 'utf8');
+  const selfSource = await readFile(new URL('./twin-view.test.mjs', import.meta.url), 'utf8');
+  const pattern = /twin-view\.js\?v=([^'"<>()\s]+)/g;
+  const found = [];
+  for (const [label, source] of [['index.html', html], ['deployment-twin.js', deploymentTwinSource], ['twin-view.test.mjs', selfSource]]) {
+    const hits = [...source.matchAll(pattern)].map(match => match[1]);
+    assert.ok(hits.length > 0, `${label} must reference twin-view.js`);
+    found.push(...hits);
+  }
+  assert.equal(new Set(found).size, 1,
+    `every twin-view.js import must share one ?v= specifier (ES module identity), got: ${[...new Set(found)].map(v => `?v=${v}`).join(', ')}`);
 });
 
 test('Digital Twin view section mirrors the replay viewer skeleton', () => {
@@ -292,7 +306,7 @@ test('themeValue maps the OpenBridge theme attribute onto the contract vocabular
 
 /* ── P2-S4：camera_free（契约 §8 演进记录）+ cameraFreePose 折算 + 流客户端抽取 ── */
 
-import { cameraFreePose, createTwinStreamClient, TWIN_LINK_CHANGE_PERCENT } from '../../web_gui/modules/twin-view.js?v=20261002-s4-v1';
+import { cameraFreePose, createTwinStreamClient, TWIN_LINK_CHANGE_PERCENT } from '../../web_gui/modules/twin-view.js?v=20261002-twin-view-v2';
 
 test('camera_free message matches the frozen contract §8 literal (只加字段演进)', () => {
   const channel = recordingChannel();

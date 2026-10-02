@@ -597,6 +597,8 @@ export function createTwinViewController({
     if (runsPanel) runsPanel.hidden = true;
     const viewer = el('twinViewerPanel');
     if (viewer) viewer.hidden = false;
+    const cameraGroup = el('twinCameraGroup'); // presets bind to viewer open state
+    if (cameraGroup) cameraGroup.hidden = false;
     el('twinRunTitle').textContent = `DIGITAL TWIN · ${runId.slice(0, 8)} · ${descriptor.run?.scenario_id ?? ''} · ${descriptor.run?.executed_algorithm ?? ''}`;
     const timeline = el('twinTimeline');
     timeline.min = String(range.start);
@@ -633,6 +635,8 @@ export function createTwinViewController({
     clock = null;
     const viewer = el('twinViewerPanel');
     if (viewer) viewer.hidden = true;
+    const cameraGroup = el('twinCameraGroup'); // presets bind to viewer open state
+    if (cameraGroup) cameraGroup.hidden = true;
     const runs = el('twinRunsPanel');
     if (runs) runs.hidden = false;
     const errorSlot = el('twinError');

@@ -310,7 +310,9 @@ namespace Sango
             }
         }
 
-        /// <summary>detach 语义（契约 §2）：数据面停、船清空、attached 失效（桥保持）。</summary>
+        /// <summary>detach 语义（契约 §2/§4）：数据面停、船清空、attached 失效（桥保持；
+        /// hello 属桥通道生命周期不随 detach 清除——通道 open 期间 close viewer → 换 run
+        /// attach 同通道必须幂等可用，web 换 run 不重发 hello）。</summary>
         void DetachDataPlane()
         {
             StopReplayFetch();
@@ -318,7 +320,6 @@ namespace Sango
             m_RunId = null;
             m_Mode = null;
             m_AttachedSent = false;
-            m_Helloed = false;
             m_PlayState = "PAUSED";
             m_FetchFailed = false;
             m_FetchErrorReported = false;
@@ -668,7 +669,10 @@ namespace Sango
                 if (!double.IsNaN(sim))
                 {
                     state.sim_time = sim;
-                    state.clock_skew_ms = Math.Max(-60000, Math.Min(60000, (sim - m_Playhead) * 1000.0));
+                    // playhead 仅 replay 有义；live 无 web 时钟锚，(sim-0)×1000 恒失真 → 恒报 0
+                    state.clock_skew_ms = m_Mode == "replay"
+                        ? Math.Max(-60000, Math.Min(60000, (sim - m_Playhead) * 1000.0))
+                        : 0.0;
                 }
             }
             bool down = m_FetchFailed || (m_Mode == "live" && driver != null && !driver.IsLiveConnected);

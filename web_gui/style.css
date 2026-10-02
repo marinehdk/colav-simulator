@@ -244,6 +244,10 @@ h1, h2, h3 { font-family: var(--font-display); letter-spacing: 0; }
 .workface[hidden],
 .legacy-deployment-surface[hidden] { display: none !important; }
 
+/* Twin camera presets bind to the twin viewer open/close state (twin-view.js
+   openRun/closeViewer), not the static hidden hard rule above. */
+#twinCameraGroup[hidden] { display: none; }
+
 /* C5 #4 (P:2, P:103-104): OpenBridge palette switching. The pinned openbridge.css
    already flips its custom properties on :root[data-obc-theme] (day/dusk/night/
    bright) and production --ob-* tokens derive from them — only the dark
@@ -669,7 +673,7 @@ obc-clock:not(:defined),
   min-height: 100%;
 }
 #evalViewReplay { height: 100%; }
-.evaluation-progress .config-progress-track i { width: 50%; }
+.evaluation-progress .config-progress-track i { width: 40%; } /* 2 of 5 evaluation views open */
 .evaluation-step[aria-pressed="true"] { background: var(--ob-accent-pale); box-shadow: inset 3px 0 0 var(--ob-accent); }
 .evaluation-step:disabled { opacity: .5; cursor: not-allowed; }
 .evaluation-step:disabled:hover { background: transparent; }
