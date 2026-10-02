@@ -105,8 +105,10 @@ function sampleSnapshot(overrides = {}) {
     scenario_id: 'head_on',
     os: { id: 0, x: 100, y: 200, psi: 0, cog: 0, sog: 2, trajectory: [[0, 0], [100, 200]] },
     obstacles: [
-      { id: 1, x: 400, y: 600, psi: Math.PI, cog: Math.PI, sog: 3, trajectory: [[400, 600]] },
-      { id: 2, x: 900, y: 900, psi: 0, cog: 0, sog: 1, trajectory: [] },
+      // P3-S4 (spec #90): backend AIS display objects make the aisTargets
+      // layer available in the documented draw-order contract.
+      { id: 1, x: 400, y: 600, psi: Math.PI, cog: Math.PI, sog: 3, trajectory: [[400, 600]], ais: { age_s: 0.2, state: 'active' } },
+      { id: 2, x: 900, y: 900, psi: 0, cog: 0, sog: 1, trajectory: [], ais: { age_s: 1.0, state: 'sleeping' } },
     ],
     truth: [],
     tracks: [],
@@ -178,7 +180,9 @@ test('Deployment renders FCB and default SOV OpenBridge ship-type icons without 
 
   display.render(sampleSnapshot());
   const shipDraws = ctxStub.calls.filter(([name]) => name === 'drawImage');
-  assert.equal(shipDraws.length, 3);
+  // P3-S4 (spec #90): 3 vessel sprites + 2 AIS symbol sprites (one per
+  // obstacle carrying a backend AIS object), all drawn uncropped (square).
+  assert.equal(shipDraws.length, 5);
   shipDraws.forEach(([, args]) => {
     assert.equal(args.length, 5);
     assert.equal(args[3], args[4]);

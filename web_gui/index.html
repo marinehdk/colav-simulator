@@ -529,6 +529,7 @@
                 </section>
                 <canvas id="simCanvas" aria-label="Ship collision avoidance simulation map"></canvas>
                 <div class="vessel-marker-layer" id="vesselMarkerLayer" role="group" aria-label="OpenBridge target vessel markers"></div>
+                <div class="vessel-marker-layer" id="aisMarkerLayer" role="group" aria-label="AIS 目标符号（IMO SN.1/Circ.243）"></div>
                 <obc-poi-card class="vessel-detail-placard" id="vesselDetailPlacard" aria-live="polite" hidden>
                   <div class="vessel-placard-body">
                     <div class="vessel-placard-primary">
@@ -544,6 +545,29 @@
                       <span>HDG</span><strong id="vesselPlacardHeading">---</strong><small>DEG</small>
                       <span>TCPA</span><strong id="vesselPlacardTcpa">---</strong><small>min</small>
                       <span>SPD</span><strong id="vesselPlacardSpeed">---</strong><small>kn</small>
+                    </div>
+                  </div>
+                </obc-poi-card>
+                <obc-poi-card class="vessel-detail-placard ais-detail-placard" id="aisDetailPlacard" aria-live="polite" hidden>
+                  <div class="vessel-placard-body">
+                    <div class="vessel-placard-primary">
+                      <div class="vessel-placard-dial" aria-hidden="true">
+                        <span>AIS</span>
+                        <!-- P3-S4 (spec #90): symbol = IMO SN.1/Circ.243/Rev.1 AIS asset -->
+                        <img id="aisPlacardSymbol" src="/static/assets/ais-active.svg" width="30" height="30" alt="">
+                      </div>
+                      <div class="vessel-placard-feature"><strong id="aisPlacardMmsi">---</strong><span>MMSI</span></div>
+                      <div class="vessel-placard-feature"><strong id="aisPlacardRange">---</strong><span>RNG<small>NM</small></span></div>
+                    </div>
+                    <div class="vessel-placard-secondary">
+                      <span>SOG</span><strong id="aisPlacardSog">---</strong><small>kn</small>
+                      <span>COG</span><strong id="aisPlacardCog">---</strong><small>DEG</small>
+                      <span>HDG</span><strong id="aisPlacardHdg">---</strong><small>DEG</small>
+                      <span>AGE</span><strong id="aisPlacardAge">---</strong><small>s</small>
+                    </div>
+                    <div class="ais-placard-footer">
+                      <div><span>STATE</span><strong id="aisPlacardState">---</strong></div>
+                      <div><span>ASSOC</span><strong id="aisPlacardAssociation">---</strong></div>
                     </div>
                   </div>
                 </obc-poi-card>
@@ -588,6 +612,9 @@
                         <div class="legend-category" data-legend-group="navigation">
                           <span class="legend-category-title">导航</span>
                           <span class="legend-item" data-legend-layer="ships"><span class="color-box ownship"></span>本船</span>
+                          <span class="legend-item" data-legend-layer="aisTargets"><span class="color-box ais-target"></span>AIS 目标（睡眠/激活）</span>
+                          <span class="legend-item" data-legend-layer="aisTargets"><span class="color-box ais-danger"></span>AIS 危险（红闪）</span>
+                          <span class="legend-item" data-legend-layer="aisTargets"><span class="color-box ais-lost"></span>AIS 丢失</span>
                           <span class="legend-item" data-legend-layer="route"><span class="color-box route"></span>初始航线</span>
                           <span class="legend-item" data-legend-layer="motionVectors"><span class="color-box motion"></span>60s 向量</span>
                         </div>
@@ -620,6 +647,7 @@
                           <legend>基础</legend>
                           <label><input type="checkbox" data-layer="safeWater" data-chart-only title="仅用于二维海图" checked> 安全海域 <span class="layer-state" data-layer-state="safeWater">数据未提供</span></label>
                           <label><input type="checkbox" data-layer="ships" checked> 船舶</label>
+                          <label><input type="checkbox" data-layer="aisTargets" checked> AIS 目标</label>
                         </fieldset>
                         <fieldset>
                           <legend>导航</legend>

@@ -84,7 +84,7 @@ test('marker and placard follow interpolated anchors through compositor transfor
   assert.match(app, /host\.style\.transform = `translate3d/);
   assert.doesNotMatch(app, /host\.style\.left =/);
   assert.doesNotMatch(app, /host\.style\.top =/);
-  assert.match(app, /positionVesselPlacard\(selected\.anchor\)/);
+  assert.match(app, /positionVesselPlacard\(selected\.anchor,/);
   assert.doesNotMatch(app, /if \(selected\) showVesselPlacard/);
   assert.match(styles, /\.vessel-marker \{[^}]*will-change: transform;/s);
   assert.match(styles, /\.vessel-detail-placard \{[^}]*will-change: transform;/s);

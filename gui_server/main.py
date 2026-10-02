@@ -40,6 +40,7 @@ from colav_simulator.core.colav.diagnostics import ColavExecutionError, PlanStat
 # P3-S2 observations endpoint (spec #90 whitelist: new routes + calibration
 # table + measurement hookup). ExternalCameraSensor is the session-scoped
 # measurement cache the accepted frames feed (sensor-model-v1 sensor_id 2|3).
+from colav_simulator.core.ais_display import AisReportClock, ais_target_state
 from colav_simulator.core.mast_cameras import MAST_MOUNTS_BY_ID, georeference_box
 from colav_simulator.core.sensing import ExternalCameraSensor
 from colav_simulator.decision_replay.sink import (
@@ -608,6 +609,10 @@ class WebSessionManager:
         self.latest_planner_attempt: dict[str, Any] = {}
         self.enc_navigation_area: dict[str, Any] = {}
         self._telemetry_trails: dict[int, deque[list[float]]] = {}
+        # P3-S4 AIS display layer (spec #90): per-target AIS report clocks +
+        # last report ages; the additive truth[].ais field is derived from it.
+        self._ais_report_clocks: dict[int, AisReportClock] = {}
+        self._ais_report_ages: dict[int, float] = {}
         self._shadow_max_deviation_m = 0.0
         self._last_shadow_ownship: dict[str, Any] | None = None
         self._last_shadow_comparison: dict[str, Any] | None = None
@@ -675,6 +680,8 @@ class WebSessionManager:
         self.active_planner_plan = {}
         self.latest_planner_attempt = {}
         self._telemetry_trails = {}
+        self._ais_report_clocks = {}
+        self._ais_report_ages = {}
         self._shadow_max_deviation_m = 0.0
         self._last_shadow_ownship = None
         self._last_shadow_comparison = None
@@ -1011,6 +1018,34 @@ class WebSessionManager:
             )
             trail.append([float(state[0] - origin_n), float(state[1] - origin_e)])
 
+    def _record_ais_reports(self, frame: dict[str, Any]) -> None:
+        """P3-S4 AIS display layer (spec #90): advance per-target report clocks.
+
+        Mirrors the ``_record_telemetry_trails`` lifecycle (step/tick only,
+        cleared on session activation). Real AIS reports arrive on the
+        ITU-R M.1371 cadence, not every simulation frame; the clock keeps the
+        display age honest. Historical-replay actors inside a data gap
+        (``historical_actor_truth.sample_kind == "inactive"``) receive no
+        report, so their age grows across the gap and crosses the lost
+        threshold after ``AIS_LOST_AGE_FACTOR`` expected intervals. Targets
+        without a recorded age yet read as a fresh report (age 0).
+        """
+        if not self.prepared:
+            return
+        t = float(self.prepared.session.simulator.t)
+        for index in range(len(self.prepared.session.ship_list)):
+            raw = frame.get(f"Ship{index}", {})
+            if not raw:
+                continue
+            csog = np.asarray(raw.get("csog_state", ()), dtype=float)
+            sog = float(csog[2]) if csog.size > 2 else 0.0
+            clock = self._ais_report_clocks.setdefault(index, AisReportClock())
+            sample_kind = str(raw.get("historical_actor_truth", {}).get("sample_kind", "")).lower()
+            if sample_kind == "inactive":
+                self._ais_report_ages[index] = clock.age(t)
+            else:
+                self._ais_report_ages[index] = clock.advance(t, sog)
+
     def start(self, session_id: str) -> dict[str, Any]:
         with self.lock:
             prepared = self._require(session_id)
@@ -1033,6 +1068,7 @@ class WebSessionManager:
             try:
                 snapshot = prepared.session.step_once()
                 self._record_telemetry_trails(snapshot.payload)
+                self._record_ais_reports(snapshot.payload)
                 self._append_trace_capture(snapshot)
                 self._publish_telemetry(snapshot)
                 if prepared.session.state == SessionState.FINISHED:
@@ -1063,6 +1099,7 @@ class WebSessionManager:
             try:
                 snapshot = self.prepared.session.advance()
                 self._record_telemetry_trails(snapshot.payload)
+                self._record_ais_reports(snapshot.payload)
                 self._append_trace_capture(snapshot)
                 finished = self.prepared.session.state == SessionState.FINISHED
                 if finished or self._telemetry_refresh_due(snapshot, now=time.monotonic()):
@@ -1385,6 +1422,15 @@ class WebSessionManager:
                     "colav": _telemetry_colav(raw.get("colav", {})),
                 }
             )
+            if index >= 1:
+                # P3-S4 additive AIS display field (spec #90): obstacles only
+                # (ownship carries no AIS object). Backend-authoritative
+                # state judgment; compact-v1 strip list stays untouched.
+                age_s = float(self._ais_report_ages.get(index, 0.0))
+                ships[-1]["ais"] = {
+                    "age_s": age_s,
+                    "state": ais_target_state(float(ships[-1]["sog"]), age_s),
+                }
         own = ships[0] if ships else {"x": 0.0, "y": 0.0, "psi": 0.0, "u": 0.0, "v": 0.0, "r": 0.0, "trajectory": []}
         if ships:
             latitude, longitude = mapf.local2latlon(own["east"], own["north"], session.enc.utm_zone)

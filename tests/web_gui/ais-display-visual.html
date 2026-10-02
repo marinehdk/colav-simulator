@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>AIS display layer visual acceptance (P3-S4)</title>
+<style>
+  body { margin: 0; background: #0d1117; font: 13px system-ui; color: #e6edf3; }
+  header { padding: 8px 12px; display: flex; gap: 12px; align-items: baseline; }
+  #stage { position: relative; width: 900px; height: 620px; margin: 0 auto; }
+  #simCanvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .vessel-marker-layer { position: absolute; inset: 0; z-index: 3; overflow: hidden; pointer-events: none; }
+  .ais-marker {
+    position: absolute; left: 0; top: 0; display: grid; place-items: center;
+    padding: 3px; border: none; background: transparent; border-radius: 4px;
+    pointer-events: auto; cursor: pointer; will-change: transform, rotate;
+    filter: drop-shadow(0 1px 2px rgba(0,0,0,0.45));
+  }
+  .ais-marker img { display: block; pointer-events: none; }
+  .ais-marker[data-selected="true"] { outline: 1.5px dashed rgba(255,255,255,0.95); outline-offset: 0; }
+  .ais-marker.flashing img { animation: ais-symbol-flash 1s steps(1, end) infinite; }
+  @keyframes ais-symbol-flash { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0.25; } }
+  /* AIS target card replica (the real app renders this as obc-poi-card —
+     see ais-live-2d-card.png for the component path). */
+  .ais-card {
+    position: absolute; right: 10px; bottom: 10px; z-index: 6; width: 300px;
+    background: color-mix(in srgb, #10191f 88%, transparent);
+    border: 1px solid #2b3a46; border-radius: 6px; padding: 10px 12px;
+    font: 12px/1.5 system-ui; color: #e6edf3;
+  }
+  .ais-card h3 { margin: 0 0 6px; font-size: 13px; display: flex; gap: 8px; align-items: center; }
+  .ais-card h3 img { width: 22px; height: 22px; }
+  .ais-card dl { display: grid; grid-template-columns: auto 1fr auto 1fr; gap: 3px 8px; margin: 0; }
+  .ais-card dt { color: #8fa1ad; }
+  .ais-card dd { margin: 0; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .ais-card .assoc { grid-column: 1 / -1; }
+  #status { padding: 6px 12px; font: 12px/16px monospace; color: #9fb8ad; }
+</style>
+</head>
+<body>
+<header>
+  <strong>AIS 目标层 — 四态符号 + 关联（mock 帧驱动，IMO SN.1/Circ.243/Rev.1）</strong>
+</header>
+<div id="stage">
+  <canvas id="simCanvas" aria-label="AIS situation display"></canvas>
+  <div class="vessel-marker-layer" id="aisMarkerLayer" role="group" aria-label="AIS 目标符号"></div>
+  <div class="ais-card" id="aisCard" hidden>
+    <h3><img id="cardSymbol" alt=""><span id="cardTitle"></span></h3>
+    <dl>
+      <dt>MMSI</dt><dd id="cardMmsi"></dd>
+      <dt>AGE</dt><dd><span id="cardAge"></span> s</dd>
+      <dt>SOG</dt><dd><span id="cardSog"></span> kn</dd>
+      <dt>COG</dt><dd><span id="cardCog"></span>°</dd>
+      <dt>HDG</dt><dd><span id="cardHdg"></span>°</dd>
+      <dt>STATE</dt><dd id="cardState"></dd>
+      <dt class="assoc">关联</dt><dd class="assoc" id="cardAssoc"></dd>
+    </dl>
+  </div>
+</div>
+<div id="status">loading…</div>
+<script type="module">
+import { createSituationDisplay } from '../../web_gui/modules/situation-display.js';
+import {
+  AIS_STATE_LABELS, AIS_SYMBOL_ASSETS, AIS_SYMBOL_SIZES,
+  aisSymbolState, associationLabel, localRadarMeasurementPoints, matchAisAssociations,
+} from '../../web_gui/modules/ais-display.js';
+
+// The production assets are mounted at /static (gui_server); the repo-root
+// static server serves them under /web_gui — remap for this harness only.
+const assetUrl = state => `../../web_gui${AIS_SYMBOL_ASSETS[state].replace('/static', '')}`;
+
+// Mock envelope (full-transport shape): ownship + four AIS targets covering
+// the IMO 243 symbol states. Tracks/radar measurements sit near TS1/TS2/TS3
+// for the association labels; the lost TS4 stays uncorrelated.
+const simTime = 412.5;
+function makeEnvelope() {
+  return {
+    run_id: 'ais-s4-harness', seq: 1, state: 'RUNNING', sim_time: simTime,
+    executed_tracker: 'god', scenario_id: 'ais_s4_harness',
+    playback: { requested_multiplier: 1 },
+    os: { id: 0, x: 0, y: 0, psi: 0.4, cog: 0.4, sog: 3, trajectory: [] },
+    obstacles: [
+      { id: 1, name: 'NORDLYS', mmsi: 257041500, x: 480, y: 260, psi: 0.8, cog: 0.8, sog: 4.2, trajectory: [],
+        ais: { age_s: 0.4, state: 'active' } },
+      { id: 2, name: 'MOORED BARGE', mmsi: 219005432, x: -260, y: 420, psi: 0.1, cog: 0.1, sog: 0.05, trajectory: [],
+        ais: { age_s: 0.8, state: 'sleeping' } },
+      { id: 3, name: 'FISHING TRAWLER', mmsi: 205644890, x: 430, y: -350, psi: 2.4, cog: 2.4, sog: 5.1, trajectory: [],
+        ais: { age_s: 0.6, state: 'active' } },
+      { id: 4, name: 'SILENT CONTACT', mmsi: 265712040, x: -430, y: -280, psi: 1.2, cog: 1.2, sog: 3.4, trajectory: [],
+        ais: { age_s: 61.0, state: 'lost' } },
+    ],
+    truth: [],
+    tracks: [{
+      labels: [1, 2, 3],
+      generations: [0, 0, 0],
+      states: [
+        [477, 257, 3.0, 2.8],
+        [-258, 421, 0.0, 0.0],
+        [436, -344, -3.6, 2.2],
+      ],
+      covariances: [],
+      nis: [],
+    }],
+    measurements: [[
+      [[0, [474, 268]]],      // radar echo near TS1 (world NE meters)
+      [[2, [425, -356]]],     // radar echo near TS3
+    ]],
+    plans: { prediction_horizon: [], planner: {}, target_prediction_horizons: [] },
+    waypoints: [[], []],
+    threat_management: {
+      status: 'AVAILABLE',
+      vectors: [{ key: { target_id: 3, generation: 0 }, target_id: 3, generation: 0, display_class: 'HIGH' }],
+    },
+    enc_navigation_area: null,
+    encounters: [],
+  };
+}
+
+const ENC_INFO = {
+  ready: true, run_id: 'ais-s4-harness',
+  origin_e: 37000, origin_n: 6955000,
+  width: 4000, height: 3000, utm_zone: 32,
+};
+
+const status = document.getElementById('status');
+
+function renderAisMarkers(markers = []) {
+  const layer = document.getElementById('aisMarkerLayer');
+  const active = new Set(markers.map(m => String(m.id)));
+  layer.querySelectorAll('.ais-marker').forEach(el => { if (!active.has(el.dataset.targetId)) el.remove(); });
+  markers.forEach(marker => {
+    let host = layer.querySelector(`.ais-marker[data-target-id="${marker.id}"]`);
+    if (!host) {
+      host = document.createElement('button');
+      host.type = 'button';
+      host.className = 'ais-marker';
+      host.dataset.targetId = String(marker.id);
+      const img = document.createElement('img');
+      img.draggable = false; img.alt = '';
+      host.append(img);
+      host.addEventListener('click', () => display.selectTarget(marker.id, { viaAis: true }));
+      layer.appendChild(host);
+    }
+    const img = host.querySelector('img');
+    const size = AIS_SYMBOL_SIZES[marker.state];
+    host.style.transform = `translate3d(${marker.anchor.x - size / 2}px, ${marker.anchor.y - size / 2}px, 0) rotate(${marker.rotationDeg}deg)`;
+    host.dataset.state = marker.state;
+    host.dataset.selected = String(marker.selected === true);
+    host.classList.toggle('flashing', marker.state === 'dangerous' || marker.state === 'lost');
+    host.setAttribute('aria-label', `AIS TS${marker.id}, ${marker.state}`);
+    if (img.dataset.state !== marker.state) {
+      img.src = assetUrl(marker.state);
+      img.dataset.state = marker.state;
+    }
+    img.style.width = `${size}px`;
+    img.style.height = `${size}px`;
+  });
+}
+
+function showAisCard(target, context) {
+  const card = document.getElementById('aisCard');
+  if (!context?.viaAis || target?.ais == null) { card.hidden = true; return; }
+  const raw = makeEnvelope();
+  const associations = matchAisAssociations(
+    raw.obstacles, raw.tracks[0],
+    localRadarMeasurementPoints(raw.measurements[0], ENC_INFO),
+  );
+  const state = aisSymbolState(target.ais, target.id === 3 ? 3 : 0);
+  const degrees = rad => Math.round((rad * 180 / Math.PI + 360) % 360);
+  document.getElementById('cardSymbol').src = assetUrl(state);
+  document.getElementById('cardTitle').textContent = `${target.name || `TS${target.id}`} · AIS TS${target.id}`;
+  document.getElementById('cardMmsi').textContent = target.mmsi;
+  document.getElementById('cardAge').textContent = target.ais.age_s.toFixed(1);
+  document.getElementById('cardSog').textContent = (target.sog / 0.514444).toFixed(1);
+  document.getElementById('cardCog').textContent = degrees(target.cog);
+  document.getElementById('cardHdg').textContent = degrees(target.psi);
+  document.getElementById('cardState').textContent = AIS_STATE_LABELS[state];
+  document.getElementById('cardAssoc').textContent = associationLabel(associations.get(String(target.id)));
+  card.hidden = false;
+}
+
+// Tile fetcher stays local: a 2x2 dark data-URL PNG keeps encReady truthy so
+// the measurement association chain runs without an ENC server.
+const TILE = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAFElEQVR4nGP8//8/AzPgAkwGRCcAARO3AqEKAAAAAElFTkSuQmCC';
+const display = createSituationDisplay({
+  canvas: document.getElementById('simCanvas'),
+  wrapper: document.getElementById('stage'),
+  fetchInfo: async () => ({ ...ENC_INFO }),
+  fetchTile: () => TILE,
+  getScenarioId: () => 'ais_s4_harness',
+  onAisMarkersChange: renderAisMarkers,
+  onSelectionChange: showAisCard,
+});
+display.beginSession('ais-s4-harness');
+display.render(makeEnvelope());
+
+// Deterministic overview frame: centre the fleet bounding box at 0.3 px/m so
+// all four AIS symbols (and the ownship) frame up inside the 900x620 stage,
+// then open the AIS card on the dangerous target for the acceptance frame.
+// Applied only after the async ENC boot settles — an earlier restore would be
+// clobbered by the chart's own ENC fit.
+const FLEET_CENTER_EAST_M = 25, FLEET_CENTER_NORTH_M = 20, FRAME_SCALE = 0.6;
+function applyAcceptanceFrame() {
+  display.setLayerVisible('motionVectors', false);
+  display.restoreView({
+    viewScale: FRAME_SCALE,
+    panX: -FLEET_CENTER_EAST_M * FRAME_SCALE,
+    panY: FLEET_CENTER_NORTH_M * FRAME_SCALE,
+    userAdjusted: true,
+    mapOrientation: 'north',
+  });
+  display.selectTarget(3, { viaAis: true });
+}
+let frameAttempts = 0;
+const frameTimer = setInterval(() => {
+  frameAttempts += 1;
+  const status = display.getEncStatus();
+  if (status === 'ready' || status === 'error' || frameAttempts > 40) {
+    clearInterval(frameTimer);
+    applyAcceptanceFrame();
+    window.__aisHarness = { display, ready: true, mock: makeEnvelope() };
+  }
+}, 250);
+window.__aisHarness = { display, ready: true, mock: makeEnvelope() };
+const states = makeEnvelope().obstacles.map(t => `TS${t.id}=${t.ais.state}`).join(' ');
+status.textContent = `mock frame sim_time ${simTime}s | ${states} | tracks 3 | radar echoes 2 | 点击符号切换 AIS 目标卡`;
+window.__aisHarnessReady = true;
+</script>
+</body>
+</html>

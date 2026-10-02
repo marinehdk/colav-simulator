@@ -13,6 +13,16 @@ import {
   simplifiedMpcFanGeometry,
 } from './modules/situation-display.js?v=20260923-vo-disc-v1';
 import { buildRadarModel, createRadarMiniMap } from './modules/radar-mini-map.js?v=20260827-instrument-polish-v1';
+import {
+  AIS_STATE_COLORS,
+  AIS_STATE_LABELS,
+  AIS_SYMBOL_ASSETS,
+  AIS_SYMBOL_SIZES,
+  aisSymbolState,
+  associationLabel,
+  localRadarMeasurementPoints,
+  matchAisAssociations,
+} from './modules/ais-display.js';
 import { buildPpiModel, createRadarPpi } from './modules/radar-ppi.js?v=20261002-ppi-v1';
 import { routeLegs, routeProgress } from './modules/route-progress.js?v=20260901-route-card-v1';
 
@@ -61,6 +71,7 @@ let lastVORenderKey = null;
 let voRenderGeometry = null;
 let latestMonitorProjection = null;
 let latestVesselMarkers = [];
+let latestAisMarkers = [];
 let latestOwnshipMarker = null;
 let selectedVesselTarget = null;
 let selectedVesselAnchor = null;
@@ -123,8 +134,21 @@ const situationDisplay = createSituationDisplay({
     if (label) label.textContent = text;
   },
   onLayerStateChange: syncLayerControls,
-  onSelectionChange: (target, context) => { if (deploymentView?.state().mode !== '3d') showVesselPlacard(target, context); },
+  onSelectionChange: (target, context = {}) => {
+    if (deploymentView?.state().mode === '3d') return;
+    // P3-S4 (spec #90): clicks on AIS *symbols* (canvas hit or DOM AIS marker)
+    // open the AIS target card; vessel-marker clicks keep the vessel placard.
+    if (context.viaAis) {
+      const vesselPlacard = document.getElementById('vesselDetailPlacard');
+      if (vesselPlacard) vesselPlacard.hidden = true;
+      showAisPlacard(target, context);
+    } else {
+      hideAisPlacard();
+      showVesselPlacard(target, context);
+    }
+  },
   onTargetMarkersChange: renderVesselMarkers,
+  onAisMarkersChange: renderAisMarkers,
 });
 const radarMiniMap = createRadarMiniMap({ canvas: document.getElementById('liveRadarMiniMap') });
 // P3-S1 radar PPI panel (spec #90): overlay toggle + range-scale buttons; the
@@ -310,17 +334,73 @@ function renderVesselMarkers(markers = [], context = {}) {
   });
 
   if (selectedVesselTarget) {
+    // P3-S4: an AIS-selected placard follows its symbol across frames too.
+    const aisPlacard = document.getElementById('aisDetailPlacard');
+    const aisSelected = Boolean(aisPlacard) && !aisPlacard.hidden && selectedVesselTarget.ais != null;
     if (String(selectedVesselTarget.id) === '0' && latestOwnshipMarker) {
       selectedVesselTarget = latestOwnshipMarker.vessel;
-      positionVesselPlacard(latestOwnshipMarker.anchor);
+      positionVesselPlacard(latestOwnshipMarker.anchor, aisSelected ? aisPlacard : null);
     } else {
       const selected = markers.find(marker => String(marker.id) === String(selectedVesselTarget.id));
       if (selected) {
         selectedVesselTarget = selected.target;
-        positionVesselPlacard(selected.anchor);
+        positionVesselPlacard(selected.anchor, aisSelected ? aisPlacard : null);
       }
     }
   }
+}
+
+/* ════════════ AIS symbol markers (P3-S4, spec #90) ════════════
+   DOM twin of the vessel markers for the AIS layer: sits ABOVE the vessel
+   markers so the small IMO 243 symbols stay clickable (their click opens the
+   AIS card via selectTarget({viaAis:true})); vessel markers keep the vessel
+   placard. Blinking states animate via CSS (canvas mode uses the timer). */
+function renderAisMarkers(markers = []) {
+  latestAisMarkers = markers;
+  const layer = document.getElementById('aisMarkerLayer');
+  if (!layer) return;
+  const activeIds = new Set(markers.map(marker => String(marker.id)));
+  layer.querySelectorAll('.ais-marker').forEach((element) => {
+    if (!activeIds.has(element.dataset.targetId)) element.remove();
+  });
+  markers.forEach((marker) => {
+    let host = layer.querySelector(`.ais-marker[data-target-id="${CSS.escape(String(marker.id))}"]`);
+    if (!host) {
+      host = document.createElement('button');
+      host.type = 'button';
+      host.className = 'ais-marker';
+      host.dataset.targetId = String(marker.id);
+      const image = document.createElement('img');
+      image.draggable = false;
+      image.alt = '';
+      host.append(image);
+      host.addEventListener('click', (event) => {
+        event.stopPropagation();
+        situationDisplay.selectTarget(host.dataset.targetId, { viaAis: true });
+      });
+      layer.appendChild(host);
+    }
+    const image = host.querySelector('img');
+    const size = AIS_SYMBOL_SIZES[marker.state] || 18;
+    // Rotation rides INSIDE the transform (translate first, then rotate about
+    // the symbol centre) — the individual `rotate` property composes about a
+    // different origin under some compositors and flings the symbol away.
+    host.style.transform = `translate3d(${marker.anchor.x - size / 2}px, ${marker.anchor.y - size / 2}px, 0) rotate(${marker.rotationDeg || 0}deg)`;
+    host.hidden = marker.anchor.x < -40
+      || marker.anchor.y < -40
+      || marker.anchor.x > layer.clientWidth + 40
+      || marker.anchor.y > layer.clientHeight + 40;
+    host.dataset.state = marker.state;
+    host.dataset.selected = String(marker.selected === true);
+    host.setAttribute('aria-label', `AIS TS${marker.id}, ${marker.state}`);
+    host.classList.toggle('flashing', marker.state === 'dangerous' || marker.state === 'lost');
+    if (image.dataset.state !== marker.state) {
+      image.src = AIS_SYMBOL_ASSETS[marker.state] || image.src;
+      image.dataset.state = marker.state;
+    }
+    image.style.width = `${size}px`;
+    image.style.height = `${size}px`;
+  });
 }
 
 function hideVesselPlacard() {
@@ -328,6 +408,7 @@ function hideVesselPlacard() {
   selectedVesselAnchor = null;
   const placard = document.getElementById('vesselDetailPlacard');
   if (placard) placard.hidden = true;
+  hideAisPlacard();
 }
 
 function placardMetric(id, value) {
@@ -335,8 +416,8 @@ function placardMetric(id, value) {
   if (element) element.textContent = value;
 }
 
-function positionVesselPlacard(anchor) {
-  const placard = document.getElementById('vesselDetailPlacard');
+function positionVesselPlacard(anchor, placardElement = null) {
+  const placard = placardElement || document.getElementById('vesselDetailPlacard');
   const wrapper = document.getElementById('canvasWrapper');
   if (!placard || !wrapper || !anchor) return;
   selectedVesselAnchor = anchor;
@@ -412,6 +493,85 @@ function showVesselPlacard(target, context = {}) {
     vesselImage: 'cargo-top',
     vesselImageSize: 28,
   });
+}
+
+/* ════════════ AIS target card (P3-S4, spec #90) ════════════
+   Same placard craft as the vessel card (obc-poi-card + anchor positioning);
+   content = MMSI/SOG/COG/HDG/age/state + the AIS-to-track/radar association
+   label. Age/state are backend-authoritative (`ais` object) — no local
+   recomputation. */
+
+function riskRankForAisTarget(target) {
+  const risk = latestMonitorProjection?.risk?.targets
+    ?.find(item => String(item.targetId) === String(target.id));
+  return { HIGH: 3, LOW: 2, CLEAR: 1 }[String(risk?.displayClass || '').toUpperCase()] || 0;
+}
+
+function selectedAisAssociation(target) {
+  const raw = latestMonitorProjection?.raw || currentData;
+  if (!raw || !target?.ais) return null;
+  const aisTargets = (raw.obstacles || []).filter(item => item?.ais != null);
+  if (!aisTargets.length) return null;
+  const associations = matchAisAssociations(
+    aisTargets,
+    raw.tracks?.[0],
+    localRadarMeasurementPoints(raw.measurements?.[0], situationDisplay.getEncInfo()),
+  );
+  return associations.get(String(target.id)) || null;
+}
+
+function hideAisPlacard() {
+  const placard = document.getElementById('aisDetailPlacard');
+  if (placard) placard.hidden = true;
+}
+
+function showAisPlacard(target, context = {}) {
+  const placard = document.getElementById('aisDetailPlacard');
+  if (!placard || !target || target.ais == null) {
+    hideAisPlacard();
+    return;
+  }
+  selectedVesselTarget = target;
+  const marker = latestVesselMarkers.find(item => String(item.id) === String(target.id));
+  const anchor = context.anchor || marker?.anchor;
+  if (!anchor) {
+    hideAisPlacard();
+    return;
+  }
+  const ais = target.ais;
+  const state = aisSymbolState(ais, riskRankForAisTarget(target));
+  const ownship = latestMonitorProjection?.raw?.os || currentData?.os;
+  const northDelta = Number(target.x) - Number(ownship?.x);
+  const eastDelta = Number(target.y) - Number(ownship?.y);
+  const rangeM = Number.isFinite(northDelta) && Number.isFinite(eastDelta) ? Math.hypot(northDelta, eastDelta) : NaN;
+  const sogKn = Number.isFinite(target.sog) ? Number(target.sog) / 0.514444 : NaN;
+  const cogDeg = Number.isFinite(target.cog) ? (Number(target.cog) * 180 / Math.PI + 360) % 360 : NaN;
+  const hdgDeg = Number.isFinite(target.psi) ? (Number(target.psi) * 180 / Math.PI + 360) % 360 : NaN;
+  Object.assign(placard, {
+    headerVariant: 'condensed',
+    index: String(target.id),
+    cardTitle: target.name || `AIS TS${target.id}`,
+    description: target.mmsi != null ? `MMSI ${target.mmsi}` : 'AIS 目标',
+    source: 'AIS',
+    interactive: false,
+  });
+  positionVesselPlacard(anchor, placard);
+  placard.hidden = false;
+  placard.setAttribute('aria-label', `AIS 目标 ${target.name || `TS${target.id}`} 详情`);
+  placardMetric('aisPlacardMmsi', target.mmsi != null ? String(target.mmsi) : '---');
+  placardMetric('aisPlacardRange', Number.isFinite(rangeM) ? (rangeM / METERS_PER_NAUTICAL_MILE).toFixed(1) : '---');
+  placardMetric('aisPlacardSog', Number.isFinite(sogKn) ? sogKn.toFixed(1) : '---');
+  placardMetric('aisPlacardCog', Number.isFinite(cogDeg) ? Math.round(cogDeg).toString().padStart(3, '0') : '---');
+  placardMetric('aisPlacardHdg', Number.isFinite(hdgDeg) ? Math.round(hdgDeg).toString().padStart(3, '0') : '---');
+  placardMetric('aisPlacardAge', Number.isFinite(Number(ais.age_s)) ? Number(ais.age_s).toFixed(0) : '---');
+  placardMetric('aisPlacardState', AIS_STATE_LABELS[state] || String(ais.state || '---'));
+  placardMetric('aisPlacardAssociation', associationLabel(selectedAisAssociation(target)));
+  const symbol = document.getElementById('aisPlacardSymbol');
+  if (symbol) {
+    symbol.src = AIS_SYMBOL_ASSETS[state] || symbol.src;
+    symbol.alt = `AIS ${state}`;
+    symbol.style.filter = `drop-shadow(0 0 2px ${AIS_STATE_COLORS[state] || 'transparent'})`;
+  }
 }
 
 /* ══════════════════════════════════════════════
@@ -1201,7 +1361,14 @@ function updateMonitorTelemetry(proj) {
     const anchor = isOwnship
       ? latestOwnshipMarker?.anchor
       : latestVesselMarkers.find(marker => String(marker.id) === String(selectedVesselTarget.id))?.anchor;
-    if (freshVessel && anchor) showVesselPlacard(freshVessel, { anchor });
+    if (freshVessel && anchor) {
+      // P3-S4 (spec #90): AIS-selected targets refresh into the AIS card.
+      if (freshVessel.ais != null && !document.getElementById('aisDetailPlacard')?.hidden) {
+        showAisPlacard(freshVessel, { anchor });
+      } else {
+        showVesselPlacard(freshVessel, { anchor });
+      }
+    }
   }
   const historicalContext = proj.raw?.historical_context;
   setText(

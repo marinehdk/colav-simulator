@@ -1,0 +1,41 @@
+{
+  "session_id": "06969d30-9761-434a-89cd-57b3f5f8c90b",
+  "generated_at": "2026-10-02T23:56:48.009Z",
+  "assertions": [
+    {
+      "name": "live session created (POST /api/sessions)",
+      "ok": true,
+      "detail": "status 200"
+    },
+    {
+      "name": "WS envelope carries backend ais{age_s,state} on every obstacle",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "AIS symbol layer renders on the live 2D chart",
+      "ok": true,
+      "detail": "{\"count\":10,\"states\":[\"active\",\"active\",\"active\",\"active\",\"active\",\"active\",\"active\",\"active\",\"active\",\"active\"],\"checkboxChecked\":true}"
+    },
+    {
+      "name": "chart-display popover carries the AIS layer switch",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "AIS target card opens with backend-authoritative fields",
+      "ok": true,
+      "detail": "{\"hidden\":false,\"title\":\"AIS TS1\",\"source\":\"AIS\",\"mmsi\":\"101\",\"sog\":\"8.0\",\"cog\":\"090\",\"hdg\":\"090\",\"age\":\"1\",\"state\":\"激活（矢量）\",\"assoc\":\"TS1（融合） + 雷达回波\"}"
+    },
+    {
+      "name": "3D scene runs with vessel models + POIs",
+      "ok": true,
+      "detail": "{\"models\":11,\"pois\":9,\"frames\":52}"
+    },
+    {
+      "name": "3D POI card carries the AIS rows",
+      "ok": true,
+      "detail": "[\"MMSI\",\"AIS AGE\",\"AIS STATE\",\"AIS ASSOC\",\"BRG\",\"RNG\",\"DCPA\",\"TCPA\",\"HDG\",\"SOG\"]"
+    }
+  ]
+}

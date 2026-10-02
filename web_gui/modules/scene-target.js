@@ -1,10 +1,38 @@
 import { NM, riskForTarget, targetAlert } from './scene-geography.js?v=20260923-follow-v1';
+import {
+  AIS_STATE_LABELS,
+  aisSymbolState,
+  associationLabel,
+  localRadarMeasurementPoints,
+  matchAisAssociations,
+} from './ais-display.js';
 
 const metric = (value, digits = 1) => Number.isFinite(value) ? value.toFixed(digits) : '—';
 const degrees = value => Number.isFinite(value) ? (value * 180 / Math.PI + 360) % 360 : null;
 const ROLES = { GIVE_WAY: '让路船', STAND_ON: '直航船', OVERTAKING: '追越船', OVERTAKEN: '被追越船' };
 
-export function targetPresentation(projection, ship) {
+/* P3-S4 (spec #90): AIS rows for the 3D target card. Age/state are backend
+   authoritative; the dangerous composition and the association label are
+   display-side (see ais-display.js). */
+function aisCardRows(projection, ship, encInfo) {
+  if (ship?.ais == null) return [];
+  const rank = { alarm: 3, caution: 2, checked: 1 }[targetAlert(projection, ship).state] || 0;
+  const state = aisSymbolState(ship.ais, rank);
+  const associations = matchAisAssociations(
+    [ship],
+    projection?.raw?.tracks?.[0],
+    localRadarMeasurementPoints(projection?.raw?.measurements?.[0], encInfo),
+  );
+  const association = associations.get(String(ship.id)) || null;
+  return [
+    { label: 'MMSI', value: ship.mmsi != null ? String(ship.mmsi) : '—', unit: '' },
+    { label: 'AIS AGE', value: metric(Number(ship.ais.age_s), 0), unit: 'S' },
+    { label: 'AIS STATE', value: AIS_STATE_LABELS[state] || String(ship.ais.state || '—'), unit: '' },
+    { label: 'AIS ASSOC', value: associationLabel(association), unit: '' },
+  ];
+}
+
+export function targetPresentation(projection, ship, encInfo = null) {
   const risk = riskForTarget(projection, ship), alert = targetAlert(projection, ship);
   const os = projection?.raw?.os;
   const located = [os?.x, os?.y, ship.x, ship.y].every(Number.isFinite);
@@ -27,8 +55,9 @@ export function targetPresentation(projection, ship) {
     { label: 'RNG', value: metric(range === null ? null : range / NM, 2), unit: 'NM' },
     { label: 'DCPA', value: metric(dcpa, 2), unit: 'NM' },
   ];
+  const aisRows = aisCardRows(projection, ship, encInfo);
   return { alert, relation, role: ROLES[role] || '职责未知', blocks,
-    metrics: [...blocks, { label: 'TCPA', value: metric(tcpa), unit: 'MIN' },
+    metrics: [...aisRows, ...blocks, { label: 'TCPA', value: metric(tcpa), unit: 'MIN' },
       { label: projection?.raw?.executed_tracker === 'god' ? 'HDG' : 'COG', value: metric(degrees(ship.psi), 0), unit: 'DEG' },
       { label: 'SOG', value: metric(Number.isFinite(ship.sog) ? ship.sog * 3600 / NM : null), unit: 'KN' }],
     note: assessed ? (risk?.lifecycleCommitment || risk?.commitment || '') : '当前无有效 COLAV 评估；CPA / TCPA 不可用',

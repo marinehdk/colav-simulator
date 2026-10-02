@@ -4,6 +4,12 @@ import { targetsForDisplay, RADAR_DETECTION_RANGE_M, drawVODecisionDisc } from '
 import { createRoute3D } from './route-3d.js?v=20260921-route-ar-v1';
 import { createSceneCompass } from './scene-compass.js?v=20260923-follow-v1';
 import { targetPresentation, applyTargetAppearance, updateTargetPoi, renderTargetCard } from './scene-target.js?v=20260923-follow-v1';
+import {
+  AIS_STATE_COLORS,
+  AIS_SYMBOL_ASSETS,
+  AIS_SYMBOL_SIZES,
+  aisSymbolState,
+} from './ais-display.js';
 
 let enginePromise;
 export function voDiscRadiusM(length) {
@@ -91,6 +97,10 @@ export async function createScene3D({ host, info, camera = 'chase', chart, onSel
   let lastGeometryKey = null, lastRingCenter = null, lastVODiscKey = null, voPrimitive = null, voRadiusM = null, voCenter = null;
   let voMaterial = null, voAnchor = null;
   const vessels = new Map(), pois = new Map(), geometry = new Map(), linePoints = new Map();
+  // P3-S4 (spec #90): AIS symbol billboards (IMO 243 SVG assets), keyed by
+  // the same targetKey identity as the vessel models; visibility follows the
+  // `aisTargets` layer switch.
+  const aisMarkers = new Map();
   const disposers = [];
   function listen(el, event, fn) { el.addEventListener(event, fn); disposers.push(() => el.removeEventListener(event, fn)); }
   function position(n, e, h = 0) { const [lon, lat] = geo.lonLat(n, e); return C.Cartesian3.fromDegrees(lon, lat, h); }
@@ -185,6 +195,60 @@ export async function createScene3D({ host, info, camera = 'chase', chart, onSel
       viewer.entities.remove(record.marker); vessels.delete(key);
     }
   }
+  /* P3-S4 AIS symbol billboards (spec #90). Screen-space rotation is
+     compensated by the camera heading so the triangle points along the
+     target's world heading (null heading → falls back unrotated). State
+     changes swap the SVG asset; the layer switch removes the symbols. */
+  function updateAisMarkers(ships) {
+    const visible = chart.getLayerState().aisTargets?.visible !== false;
+    const wanted = new Set();
+    if (visible) {
+      for (const ship of ships) {
+        if (ship.ais == null || String(ship.id) === '0' || ![ship.x, ship.y].every(Number.isFinite)) continue;
+        const key = targetKey(info.run_id, ship);
+        wanted.add(key);
+        const rank = { alarm: 3, caution: 2, checked: 1 }[targetAlert(projection, ship).state] || 0;
+        const state = aisSymbolState(ship.ais, rank);
+        const world = position(ship.x, ship.y, 6);
+        let record = aisMarkers.get(key);
+        if (!record || record.state !== state) {
+          if (record) viewer.entities.remove(record.entity);
+          const size = AIS_SYMBOL_SIZES[state];
+          // Entity id must be a string (object ids collide in the entity
+          // collection); the pickable targetId rides as an entity property,
+          // mirroring the fallback markers added by updateVessels.
+          const entity = viewer.entities.add({
+            position: world,
+            billboard: {
+              image: AIS_SYMBOL_ASSETS[state], width: size, height: size,
+              verticalOrigin: C.VerticalOrigin.CENTER, disableDepthTestDistance: Infinity,
+            },
+            id: `ais:${key}`,
+          });
+          entity.addProperty('targetId');
+          entity.targetId = ship.id;
+          aisMarkers.set(key, { entity, state });
+          record = aisMarkers.get(key);
+        } else {
+          record.entity.position = world;
+        }
+        record.worldHeading = geo.heading(ship.x, ship.y, Number.isFinite(ship.psi) ? ship.psi : ship.cog);
+        record.entity.billboard.color = C.Color.fromCssColorString(AIS_STATE_COLORS[state]);
+      }
+    }
+    for (const [key, record] of aisMarkers) if (!wanted.has(key)) {
+      viewer.entities.remove(record.entity); aisMarkers.delete(key);
+    }
+  }
+  function refreshAisMarkerRotations() {
+    for (const record of aisMarkers.values()) {
+      const visible = chart.getLayerState().aisTargets?.visible !== false;
+      record.entity.show = visible;
+      if (!visible || !Number.isFinite(record.worldHeading)) continue;
+      const cameraHeading = viewer.camera.heading;
+      record.entity.billboard.rotation = -(record.worldHeading - cameraHeading);
+    }
+  }
   function setCamera(value) {
     preset = value; follow = true; lastRingCenter = null; onCamera(value); updateCamera(); updateRings();
     if (voEntity) voEntity.ellipse.material.color = new C.Color(1, 1, 1, value === 'bridge' ? 0.28 : 0.42);
@@ -276,7 +340,7 @@ export async function createScene3D({ host, info, camera = 'chase', chart, onSel
     }
     const ship = record.ship;
     selectedKey = targetKey(info.run_id, ship);
-    const model = targetPresentation(projection, ship);
+    const model = targetPresentation(projection, ship, chart.getEncInfo());
     card.cardTitle = String(ship.id) === '0' ? 'OWN SHIP' : ship.name || `TS${ship.id}`;
     card.index = String(ship.id); card.source = projection.raw.executed_tracker === 'god' ? 'GOD' : 'TRACK';
     card.description = `${metric(ship.length)} × ${metric(ship.width)} m`; card.headerVariant = 'detailed';
@@ -408,7 +472,7 @@ export async function createScene3D({ host, info, camera = 'chase', chart, onSel
           const right = C.Cartesian3.dot(delta, viewer.camera.rightWC) >= 0;
           const direction = offscreenDirection(projected, width, height, ahead, right);
           edgeLabels.push({ key, id: ship.id, text: `${direction.arrow} TS${ship.id}`, edge: direction.edge,
-            alert: targetPresentation(projection, ship).alert });
+            alert: targetPresentation(projection, ship, chart.getEncInfo()).alert });
         }
         continue;
       }
@@ -423,7 +487,7 @@ export async function createScene3D({ host, info, camera = 'chase', chart, onSel
       }
       const compassElement = root.querySelector('.scene3d-compass');
       const topInset = compassElement && !compassElement.hidden ? compassElement.offsetHeight + 16 : 20;
-      const model = targetPresentation(projection, ship);
+      const model = targetPresentation(projection, ship, chart.getEncInfo());
       const available = point.y - topInset;
       const blocks = available >= 320 ? model.blocks : available >= 180 ? [model.blocks[1]] : [];
       if (updateTargetPoi(poi, { ...model, blocks })) poi.updateComplete.then(() => requestAnimationFrame(() => { if (!disposed) viewer.scene.requestRender(); }));
@@ -462,6 +526,7 @@ export async function createScene3D({ host, info, camera = 'chase', chart, onSel
   listen(layer, 'keydown', event => { if (event.key === 'Escape') layer.querySelectorAll('obc-poi-group').forEach(group => { group.expand = false; }); });
   const removePostRender = viewer.scene.postRender.addEventListener(() => {
     projectPois();
+    refreshAisMarkerRotations();
     for (const record of vessels.values()) {
       record.marker.show = chart.getLayerState().ships?.visible !== false
         && (String(record.ship.id) !== '0' || !record.model?.ready);
@@ -497,7 +562,7 @@ export async function createScene3D({ host, info, camera = 'chase', chart, onSel
       if (disposed || !value || value.raw.run_id !== info.run_id) return;
       projection = value;
       const ships = [value.raw.os, ...targetsForDisplay(value.raw)];
-      updateVessels(ships); updatePaths(); updateCamera(); updateRings(); updateVODecisionSea(); updateCard();
+      updateVessels(ships); updateAisMarkers(ships); updatePaths(); updateCamera(); updateRings(); updateVODecisionSea(); updateCard();
       requestVODecisionSpace();
       compass.render(value, preset, chart.getLayerState().ships?.visible !== false);
       const frame = frameIdentity(value.raw);
@@ -512,7 +577,7 @@ export async function createScene3D({ host, info, camera = 'chase', chart, onSel
       if (disposed) return; disposed = true;
       resize.disconnect(); theme.disconnect(); removePreRender(); removePostRender(); removeError(); handler.destroy();
       disposers.forEach(dispose => dispose()); pois.forEach(poi => poi.remove()); pois.clear();
-      compass.destroy(); routeDisplay.destroy(); viewer.destroy(); root.remove(); vessels.clear(); geometry.clear(); linePoints.clear();
+      compass.destroy(); routeDisplay.destroy(); viewer.destroy(); root.remove(); vessels.clear(); geometry.clear(); linePoints.clear(); aisMarkers.clear();
     },
   };
 }

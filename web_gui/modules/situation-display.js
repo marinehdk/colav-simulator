@@ -21,6 +21,17 @@
  */
 
 import { interpolateAngle as sharedInterpolateAngle, interpolateVesselKinematics } from './kinematics.js';
+import {
+  AIS_BLINK_PERIOD_MS,
+  AIS_STATE_COLORS,
+  AIS_SYMBOL_ASSETS,
+  AIS_SYMBOL_SIZES,
+  aisBlinkOn,
+  aisSymbolState,
+  drawAisSymbol,
+  localRadarMeasurementPoints,
+  matchAisAssociations,
+} from './ais-display.js';
 
 export const TELEMETRY_RENDER_MIN_MS = 100;
 export const TELEMETRY_RENDER_MAX_MS = 1000;
@@ -90,6 +101,10 @@ export const LAYER_ORDER = [
   'threatPlot',
   'shadowOwnship',
   'ships',
+  // P3-S4 (spec #90): AIS target layer — "AIS view" symbol layer per IMO
+  // SN.1/Circ.243/Rev.1; drawn after `ships` so its hit regions win the
+  // shared click routing and the symbols read above the vessel hulls.
+  'aisTargets',
 ];
 
 const DEFAULT_LAYERS = {
@@ -108,6 +123,7 @@ const DEFAULT_LAYERS = {
   measurements: false,
   tracks: false,
   covariance: false,
+  aisTargets: true,
 };
 
 const PALETTE_DEFAULTS = {
@@ -571,6 +587,7 @@ export function createSituationDisplay(options) {
     onLayerStateChange = () => {},
     onSelectionChange = () => {},
     onTargetMarkersChange = null,
+    onAisMarkersChange = null,
     onVesselPositionsChange = null,
   } = options;
   if (!canvas || !wrapper) throw new Error('situation-display requires canvas and wrapper');
@@ -652,6 +669,9 @@ export function createSituationDisplay(options) {
   let clickMode = null;
   let selectionCallback = onSelectionChange;
   const markerSink = typeof onTargetMarkersChange === 'function' ? onTargetMarkersChange : null;
+  // P3-S4 (spec #90): DOM sink for the AIS symbol layer (mirror of the vessel
+  // marker sink); null → symbols draw on the canvas (evaluation replay etc.).
+  const aisMarkerSink = typeof onAisMarkersChange === 'function' ? onAisMarkersChange : null;
   let targetThreatLevels = new Map();
 
   /* ── interpolation pipeline (moved from app.js per M3) ── */
@@ -685,6 +705,17 @@ export function createSituationDisplay(options) {
     if (targetSprite.addEventListener) targetSprite.addEventListener('load', () => { rerender(); });
     setSpriteSrc(targetSprite, DEFAULT_TARGET_SHIP_TYPE_ASSET);
   }
+  // P3-S4 AIS symbol sprites (IMO 243 assets); vector fallback keeps the
+  // layer renderable (and testable) before the images load.
+  const aisSymbolImages = loadSprites
+    ? Object.fromEntries(Object.entries(AIS_SYMBOL_ASSETS).map(([state, src]) => {
+      const image = createImage();
+      if (image.addEventListener) image.addEventListener('load', () => { rerender(); });
+      setSpriteSrc(image, src);
+      return [state, image];
+    }))
+    : null;
+  let aisBlinkTimer = null;
 
   /* ════════════ sizing / transforms ════════════ */
 
@@ -1051,6 +1082,11 @@ export function createSituationDisplay(options) {
     drawShadowOwnship(data.shadow_ownship);
     if (visibleLayers.ships) drawShips(data);
     else markerSink?.([]);
+    if (visibleLayers.aisTargets && layerAvailability.aisTargets) drawAisTargets(data);
+    else {
+      aisMarkerSink?.([]);
+      syncAisBlinkTimer(null);
+    }
     ctx.restore();
   }
 
@@ -1485,6 +1521,107 @@ export function createSituationDisplay(options) {
     drawSequence.push('ships');
   }
 
+  /* ════════════ AIS target layer (P3-S4, spec #90) ════════════
+     The "AIS view" of traffic per IMO SN.1/Circ.243/Rev.1 Annex 1: reported
+     truth positions (obstacles carrying a backend `ais` object), drawn as
+     sleeping/activated/dangerous/lost symbols. It coexists with the `ships`
+     layer (hull sprites) instead of replacing it. State authority is the
+     backend (`ais.state`); only the dangerous composition is display-side. */
+
+  function targetsForAisLayer(data) {
+    return (Array.isArray(data?.obstacles) ? data.obstacles : [])
+      .filter(target => target && target.ais != null
+        && [target.x, target.y].every(Number.isFinite));
+  }
+
+  function drawAisTargets(data) {
+    const targets = targetsForAisLayer(data);
+    if (!targets.length) {
+      aisMarkerSink?.([]);
+      return;
+    }
+    const associations = matchAisAssociations(
+      targets,
+      data.tracks?.[0],
+      localRadarMeasurementPoints(data.measurements?.[0], encInfo),
+    );
+    const blinkOn = aisBlinkOn(now());
+    const markers = [];
+    const labels = [];
+    targets.forEach(target => {
+      const state = aisSymbolState(target.ais, targetThreat(data, target).rank);
+      const point = worldToCanvas(target.x, target.y);
+      // IMO 243 §3.1: oriented by heading, COG when heading is absent.
+      const heading = [target.psi, target.cog].find(Number.isFinite) || 0;
+      if (aisMarkerSink) {
+        markers.push({
+          id: target.id,
+          target,
+          anchor: drawnToScreen(point.x, point.y),
+          rotationDeg: Math.round(wrapRadians(heading - headingRotation) * 180 / Math.PI),
+          state,
+          selected: String(target.id) === String(selectedTargetId),
+        });
+      } else {
+        drawAisSymbol(ctx, point.x, point.y, wrapRadians(heading), state, {
+          images: aisSymbolImages,
+          blinkOn,
+        });
+        if (String(target.id) === String(selectedTargetId)) drawAisSelectionBox(point, state);
+        if (state === 'dangerous' || state === 'lost') {
+          labels.push({ text: `TS${target.id}`, point, color: AIS_STATE_COLORS[state] });
+        }
+      }
+      // Pushed after the `ships` regions: the reversed hit-test finds the AIS
+      // symbol first where both layers overlap.
+      targetHitRegions.push({ x: point.x, y: point.y, radius: 16, target, aisSymbol: true });
+    });
+    if (aisMarkerSink) aisMarkerSink(markers);
+    else drawAvoidingLabels(labels);
+    drawSequence.push('aisTargets');
+    if (!aisMarkerSink) syncAisBlinkTimer(data); // DOM symbols blink via CSS
+  }
+
+  // IMO 243 §3.5: a selected target is enclosed by a four-corner bracket.
+  function drawAisSelectionBox(point, state) {
+    const half = AIS_SYMBOL_SIZES[state] / 2 + 5;
+    const arm = Math.max(4, half * 0.55);
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255,255,255,0.95)';
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    [[-1, -1], [1, -1], [1, 1], [-1, 1]].forEach(([sx, sy]) => {
+      ctx.moveTo(point.x + sx * half, point.y + sy * half - sy * arm);
+      ctx.lineTo(point.x + sx * half, point.y + sy * half);
+      ctx.lineTo(point.x + sx * half - sx * arm, point.y + sy * half);
+    });
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  /* IMO 243 §3.3/§3.4: dangerous/lost symbols flash until acknowledged; the
+     timer re-renders at half the blink period and self-stops when no
+     flashing target (or the layer itself) remains. */
+  function syncAisBlinkTimer(data) {
+    const needed = Boolean(data)
+      && visibleLayers.aisTargets
+      && layerAvailability.aisTargets !== false
+      && targetsForAisLayer(data).some(target => {
+        const state = aisSymbolState(target.ais, targetThreat(data, target).rank);
+        return state === 'dangerous' || state === 'lost';
+      });
+    if (needed && aisBlinkTimer === null) {
+      aisBlinkTimer = setTimer(() => {
+        aisBlinkTimer = null;
+        rerender();
+        syncAisBlinkTimer(lastRenderedData);
+      }, AIS_BLINK_PERIOD_MS / 2);
+    } else if (!needed && aisBlinkTimer !== null) {
+      clearTimer(aisBlinkTimer);
+      aisBlinkTimer = null;
+    }
+  }
+
   function drawShadowOwnship(shadow) {
     if (!shadow?.comparison_only || !Number.isFinite(shadow.x) || !Number.isFinite(shadow.y)) return;
     const points = Array.isArray(shadow.trajectory) ? shadow.trajectory : [];
@@ -1877,6 +2014,9 @@ export function createSituationDisplay(options) {
     layerAvailability.safeWater = normalizePolygons(navigationArea?.safe_water?.polygons).length > 0;
     layerAvailability.radarRange = true;
     layerAvailability.responseRange = Boolean(getResponseRange());
+    // P3-S4 (spec #90): the AIS layer is available when the transport
+    // carries at least one backend AIS target object this frame.
+    layerAvailability.aisTargets = targetsForAisLayer(data).length > 0;
     emitLayerState();
   }
 
@@ -1929,7 +2069,7 @@ export function createSituationDisplay(options) {
     }
     const hit = [...targetHitRegions].reverse().find(item => Math.hypot(p.x - item.x, p.y - item.y) <= item.radius);
     if (hit) {
-      selectTarget(hit.target.id, hit.target);
+      selectTarget(hit.target.id, hit.target, { viaAis: hit.aisSymbol === true });
       return;
     }
     if (ownshipHitRegion && Math.hypot(p.x - ownshipHitRegion.x, p.y - ownshipHitRegion.y) <= ownshipHitRegion.radius) {
@@ -1946,7 +2086,7 @@ export function createSituationDisplay(options) {
     selectTarget(null, null);
   }
 
-  function selectTarget(id, target = null) {
+  function selectTarget(id, target = null, contextOptions = {}) {
     selectedTargetId = id === undefined || id === null ? null : id;
     const resolved = target
       || (selectedTargetId === null ? null
@@ -1958,6 +2098,7 @@ export function createSituationDisplay(options) {
     selectionCallback(resolved, {
       selectedTargetId,
       anchor: point ? drawnToScreen(point.x, point.y) : null,
+      ...contextOptions,
     });
     rerender();
   }
@@ -2042,6 +2183,8 @@ export function createSituationDisplay(options) {
     encReady = false;
     selectTarget(null, null);
     markerSink?.([]);
+    aisMarkerSink?.([]);
+    syncAisBlinkTimer(null);
     setEncStatus('idle');
   }
 
@@ -2075,7 +2218,7 @@ export function createSituationDisplay(options) {
     setTargetThreatLevels,
     setClickMode,
     onSelectionChange(cb) { selectionCallback = cb; },
-    selectTarget(id) { selectTarget(id); },
+    selectTarget(id, options = {}) { selectTarget(id, null, options); },
     getSelectedTargetId: () => (selectedTargetId === undefined ? null : selectedTargetId),
     isOwnshipThreatPlotVisible: () => ownshipThreatPlotVisible,
     fitView,
@@ -2132,6 +2275,7 @@ export function createSituationDisplay(options) {
     destroy() {
       cancelENCLoad();
       resetAnimation();
+      syncAisBlinkTimer(null);
       resizeObserver?.disconnect();
       resizeObserver = null;
       while (disposers.length) disposers.pop()();

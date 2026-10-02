@@ -1031,6 +1031,66 @@ obc-clock:not(:defined),
 .color-box.high { background: #ff4d5a; border-radius: 50%; box-shadow: 0 0 0 2px rgba(255,77,90,0.2); }
 .color-box.unknown { background: transparent; border: 1px dashed #68747a; }
 
+/* P3-S4 AIS symbol legend swatches (spec #90) — triangle glyphs per
+   IMO SN.1/Circ.243/Rev.1 Annex 1 (sleeping < activated, danger red, lost ×). */
+.color-box.ais-target {
+  background: rgba(79,224,198,0.25);
+  border: 1.5px solid #4FE0C6;
+  clip-path: polygon(50% 0, 100% 100%, 50% 62%, 0 100%);
+  border-radius: 0;
+}
+.color-box.ais-danger {
+  background: #ff4d5a;
+  border: 1.5px solid #ff4d5a;
+  clip-path: polygon(50% 0, 100% 100%, 50% 62%, 0 100%);
+  border-radius: 0;
+}
+.color-box.ais-lost {
+  background: #8c979d;
+  border: 1.5px solid #8c979d;
+  border-radius: 0;
+  clip-path: polygon(50% 0, 100% 100%, 50% 62%, 0 100%);
+  position: relative;
+}
+.color-box.ais-lost::after {
+  content: '×';
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font: 700 11px/1 var(--font-ui);
+  color: #d7dee2;
+  clip-path: none;
+}
+
+/* P3-S4 AIS target card (spec #90) — same placard craft as the vessel card. */
+.ais-placard-footer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr);
+  gap: 10px;
+  padding: 7px 14px 10px;
+  border-top: 1px solid var(--ob-border);
+}
+.ais-placard-footer > div {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: baseline;
+  column-gap: 8px;
+  min-width: 0;
+}
+.ais-placard-footer span {
+  font: 600 11px/1 var(--font-ui);
+  color: var(--ob-subtle);
+}
+.ais-placard-footer strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: 600 13px/1.2 var(--font-ui);
+  color: var(--ob-text);
+}
+.vessel-placard-dial img { grid-area: 1 / 1; }
+
 .layer-controls {
   display: grid;
   grid-template-columns: repeat(2, minmax(160px, 1fr));
@@ -1251,6 +1311,33 @@ canvas#simCanvas.route-pick-mode { cursor: crosshair; }
 }
 
 .vessel-marker obc-chart-object-vessel-button { display: block; }
+
+/* P3-S4 AIS symbol markers (spec #90) — DOM twin of the vessel markers for
+   the AIS layer; same layer class keeps the 3D/twin hide rules working. */
+.ais-marker {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: grid;
+  place-items: center;
+  padding: 3px;
+  border: none;
+  background: transparent;
+  border-radius: 4px;
+  transform: translate3d(-128px, -128px, 0);
+  will-change: transform;
+  pointer-events: auto;
+  cursor: pointer;
+  filter: drop-shadow(0 1px 2px rgba(4, 28, 42, 0.45));
+}
+.ais-marker img { display: block; pointer-events: none; }
+.ais-marker:focus-visible { outline: 2px solid #fff; outline-offset: 1px; }
+.ais-marker[data-selected="true"] { outline: 1.5px dashed rgba(255,255,255,0.95); outline-offset: 0; }
+.ais-marker.flashing img { animation: ais-symbol-flash 1s steps(1, end) infinite; }
+@keyframes ais-symbol-flash {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0.25; }
+}
 
 .vessel-marker-label {
   position: absolute;
