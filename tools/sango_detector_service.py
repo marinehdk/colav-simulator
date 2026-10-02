@@ -17,6 +17,11 @@ Usage:
     .venv-detector/bin/python tools/sango_detector_service.py --selftest  # 无 socket：验证依赖 + 权重
 
 No Unity around? Feed frames with tools/sango_detector_replay.py.
+
+P3-S2 (observations-v1.md, spec #90): optional HTTP forward branch. With
+``--forward-url`` set, every result is ALSO posted to the backend observations
+endpoint (``POST /api/sessions/{id}/observations``, frozen schema §3) — the
+same payload shape, zero change to the ZMQ return path (default off).
 """
 
 from __future__ import annotations
@@ -27,6 +32,8 @@ import math
 import signal
 import sys
 import time
+import urllib.error
+import urllib.request
 from pathlib import Path
 
 import cv2  # ultralytics 传递依赖
@@ -55,6 +62,16 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--log-every", type=int, default=10, help="log every N processed frames (first frame always logs)")
     p.add_argument("--selftest", action="store_true",
                    help="run inference on one synthetic frame (no sockets) and exit; verifies deps + weights")
+    # P3-S2 observations forward branch (observations-v1.md §1/§3; default off — ZMQ path unchanged).
+    p.add_argument("--forward-url", default="",
+                   help="POST each result to this observations endpoint "
+                        "(e.g. http://127.0.0.1:8010/api/sessions/<id>/observations); empty = off")
+    p.add_argument("--forward-mount", default="mast_ptz_eo",
+                   help="mount_id stamped on forwarded observations (mast camera table vocabulary)")
+    p.add_argument("--forward-timeout", type=float, default=2.0,
+                   help="per-POST timeout in seconds (failures are logged, never fatal)")
+    p.add_argument("--dump-frame", default="",
+                   help="save the first received frame as a JPEG at this path (feed-view evidence; off by default)")
     return p.parse_args()
 
 
@@ -102,13 +119,50 @@ def run_inference(model: YOLO, image, conf: float, class_ids: list[int] | None,
 
 
 def result_json(meta: dict, detections: list[dict], source: str) -> str:
-    """DetectionResult JSON（detection-result-v1.md §2 线上形状，紧凑分隔符）。"""
+    """DetectionResult JSON（detection-return-v1.md §2 线上形状，紧凑分隔符）。"""
     return json.dumps({
         "frame_seq": int(meta.get("frame_seq", 0)),
         "frame_time_s": float(meta.get("frame_time_s", 0.0)),
         "source": source,
         "detections": detections,
     }, separators=(",", ":"))
+
+
+def observation_payload(meta: dict, detections: list[dict], source: str, mount_id: str) -> dict:
+    """observations-v1 §3 request body (frozen schema; DetectionResult field subset, contract §6).
+
+    mount_id prefers the frame metadata stamp (P3-S2 FrameMetadata.mount_id — the
+    Unity rig labels its feed) and falls back to the CLI value for legacy senders.
+    """
+    return {
+        "schema_version": "observations@1",
+        "frame_seq": int(meta.get("frame_seq", 0)),
+        "frame_time_s": float(meta.get("frame_time_s", 0.0)),
+        "sensor_id": 2,  # camera_eo (contract §2 vocabulary; the EO feed is the forward camera)
+        "mount_id": str(meta.get("mount_id") or mount_id),
+        "source": source,
+        "detections": detections,
+    }
+
+
+def forward_observation(url: str, payload: dict, timeout_s: float) -> tuple[bool, str]:
+    """POST one ObservationFrame; returns (ok, detail). Never raises — the ZMQ
+    return path and the inference loop must survive backend downtime (contract
+    observations-v1 §6: the two consumer branches are independent)."""
+    request = urllib.request.Request(
+        url,
+        data=json.dumps(payload, separators=(",", ":")).encode("utf-8"),
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=timeout_s) as response:
+            body = response.read().decode("utf-8", "replace")[:200]
+            return bool(200 <= response.status < 300), f"HTTP {response.status} {body}"
+    except urllib.error.HTTPError as error:
+        return False, f"HTTP {error.code} {error.read().decode('utf-8', 'replace')[:200]}"
+    except Exception as error:  # noqa: BLE001 - any transport failure drops one frame only
+        return False, f"{type(error).__name__}: {error}"
 
 
 def decode_frame(parts: list[bytes], topic: str):
@@ -178,8 +232,12 @@ def serve(args: argparse.Namespace) -> int:
     pub.bind(args.out)
     print(f"[detector] SUB connected {args.endpoint} (topic {args.topic}) -> PUB bound {args.out} (topic {args.out_topic})")
     print(f"[detector] conf={args.conf} boat_class_id={COCO_BOAT_CLASS_ID} source={args.source} device={args.device or 'cpu'}")
+    if args.forward_url:
+        print(f"[detector] forward branch ON -> {args.forward_url} (mount {args.forward_mount}, timeout {args.forward_timeout}s)")
+    else:
+        print("[detector] forward branch off (default; ZMQ return path only)")
 
-    rx = tx = 0
+    rx = tx = forwarded = forward_errors = 0
     try:
         while True:
             try:
@@ -199,16 +257,31 @@ def serve(args: argparse.Namespace) -> int:
                 continue
 
             confidence = float(meta.get("confidence_threshold", args.conf))
+            if args.dump_frame and rx % 600 == 0:  # first frame + every ~60 s (10 fps budget) — last dump = latest view
+                cv2.imwrite(args.dump_frame, image)
+                print(f"[detector] feed frame dumped -> {args.dump_frame} (mount {meta.get('mount_id', '')} seq {meta.get('frame_seq')})")
             detections, infer_ms = run_inference(model, image, confidence, [COCO_BOAT_CLASS_ID], args.device)
             pub.send_multipart([args.out_topic.encode("utf-8"),
                                 result_json(meta, detections, args.source).encode("utf-8")])
             rx += 1
             tx += 1
+            if args.forward_url:
+                ok, detail = forward_observation(
+                    args.forward_url,
+                    observation_payload(meta, detections, args.source, args.forward_mount),
+                    args.forward_timeout,
+                )
+                if ok:
+                    forwarded += 1
+                else:
+                    forward_errors += 1
+                if (forward_errors == 1 and not ok) or rx % args.log_every == 0:
+                    print(f"[detector] forward: ok={forwarded} err={forward_errors} last={detail}")
             if rx == 1 or rx % args.log_every == 0:
                 print(f"[detector] rx={rx} tx={tx} seq={meta.get('frame_seq')} "
                       f"infer={infer_ms:.1f}ms conf={confidence:.2f} detections={len(detections)}")
     except KeyboardInterrupt:
-        print(f"[detector] shutdown: rx={rx} tx={tx}")
+        print(f"[detector] shutdown: rx={rx} tx={tx} forwarded={forwarded} forward_errors={forward_errors}")
     finally:
         sub.close(0)
         pub.close(0)

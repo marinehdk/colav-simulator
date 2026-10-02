@@ -29,12 +29,36 @@ namespace Sango
         public string source;
         /// <summary>Optional inference request; old senders fall back to detector CLI confidence.</summary>
         public float confidence_threshold = 0.25f;
+
+        // ── P3-S2 机位族演进（spec #90；twin-bridge sensor_mode 载体段，只加字段） ──
+        /// <summary>
+        /// 桅杆机位标识（observations-v1 §3 契约引用键；空 = 旧桥楼馈送未标机位）。
+        /// JsonUtility 对旧发送端缺字段给零值，接收端宽松消费（契约只加字段）。
+        /// </summary>
+        public string mount_id = "";
+        /// <summary>
+        /// 当帧位姿快照（P3-S2 写档：旁路进 FrameMetadata——方案 (a) 契约以
+        /// (mount_id, frame_seq, frame_time_s) 三元组为引用、后端取权威 ownship
+        /// 状态还原位姿，故本快照仅诊断/对账用，非 georef 权威输入）。
+        /// 坐标 = Unity 场景系（东=+x、北=+z；**未加 attached.anchor**——发布器
+        /// 不知数据面锚点；与后端对账时由消费方补锚）。yaw = 北向东顺时针度。
+        /// </summary>
+        public double pose_east_m;
+        public double pose_north_m;
+        public double pose_yaw_deg;
     }
 
     public static class FramePublisherCore
     {
-        /// <summary>组装一帧元数据（纯函数，无副作用）。</summary>
+        /// <summary>组装一帧元数据（纯函数，无副作用；P3-S2 前签名，既有测试/调用不动）。</summary>
         public static FrameMetadata BuildMetadata(int frameSeq, double frameTimeS, int width, int height, int jpegBytes, string source)
+        {
+            return BuildMetadata(frameSeq, frameTimeS, width, height, jpegBytes, source, "", 0.0, 0.0, 0.0);
+        }
+
+        /// <summary>组装一帧元数据（P3-S2 机位族：mount_id + 位姿快照；只加参数重载）。</summary>
+        public static FrameMetadata BuildMetadata(int frameSeq, double frameTimeS, int width, int height, int jpegBytes,
+            string source, string mountId, double poseEastM, double poseNorthM, double poseYawDeg)
         {
             return new FrameMetadata
             {
@@ -44,6 +68,10 @@ namespace Sango
                 height = height,
                 jpeg_bytes = jpegBytes,
                 source = source,
+                mount_id = mountId ?? "",
+                pose_east_m = poseEastM,
+                pose_north_m = poseNorthM,
+                pose_yaw_deg = poseYawDeg,
             };
         }
 

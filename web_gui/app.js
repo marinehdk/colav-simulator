@@ -159,7 +159,7 @@ deploymentView = createDeploymentView({
   // P2-S4 A：第三态 twin —— 中心视口换 live 像素流（复用 twin-view 的 URS/bridge 客户端），
   // attach mode=live 活动会话；无 ReplayClock（时钟权威=后端，契约 §2）；sidebar 不动。
   createTwin: async options => {
-    const { createDeploymentTwinViewport } = await import('./modules/deployment-twin.js?v=20261002-s4-v1');
+    const { createDeploymentTwinViewport } = await import('./modules/deployment-twin.js?v=20261002-sensor-mode-v1');
     const viewport = createDeploymentTwinViewport({
       ...options,
       host: document.getElementById('deploymentTwinHost'),
@@ -168,6 +168,9 @@ deploymentView = createDeploymentView({
       linkToggle: document.getElementById('twinLinkToggle'),
       statusEl: document.getElementById('deploymentTwinHud'),
       errorEl: document.getElementById('deploymentTwinError'),
+      // P3-S2 (spec #90): sensor-mode button group + state-echo chip.
+      sensorGroup: document.getElementById('deploymentTwinSensorGroup'),
+      sensorModeEl: document.getElementById('deploymentTwinSensorMode'),
       sessionId: () => currentRunId(),
       info: options.info,
       // P2-S4 C：联动 spike（默认关）——开 = 分屏从视口（Cesium 主）+ camera.changed 折算发 camera_free。

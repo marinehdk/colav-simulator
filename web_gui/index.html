@@ -6,7 +6,7 @@
   <title>综合避碰仿真器</title>
   <meta name="description" content="NTNU autonomous ship COLAV & MPC route planning algorithm verification console with real-time COLREGs risk assessment." />
   <link id="openbridgeStyles" rel="stylesheet" href="/static/vendor/openbridge/openbridge.css?v=20260827-vessel-placard-v1" onerror="this.dataset.failed='true'" />
-  <link rel="stylesheet" href="/static/style.css?v=20261002-radar-ppi-v1" />
+  <link rel="stylesheet" href="/static/style.css?v=20261002-sensor-mode-v1" />
 </head>
 <body>
   <div class="app-container">
@@ -497,6 +497,12 @@
                   <div class="deployment-twin-main">
                     <video id="deploymentTwinVideo" class="twin-video" autoplay playsinline muted aria-label="数字孪生像素流（当前验证实时视景）"></video>
                     <div class="twin-hud deployment-control-state" id="deploymentTwinHud" aria-live="polite">TWIN IDLE</div>
+                    <div class="map-mode-control deployment-twin-sensor-group" aria-label="传感器模式（主孪生视口）" id="deploymentTwinSensorGroup">
+                      <button class="map-mode-button active" type="button" data-twin-sensor="eo" aria-pressed="true" aria-label="可见光模式" title="EO（可见光）">EO</button>
+                      <button class="map-mode-button" type="button" data-twin-sensor="ir" aria-pressed="false" aria-label="红外模式" title="IR（黑白热像）">IR</button>
+                      <button class="map-mode-button" type="button" data-twin-sensor="lidar" aria-pressed="false" aria-label="LiDAR 模式（S3 待实现）" title="LiDAR（点云 S3 落地）">LD</button>
+                    </div>
+                    <span class="deployment-control-state deployment-twin-sensor-mode" id="deploymentTwinSensorMode" aria-live="polite">SENSOR EO</span>
                     <label class="twin-link-toggle" id="twinLinkToggleWrap" for="twinLinkToggle">
                       <input type="checkbox" id="twinLinkToggle" aria-label="海图↔孪生相机联动（Cesium 主，单向）"> 联动
                     </label>
@@ -991,6 +997,12 @@
               <button class="map-mode-button" type="button" data-twin-camera="top" aria-pressed="false" aria-label="Top down view" title="Top">T</button>
               <button class="map-mode-button" type="button" data-twin-camera="overlook" aria-pressed="false" aria-label="Overlook view" title="Overlook">O</button>
             </div>
+            <div class="map-mode-control" aria-label="Sensor mode (main twin viewport)" id="twinSensorGroup">
+              <button class="map-mode-button active" type="button" data-twin-sensor="eo" aria-pressed="true" aria-label="Electro-optical mode" title="EO (visible light)">EO</button>
+              <button class="map-mode-button" type="button" data-twin-sensor="ir" aria-pressed="false" aria-label="Infrared mode" title="IR (white-hot thermal)">IR</button>
+              <button class="map-mode-button" type="button" data-twin-sensor="lidar" aria-pressed="false" aria-label="LiDAR mode (S3 pending)" title="LiDAR (point cloud lands in S3)">LD</button>
+            </div>
+            <span class="deployment-control-state" id="twinSensorMode" aria-live="polite">SENSOR EO</span>
             <select id="twinDetectionSelect" aria-label="Detection overlay source (twin only)">
               <option value="off">DETECTION OFF</option>
               <option value="truth" selected>GT BOXES</option>
@@ -1103,11 +1115,11 @@
     <obc-brilliance-menu class="brilliance-menu-popover" id="brillianceMenu" variant="compact" aria-label="显示模式" hidden></obc-brilliance-menu>
   </div>
 
-  <script type="module" src="/static/app.js?v=20261002-radar-ppi-v1"></script>
+  <script type="module" src="/static/app.js?v=20261002-sensor-mode-v1"></script>
   <script type="module" src="/static/modules/config-shell.js?v=20260921-poi-v2"></script>
   <script type="module" src="/static/modules/historical-ais-workbench.js?v=20260923-vo-primitive-v1"></script>
   <script type="module" src="/static/modules/replay-runs.js?v=20260916-replay-layout-v4"></script>
   <script type="module" src="/static/modules/evaluation-replay.js?v=20261002-eval-twin-v1"></script>
-  <script type="module" src="/static/modules/twin-view.js?v=20261002-twin-view-v2"></script>
+  <script type="module" src="/static/modules/twin-view.js?v=20261002-sensor-mode-v1"></script>
 </body>
 </html>

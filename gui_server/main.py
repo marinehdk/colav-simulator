@@ -36,6 +36,12 @@ from pydantic import BaseModel, Field
 from colav_simulator.cli import _load_algorithm_config
 from colav_simulator.common import map_functions as mapf
 from colav_simulator.core.colav.diagnostics import ColavExecutionError, PlanStatus
+
+# P3-S2 observations endpoint (spec #90 whitelist: new routes + calibration
+# table + measurement hookup). ExternalCameraSensor is the session-scoped
+# measurement cache the accepted frames feed (sensor-model-v1 sensor_id 2|3).
+from colav_simulator.core.mast_cameras import MAST_MOUNTS_BY_ID, georeference_box
+from colav_simulator.core.sensing import ExternalCameraSensor
 from colav_simulator.decision_replay.sink import (
     REASON_GNC_BALANCE_CAPTURE_FAILED,
     REASON_THREAT_CAPTURE_FAILED,
@@ -62,6 +68,7 @@ from colav_simulator.experiment.runner import ExperimentRunError, ExperimentRunn
 from colav_simulator.historical_scenario_assembly import HistoricalAISSceneAssembler
 from colav_simulator.historical_scenario_catalog import HistoricalAISScenarioCatalog
 from colav_simulator.modular_gnc.catalog import list_stack_catalog
+from colav_simulator.schemas.observations_v1 import ObservationFrame
 from gui_server import canonical_threat as _canonical_threat
 from gui_server.gnc_balance import balance_telemetry
 from gui_server.historical_api import router as historical_api_router
@@ -561,9 +568,24 @@ def list_busy_water_drafts() -> list[dict[str, Any]]:
     return output
 
 
+class SessionNotAcceptingError(RuntimeError):
+    """observations-v1 §4: session state outside {CREATED, RUNNING} (409)."""
+
+    def __init__(self, state: str) -> None:
+        super().__init__("SESSION_NOT_ACCEPTING")
+        self.state = state
+
+
+class FrameSeqRegressionError(RuntimeError):
+    """observations-v1 §4: frame_seq not strictly increasing (409)."""
+
+    def __init__(self, last_seq: int) -> None:
+        super().__init__("FRAME_SEQ_REGRESSION")
+        self.last_seq = last_seq
+
+
 class WebSessionManager:
     """Single active research session with background execution."""
-
     def __init__(self) -> None:
         self.runner = ExperimentRunner(BASE_DIR)
         self.historical_spec_cache: dict[str, RunSpec] = {}
@@ -599,6 +621,11 @@ class WebSessionManager:
         self._trace_captures: dict[str, TraceSink] = {}
         self._capture_finalize_errors: dict[str, str] = {}
         self._record_replay_trace = True
+        # P3-S2 observations endpoint state (spec #90): session-scoped external
+        # camera measurement cache + per-(sensor, mount) frame_seq monotonic gate.
+        self.observation_sensor: ExternalCameraSensor | None = None
+        self._observation_seq_gate: dict[tuple[int, str], int] = {}
+        self._observation_totals: dict[tuple[int, str], dict[str, int]] = {}
         self.lock = threading.RLock()
 
     @property
@@ -634,6 +661,12 @@ class WebSessionManager:
         self.prepared = replacement
         self.result = None
         self.replay_expected = None
+        # P3-S2 (spec #90): a new session gets a fresh observation cache; the
+        # previous session's sensor (and its seq gate) is dropped here — the
+        # session-end cleanup owns no state beyond this object.
+        self.observation_sensor = ExternalCameraSensor()
+        self._observation_seq_gate = {}
+        self._observation_totals = {}
         self.previous_prediction_horizon = []
         self.current_prediction_horizon = []
         self.last_solve_id = None
@@ -1193,6 +1226,98 @@ class WebSessionManager:
         if not self.prepared or session_id != self.session_id:
             raise KeyError(session_id)
         return self.prepared
+
+    # -- P3-S2 observations endpoint (spec #90; contract observations-v1.md) --
+
+    def ingest_observations(self, session_id: str, frame: ObservationFrame) -> dict[str, Any]:
+        """Validates, georeferences and caches one camera observation frame.
+
+        Gates (contract §1/§4): session must exist (404) and accept frames
+        (CREATED/RUNNING only, 409 SESSION_NOT_ACCEPTING); ``frame_seq`` is
+        strictly monotonic per (sensor_id, mount_id) (409 FRAME_SEQ_REGRESSION);
+        schema violations are rejected by the pydantic body model (422).
+        Georef uses the authoritative ownship state at receipt (contract §5:
+        same-host loop latency is sub-second, far below the ship-length accuracy
+        budget; ``frame_time_s`` stays a Unity-domain reference stamp).
+        """
+        if frame.mount_id not in MAST_MOUNTS_BY_ID:
+            raise ValueError(f"unknown mount_id {frame.mount_id!r}")
+        with self.lock:
+            prepared = self._require(session_id)
+            if prepared.session.state not in (SessionState.CREATED, SessionState.RUNNING):
+                raise SessionNotAcceptingError(prepared.session.state.value)
+            gate_key = (frame.sensor_id, frame.mount_id)
+            last_seq = self._observation_seq_gate.get(gate_key)
+            if last_seq is not None and frame.frame_seq <= last_seq:
+                raise FrameSeqRegressionError(last_seq)
+
+            ship_state = np.asarray(prepared.session.ship_list[0].state, dtype=float)
+            own_north, own_east, own_yaw = float(ship_state[0]), float(ship_state[1]), float(ship_state[2])
+            mount = MAST_MOUNTS_BY_ID[frame.mount_id]
+            sensor = self.observation_sensor
+            if sensor is None:
+                sensor = self.observation_sensor = ExternalCameraSensor()
+            records = []
+            for detection in frame.detections:
+                georef = georeference_box(
+                    mount,
+                    tuple(detection.box_xyxy),
+                    mount.frame_width_px,
+                    mount.frame_height_px,
+                    own_north=own_north,
+                    own_east=own_east,
+                    own_yaw_rad=own_yaw,
+                    class_name=detection.class_name,
+                )
+                records.append(
+                    {
+                        "sensor_id": frame.sensor_id,
+                        "position_ne_m": [georef.north_m - own_north, georef.east_m - own_east],
+                        "position_cov_ne_m2": [list(row) for row in georef.cov_ne_m2],
+                        "confidence": float(detection.confidence),
+                        "class_name": detection.class_name,
+                        "class_confidence": float(detection.confidence),
+                        "t_s": float(prepared.session.simulator.t),
+                        "mount_id": frame.mount_id,
+                        "frame_seq": int(frame.frame_seq),
+                        "frame_time_s": float(frame.frame_time_s),
+                    }
+                )
+            sensor.submit(records, frame_seq=frame.frame_seq)
+            self._observation_seq_gate[gate_key] = frame.frame_seq
+            totals = self._observation_totals.setdefault(
+                gate_key, {"frames": 0, "detections": 0}
+            )
+            totals["frames"] += 1
+            totals["detections"] += len(records)
+            return {"accepted": True, "frame_seq": frame.frame_seq, "detections_accepted": len(records)}
+
+    def observation_status(self, session_id: str) -> dict[str, Any]:
+        """Status/test hook for the E2E probe.
+
+        Accepted frame counters per (sensor, mount) plus the pending
+        georeferenced measurements with their sensor_id (the S5 fusion cache
+        reads the same records).
+        """
+        with self.lock:
+            self._require(session_id)
+            channels = [
+                {
+                    "sensor_id": sensor_id,
+                    "mount_id": mount_id,
+                    "frames": totals["frames"],
+                    "detections": totals["detections"],
+                    "last_frame_seq": self._observation_seq_gate.get((sensor_id, mount_id)),
+                }
+                for (sensor_id, mount_id), totals in sorted(self._observation_totals.items())
+            ]
+            sensor = self.observation_sensor
+            pending = sensor.pending_records() if sensor is not None else []
+            return {
+                "accepted_frames_total": sensor.accepted_frames if sensor is not None else 0,
+                "channels": channels,
+                "pending_measurements": jsonable(pending),
+            }
 
     def _telemetry(self, snapshot: Any) -> dict[str, Any]:  # noqa: C901, PLR0912, PLR0915
         if not self.prepared:
@@ -1907,6 +2032,36 @@ def api_session(session_id: str) -> dict[str, Any]:
         return manager.describe()
     except KeyError as exc:
         raise HTTPException(status_code=404, detail="Session not found") from exc
+
+
+# P3-S2 observations injection (spec #90; contract sango/Docs/contracts/observations-v1.md).
+# Error body = the frozen code string in `detail` (§4 table; schema violations keep the
+# FastAPI/pydantic default 422 shape, which the contract sanctions).
+@app.post("/api/sessions/{session_id}/observations")
+def api_session_observations(session_id: str, frame: ObservationFrame) -> dict[str, Any]:
+    try:
+        return manager.ingest_observations(session_id, frame)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="SESSION_NOT_FOUND") from exc
+    except SessionNotAcceptingError as exc:
+        raise HTTPException(status_code=409, detail="SESSION_NOT_ACCEPTING") from exc
+    except FrameSeqRegressionError as exc:
+        raise HTTPException(status_code=409, detail="FRAME_SEQ_REGRESSION") from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail="VALIDATION_ERROR") from exc
+
+
+@app.get("/api/sessions/{session_id}/observations")
+def api_session_observations_status(session_id: str) -> dict[str, Any]:
+    """E2E/test hook for the observation measurement cache.
+
+    Accepted-frame counters + pending georeferenced measurements
+    (sensor_id 2|3) held in the session measurement cache.
+    """
+    try:
+        return manager.observation_status(session_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="SESSION_NOT_FOUND") from exc
 
 
 @app.post("/api/sessions/{session_id}/start")

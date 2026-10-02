@@ -110,6 +110,16 @@ namespace Sango
         /// <summary>首帧锚定原点（bridge attached.anchor 用；未锚定 null）。</summary>
         public TwinAnchor? Anchor => m_Anchor;
 
+        /// <summary>
+        /// 本船（truth[0]）槽位 GameObject（P3-S2：桅杆机位族宿主；未挂槽 null）。
+        /// 头号槽位 = truth[0]（首帧锚定同序），桅杆挂点随其位姿（继承姿态一次）。
+        /// </summary>
+        public GameObject OwnShipObject =>
+            m_Latest != null && m_Latest.truth != null && m_Latest.truth.Length > 0
+            && m_Slots.TryGetValue(m_Latest.truth[0].id, out var ownSlot) && ownSlot.Ship != null
+                ? ownSlot.Ship
+                : null;
+
         /// <summary>渲染插值 sim_time（未同步 NaN；bridge state 消息 sim_time 用）。</summary>
         public double RenderSimTime => m_Clock.Sample(Time.realtimeSinceStartupAsDouble);
 
@@ -384,6 +394,9 @@ namespace Sango
             wake.water = water;
             wake.loaMeters = entry.loaMeters;
             wake.twinSpeedMps = () => slot.SogMps;
+            // P3-S2 (spec #90): 槽位船进热目标分级注册表——sensor_mode=ir 时
+            // ThermalTagApplier 按材质名温度档改写，EO 恢复；随槽位销毁自动失效。
+            Vessels.Mast.ThermalTagApplier.Register(slot.Ship);
         }
 
         void ClearSlots()

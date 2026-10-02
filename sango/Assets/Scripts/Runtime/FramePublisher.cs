@@ -40,6 +40,12 @@ namespace Sango
         [Range(0.01f, 1f)] public float confidenceThreshold = 0.25f;
         public Camera sourceCamera;
 
+        [Tooltip("P3-S2 机位标识（FrameMetadata.mount_id，observations-v1 §3 引用键；空 = 旧桥楼馈送）")]
+        public string mountId = "";
+
+        [Tooltip("P3-S2 捕获分辨率覆写（0 = 屏幕分辨率；桅杆馈送机位用标定表栅格 640×480）")]
+        public Vector2Int overrideCaptureSize = Vector2Int.zero;
+
         PublisherSocket _pub;
         int _seq;
         bool _loopRunning;
@@ -195,7 +201,9 @@ namespace Sango
 
         void EnsureCaptureTargets()
         {
-            int width = Screen.width, height = Screen.height;
+            // P3-S2: 桅杆馈送机位按标定表栅格发布（MountCameraTable 对拍）；未覆写沿用屏幕分辨率（M3 语义零变化）。
+            int width = overrideCaptureSize.x > 0 ? overrideCaptureSize.x : Screen.width;
+            int height = overrideCaptureSize.y > 0 ? overrideCaptureSize.y : Screen.height;
             if (width <= 0 || height <= 0) return;
             if (_slots == null || width != _captureWidth || height != _captureHeight)
             {
@@ -247,7 +255,17 @@ namespace Sango
             byte[] jpeg = frame.Jpeg;
             if (_pub == null) return; // StopPublishing 已跑（同帧 OnDisable）——丢这帧即可
 
-            var metadata = FramePublisherCore.BuildMetadata(_seq, frame.TimeS, w, h, jpeg.Length, source);
+            // P3-S2 位姿快照（写档见 FrameMetadata）：发布器从源相机变换读当帧
+            // 场景系位姿（未加 anchor，诊断/对账用，非 georef 权威输入）。
+            var camTransform = _captureCamera != null ? _captureCamera.transform : null;
+            Vector3 camPosition = camTransform != null ? camTransform.position : Vector3.zero;
+            Vector3 camForward = camTransform != null ? camTransform.forward : Vector3.forward;
+            double poseYawDeg = camTransform != null
+                ? System.Math.Atan2(camForward.x, camForward.z) * Mathf.Rad2Deg
+                : 0.0;
+
+            var metadata = FramePublisherCore.BuildMetadata(_seq, frame.TimeS, w, h, jpeg.Length, source,
+                mountId, camPosition.x, camPosition.z, poseYawDeg);
             metadata.confidence_threshold = frame.Confidence;
             var message = new NetMQMessage();
             message.Append(SangoSeamConfig.PublisherTopic);            // 段1：主题（SUB 过滤键）

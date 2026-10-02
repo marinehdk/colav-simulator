@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-import { createDeploymentTwinViewport } from '../../web_gui/modules/deployment-twin.js?v=20261002-s4-v1';
+import { createDeploymentTwinViewport } from '../../web_gui/modules/deployment-twin.js?v=20261002-sensor-mode-v1';
 
 const html = await readFile(new URL('../../web_gui/index.html', import.meta.url), 'utf8');
 const styles = await readFile(new URL('../../web_gui/style.css', import.meta.url), 'utf8');
@@ -54,12 +54,41 @@ function fakeBridgeClient() {
     errorCount: 0,
     sendAttach(payload) { client.sent.push({ type: 'attach', ...payload }); },
     sendTheme(value) { client.sent.push({ type: 'theme', value }); },
+    sendSensorMode(value) { client.sent.push({ type: 'sensor_mode', value }); },
     sendCameraFree({ east, north, height_m, yaw_deg, pitch_deg, fov_deg }) {
       client.sent.push({ type: 'camera_free', pos: { east, north, height_m }, yaw_deg, pitch_deg, fov_deg });
     },
     sendDetach() { client.sent.push({ type: 'detach' }); },
   };
   return client;
+}
+
+/** P3-S2 (spec #90): minimal [data-twin-sensor] group double (classList/aria/dataset). */
+function fakeSensorGroup({ initialActive = null } = {}) {
+  const buttons = ['eo', 'ir', 'lidar'].map(value => {
+    const button = {
+      dataset: { twinSensor: value },
+      listeners: [],
+      ariaPressed: null,
+      activeState: value === initialActive,
+      classList: {
+        toggle(_cls, on) { button.activeState = Boolean(on); },
+      },
+      setAttribute(_key, value) { button.ariaPressed = value; },
+      addEventListener(_type, fn) { button.listeners.push(fn); },
+      click() { button.listeners.forEach(fn => fn()); },
+    };
+    return button;
+  });
+  return {
+    buttons,
+    of: value => buttons.find(button => button.dataset.twinSensor === value),
+    querySelectorAll(selector) { return selector === '[data-twin-sensor]' ? buttons : []; },
+    querySelector(selector) {
+      if (String(selector).includes('.active')) return buttons.find(button => button.activeState) ?? null;
+      return buttons[0] ?? null;
+    },
+  };
 }
 
 function fakeStreamFactory(client) {
@@ -105,6 +134,8 @@ function viewportHarness({
   sessionId = () => 'sess-1',
   ready = true,
   attached = null,
+  sensorGroup = null,
+  sensorModeEl = null,
 } = {}) {
   const client = fakeBridgeClient();
   client.ready = ready;
@@ -123,6 +154,8 @@ function viewportHarness({
     linkToggle,
     statusEl,
     errorEl,
+    sensorGroup,
+    sensorModeEl,
     sessionId,
     backendBase: 'http://127.0.0.1:8010',
     info,
@@ -137,7 +170,7 @@ function viewportHarness({
   });
   return {
     viewport, client, factory, scheduler, linkToggle, linkPane, statusEl, errorEl,
-    linkScenes, moved: raw => linkCameraMoved?.(raw),
+    linkScenes, moved: raw => linkCameraMoved?.(raw), sensorGroup, sensorModeEl,
   };
 }
 
@@ -272,4 +305,57 @@ test('link scene failure clears the toggle back to off', async () => {
   assert.equal(viewport.linkOn, false, 'failed companion resets the link');
   assert.equal(linkToggle.checked, false);
   assert.equal(linkPane.hidden, true);
+});
+
+/* ── D：P3-S2 sensor_mode 按钮组（spec #90；contract twin-bridge-v1 §2/§8） ──── */
+
+test('deployment twin shell exposes the sensor-mode button group with the frozen vocabulary', () => {
+  const group = html.slice(html.indexOf('id="deploymentTwinSensorGroup"'), html.indexOf('id="twinLinkToggleWrap"'));
+  assert.ok(group.length > 0, 'sensor group sits between the HUD and the link toggle');
+  for (const mode of ['eo', 'ir', 'lidar']) {
+    assert.match(group, new RegExp(`data-twin-sensor="${mode}"`), `${mode} button present`);
+  }
+  assert.match(html, /id="deploymentTwinSensorMode"[^>]*>SENSOR EO</, 'state-echo chip defaults to EO');
+  assert.match(styles, /\.deployment-twin-sensor-group \{ position: absolute;/, 'group pinned over the video');
+  assert.match(styles, /\.deployment-twin-sensor-mode \{ position: absolute;/, 'chip pinned over the video');
+  assert.match(app, /sensorGroup: document\.getElementById\('deploymentTwinSensorGroup'\)/);
+  assert.match(app, /sensorModeEl: document\.getElementById\('deploymentTwinSensorMode'\)/);
+});
+
+test('sensor-mode click sends the contract literal; §5 realignment rides the attach', async () => {
+  const group = fakeSensorGroup({ initialActive: 'eo' });
+  const chip = { textContent: '' };
+  const h = viewportHarness({ sensorGroup: group, sensorModeEl: chip });
+  await h.viewport.attach();
+  h.scheduler.run(); // attach-when-ready poll
+  const modes = h.client.sent.filter(message => message.type === 'sensor_mode');
+  assert.deepEqual(modes, [{ type: 'sensor_mode', value: 'eo' }],
+    'attach realignment sends the current group pick (default eo)');
+
+  group.of('ir').click();
+  const ir = h.client.sent.filter(message => message.type === 'sensor_mode').at(-1);
+  assert.deepEqual(ir, { type: 'sensor_mode', value: 'ir' }, 'click sends the frozen literal');
+  assert.equal(group.of('ir').activeState, true, 'optimistic pick flips the group');
+  assert.equal(group.of('eo').activeState, false);
+
+  h.viewport.destroy();
+});
+
+test('state echo is the authority: chip text and buttons mirror sensor_mode, lidar shows the S3 pending mark', async () => {
+  const group = fakeSensorGroup();
+  const chip = { textContent: '' };
+  const h = viewportHarness({ sensorGroup: group, sensorModeEl: chip });
+  await h.viewport.attach();
+  h.client.lastState = { _receivedAt: Date.now(), stream: { state: 'ok', latency_ms: 0 }, fps: 60, sensor_mode: 'lidar' };
+  h.scheduler.run(); // HUD tick
+  assert.match(chip.textContent, /SENSOR LiDAR·S3 · PENDING S3/,
+    '占位 UI 明示（契约 §2 注：渲染属 S3，按钮不禁用）');
+  assert.equal(group.of('lidar').activeState, true);
+  assert.equal(group.of('eo').activeState, false);
+  h.client.lastState = { _receivedAt: Date.now(), stream: { state: 'ok', latency_ms: 0 }, sensor_mode: 'ir' };
+  h.scheduler.run();
+  assert.equal(chip.textContent, 'SENSOR IR', 'ir echo = plain IR chip');
+  h.client.lastState = { _receivedAt: Date.now(), stream: { state: 'ok', latency_ms: 0 } };
+  h.scheduler.run();
+  assert.equal(chip.textContent, 'SENSOR EO', 'old Unity build (no field) falls back to the contract default');
 });

@@ -25,9 +25,13 @@ export const TWIN_CAMERA_PRESETS = ['bridge', 'bow', 'chase', 'top', 'overlook']
 export const TWIN_THEMES = ['day', 'dusk', 'night'];
 export const TWIN_REPLAY_RATES = [0.5, 1, 5, 20];
 // P3-S0 sensor_mode 词汇（契约 §2/§8 演进，spec #90）：主视口 eo=可见光（默认）/ ir=黑白热像 /
-// lidar=点云视角；雷达 PPI/AIS 为 web 面板态不经此桥。视口按钮组接线属 S2。
+// lidar=点云视角；雷达 PPI/AIS 为 web 面板态不经此桥。
 export const TWIN_SENSOR_MODES = ['eo', 'ir', 'lidar'];
 export const TWIN_SENSOR_MODE_DEFAULT = 'eo';
+// P3-S2 按钮组标签（spec #90）：lidar 本段为占位——切换被 Unity 接受并经 state 回显，
+// 点云渲染属 S3（契约 §2 注）；按钮保持可用但标 pending（UI 明示方案，任务书二选一）。
+export const TWIN_SENSOR_MODE_LABELS = { eo: 'EO', ir: 'IR', lidar: 'LiDAR·S3' };
+export const TWIN_SENSOR_MODE_PENDING = ['lidar'];
 // P2-S4 联动 spike（契约 §8）：Cesium 相机变更上报阈值（camera.changed percentageChanged）。
 export const TWIN_LINK_CHANGE_PERCENT = 0.01;
 
@@ -81,6 +85,32 @@ export function cameraFreePose({ lonDeg, latDeg, heightM, headingRad, pitchRad, 
     ? 2 * Math.atan(Math.tan(fovRad / 2) / aspect)
     : fovRad) * 180 / Math.PI;
   return { east, north, height_m: heightM, yaw_deg: yawDeg, pitch_deg: pitchDeg, fov_deg: fovDeg };
+}
+
+/**
+ * P3-S2 (spec #90): authoritative sensor_mode from a Unity `state` echo.
+ * Unknown/missing field (old Unity build) falls back to the contract default.
+ */
+export function projectSensorMode(state) {
+  const echo = state?.sensor_mode;
+  return TWIN_SENSOR_MODES.includes(echo) ? echo : TWIN_SENSOR_MODE_DEFAULT;
+}
+
+/**
+ * P3-S2 (spec #90): sensor-mode button group projection. `active` = the
+ * authoritative mode (state echo, or the optimistic local pick before Unity
+ * answers). `pending` marks the S3 placeholder (lidar: accepted + echoed, no
+ * point-cloud rendering yet — contract §2 note); the page shows the pending
+ * chip instead of disabling, so the message path stays E2E-testable.
+ */
+export function sensorModeItems(active = TWIN_SENSOR_MODE_DEFAULT) {
+  const mode = TWIN_SENSOR_MODES.includes(active) ? active : TWIN_SENSOR_MODE_DEFAULT;
+  return TWIN_SENSOR_MODES.map(value => ({
+    value,
+    label: TWIN_SENSOR_MODE_LABELS[value] ?? value.toUpperCase(),
+    active: value === mode,
+    pending: TWIN_SENSOR_MODE_PENDING.includes(value),
+  }));
 }
 
 /**
@@ -495,6 +525,7 @@ export function createTwinViewController({
     debug.clockState = clock?.state ?? null;
     debug.simTime = client?.lastState?.sim_time ?? null;
     debug.camera = client?.lastState?.camera ?? null;
+    debug.sensorMode = client?.lastState?.sensor_mode ?? null;
   }
 
   function ensureDebugHandle() {
@@ -571,6 +602,32 @@ export function createTwinViewController({
     else bridge.sendDetection(false, 'truth');
     const active = el('twinCameraGroup')?.querySelector('[data-twin-camera].active');
     if (active) bridge.sendCamera(active.dataset.twinCamera);
+    // P3-S2 (spec #90): sensor_mode rides the §5 reconnect realignment too.
+    const sensorActive = el('twinSensorGroup')?.querySelector('[data-twin-sensor].active');
+    bridge.sendSensorMode(sensorActive?.dataset.twinSensor ?? TWIN_SENSOR_MODE_DEFAULT);
+  }
+
+  // ── P3-S2 sensor-mode button group (spec #90; contract §2/§8) ─────────────
+
+  /**
+   * Reflects a mode onto the button group + HUD chip. The state echo is the
+   * authority (renderHud); the click handler calls this optimistically with
+   * the picked value so the UI answers immediately.
+   */
+  function applySensorMode(mode, { chipEl } = {}) {
+    const group = el('twinSensorGroup');
+    if (group) {
+      group.querySelectorAll('[data-twin-sensor]').forEach(button => {
+        const on = button.dataset.twinSensor === mode;
+        button.classList.toggle('active', on);
+        button.setAttribute('aria-pressed', String(on));
+      });
+    }
+    const chip = chipEl ?? el('twinSensorMode');
+    if (chip) {
+      const item = sensorModeItems(mode).find(entry => entry.value === mode);
+      chip.textContent = `SENSOR ${item?.label ?? mode.toUpperCase()}${item?.pending ? ' · PENDING S3' : ''}`;
+    }
   }
 
   // ── run selection + viewer flow ───────────────────────────────────────────
@@ -750,6 +807,8 @@ export function createTwinViewController({
     if (chip) chip.textContent = `${hud.signal.toUpperCase()} · ${hud.fps === null ? '—' : `${hud.fps.toFixed(0)} FPS`} · ${hud.latencyMs === null ? '—' : `${hud.latencyMs.toFixed(0)} MS`}`;
     const status = el('twinStatusLine');
     if (status) status.textContent = hud.statusLine;
+    // P3-S2 (spec #90): state echo is the authority for the sensor mode UI.
+    applySensorMode(projectSensorMode(client?.lastState));
     const simSlot = el('twinTimeCurrent');
     if (simSlot && hud.simTime !== null && hud.simTime !== undefined) simSlot.textContent = `${formatTime(hud.simTime)} s`;
     if (clock) {
@@ -792,6 +851,17 @@ export function createTwinViewController({
           other.setAttribute('aria-pressed', String(other === button));
         });
         requireClient()?.sendCamera(button.dataset.twinCamera);
+        publishDebug();
+      });
+    });
+    // P3-S2 (spec #90): sensor-mode buttons — optimistic pick + send; the ~1Hz
+    // state echo reasserts the authoritative mode (renderHud).
+    el('twinSensorGroup')?.querySelectorAll('[data-twin-sensor]').forEach(button => {
+      button.addEventListener('click', () => {
+        const value = button.dataset.twinSensor;
+        if (!TWIN_SENSOR_MODES.includes(value)) return;
+        applySensorMode(value);
+        requireClient()?.sendSensorMode(value);
         publishDebug();
       });
     });

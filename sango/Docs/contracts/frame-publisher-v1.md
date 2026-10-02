@@ -69,3 +69,28 @@ uv pip install pyzmq --python .venv/bin/python   # 2026-09-28 实装 pyzmq==27.2
 停止/resize先注销本组件capture action、失效generation并等待唯一编码任务。CommandBuffer读回没有提前返回request handle，因此仅当本组件仍有pending槽时调用Unity全局`AsyncGPUReadback.WaitAllRequests`，随后释放本组件RT；该teardown等待可能同时等待进程其他读回，正常帧不等待。由CameraCaptureBridge注册字典保留其他订阅者，不关闭全局桥。
 
 新窗口真实1440p性能与其他船检测、模型/参数/源时间戳/返回JSON见本轮原生验收及版本化捕获脚本。10Hz是上限，不保证吞吐；离线编码重复帧不构成更高感知采样率。
+
+## P3-S2 桅杆机位族演进（2026-10-02，spec #90，只加字段）
+
+`FrameMetadata` 只加四字段（`Vessels/FramePublisherCore.cs`；JsonUtility 恒写全字段，
+旧接收端宽松消费零影响）：
+
+```json
+{"frame_seq":42,"frame_time_s":12.345,"width":640,"height":480,"jpeg_bytes":20480,"source":"sango","mount_id":"mast_ptz_eo","pose_east_m":1.25,"pose_north_m":-2.5,"pose_yaw_deg":90.0}
+```
+
+- `mount_id`：桅杆机位标识（observations-v1 §3 引用键；标定表 =
+  `sango/Assets/Scripts/Runtime/Vessels/Mast/MastCameraTable.cs` ↔ 后端
+  `colav_simulator/core/mast_cameras.py` 双侧同源字面量）。空字符串 = 旧桥楼馈送
+  （本字段引入前的语义，零变化）。
+- `pose_east_m`/`pose_north_m`/`pose_yaw_deg`：当帧位姿快照——**方案写档**：位姿
+  快照旁路进 FrameMetadata（备选是独立旁路通道；载荷最小化故随元数据）。坐标系 =
+  Unity 场景系（东=+x、北=+z、yaw 北向东顺时针度），**未加 attached.anchor**
+  （发布器不感知数据面锚点，对账由消费方补锚）。**该快照仅诊断/对账用，非
+  georef 权威输入**——observations-v1 §5 裁决 (a) 下后端取权威 ownship 状态
+  还原当帧相机位姿，本快照不参与。
+- 默认源改接：twin 桥（`TwinBridgeService.AttachMastRigWhenOwnShipReady`）在
+  own-ship 槽位出现后把 `FramePublisher.sourceCamera` 改接桅杆前向 EO 机位
+  `mast_ptz_eo`（PTZ 白光通道，60° HFOV；写档偏差注：EO 环视 ±60° 前向双不含
+  正前，正前 = PTZ 档），捕获分辨率覆写 `overrideCaptureSize` = 标定表发布栅格
+  640×480（YOLO CPU 预算）。未挂 rig 的构建（Demo 等）零变化。

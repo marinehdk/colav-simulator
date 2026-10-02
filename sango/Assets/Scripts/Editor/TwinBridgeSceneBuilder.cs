@@ -104,6 +104,17 @@ namespace Sango.Editor.TwinBridge
             service.overlay = Object.FindFirstObjectByType<Sango.DetectionOverlay>()
                 ?? bridge.AddComponent<Sango.DetectionOverlay>();
 
+            // P3-S2 (spec #90): 桅杆传感器机位族（运行期 own-ship 槽位出现后挂载）
+            // + IR 白热 Custom Pass 体积（IrViewPass 静态闸 = 关，sensor_mode=ir 才激活，
+            // 作用域 = 流相机；Demo 渲染零变化）。
+            service.mastRig = bridge.AddComponent<Sango.Vessels.Mast.MastSensorRig>();
+            var irVolumeGo = new GameObject("Twin IR WhiteHot Pass");
+            var irVolume = irVolumeGo.AddComponent<UnityEngine.Rendering.HighDefinition.CustomPassVolume>();
+            irVolume.isGlobal = true;
+            irVolume.injectionPoint = UnityEngine.Rendering.HighDefinition.CustomPassInjectionPoint.BeforePostProcess;
+            irVolume.priority = 10;
+            irVolume.AddPassOfType(typeof(Sango.Vessels.Mast.IrViewPass));
+
             EditorSceneManager.MarkSceneDirty(scene);
             EditorSceneManager.SaveScene(scene, k_TwinScene);
             AssetDatabase.SaveAssets();

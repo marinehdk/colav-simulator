@@ -40,6 +40,9 @@ namespace Sango
         [Tooltip("检测开关目标（缺省场景查找，无则创建）")]
         public DetectionOverlay overlay;
 
+        [Tooltip("P3-S2 桅杆机位族（缺省场景查找，无则在桥对象上创建）")]
+        public Vessels.Mast.MastSensorRig mastRig;
+
         [Tooltip("replay 取数单窗跨度（秒；≤后端 MAX_WINDOW_SPAN_S=120）")]
         public double replayFetchSpanS = 60.0;
 
@@ -71,6 +74,9 @@ namespace Sango
         string m_CurrentPreset = "bridge";
         string m_DetectionSource = "truth";
         bool m_DetectionEnabled;
+        // P3-S2 sensor_mode（契约 §2/§8；默认 eo，state 回显）
+        string m_SensorMode = TwinBridge.DefaultSensorMode;
+        FramePublisher m_FeedPublisher; // 桅杆馈送改接（rig attach 后一次性）
 
         // clock 消息面（DataChannel 回调主线程写、泵/状态读；fetch 线程只读 playhead——
         // C# 禁 volatile double，跨线程取值允许一个 tick 的陈旧，泵按 100ms 轮询无碍）
@@ -142,6 +148,9 @@ namespace Sango
                 channel.onOpened -= HandleChannelOpened;
             }
             DetachDataPlane();
+            // P3-S2: 停桥回默认 eo 渲染态（IR pass 关 + 温度 tag 恢复，Demo 零残留）。
+            m_SensorMode = TwinBridge.DefaultSensorMode;
+            ApplySensorMode();
             Debug.Log("[Sango.TwinBridge] service stopped");
         }
 
@@ -175,7 +184,33 @@ namespace Sango
                 overlay = FindFirstObjectByType<DetectionOverlay>();
                 if (overlay == null) overlay = new GameObject("Detection overlay (bridge)").AddComponent<DetectionOverlay>();
             }
+            if (mastRig == null)
+            {
+                mastRig = FindFirstObjectByType<Vessels.Mast.MastSensorRig>();
+                if (mastRig == null) mastRig = new GameObject("Mast sensor rig").AddComponent<Vessels.Mast.MastSensorRig>();
+            }
+            EnsureIrPassVolume();
             driver.autoReconnect = true; // 契约 §5：数据面断线自动重连（bridge 托管态）
+        }
+
+        /// <summary>
+        /// IR 白热 Custom Pass 体积自举（P3-S2）：SangoTwin 场景由 BuildTwinScene 预烘焙
+        /// （Editor 面）；场景缺体积时（旧构建/手工场景）运行期补建——同一静态闸
+        /// IrViewPass（默认 Requested=false = 零渲染成本），Demo 路径零影响。
+        /// </summary>
+        void EnsureIrPassVolume()
+        {
+            var volumes = FindObjectsByType<UnityEngine.Rendering.HighDefinition.CustomPassVolume>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+            foreach (var volume in volumes)
+                foreach (var pass in volume.customPasses)
+                    if (pass is Vessels.Mast.IrViewPass) return; // 已有（场景预烘焙或先前自举）
+            var volumeGo = new GameObject("Twin IR WhiteHot Pass (bootstrap)");
+            var irVolume = volumeGo.AddComponent<UnityEngine.Rendering.HighDefinition.CustomPassVolume>();
+            irVolume.isGlobal = true;
+            irVolume.injectionPoint = UnityEngine.Rendering.HighDefinition.CustomPassInjectionPoint.BeforePostProcess;
+            irVolume.priority = 10;
+            irVolume.AddPassOfType(typeof(Vessels.Mast.IrViewPass));
+            Debug.Log("[Sango.TwinBridge] IR white-hot pass volume bootstrapped at runtime");
         }
 
         void Update()
@@ -191,7 +226,38 @@ namespace Sango
             PumpReplay();
             GatePausedClock();
             PollLiveAttached();
+            AttachMastRigWhenOwnShipReady();
             SendStateHeartbeat();
+        }
+
+        /// <summary>
+        /// P3-S2 桅杆机位族挂载 + 馈送改接（own-ship 槽位出现后一次完成）：rig 随
+        /// 本船位姿（继承姿态），FramePublisher 源相机改接前向 EO 机位
+        /// （mast_ptz_eo，任务书"默认源=EO 前向机位"；观测契约 mount_id 引用键），
+        /// 捕获分辨率随标定表栅格 640×480。
+        /// </summary>
+        void AttachMastRigWhenOwnShipReady()
+        {
+            if (mastRig == null || driver == null) return;
+            if (!mastRig.Attached)
+            {
+                var ownShip = driver.OwnShipObject;
+                if (ownShip == null) return;
+                if (!mastRig.Attach(ownShip.transform))
+                {
+                    Debug.LogWarning("[Sango.TwinBridge] mast rig attach failed (own ship present but feed mount missing)");
+                    return;
+                }
+                Debug.Log($"[Sango.TwinBridge] mast rig attached to {ownShip.name} mounts={mastRig.BuiltMountCount} feed={mastRig.feedMountId}");
+            }
+            if (m_FeedPublisher == null) m_FeedPublisher = FindFirstObjectByType<FramePublisher>();
+            if (m_FeedPublisher != null && m_FeedPublisher.sourceCamera != mastRig.FeedCamera)
+            {
+                m_FeedPublisher.sourceCamera = mastRig.FeedCamera;
+                m_FeedPublisher.mountId = mastRig.feedMountId;
+                m_FeedPublisher.overrideCaptureSize = new Vector2Int(Vessels.Mast.MastCameraTable.FeedWidthPx, Vessels.Mast.MastCameraTable.FeedHeightPx);
+                Debug.Log($"[Sango.TwinBridge] frame feed rewired -> {mastRig.feedMountId} ({Vessels.Mast.MastCameraTable.FeedWidthPx}x{Vessels.Mast.MastCameraTable.FeedHeightPx})");
+            }
         }
 
         /// <summary>
@@ -241,6 +307,7 @@ namespace Sango
                 case "camera_free": HandleCameraFree(cmd); break;
                 case "theme": HandleTheme(cmd); break;
                 case "detection": HandleDetection(cmd); break;
+                case "sensor_mode": HandleSensorMode(cmd); break; // P3-S2（契约 §2/§8 演进，spec #90）
                 default:
                     SendError(TwinBridge.ErrorBadMessage, $"unknown type '{cmd.type}'");
                     break;
@@ -436,6 +503,36 @@ namespace Sango
                 overlay.requireLive = cmd.enabled && yolo; // truth = 真值路径；yolo = live 优先（契约 §2）
                 Debug.Log($"[Sango.TwinBridge] detection enabled={cmd.enabled} source={cmd.source}");
             }
+        }
+
+        /// <summary>
+        /// sensor_mode（P3-S2，契约 §2/§8 演进；spec #90）：主视口传感器模式——
+        /// eo=默认正常渲染 / ir=流相机 IR pass（黑白热像+温度 tag）/ lidar=本段
+        /// 占位（接受+state 回显，点云渲染留 S3，UI pending 态明示）。
+        /// 与 camera 预设正交叠加（不改 CameraRig 状态，契约 §2）。
+        /// </summary>
+        void HandleSensorMode(TwinBridgeCommand cmd)
+        {
+            if (!TwinBridge.IsValidSensorMode(cmd.value))
+            {
+                SendError(TwinBridge.ErrorBadMessage, $"unknown sensor_mode '{cmd.value}'");
+                return;
+            }
+            m_SensorMode = cmd.value;
+            ApplySensorMode();
+            Debug.Log($"[Sango.TwinBridge] sensor_mode -> {cmd.value}");
+        }
+
+        /// <summary>sensor_mode → 渲染效果（状态机效果面 = TwinBridge.SensorModeEffect 纯函数）。</summary>
+        void ApplySensorMode()
+        {
+            TwinBridge.SensorModeEffect(m_SensorMode, out bool irActive, out bool lidarPending);
+            var streamCamera = Camera.main;
+            Vessels.Mast.IrViewPass.SetActive(irActive, streamCamera);
+            if (irActive) Vessels.Mast.ThermalTagApplier.Apply();
+            else Vessels.Mast.ThermalTagApplier.Revert();
+            if (lidarPending)
+                Debug.Log("[Sango.TwinBridge] sensor_mode=lidar accepted (echoed in state); point-cloud view lands in S3");
         }
 
         // ── replay 泵：后台取数 + 主线程计量喂帧 ────────────────────────────────
@@ -687,7 +784,7 @@ namespace Sango
             if (nowUnixS - m_LastStateSentUnixS < StateIntervalS) return;
             m_LastStateSentUnixS = nowUnixS;
 
-            var state = new TwinBridgeState { fps = Math.Round(m_FpsSmoothed * 10.0) / 10.0, camera = m_CurrentPreset };
+            var state = new TwinBridgeState { fps = Math.Round(m_FpsSmoothed * 10.0) / 10.0, camera = m_CurrentPreset, sensor_mode = m_SensorMode };
             if (driver != null)
             {
                 state.frame_seq = driver.LastSeq;

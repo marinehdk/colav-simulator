@@ -22,9 +22,13 @@ import {
   cameraFreePose,
   observeTheme,
   projectTwinHud,
+  projectSensorMode,
+  sensorModeItems,
   themeValue,
-} from './twin-view.js?v=20261002-twin-view-v2';
-import { createGeography } from './scene-geography.js?v=20261002-s4-v1';
+  TWIN_SENSOR_MODE_DEFAULT,
+  TWIN_SENSOR_MODES,
+} from './twin-view.js?v=20261002-sensor-mode-v1';
+import { createGeography } from './scene-geography.js?v=20261002-sensor-mode-v1';
 
 // HUD refresh cadence (Unity state echo is ~1Hz; same as the Evaluation twin).
 const HUD_INTERVAL_MS = 250;
@@ -36,6 +40,8 @@ export function createDeploymentTwinViewport({
   linkToggle = null, // <input type="checkbox"> 联动 switch (default unchecked)
   statusEl = null, // HUD chip
   errorEl = null, // error slot
+  sensorGroup = null, // P3-S2 sensor-mode button group ([data-twin-sensor] buttons)
+  sensorModeEl = null, // P3-S2 current sensor-mode chip (state echo)
   signalingUrl = undefined, // default from twin-view
   backendBase = globalThis.location?.origin ?? 'http://127.0.0.1:8010',
   sessionId = () => null, // () => active live session id (deployment state)
@@ -70,6 +76,7 @@ export function createDeploymentTwinViewport({
       received: streamCtl?.client?.received ?? 0,
       simTime: streamCtl?.client?.lastState?.sim_time ?? null,
       camera: streamCtl?.client?.lastState?.camera ?? null,
+      sensorMode: streamCtl?.client?.lastState?.sensor_mode ?? null,
       cameraFreeSent,
       linkOn,
     });
@@ -88,6 +95,9 @@ export function createDeploymentTwinViewport({
         client.sendAttach({ runId: sessionId(), backendBase, mode: 'live' });
         const theme = themeValue(documentRef?.documentElement?.getAttribute?.('data-obc-theme'));
         if (theme) client.sendTheme(theme);
+        // P3-S2 (spec #90): §5 realignment — the current sensor mode rides along.
+        const sensorActive = sensorGroup?.querySelector('[data-twin-sensor].active');
+        client.sendSensorMode(sensorActive?.dataset.twinSensor ?? TWIN_SENSOR_MODE_DEFAULT);
         publishDebug();
       } else if (Date.now() > deadline) {
         scheduler.clearInterval(timer);
@@ -176,11 +186,43 @@ export function createDeploymentTwinViewport({
     if (!statusEl) return;
     const hud = projectTwinHud({ connection: streamCtl?.connectionState ?? 'idle', client: streamCtl?.client ?? null, playhead: null, nowMs: now() });
     statusEl.textContent = `${hud.signal.toUpperCase()} · ${hud.fps === null ? '—' : `${hud.fps.toFixed(0)} FPS`} · ${hud.latencyMs === null ? '—' : `${hud.latencyMs.toFixed(0)} MS`}`;
+    // P3-S2 (spec #90): state echo is the authority for the sensor mode UI.
+    const mode = projectSensorMode(streamCtl?.client?.lastState);
+    if (sensorGroup) {
+      sensorGroup.querySelectorAll('[data-twin-sensor]').forEach(button => {
+        const on = button.dataset.twinSensor === mode;
+        button.classList.toggle('active', on);
+        button.setAttribute('aria-pressed', String(on));
+      });
+    }
+    if (sensorModeEl) {
+      const item = sensorModeItems(mode).find(entry => entry.value === mode);
+      sensorModeEl.textContent = `SENSOR ${item?.label ?? mode.toUpperCase()}${item?.pending ? ' · PENDING S3' : ''}`;
+    }
     publishDebug();
   }
 
   function bind() {
     linkToggle?.addEventListener('change', onLinkToggle);
+    // P3-S2 (spec #90): sensor-mode buttons — optimistic pick + send; the ~1Hz
+    // state echo reasserts the authoritative mode (renderHud).
+    sensorGroup?.querySelectorAll('[data-twin-sensor]').forEach(button => {
+      button.addEventListener('click', () => {
+        const value = button.dataset.twinSensor;
+        if (!TWIN_SENSOR_MODES.includes(value)) return;
+        const mode = value;
+        if (sensorGroup) {
+          sensorGroup.querySelectorAll('[data-twin-sensor]').forEach(other => {
+            const on = other.dataset.twinSensor === mode;
+            other.classList.toggle('active', on);
+            other.setAttribute('aria-pressed', String(on));
+          });
+        }
+        const client = streamCtl?.client;
+        if (client?.ready) client.sendSensorMode(value);
+        publishDebug();
+      });
+    });
     if (themeObserver === null && typeof MutationObserver !== 'undefined') {
       themeObserver = observeTheme(documentRef, value => {
         // §5 re-attach alignment: theme rides along whenever the page theme flips.

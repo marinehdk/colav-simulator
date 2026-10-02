@@ -12,7 +12,7 @@ import {
   projectTwinHud,
   themeValue,
   twinReplayRange,
-} from '../../web_gui/modules/twin-view.js?v=20261002-twin-view-v2';
+} from '../../web_gui/modules/twin-view.js?v=20261002-sensor-mode-v1';
 
 const html = await readFile(new URL('../../web_gui/index.html', import.meta.url), 'utf8');
 const styles = await readFile(new URL('../../web_gui/style.css', import.meta.url), 'utf8');
@@ -329,7 +329,7 @@ test('themeValue maps the OpenBridge theme attribute onto the contract vocabular
 
 /* ── P2-S4：camera_free（契约 §8 演进记录）+ cameraFreePose 折算 + 流客户端抽取 ── */
 
-import { cameraFreePose, createTwinStreamClient, TWIN_LINK_CHANGE_PERCENT } from '../../web_gui/modules/twin-view.js?v=20261002-twin-view-v2';
+import { cameraFreePose, createTwinStreamClient, TWIN_LINK_CHANGE_PERCENT } from '../../web_gui/modules/twin-view.js?v=20261002-sensor-mode-v1';
 
 test('camera_free message matches the frozen contract §8 literal (只加字段演进)', () => {
   const channel = recordingChannel();
@@ -411,4 +411,41 @@ test('twin runs table paginates with the same footer controls and page sizes as 
     'table.data carries the current page slice (replay-runs.js renderReplayRuns semantics)');
   assert.match(moduleSource, /twinRunsNextBtn/, 'footer next control wired in twin-view.js');
   assert.match(moduleSource, /twinRunsPageSize/, 'page-size control wired in twin-view.js');
+});
+
+/* ── P3-S2 sensor_mode 按钮组（spec #90；contract §2/§8；Deployment twin 侧见 deployment-twin.test.mjs） ── */
+
+test('sensorModeItems projects the frozen vocabulary with the lidar S3 pending mark (pure)', async () => {
+  const { sensorModeItems, TWIN_SENSOR_MODE_DEFAULT, projectSensorMode } = await import(
+    '../../web_gui/modules/twin-view.js?v=20261002-sensor-mode-v1'
+  );
+  assert.deepEqual(TWIN_SENSOR_MODES, ['eo', 'ir', 'lidar']);
+  assert.equal(TWIN_SENSOR_MODE_DEFAULT, 'eo');
+  const items = sensorModeItems('ir');
+  assert.deepEqual(items.map(item => [item.value, item.active, item.pending]), [
+    ['eo', false, false],
+    ['ir', true, false],
+    ['lidar', false, true],
+  ], 'ir active, lidar pending (占位明示，按钮不禁用)');
+  assert.equal(items.find(item => item.value === 'ir').label, 'IR');
+  assert.equal(items.find(item => item.value === 'lidar').label, 'LiDAR·S3');
+  assert.deepEqual(sensorModeItems('bogus').find(item => item.active).value, 'eo', 'unknown mode falls back to the contract default');
+  assert.equal(projectSensorMode({ sensor_mode: 'ir' }), 'ir', 'state echo is the authority');
+  assert.equal(projectSensorMode({}), 'eo', 'old Unity build (missing field) = default');
+  assert.equal(projectSensorMode({ sensor_mode: 'thermal' }), 'eo', 'out-of-vocabulary echo = default');
+});
+
+test('Evaluation twin footer wires the sensor-mode group, chip and echo path', () => {
+  assert.match(moduleSource, /id="twinSensorGroup"|el\('twinSensorGroup'\)/, 'controller addresses the group');
+  assert.match(html, /<div class="map-mode-control"[^>]*aria-label="Sensor mode \(main twin viewport\)" id="twinSensorGroup">/);
+  const group = html.slice(html.indexOf('id="twinSensorGroup"'), html.indexOf('id="twinSensorMode"'));
+  assert.match(group, /data-twin-sensor="eo"[^>]*aria-pressed="true"/);
+  assert.match(group, /data-twin-sensor="ir"/);
+  assert.match(group, /data-twin-sensor="lidar"/);
+  assert.match(html, /<span class="deployment-control-state" id="twinSensorMode"[^>]*>SENSOR EO<\/span>/);
+  assert.match(moduleSource, /requireClient\(\)\?\.sendSensorMode\(value\)/, 'click path sends the contract message');
+  assert.match(moduleSource, /applySensorMode\(projectSensorMode\(client\?\.lastState\)\)/, 'HUD reasserts the authoritative echo');
+  assert.match(moduleSource, /bridge\.sendSensorMode\(sensorActive\?\.dataset\.twinSensor \?\? TWIN_SENSOR_MODE_DEFAULT\)/,
+    '§5 reconnect realignment re-sends the current mode');
+  assert.match(moduleSource, /debug\.sensorMode = client\?\.lastState\?\.sensor_mode \?\? null/, 'probe debug seam carries the echo');
 });

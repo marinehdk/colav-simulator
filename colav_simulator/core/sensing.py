@@ -7,7 +7,9 @@ Every sensor must adhere to the ISensor interface.
 Author: Trym Tengesdal, Ragnar Wien
 """
 
+import threading
 from abc import ABC, abstractmethod
+from collections import deque
 from dataclasses import asdict, dataclass, field
 from enum import Enum
 from math import radians
@@ -931,4 +933,182 @@ class RadarXBand(ISensor):
 
     @property
     def params(self) -> RadarXParams:
+        return self._params
+
+
+@dataclass
+class ExternalCameraParams:
+    """External camera observation feed parameters (P3-S2, spec #90).
+
+    Anchors: sensor_id vocabulary sensor-model-v1 §2 (camera_eo=2/camera_ir=3),
+    mast mount calibration = ``colav_simulator.core.mast_cameras`` (FBX mast
+    anchor 12.98 m, placement table milliampere-ch5 §4.2), measurement noise
+    shape = radial-elongated NE covariance (contract §3 E5 form, produced by the
+    observations-endpoint georef).
+    """
+
+    sensor_id: int = 2  # camera_eo (contract observations-v1 §2: 2|3 only)
+    max_range_m: float = 2.0 * 1852.0  # 2 nm external camera detection envelope
+    inbox_capacity: int = 256  # pending georeferenced records before the oldest drops
+
+    def to_dict(self) -> dict:
+        return {"sensor_id": self.sensor_id, "max_range_m": self.max_range_m}
+
+
+class ExternalCameraSensor(ISensor):
+    """Consumes the observations endpoint georeferenced records (P3-S2).
+
+    The endpoint (gui_server, the only writer) georeferences accepted pixel
+    boxes into ownship-NED NE records and feeds them to :meth:`submit`; the
+    sensor exposes them through the ISensor legacy shape —
+    :meth:`generate_measurements` drains the inbox into ``(do_idx=-1, z)`` NE
+    tuples (RadarXBand clutter convention: external detections carry no ground
+    truth association, so they never hijack the tracker's GT-labelled data
+    association) — and through :meth:`drain_records` /
+    :meth:`sfd_records` for the sensor-model-v1 shaped consumers (S2 status
+    hook; S5 fusion wiring). Thread-safe: the endpoint posts from the FastAPI
+    threadpool while the simulator tick drains from the session thread.
+
+    Legacy compatibility: ``generate_measurements`` returns the ISensor
+    ``list[(do_idx, z)]`` shape with NaN placeholders for the true targets —
+    directly consumable by the existing KF/GodTracker measurement cache.
+    """
+
+    def __init__(self, params: ExternalCameraParams | None = None) -> None:
+        self.type: str = "camera_eo" if (params is None or params.sensor_id == 2) else "camera_ir"
+        self._params: ExternalCameraParams = params if params is not None else ExternalCameraParams()
+        self._H: np.ndarray = np.array([[1.0, 0.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0]])
+        self._rng: np.random.Generator = np.random.default_rng()
+        # Isotropic default R (tracker side); the per-measurement covariances
+        # ride with the records (radial-elongated form, contract §3).
+        self._R_ne: np.ndarray = np.diag([8.0**2, 11.0**2])
+        self._inbox: deque = deque(maxlen=max(1, self._params.inbox_capacity))
+        self._lock = threading.Lock()
+        self._accepted_frames = 0
+        self._last_frame_seq: int | None = None
+
+    # ------------------------------------------------------------------ ISensor
+    def reset(self, seed: int | None) -> None:
+        self.seed(seed)
+        with self._lock:
+            self._inbox.clear()
+        self._accepted_frames = 0
+        self._last_frame_seq = None
+
+    def seed(self, seed: int | None) -> None:
+        self._rng = np.random.default_rng(seed)
+
+    def R(self, xs: np.ndarray) -> np.ndarray:  # noqa: ARG002
+        return self._R_ne
+
+    def H(self, xs: np.ndarray) -> np.ndarray:  # noqa: ARG002
+        return self._H
+
+    def h(self, xs: np.ndarray) -> np.ndarray:
+        return self._H @ xs
+
+    def generate_measurements(
+        self,
+        t: float,  # noqa: ARG002 - ISensor signature; external records carry their own stamps
+        true_do_states: list[tuple[int, np.ndarray, float, float]],
+        ownship_state: np.ndarray,  # noqa: ARG002 - records are already ownship-NED
+    ) -> list[tuple[int, np.ndarray]]:
+        """Legacy ISensor output: NaN placeholders + drained external records.
+
+        NaN placeholders per true target; the drained external records ride the
+        clutter slot as (do_idx=-1, NE) — the simulator measurement cache keeps
+        the non-NaN entries (simulator.py extract_valid_sensor_measurements).
+        """
+        placeholders = [(do_tup[0], np.nan * np.ones(2)) for do_tup in true_do_states]
+        measurements: list[tuple[int, np.ndarray]] = list(placeholders)
+        for record in self._drain():
+            measurements.append((-1, np.asarray(record["position_ne_m"], dtype=float)))
+        return measurements
+
+    # ------------------------------------------------------------------ endpoint side
+    def submit(self, records: list[dict], frame_seq: int | None = None) -> int:
+        """Appends georeferenced records (mast_cameras.georeference_box shaped).
+
+        Required record keys: ``position_ne_m`` [n, e], ``position_cov_ne_m2``
+        2x2, ``confidence``, ``class_name``, ``t_s``. Returns the inbox depth
+        after the append. Called from the gui_server endpoint thread (the
+        records leave the inbox through the ISensor drain, never here).
+        """
+        if not records:
+            self._accepted_frames += 1
+            if frame_seq is not None:
+                self._last_frame_seq = int(frame_seq)
+            return len(self._inbox)
+        with self._lock:
+            for record in records:
+                self._inbox.append(dict(record))
+            depth = len(self._inbox)
+        self._accepted_frames += 1
+        if frame_seq is not None:
+            self._last_frame_seq = int(frame_seq)
+        return depth
+
+    def _drain(self) -> list[dict]:
+        with self._lock:
+            records = list(self._inbox)
+            self._inbox.clear()
+        return records
+
+    # ------------------------------------------------------------------ readers
+    def drain_records(self) -> list[dict]:
+        """Pops all pending georeferenced records (S2 status hook / test seams)."""
+        return self._drain()
+
+    def pending_records(self) -> list[dict]:
+        """Snapshot of pending records without draining (status endpoint)."""
+        with self._lock:
+            return [dict(record) for record in self._inbox]
+
+    def sfd_records(self, t_s: float, ownship_pose: dict | None = None) -> dict:
+        """Builds a sensor-model-v1 §3 frame from the pending records.
+
+        Empty array = authoritative no-measurement (contract §3). The frame is
+        returned, not stored; ownership passes to the caller (S5 wiring).
+        """
+        records = self._drain()
+        measurements = []
+        for record in records:
+            measurements.append(
+                {
+                    "sensor_id": int(self._params.sensor_id),
+                    "target_hint": None,
+                    "position_ne_m": [float(v) for v in record["position_ne_m"]],
+                    "position_cov_ne_m2": [[float(v) for v in row] for row in record["position_cov_ne_m2"]],
+                    "t_s": float(record.get("t_s", t_s)),
+                    "confidence": float(record.get("confidence", 1.0)),
+                    "class_name": record.get("class_name"),
+                    "class_confidence": record.get("class_confidence"),
+                }
+            )
+        return {
+            "schema_version": "sensor-model@1",
+            "frame_id": "ownship_ned",
+            "t_s": float(t_s),
+            "sensor_id": int(self._params.sensor_id),
+            "sensor_label": self.type,
+            "mount_id": str(records[0].get("mount_id", "")) if records else "",
+            "measurements": measurements,
+            "ownship_pose_at_measurement": ownship_pose or {},
+            "epoch_unix_ns": None,
+        }
+
+    @property
+    def accepted_frames(self) -> int:
+        return self._accepted_frames
+
+    @property
+    def last_frame_seq(self) -> int | None:
+        return self._last_frame_seq
+
+    @property
+    def max_range(self) -> float:
+        return self._params.max_range_m
+
+    @property
+    def params(self) -> ExternalCameraParams:
         return self._params

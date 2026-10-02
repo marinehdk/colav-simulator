@@ -1,0 +1,58 @@
+{
+  "session_id": "fc534d1b-a0d2-4343-910a-64b1869108a8",
+  "captured_at": "2026-10-02T17:01:58.130Z",
+  "status": {
+    "accepted_frames_total": 2141,
+    "channels": [
+      {
+        "sensor_id": 2,
+        "mount_id": "mast_ptz_eo",
+        "frames": 2141,
+        "detections": 1,
+        "last_frame_seq": 2186
+      }
+    ],
+    "pending_measurements": [
+      {
+        "sensor_id": 2,
+        "position_ne_m": [
+          136.3926273183897,
+          60.365275459815166
+        ],
+        "position_cov_ne_m2": [
+          [
+            419.6763633721568,
+            182.74298615197353
+          ],
+          [
+            182.74298615197353,
+            87.65602809001669
+          ]
+        ],
+        "confidence": 0.3289,
+        "class_name": "boat",
+        "class_confidence": 0.3289,
+        "t_s": 249.5,
+        "mount_id": "mast_ptz_eo",
+        "frame_seq": 2180,
+        "frame_time_s": 241.6293472505669
+      }
+    ]
+  },
+  "gray_ir": {
+    "mean": 82.9044076527773,
+    "std": 55.03504283581002,
+    "maxSpread": 5,
+    "w": 1280,
+    "h": 720,
+    "frame": "(saved as ir-frame.jpg)"
+  },
+  "gray_eo": {
+    "mean": 78.76541040277822,
+    "std": 64.46002704999282,
+    "maxSpread": 34,
+    "w": 1280,
+    "h": 720,
+    "frame": "(saved as eo-frame.jpg)"
+  }
+}
