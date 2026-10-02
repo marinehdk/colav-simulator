@@ -493,6 +493,17 @@
               <div class="canvas-wrapper" id="canvasWrapper" style="position: absolute; inset: 0; width: 100%; height: 100%;">
                 <div id="scene3dHost" class="scene3d-host" aria-label="仿真三维视景"></div>
                 <div id="scene3dError" class="scene3d-error" role="alert" hidden></div>
+                <div id="deploymentTwinHost" class="deployment-twin-host" aria-label="数字孪生视景">
+                  <div class="deployment-twin-main">
+                    <video id="deploymentTwinVideo" class="twin-video" autoplay playsinline muted aria-label="数字孪生像素流（当前验证实时视景）"></video>
+                    <div class="twin-hud deployment-control-state" id="deploymentTwinHud" aria-live="polite">TWIN IDLE</div>
+                    <label class="twin-link-toggle" id="twinLinkToggleWrap" for="twinLinkToggle">
+                      <input type="checkbox" id="twinLinkToggle" aria-label="海图↔孪生相机联动（Cesium 主，单向）"> 联动
+                    </label>
+                    <div class="scene3d-error" id="deploymentTwinError" role="alert" hidden></div>
+                  </div>
+                  <div class="twin-link-pane" id="twinLinkPane" aria-label="联动主视口（Cesium）" hidden></div>
+                </div>
                 <canvas id="simCanvas" aria-label="Ship collision avoidance simulation map"></canvas>
                 <div class="vessel-marker-layer" id="vesselMarkerLayer" role="group" aria-label="OpenBridge target vessel markers"></div>
                 <obc-poi-card class="vessel-detail-placard" id="vesselDetailPlacard" aria-live="polite" hidden>
@@ -538,6 +549,7 @@
                   <button class="map-mode-button active" type="button" data-map-orientation="north" aria-pressed="true" aria-label="North Up" title="North Up">N</button>
                   <button class="map-mode-button" type="button" id="recenterChartBtn" aria-label="Centre on Ownship" title="Centre on Ownship">C</button>
                   <button class="map-mode-button" type="button" id="scene3dBtn" aria-label="三维视景" aria-pressed="false" title="等待当前会话" disabled>3D</button>
+                  <button class="map-mode-button" type="button" id="twinViewportBtn" aria-label="数字孪生视景" aria-pressed="false" title="等待当前会话" disabled>T</button>
                 </div>
                 <obc-icon-button variant="flat" id="chartLayersBtn" aria-label="海图显示" title="海图显示" aria-expanded="false" aria-controls="chartDisplayPopover"><obi-chart-layers></obi-chart-layers></obc-icon-button>
                 <section class="chart-display-popover" id="chartDisplayPopover" role="dialog" aria-label="海图显示" hidden>

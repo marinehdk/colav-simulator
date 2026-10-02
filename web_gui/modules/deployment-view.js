@@ -2,8 +2,12 @@ import { targetsForDisplay } from './situation-display.js?v=20260920-3d-v1';
 import { geographyProblem, frameIdentity, targetKey } from './scene-geography.js';
 
 // One display boundary. No session control, network telemetry or physics clock lives here.
-export function createDeploymentView({ chart, createScene, onState = () => {}, onError = () => {}, now = () => performance.now() }) {
-  let mode = '2d', scene = null, projection = null, runId = null, generation = 0;
+// P2-S4: three display states — '2d' chart, '3d' Cesium scene, 'twin' live pixel-stream
+// viewport (createTwin factory, mirror of the createScene seam). The twin state owns no
+// clock and no telemetry: Unity pulls the live compact-v1 stream itself (contract §2) and
+// the sidebar keeps running on the existing live data path.
+export function createDeploymentView({ chart, createScene, createTwin = null, onState = () => {}, onError = () => {}, now = () => performance.now() }) {
+  let mode = '2d', scene = null, twinViewer = null, projection = null, runId = null, generation = 0;
   let identities = new Map();
   const modelOverrides = new Map();
   let lastEntryMs = null, loadingController = null;
@@ -19,6 +23,7 @@ export function createDeploymentView({ chart, createScene, onState = () => {}, o
     loading = false;
     loadingController?.abort(); loadingController = null;
     scene?.destroy(); scene = null;
+    twinViewer?.destroy(); twinViewer = null;
     mode = '2d';
     if (savedView) chart.restoreView(savedView);
     savedView = null;
@@ -48,6 +53,29 @@ export function createDeploymentView({ chart, createScene, onState = () => {}, o
       exit(); onError(error);
     }
   }
+  // Twin entry mirrors the 3D factory seam: an async factory returns a viewer with
+  // destroy(); the view only forwards projections and guards generations. Any twin
+  // error exits back to the chart through the same path as a failed 3D entry.
+  async function enterTwin() {
+    if (destroyed || loading || mode !== '2d' || !createTwin || reason()) return;
+    const token = ++generation;
+    const started = now();
+    loadingController = new AbortController();
+    loading = true; notify();
+    try {
+      const next = await createTwin({ info: chart.getEncInfo(), signal: loadingController.signal,
+        onFailure: error => { if (token === generation) { exit(); onError(error); } },
+      });
+      if (destroyed || token !== generation) { next.destroy(); return; }
+      savedView = chart.captureView();
+      twinViewer = next; mode = 'twin'; loading = false; lastEntryMs = now() - started;
+      notify();
+      twinViewer.render(projection);
+    } catch (error) {
+      if (token !== generation || destroyed) return;
+      exit(); onError(error);
+    }
+  }
   return {
     state,
     refresh: notify,
@@ -67,12 +95,13 @@ export function createDeploymentView({ chart, createScene, onState = () => {}, o
       for (const key of modelOverrides.keys()) if (!keys.has(key)) modelOverrides.delete(key);
       projection = value;
       chart.renderFrame(value.raw, mode === '2d');
-      scene?.render(value); notify();
+      scene?.render(value); twinViewer?.render(value); notify();
     },
-    toggle() { if (mode === '3d' || loading) exit(); else return enter(); },
+    toggle() { if (mode !== '2d' || loading) exit(); else return enter(); },
+    toggleTwin() { if (mode !== '2d' || loading) exit(); else return enterTwin(); },
     orientation(value) { exit(value); },
-    recenter() { if (mode === '3d') scene.recenter(); else chart.recenterOwnship(); },
-    zoom(direction) { if (mode === '3d') scene.zoom(direction); else chart[direction > 0 ? 'zoomIn' : 'zoomOut'](); },
+    recenter() { if (mode === 'twin') twinViewer?.recenter?.(); else if (mode === '3d') scene.recenter(); else chart.recenterOwnship(); },
+    zoom(direction) { if (mode === 'twin') twinViewer?.zoom?.(direction); else if (mode === '3d') scene.zoom(direction); else chart[direction > 0 ? 'zoomIn' : 'zoomOut'](); },
     select(id) { chart.selectTarget(id); scene?.select(id); },
     layers() { scene?.render(projection); },
     destroy() { exit(); destroyed = true; projection = null; },

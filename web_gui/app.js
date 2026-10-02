@@ -1,5 +1,5 @@
 import { ENCOUNTER_LABELS, eventDisplayContent, visibleMonitorEvents, renderMonitorEventItems } from './modules/monitor-event-presentation.js?v=20260924-replay-events-v1';
-import { createDeploymentView } from './modules/deployment-view.js?v=20260924-chase-vo-v1';
+import { createDeploymentView } from './modules/deployment-view.js?v=20261002-twin-v1';
 import { renderBalance, resetBalance } from './modules/gnc-balance.js?v=20260909-balance-v7';
 import { activeSessionRuntime, telemetryProjection } from './modules/session-runtime-instance.js?v=20260908-buffered-motion-v2';
 import './modules/line-graph.js?v=20260826-chart-view-control-v1';
@@ -130,7 +130,7 @@ const radarMiniMap = createRadarMiniMap({ canvas: document.getElementById('liveR
 deploymentView = createDeploymentView({
   chart: situationDisplay,
   createScene: async options => {
-    const { createScene3D } = await import('./modules/scene-3d.js?v=20260924-chase-vo-v1');
+    const { createScene3D } = await import('./modules/scene-3d.js?v=20261002-cam-link-v1');
     return createScene3D({ ...options, chart: situationDisplay,
       host: document.getElementById('scene3dHost'),
       onSelect: id => situationDisplay.selectTarget(id),
@@ -138,9 +138,51 @@ deploymentView = createDeploymentView({
       requestVODecisionSpace: () => ensureVODecisionSpace(currentDiagnosticPlanner()),
     });
   },
+  // P2-S4 A：第三态 twin —— 中心视口换 live 像素流（复用 twin-view 的 URS/bridge 客户端），
+  // attach mode=live 活动会话；无 ReplayClock（时钟权威=后端，契约 §2）；sidebar 不动。
+  createTwin: async options => {
+    const { createDeploymentTwinViewport } = await import('./modules/deployment-twin.js?v=20261002-s4-v1');
+    const viewport = createDeploymentTwinViewport({
+      ...options,
+      host: document.getElementById('deploymentTwinHost'),
+      video: document.getElementById('deploymentTwinVideo'),
+      linkPane: document.getElementById('twinLinkPane'),
+      linkToggle: document.getElementById('twinLinkToggle'),
+      statusEl: document.getElementById('deploymentTwinHud'),
+      errorEl: document.getElementById('deploymentTwinError'),
+      sessionId: () => currentRunId(),
+      info: options.info,
+      // P2-S4 C：联动 spike（默认关）——开 = 分屏从视口（Cesium 主）+ camera.changed 折算发 camera_free。
+      createLinkScene: async ({ host, signal, onFailure, onCameraMoved }) => {
+        const { createScene3D } = await import('./modules/scene-3d.js?v=20261002-cam-link-v1');
+        return createScene3D({ ...options, chart: situationDisplay,
+          host,
+          signal,
+          onFailure,
+          camera: 'top',
+          onSelect: id => situationDisplay.selectTarget(id),
+          getPlannerSurface: currentPlannerSurface,
+          requestVODecisionSpace: () => ensureVODecisionSpace(currentDiagnosticPlanner()),
+          onCameraMoved,
+        });
+      },
+      onDebug: debug => { globalThis.__deploymentTwin = debug; },
+    });
+    // Stream + hello + attach(mode live) ride on entry: deployment-view awaits
+    // this factory, so a failure here propagates to the standard error path.
+    try {
+      await viewport.attach();
+    } catch (error) {
+      viewport.destroy();
+      throw error;
+    }
+    return viewport;
+  },
   onState: state => {
     const active = state.mode === '3d';
+    const twin = state.mode === 'twin';
     document.getElementById('canvasWrapper').classList.toggle('view-3d', active);
+    document.getElementById('canvasWrapper').classList.toggle('view-twin', twin);
     document.getElementById('canvasWrapper').dataset.frame = JSON.stringify(state.frame);
     const button = document.getElementById('scene3dBtn');
     button.disabled = Boolean(state.unavailable) && !active && !state.loading;
@@ -149,13 +191,21 @@ deploymentView = createDeploymentView({
     button.classList.toggle('active', active);
     button.setAttribute('aria-busy', String(state.loading));
     if (state.lastEntryMs !== null) button.dataset.entryMs = state.lastEntryMs.toFixed(1);
+    const twinButton = document.getElementById('twinViewportBtn');
+    const twinUnavailable = Boolean(state.unavailable) || !currentRunId();
+    twinButton.disabled = twinUnavailable && !twin && !state.loading;
+    twinButton.title = state.loading ? '加载孪生视景，可取消' : twinUnavailable ? '等待当前会话' : '切换数字孪生视景（live）';
+    twinButton.setAttribute('aria-pressed', String(twin));
+    twinButton.classList.toggle('active', twin);
+    twinButton.setAttribute('aria-busy', String(state.loading));
+    if (state.lastEntryMs !== null) twinButton.dataset.entryMs = state.lastEntryMs.toFixed(1);
     document.querySelectorAll('[data-map-orientation]').forEach(item => {
       const pressed = !active && item.dataset.mapOrientation === state.orientation;
       item.setAttribute('aria-pressed', String(pressed)); item.classList.toggle('active', pressed);
     });
-    document.getElementById('chartScaleInput').disabled = active;
-    document.querySelectorAll('[data-chart-only]').forEach(item => { item.disabled = active || (item.dataset.layer && situationDisplay.getLayerState()[item.dataset.layer]?.available === false); });
-    if (active) hideVesselPlacard();
+    document.getElementById('chartScaleInput').disabled = active || twin;
+    document.querySelectorAll('[data-chart-only]').forEach(item => { item.disabled = active || twin || (item.dataset.layer && situationDisplay.getLayerState()[item.dataset.layer]?.available === false); });
+    if (active || twin) hideVesselPlacard();
   },
   onError: error => {
     const notice = document.getElementById('scene3dError');
@@ -166,7 +216,7 @@ deploymentView = createDeploymentView({
 const deploymentPanel = document.querySelector('[data-workface-panel="deployment"]');
 const deploymentVisibility = new MutationObserver(() => {
   const state = deploymentView.state();
-  if (deploymentPanel?.hidden && (state.mode === '3d' || state.loading)) deploymentView.toggle();
+  if (deploymentPanel?.hidden && (state.mode !== '2d' || state.loading)) deploymentView.toggle();
 });
 if (deploymentPanel) deploymentVisibility.observe(deploymentPanel, { attributes: true, attributeFilter: ['hidden'] });
 window.addEventListener('pagehide', () => { deploymentVisibility.disconnect(); deploymentView.destroy(); }, { once: true });
@@ -546,6 +596,10 @@ document.getElementById('recenterChartBtn')?.addEventListener('click', () => dep
 document.getElementById('scene3dBtn')?.addEventListener('click', () => {
   document.getElementById('scene3dError').hidden = true;
   deploymentView.toggle();
+});
+document.getElementById('twinViewportBtn')?.addEventListener('click', () => {
+  document.getElementById('deploymentTwinError').hidden = true;
+  deploymentView.toggleTwin();
 });
 document.querySelectorAll('[data-map-orientation]').forEach(btn => {
   btn.addEventListener('click', () => deploymentView.orientation(btn.dataset.mapOrientation));

@@ -22,6 +22,12 @@ export function createGeography(info) {
     if (![north, east].every(finite)) throw new Error('无效场景坐标');
     return convert.forward([info.origin_e + east, info.origin_n + north]);
   }
+  // P2-S4 联动 spike（twin-bridge-v1.md §8）：Cesium 相机经纬度 → 全域 UTM 东/北米
+  // （proj4 逆变换；结果与 attached.anchor 同一全局框架，Unity 侧减锚得场景坐标）。
+  function eastNorth(lonDeg, latDeg) {
+    if (![lonDeg, latDeg].every(finite)) throw new Error('无效地理坐标');
+    return convert.inverse([lonDeg, latDeg]);
+  }
   function heading(north, east, gridHeading) {
     if (!finite(gridHeading)) return null;
     // Direction of a short grid-space vector on the ellipsoid, including meridian convergence.
@@ -29,7 +35,7 @@ export function createGeography(info) {
     const rad = Math.PI / 180;
     return Math.atan2((b[0] - a[0]) * Math.cos(a[1] * rad), b[1] - a[1]);
   }
-  return { info, lonLat, heading, contains: (n, e) => n >= 0 && e >= 0 && n <= info.height && e <= info.width };
+  return { info, lonLat, eastNorth, heading, contains: (n, e) => n >= 0 && e >= 0 && n <= info.height && e <= info.width };
 }
 
 export function targetKey(runId, target) {

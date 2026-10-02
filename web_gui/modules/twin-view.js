@@ -24,6 +24,8 @@ export const TWIN_SIGNALING_URL_DEFAULT = 'ws://127.0.0.1:8080';
 export const TWIN_CAMERA_PRESETS = ['bridge', 'bow', 'chase', 'top', 'overlook'];
 export const TWIN_THEMES = ['day', 'dusk', 'night'];
 export const TWIN_REPLAY_RATES = [0.5, 1, 5, 20];
+// P2-S4 联动 spike（契约 §8）：Cesium 相机变更上报阈值（camera.changed percentageChanged）。
+export const TWIN_LINK_CHANGE_PERCENT = 0.01;
 
 // Clock-message pacing: contract §2 fixes ~10Hz while PLAYING.
 const CLOCK_INTERVAL_MS = 100;
@@ -55,6 +57,125 @@ export function observeTheme(documentRef, callback) {
   });
   observer.observe(documentRef.documentElement, { attributes: true, attributeFilter: ['data-obc-theme'] });
   return observer;
+}
+
+/**
+ * CesiumJS camera pose → twin-bridge `camera_free` payload (P2-S4, contract
+ * §8; one-way Cesium master → twin slave spike, default off). Pure fold —
+ * `toEastNorth(lonDeg, latDeg)` is the injected projector (proj4 inverse;
+ * global UTM metres in the attached.anchor frame). Heading (compass rad,
+ * 0 = north, clockwise) maps 1:1 to Unity yaw (scene +z north / +x east);
+ * Cesium pitch (negative = down) carries unchanged per the contract
+ * "pitch 负 = 俯"; Cesium fov is horizontal radians when the pane is wider
+ * than tall (vertical otherwise) → Unity vertical degrees.
+ */
+export function cameraFreePose({ lonDeg, latDeg, heightM, headingRad, pitchRad, fovRad, aspect = 1 }, toEastNorth) {
+  const [east, north] = toEastNorth(lonDeg, latDeg);
+  const yawDeg = ((headingRad * 180 / Math.PI) % 360 + 360) % 360;
+  const pitchDeg = pitchRad * 180 / Math.PI;
+  const fovDeg = (aspect >= 1
+    ? 2 * Math.atan(Math.tan(fovRad / 2) / aspect)
+    : fovRad) * 180 / Math.PI;
+  return { east, north, height_m: heightM, yaw_deg: yawDeg, pitch_deg: pitchDeg, fov_deg: fovDeg };
+}
+
+/**
+ * URS pixel stream + twin-bridge DataChannel receiver, shared by the
+ * Evaluation twin viewport and the Deployment live twin (P2-S4 extraction —
+ * identical official-receiver flow; S3 README §4②: the receiver's
+ * createDataChannel('input') negotiationneeded is what wakes the Unity side
+ * under the public signaling webapp). `onChannel(client)` fires when the
+ * twin-bridge DataChannel opens — the page sends hello (here) and re-sends
+ * attach/current controls there (contract §5 reconnect semantics);
+ * `onState('connecting'|'streaming'|'idle')` mirrors connection transitions.
+ * Pure seam: tests inject nothing — the URS imports are dynamic (browser-only)
+ * and the bridge client behind `client` is the tested contract seam.
+ */
+export function createTwinStreamClient({
+  video = null,
+  signalingUrl = TWIN_SIGNALING_URL_DEFAULT,
+  page = 'web_gui',
+  now = () => Date.now(),
+  onChannel = () => {},
+  onState = () => {},
+} = {}) {
+  let stream = null;
+  let client = null;
+  let connectionState = 'idle';
+
+  function setState(next) {
+    connectionState = next;
+    onState(next);
+  }
+
+  async function ensureStream() {
+    if (stream) return stream;
+    setState('connecting');
+    const [{ RenderStreaming }, { WebSocketSignaling }] = await Promise.all([
+      import('../vendor/urs/renderstreaming.js'),
+      import('../vendor/urs/signaling.js'),
+    ]);
+    const signaling = new WebSocketSignaling(1000, signalingUrl);
+    const rs = new RenderStreaming(signaling, { sdpSemantics: 'unified-plan', iceServers: [] });
+    rs.onConnect = id => {
+      stream.connectionId = id;
+      // Official receiver flow (S3 spike page main.js does the same): the
+      // receiver creates its data channel on connect — its negotiationneeded
+      // is what triggers the SDP offer that wakes the Unity side in the
+      // webapp's public signaling mode (connect is only echoed to the sender
+      // there). Unity's Broadcast has no 'input' handler in the twin scene, so
+      // the channel is a no-op on the far side; camera control goes via
+      // twin-bridge.
+      try {
+        rs.createDataChannel('input');
+      } catch { /* peer may be gone during reconnect */ }
+      setState('streaming');
+    };
+    rs.onDisconnect = async () => {
+      setState('idle');
+      stream = null;
+      if (video) video.srcObject = null;
+    };
+    rs.onTrackEvent = data => {
+      if (!video) return;
+      video.srcObject = new MediaStream([data.track]);
+      video.play?.().catch(() => { /* autoplay policy: element is muted */ });
+    };
+    rs.onAddChannel = data => {
+      if (data.channel?.label !== TWIN_BRIDGE_CHANNEL_LABEL || !stream) return;
+      stream.channel = data.channel;
+      const channelFacade = {
+        send: json => data.channel.send(json),
+        isOpen: () => data.channel.readyState === 'open',
+      };
+      if (!client) client = createTwinBridgeClient({ channel: channelFacade, now, page });
+      else client.bindChannel(channelFacade);
+      data.channel.onmessage = event => client?.onMessage(event.data);
+      client.sendHello(`${page === 'web_gui' ? 'twin' : page}-${now()}`);
+      onChannel(client);
+    };
+    stream = { renderstreaming: rs, connectionId: null, channel: null };
+    await rs.start();
+    await rs.createConnection();
+    return stream;
+  }
+
+  /** Tear the pixel stream down (PC stop + video unbind); the channel dies with it. */
+  async function close() {
+    const current = stream;
+    stream = null;
+    if (video) video.srcObject = null;
+    if (!current) return;
+    try { await current.renderstreaming.stop?.(); } catch { /* already gone */ }
+  }
+
+  return {
+    ensureStream,
+    close,
+    get client() { return client; },
+    get connectionState() { return connectionState; },
+    get stream() { return stream; },
+  };
 }
 
 /**
@@ -135,6 +256,14 @@ export function createTwinBridgeClient({ channel = null, now = () => Date.now(),
 
     sendCamera(preset) {
       return send({ type: 'camera', preset });
+    },
+
+    /**
+     * P2-S4 演进（契约 §8，只加字段）：联动 spike 的自由位姿——单向 Cesium 主→Twin 从，
+     * web 侧默认关（Deployment twin 态专属）。pos 为全域 UTM 米（attached.anchor 同框架）。
+     */
+    sendCameraFree({ east, north, height_m, yaw_deg, pitch_deg, fov_deg }) {
+      return send({ type: 'camera_free', pos: { east, north, height_m }, yaw_deg, pitch_deg, fov_deg });
     },
 
     sendTheme(value) {
@@ -319,7 +448,7 @@ export function createTwinViewController({
   let clock = null; // ReplayClock (shared semantics with the Replay view)
   let clockDriver = null;
   let themeObserver = null;
-  let stream = null; // { renderstreaming, connectionId, videoElement }
+  let streamCtl = null; // createTwinStreamClient (shared URS receiver, P2-S4 extraction)
   let connectionState = 'idle';
   let runId = null;
   let range = null;
@@ -334,7 +463,7 @@ export function createTwinViewController({
   function publishDebug() {
     if (!debug) return;
     debug.connection = connectionState;
-    debug.channelOpen = Boolean(stream?.channel?.isOpen?.());
+    debug.channelOpen = Boolean(streamCtl?.stream?.channel?.isOpen?.());
     debug.ready = client?.ready ?? false;
     debug.attached = client?.attached ?? null;
     debug.lastState = client?.lastState ?? null;
@@ -355,60 +484,27 @@ export function createTwinViewController({
     return debug;
   }
 
-  // ── URS pixel stream + bridge channel ─────────────────────────────────────
+  // ── URS pixel stream + bridge channel (shared receiver, P2-S4 extraction) ──
 
-  async function ensureStream() {
-    if (stream) return stream;
-    setConnectionState('connecting');
-    const [{ RenderStreaming }, { WebSocketSignaling }] = await Promise.all([
-      import('../vendor/urs/renderstreaming.js'),
-      import('../vendor/urs/signaling.js'),
-    ]);
-    const video = el('twinVideo');
-    const signaling = new WebSocketSignaling(1000, signalingUrl);
-    const rs = new RenderStreaming(signaling, { sdpSemantics: 'unified-plan', iceServers: [] });
-    rs.onConnect = id => {
-      stream.connectionId = id;
-      // Official receiver flow (spike page main.js does the same): the receiver
-      // creates its data channel on connect — its negotiationneeded is what
-      // triggers the SDP offer that wakes the Unity side in the webapp's
-      // public signaling mode (connect is only echoed to the sender there).
-      // Unity's Broadcast has no 'input' handler in the twin scene, so the
-      // channel is a no-op on the far side; camera control goes via twin-bridge.
-      try {
-        rs.createDataChannel('input');
-      } catch { /* peer may be gone during reconnect */ }
-      setConnectionState('streaming');
-    };
-    rs.onDisconnect = async () => {
-      setConnectionState('idle');
-      stream = null;
-      if (video) video.srcObject = null;
-    };
-    rs.onTrackEvent = data => {
-      if (!video) return;
-      video.srcObject = new MediaStream([data.track]);
-      video.play?.().catch(() => { /* autoplay policy: element is muted */ });
-    };
-    rs.onAddChannel = data => {
-      if (data.channel?.label !== TWIN_BRIDGE_CHANNEL_LABEL || !stream) return;
-      stream.channel = data.channel;
-      const channelFacade = {
-        send: json => data.channel.send(json),
-        isOpen: () => data.channel.readyState === 'open',
-      };
-      if (!client) client = createTwinBridgeClient({ channel: channelFacade, now: nowFn, page: 'web_gui-twin' });
-      else client.bindChannel(channelFacade);
-      data.channel.onmessage = event => client?.onMessage(event.data);
-      client.sendHello(`twin-${nowFn()}`);
-      // Re-attach after a page-level reconnect (contract §5: hello + attach + current controls).
-      if (runId && range) queueAttachWhenReady();
-      publishDebug();
-    };
-    stream = { renderstreaming: rs, connectionId: null, channel: null };
-    await rs.start();
-    await rs.createConnection();
-    return stream;
+  function ensureStream() {
+    if (!streamCtl) {
+      streamCtl = createTwinStreamClient({
+        video: el('twinVideo'),
+        signalingUrl,
+        page: 'web_gui-twin',
+        now: nowFn,
+        onChannel: bound => {
+          client = bound;
+          bindClockClient();
+          // Re-attach after a page-level reconnect (contract §5: hello + attach
+          // + current controls; the hello itself went out inside the receiver).
+          if (runId && range) queueAttachWhenReady();
+          publishDebug();
+        },
+        onState: setConnectionState,
+      });
+    }
+    return streamCtl.ensureStream();
   }
 
   function requireClient() {

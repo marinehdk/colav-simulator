@@ -45,7 +45,7 @@ function waitForAsset(promise, signal, label) {
   });
 }
 
-export async function createScene3D({ host, info, camera = 'chase', chart, onSelect, onFailure, onCamera, getPlannerSurface = () => null, requestVODecisionSpace = () => {}, signal, modelOverrides = new Map(), pixelRatio = null }) {
+export async function createScene3D({ host, info, camera = 'chase', chart, onSelect, onFailure, onCamera, getPlannerSurface = () => null, requestVODecisionSpace = () => {}, signal, modelOverrides = new Map(), pixelRatio = null, onCameraMoved = null }) {
   const C = await waitForAsset(loadCesium(), signal, 'Cesium');
   const geo = createGeography(info);
   // OpenBridge is loaded by the existing shell; no second registration/bundle.
@@ -233,6 +233,24 @@ export async function createScene3D({ host, info, camera = 'chase', chart, onSel
     if (own?.model) own.model.show = preset !== 'bridge';
   }
   for (const event of ['mousedown', 'pointerdown', 'click', 'wheel']) listen(root, event, event => event.stopPropagation());
+  // P2-S4 Cesium↔Twin 分屏联动 spike（twin-bridge-v1.md §8，默认关）：调用方传 onCameraMoved
+  // 才订阅（零开销缝）。Cesium 主相机每次越阈变更回报原始位姿（经纬度/椭球高/heading/pitch/
+  // 水平 fov/画幅比），折算成 camera_free 由调用方负责。
+  if (onCameraMoved) {
+    viewer.camera.percentageChanged = 0.01;
+    viewer.camera.changed.addEventListener(() => {
+      const carto = viewer.camera.positionCartographic;
+      onCameraMoved({
+        lonDeg: C.Math.toDegrees(carto.longitude),
+        latDeg: C.Math.toDegrees(carto.latitude),
+        heightM: carto.height,
+        headingRad: viewer.camera.heading,
+        pitchRad: viewer.camera.pitch,
+        fovRad: viewer.camera.frustum.fov,
+        aspect: viewer.canvas.clientWidth / Math.max(1, viewer.canvas.clientHeight),
+      });
+    });
+  }
   let pointerStart = null;
   listen(viewer.canvas, 'pointerdown', event => { pointerStart = { x: event.clientX, y: event.clientY }; });
   listen(viewer.canvas, 'pointermove', event => { if (pointerStart && Math.hypot(event.clientX - pointerStart.x, event.clientY - pointerStart.y) > 4) follow = false; });

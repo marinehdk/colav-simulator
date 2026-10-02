@@ -232,6 +232,7 @@ namespace Sango
                 case "detach": DetachDataPlane(); break;
                 case "clock": HandleClock(cmd); break;
                 case "camera": HandleCamera(cmd); break;
+                case "camera_free": HandleCameraFree(cmd); break;
                 case "theme": HandleTheme(cmd); break;
                 case "detection": HandleDetection(cmd); break;
                 default:
@@ -355,6 +356,38 @@ namespace Sango
                 cameraRig.SetView(view);
                 Debug.Log($"[Sango.TwinBridge] camera -> {view} (preset {cmd.preset})");
             }
+        }
+
+        /// <summary>
+        /// camera_free（P2-S4 契约 §8 演进记录；Cesium↔Twin 分屏主从联动 spike，单向
+        /// Cesium 主→Twin 从，web 侧默认关）：web 把 CesiumJS 相机位姿折算成全域 UTM 米发来，
+        /// Unity 侧减 attached.anchor 得场景坐标（TwinPose 同一原点锚定语义），CameraRig.SetFreePose
+        /// 直贴位姿——离散事件不插值不锁步（阶段硬边界 §8.3）。pitch 负=俯（CameraPose 语义沿用）；
+        /// 之后任何 camera 预设消息收回控制权（SetView 清自由位姿）。
+        /// </summary>
+        void HandleCameraFree(TwinBridgeCommand cmd)
+        {
+            if (cmd.pos == null || cmd.fov_deg <= 0.0 || cmd.fov_deg > 170.0)
+            {
+                SendError(TwinBridge.ErrorBadMessage, "camera_free requires pos and fov_deg in (0,170]");
+                return;
+            }
+            if (cameraRig == null) return;
+            if (driver == null || !driver.Anchor.HasValue)
+            {
+                SendError(TwinBridge.ErrorBadMessage, "camera_free requires an attached data plane (anchor)");
+                return;
+            }
+            var anchor = driver.Anchor.Value;
+            var position = new Vector3(
+                (float)(cmd.pos.east - anchor.EastM),
+                Mathf.Clamp((float)cmd.pos.height_m, -50f, 5000f),
+                (float)(cmd.pos.north - anchor.NorthM));
+            m_CurrentPreset = TwinBridge.CameraFreePreset; // state.camera 回显 free（契约 §3 注）
+            cameraRig.SetFreePose(position, (float)cmd.yaw_deg, (float)cmd.pitch_deg,
+                Mathf.Clamp((float)cmd.fov_deg, 10f, 120f));
+            Debug.Log($"[Sango.TwinBridge] camera_free east={cmd.pos.east:0.#} north={cmd.pos.north:0.#} " +
+                      $"h={cmd.pos.height_m:0.#} yaw={cmd.yaw_deg:0.#} pitch={cmd.pitch_deg:0.#} fov={cmd.fov_deg:0.#}");
         }
 
         void HandleTheme(TwinBridgeCommand cmd)

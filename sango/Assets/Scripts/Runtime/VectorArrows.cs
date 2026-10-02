@@ -24,6 +24,18 @@ namespace Sango
         [Tooltip("矢量显示总开关（V 键切换）。")]
         public bool show = true;
 
+        // ── Twin 外部驱动（P2-S4 D 收口：速度矢量接 Twin 会话 sog）──────────────
+        // Func 不可序列化：仅运行期由 TwinSessionDriver.WireTwinVisuals 注入，无 Inspector 语义。
+        // twinSpeedMps 为空 = Demo 路径逐位不变（follower.SpeedMps/DemoRunning/waypoints 原样）。
+        [Tooltip("Twin 速度源（本槽位最新 sog，m/s）；非空 = Twin 模式。")]
+        public System.Func<float> twinSpeedMps;
+
+        [Tooltip("Twin 活动态（会话开闸且本槽位船在位）；twinSpeedMps 为空时不读。")]
+        public System.Func<bool> twinActive;
+
+        [Tooltip("Twin 烘焙艏向补偿（槽位编目 bowYawDeg；psi 反解 = euler.y − 补偿，Demo 同式）。")]
+        public float twinBowYawOffsetDeg;
+
         Transform m_Root;
         Transform m_VelocityArrow, m_WaypointArrow;
         Transform m_VelocityShaft, m_VelocityHead, m_WaypointShaft, m_WaypointHead;
@@ -59,25 +71,41 @@ namespace Sango
                 show = !show;
                 Debug.Log($"[Sango.M2E2] vectors {(show ? "shown" : "hidden")} (V)");
             }
+            Tick(twinSpeedMps != null);
+        }
 
-            bool active = show && follower != null && follower.DemoRunning
+        /// <summary>
+        /// 每帧驱动体（公开 = EditMode 数值缝；Input 键读取留在 Update）。twinDriven=true：
+        /// 活动态/速度取 Twin 源（sog），航点箭头隐藏（Twin 无航点表）；false：Demo 路径逐位不变。
+        /// </summary>
+        public void Tick(bool twinDriven)
+        {
+            bool active = show && (twinDriven
+                          ? (twinActive != null && twinActive())
+                          : follower != null && follower.DemoRunning)
                           && (cameraRig == null || cameraRig.CurrentView != CameraView.TopDown);
             if (m_Root.gameObject.activeSelf != active) m_Root.gameObject.SetActive(active);
             if (!active) return;
 
             // 导航艏向（ WaypointFollower 初始化捕获反解同式）：psi = 根 euler.y − 烘焙艏向补偿。
-            float psi = transform.eulerAngles.y - follower.bowYawDegOffset;
+            float psi = transform.eulerAngles.y - (twinDriven ? twinBowYawOffsetDeg : follower.bowYawDegOffset);
+            float speedMps = twinDriven ? twinSpeedMps() : follower.SpeedMps;
 
             // 速度箭头：origin = 船 + 甲板高；端点 = 纯函数 VelocityArrowTip（长度 ∝ 速度，
             // 零速 stub）；朝向/杆长由 origin→tip 矢量反推（纯函数拥有端点数学，测试即钉它）。
             var vOrigin = transform.position + Vector3.up * k_VelocityHeightM;
-            var vTip = VectorArrowMath.VelocityArrowTip(vOrigin, psi, follower.SpeedMps);
+            var vTip = VectorArrowMath.VelocityArrowTip(vOrigin, psi, speedMps);
             var vDir = vTip - vOrigin;
             m_VelocityArrow.SetPositionAndRotation(vOrigin, Quaternion.LookRotation(vDir, Vector3.up));
             LayoutArrow(m_VelocityShaft, m_VelocityHead, vDir.magnitude);
 
-            // 航点箭头：origin = 船 + 更高一层；端点 = 纯函数 WaypointArrowTip（定长 10 m，
-            // 零距退化回退艏向）；无航点表时隐藏。
+            // 航点箭头：Twin 无航点表 → 隐藏；Demo 路径：端点 = 纯函数 WaypointArrowTip
+            // （定长 10 m，零距退化回退艏向）；无航点表时隐藏。
+            if (twinDriven)
+            {
+                m_WaypointArrow.gameObject.SetActive(false);
+                return;
+            }
             var wps = follower.waypoints;
             int idx = follower.ActiveWaypointIndex;
             if (wps != null && wps.Length > 0)
@@ -95,15 +123,23 @@ namespace Sango
             }
         }
 
-        // ── rig 构建（杆 + 锥头，+Z 为指向）──────────────────────────────────────────
+    // ── rig 构建（杆 + 锥头，+Z 为指向）──────────────────────────────────────────
 
-        (Transform shaft, Transform head) BuildArrow(string name, Material mat)
-        {
-            var arrow = new GameObject($"{name}Arrow").transform;
-            arrow.SetParent(m_Root, false);
+    /// <summary>EditMode 可建 rig 的资源收口（WakeFoamRig.DestroyOwned 同款：编辑态 DestroyImmediate，运行态 Destroy）。</summary>
+    static void DestroyOwned(Object resource)
+    {
+        if (resource == null) return;
+        if (Application.isPlaying) Destroy(resource);
+        else DestroyImmediate(resource);
+    }
 
-            var shaft = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            Object.Destroy(shaft.GetComponent<Collider>()); // 标记非碰撞体
+    (Transform shaft, Transform head) BuildArrow(string name, Material mat)
+    {
+        var arrow = new GameObject($"{name}Arrow").transform;
+        arrow.SetParent(m_Root, false);
+
+        var shaft = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        DestroyOwned(shaft.GetComponent<Collider>()); // 标记非碰撞体
             shaft.name = $"{name}.Shaft";
             shaft.transform.SetParent(arrow, false);
             shaft.GetComponent<MeshRenderer>().sharedMaterial = mat;
@@ -111,7 +147,7 @@ namespace Sango
             shaft.GetComponent<MeshRenderer>().shadowCastingMode = ShadowCastingMode.Off;
 
             var head = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            Object.Destroy(head.GetComponent<Collider>());
+            DestroyOwned(head.GetComponent<Collider>());
             head.name = $"{name}.Head";
             head.transform.SetParent(arrow, false);
             head.GetComponent<MeshRenderer>().sharedMaterial = mat;

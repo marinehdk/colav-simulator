@@ -289,3 +289,64 @@ test('themeValue maps the OpenBridge theme attribute onto the contract vocabular
   assert.equal(themeValue('dusk'), 'dusk');
   assert.equal(themeValue('contrast'), null, 'unknown attribute ignored by the caller');
 });
+
+/* ── P2-S4：camera_free（契约 §8 演进记录）+ cameraFreePose 折算 + 流客户端抽取 ── */
+
+import { cameraFreePose, createTwinStreamClient, TWIN_LINK_CHANGE_PERCENT } from '../../web_gui/modules/twin-view.js?v=20261002-s4-v1';
+
+test('camera_free message matches the frozen contract §8 literal (只加字段演进)', () => {
+  const channel = recordingChannel();
+  const client = createTwinBridgeClient({ channel, page: 'deployment-twin' });
+  client.sendHello('t4');
+  const sent = client.sendCameraFree({
+    east: 37012.5, north: 6955012.25, height_m: 120, yaw_deg: 45, pitch_deg: -35, fov_deg: 60,
+  });
+  assert.ok(sent, 'message handed to an open channel');
+  assert.equal(channel.sent.at(-1),
+    '{"type":"camera_free","pos":{"east":37012.5,"north":6955012.25,"height_m":120},"yaw_deg":45,"pitch_deg":-35,"fov_deg":60}');
+});
+
+test('camera_free send on a closed channel is a no-op like every other message', () => {
+  const channel = recordingChannel();
+  channel.isOpen = () => false;
+  const client = createTwinBridgeClient({ channel });
+  assert.equal(client.sendCameraFree({ east: 1, north: 2, height_m: 3, yaw_deg: 0, pitch_deg: 0, fov_deg: 60 }), null);
+  assert.equal(channel.sent.length, 0);
+});
+
+test('cameraFreePose folds the Cesium camera into the contract payload (pure)', () => {
+  const projectorCalls = [];
+  const pose = cameraFreePose({
+    lonDeg: 12.5, latDeg: 55.4, heightM: 120.5,
+    headingRad: Math.PI / 2, pitchRad: -35 * Math.PI / 180, fovRad: Math.PI / 3, aspect: 16 / 9,
+  }, (lon, lat) => { projectorCalls.push([lon, lat]); return [37012.5, 6955012.25]; });
+  assert.deepEqual(projectorCalls, [[12.5, 55.4]], 'E/N come from the injected proj4 inverse');
+  assert.equal(pose.east, 37012.5);
+  assert.equal(pose.north, 6955012.25);
+  assert.equal(pose.height_m, 120.5);
+  assert.equal(pose.yaw_deg, 90, 'compass heading maps 1:1 to Unity yaw');
+  assert.ok(Math.abs(pose.pitch_deg - -35) < 1e-9, 'pitch 负=俯 passes through');
+  const expectedFov = 2 * Math.atan(Math.tan(Math.PI / 6) / (16 / 9)) * 180 / Math.PI;
+  assert.ok(Math.abs(pose.fov_deg - expectedFov) < 1e-9, 'horizontal Cesium fov → vertical Unity fov');
+});
+
+test('cameraFreePose wraps yaw and keeps the fov vertical on tall panes', () => {
+  const pose = cameraFreePose({
+    lonDeg: 0, latDeg: 0, heightM: 0, headingRad: 3 * Math.PI, pitchRad: 0, fovRad: Math.PI / 3, aspect: 0.5,
+  }, () => [0, 0]);
+  assert.equal(pose.yaw_deg, 180, '540° wraps to 180°');
+  assert.ok(Math.abs(pose.fov_deg - 60) < 1e-9, 'aspect < 1: Cesium fov already vertical');
+  assert.deepEqual(Object.keys(pose), ['east', 'north', 'height_m', 'yaw_deg', 'pitch_deg', 'fov_deg']);
+});
+
+test('createTwinStreamClient extraction keeps the official receiver flow (source contract)', () => {
+  assert.match(moduleSource, /export function createTwinStreamClient\(/);
+  assert.match(moduleSource, /import\('\.\.\/vendor\/urs\/renderstreaming\.js'\)/);
+  assert.match(moduleSource, /import\('\.\.\/vendor\/urs\/signaling\.js'\)/);
+  assert.match(moduleSource, /rs\.createDataChannel\('input'\)/, 'S3 README §4②: receiver-side offer trigger');
+  assert.match(moduleSource, /data\.channel\?\.label !== TWIN_BRIDGE_CHANNEL_LABEL/);
+  assert.match(moduleSource, /sendHello\(`\$\{page === 'web_gui' \? 'twin' : page\}-\$\{now\(\)\}`\)/,
+    'Evaluation hello nonce unchanged; deployment twin gets its own page tag');
+  assert.match(moduleSource, /await current\.renderstreaming\.stop\?\.\(\)/, 'close() tears the PC down');
+  assert.equal(TWIN_LINK_CHANGE_PERCENT, 0.01, 'camera.changed threshold per spike spec');
+});

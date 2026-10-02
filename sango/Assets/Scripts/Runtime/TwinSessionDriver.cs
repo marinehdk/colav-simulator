@@ -76,6 +76,7 @@ namespace Sango
         ColavTelemetry m_Prev, m_Latest;
         bool m_CanInterpolate;
         int m_LastSeq = -1;
+        CameraRig m_CameraRig; // 槽位视觉接线用（TopDown 矢量隐藏语义）；查找一次缓存
 
         long m_RxCount;
         int m_AcceptedCount, m_DuplicateCount, m_RebuildCount, m_MalformedCount, m_UnslottedCount;
@@ -210,7 +211,6 @@ namespace Sango
         {
             CancellationToken cancellation = m_Cancel.Token;
             var inbox = m_Inbox; // 线程持有本地引用（DetectionResultConsumer 同款，收尾竞态不炸）
-            int reconnectAttempt = 0;
             try
             {
                 string id = sessionId;
@@ -222,15 +222,18 @@ namespace Sango
                 m_ConnectedSessionId = id;
                 // P2-S3 留尾收口：autoReconnect=true 时断线按 1s/2s/5s 封顶退避重连（TwinReconnectPolicy，
                 // twin-bridge-v1.md §5）；默认 false = S1 行为零变化（断线关闸等人为重开）。
+                // P2-S4 B：attempt 状态机收进 TwinReconnectPolicy.ReconnectSequence（EditMode 模拟可测）。
+                var reconnect = new TwinReconnectPolicy.ReconnectSequence();
                 while (m_Running)
                 {
                     using (var socket = new ClientWebSocket())
                     {
                         socket.ConnectAsync(new Uri(TwinWs.CompactUrl(backendBase, id)), cancellation).GetAwaiter().GetResult();
                         m_SocketUp = true;
+                        int priorAttempts = reconnect.Attempt;
+                        reconnect.OnConnected();
                         Debug.Log("[Sango.Twin] connected " + TwinWs.CompactUrl(backendBase, id) +
-                                  (reconnectAttempt > 0 ? $" (reconnect #{reconnectAttempt})" : ""));
-                        reconnectAttempt = 0; // 连接成功即复位退避
+                                  (priorAttempts > 0 ? $" (reconnect #{priorAttempts})" : ""));
                         while (m_Running)
                         {
                             string json = TwinWs.ReceiveText(socket, cancellation);
@@ -243,10 +246,10 @@ namespace Sango
                         }
                     }
                     m_SocketUp = false;
-                    if (!m_Running || !autoReconnect) break;
-                    double delayS = TwinReconnectPolicy.DelaySeconds(reconnectAttempt++);
-                    Debug.LogWarning($"[Sango.Twin] connection lost; reconnect in {delayS:0.#}s (attempt {reconnectAttempt})");
-                    if (cancellation.WaitHandle.WaitOne(TimeSpan.FromSeconds(delayS))) break; // 停止取消即刻收线程
+                    var decision = reconnect.OnDisconnected(m_Running, autoReconnect);
+                    if (!decision.Reconnect) break;
+                    Debug.LogWarning($"[Sango.Twin] connection lost; reconnect in {decision.DelaySeconds:0.#}s (attempt {reconnect.Attempt})");
+                    if (cancellation.WaitHandle.WaitOne(TimeSpan.FromSeconds(decision.DelaySeconds))) break; // 停止取消即刻收线程
                 }
             }
             catch (Exception error)
@@ -352,7 +355,28 @@ namespace Sango
             }
             var slot = new TwinSlot { Ship = shipObject, Entry = entry, LengthMeters = ship.length };
             m_Slots[ship.id] = slot;
+            WireTwinVisuals(slot, entry);
             return slot;
+        }
+
+        /// <summary>
+        /// P2-S4 D 收口（类头注遗留）：槽位船接速度矢量 + 尾迹，驱动源 = Twin 会话 sog
+        /// （ApplyPoses 逐帧写 slot.SogMps）。Demo 路径零变化——VectorArrows/WakeFoamRig 的
+        /// twinSpeedMps 外部源只在本方法注入（Demo 船组件由场景预接线走 follower 路径原样）；
+        /// 槽位船随 StopTwin/ClearSlots 销毁，组件同灭。船 id==0 本船采样档与其余一致（S1 分档原样）。
+        /// </summary>
+        void WireTwinVisuals(TwinSlot slot, VesselCatalog.Entry entry)
+        {
+            if (m_CameraRig == null) m_CameraRig = FindFirstObjectByType<CameraRig>();
+            var arrows = slot.Ship.AddComponent<VectorArrows>();
+            arrows.cameraRig = m_CameraRig;
+            arrows.twinSpeedMps = () => slot.SogMps;
+            arrows.twinActive = () => runtimeEnabled && slot.Ship != null && slot.Ship.activeInHierarchy;
+            arrows.twinBowYawOffsetDeg = entry.bowYawDeg;
+            var wake = slot.Ship.AddComponent<WakeFoamRig>();
+            wake.water = water;
+            wake.loaMeters = entry.loaMeters;
+            wake.twinSpeedMps = () => slot.SogMps;
         }
 
         void ClearSlots()

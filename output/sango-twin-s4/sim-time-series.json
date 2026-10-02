@@ -1,0 +1,19 @@
+{
+  "session_id": "c9b54f51-377b-497d-b1c0-f76da9dbfb21",
+  "attached_run_id": "c9b54f51-377b-497d-b1c0-f76da9dbfb21",
+  "window_s": 6,
+  "sample_every_ms": 1000,
+  "first_attach": {
+    "first": 0,
+    "last": 17.59991986296093,
+    "delta": 17.59991986296093,
+    "samples": 6
+  },
+  "after_restart": {
+    "first": 0,
+    "last": 76.50002757218876,
+    "delta": 76.50002757218876,
+    "samples": 6
+  },
+  "captured_at": "2026-10-02T12:13:59.881Z"
+}

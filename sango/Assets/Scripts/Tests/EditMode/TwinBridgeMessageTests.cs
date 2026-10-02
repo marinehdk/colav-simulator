@@ -25,6 +25,11 @@ namespace Sango.Tests
 
         const string k_DetectionSample = "{\"type\":\"detection\",\"enabled\":true,\"source\":\"truth\"}";
 
+        // P2-S4 契约 §8 演进记录新增（只加字段；web twin-view.test.mjs 同源对拍）
+        const string k_CameraFreeSample =
+            "{\"type\":\"camera_free\",\"pos\":{\"east\":37012.5,\"north\":6955012.25,\"height_m\":120}," +
+            "\"yaw_deg\":45,\"pitch_deg\":-35,\"fov_deg\":60}";
+
         const string k_HelloSample = "{\"type\":\"hello\",\"protocol\":\"twin-bridge@1\",\"page\":\"s3-probe\"}";
 
         const string k_AttachedSample =
@@ -63,6 +68,37 @@ namespace Sango.Tests
             Assert.That(cmd.playhead_s, Is.EqualTo(12.5).Within(1e-9));
             Assert.That(cmd.rate, Is.EqualTo(1.0).Within(1e-9));
             Assert.That(cmd.state, Is.EqualTo("PLAYING"));
+        }
+
+        [Test]
+        public void CameraFreeSample_DeserializesToDocumentedFields()
+        {
+            var cmd = TwinBridgeCommand.FromJson(k_CameraFreeSample);
+            Assert.That(cmd.type, Is.EqualTo("camera_free"));
+            Assert.That(cmd.pos, Is.Not.Null);
+            Assert.That(cmd.pos.east, Is.EqualTo(37012.5).Within(1e-9));
+            Assert.That(cmd.pos.north, Is.EqualTo(6955012.25).Within(1e-9));
+            Assert.That(cmd.pos.height_m, Is.EqualTo(120.0).Within(1e-9));
+            Assert.That(cmd.yaw_deg, Is.EqualTo(45.0).Within(1e-9));
+            Assert.That(cmd.pitch_deg, Is.EqualTo(-35.0).Within(1e-9), "pitch 负=俯（CameraPose 语义）");
+            Assert.That(cmd.fov_deg, Is.EqualTo(60.0).Within(1e-9));
+        }
+
+        [Test]
+        public void CameraFree_Loopback_StringStable()
+        {
+            var original = new TwinBridgeCommand
+            {
+                type = "camera_free",
+                pos = new TwinBridgeFreePose { east = 37012.5, north = 6955012.25, height_m = 120.0 },
+                yaw_deg = 45.0,
+                pitch_deg = -35.0,
+                fov_deg = 60.0,
+            };
+            var once = JsonUtility.ToJson(original);
+            var back = TwinBridgeCommand.FromJson(once);
+            var twice = JsonUtility.ToJson(back);
+            Assert.That(twice, Is.EqualTo(once), "camera_free 信封 serialize→deserialize→serialize 逐位无损");
         }
 
         [Test]
@@ -240,6 +276,40 @@ namespace Sango.Tests
             Assert.That(TwinReconnectPolicy.DelaySeconds(3), Is.EqualTo(5.0).Within(1e-9), "封顶 5s");
             Assert.That(TwinReconnectPolicy.DelaySeconds(99), Is.EqualTo(TwinReconnectPolicy.MaxDelaySeconds).Within(1e-9));
             Assert.That(TwinReconnectPolicy.DelaySeconds(-1), Is.EqualTo(1.0).Within(1e-9), "负数 attempt 钳 0");
+        }
+
+        // ── driver 层重连序列模拟（P2-S4 B 收口；后端断连场景的 driver 层单测） ──
+
+        [Test]
+        public void ReconnectSequence_EscalatesCapsAndResetsOnConnect()
+        {
+            var sequence = new TwinReconnectPolicy.ReconnectSequence();
+            // 断线连击：1s → 2s → 5s → 5s（封顶），attempt 逐次升级
+            Assert.That(sequence.OnDisconnected(true, true).DelaySeconds, Is.EqualTo(1.0).Within(1e-9));
+            Assert.That(sequence.OnDisconnected(true, true).DelaySeconds, Is.EqualTo(2.0).Within(1e-9));
+            Assert.That(sequence.OnDisconnected(true, true).DelaySeconds, Is.EqualTo(5.0).Within(1e-9));
+            Assert.That(sequence.OnDisconnected(true, true).DelaySeconds, Is.EqualTo(5.0).Within(1e-9), "封顶");
+            Assert.That(sequence.Attempt, Is.EqualTo(4));
+
+            // 重连成功 → 复位；再断线从 1s 重来（契约 §5 连续失败才升级）
+            sequence.OnConnected();
+            Assert.That(sequence.Attempt, Is.EqualTo(0));
+            Assert.That(sequence.OnDisconnected(true, true).DelaySeconds, Is.EqualTo(1.0).Within(1e-9), "复位后退避从头");
+        }
+
+        [Test]
+        public void ReconnectSequence_StopsOnShutdownOrManualGate()
+        {
+            var sequence = new TwinReconnectPolicy.ReconnectSequence();
+            // 停止（StopTwin 置 running=false）→ 不重连（S1 关闸语义原样）
+            Assert.That(sequence.OnDisconnected(false, true).Reconnect, Is.False);
+            // autoReconnect=false（默认）→ 不重连（S1 行为零变化：断线等人为重开）
+            Assert.That(sequence.OnDisconnected(true, false).Reconnect, Is.False);
+            // 停止判定不消耗 attempt（Attempt 仍 0）
+            Assert.That(sequence.Attempt, Is.EqualTo(0));
+            // 之后再开闸断线：正常升级
+            Assert.That(sequence.OnDisconnected(true, true).Reconnect, Is.True);
+            Assert.That(sequence.Attempt, Is.EqualTo(1));
         }
     }
 }

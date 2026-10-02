@@ -34,6 +34,7 @@ web 侧：`web_gui/modules/twin-view.js` + `web_gui/vendor/urs/`（URS 官方 re
 | `detach` | — | 断开数据面，回空场景态（船清空、泵停、流状态 down→idle） |
 | `clock` | `playhead_s`, `rate`, `state:"PLAYING"\|"PAUSED"\|"ENDED"` | **仅 replay 模式**：PLAYING 时 ~10Hz；PAUSED/ENDED 状态切换时至少发一条；Unity 软对齐渲染钟（与 compact-v1 同哲学）；live 模式时钟权威在后端，web 不发此消息 |
 | `camera` | `preset:"bridge"\|"bow"\|"chase"\|"top"\|"overlook"` | 预设词汇统一表 → `CameraView.{Bridge,Bow,Chase,TopDown,Overlook}`（00-REPORT §5.3） |
+| `camera_free` | `pos:{east,north,height_m}`, `yaw_deg`, `pitch_deg`, `fov_deg` | **P2-S4 演进新增（§8）**：Cesium↔Twin 分屏主从联动的自由位姿（单向 Cesium 主→Twin 从，web 侧默认关，逐帧锁步不做）。`pos` 为相机锚点**全域 UTM 米**（与 `attached.anchor` 同一框架，Unity 侧减锚得场景坐标）；`height_m` 椭球零视觉约定（ENC 网格 h=0 同基准）；`yaw_deg` 北向东顺时针；**`pitch_deg` 负=俯**（CameraPose 语义沿用）；`fov_deg` 垂直向度。生效中 `state.camera`/`attached.camera` 回显 `"free"`；任何 `camera` 预设消息收回控制权 |
 | `theme` | `value:"day"\|"night"\|"dusk"` | 映射 Unity 时刻档：`day=12h, dusk=17.5h, night=0h`（`WeatherGUI.k_TimePresets` 同源） |
 | `detection` | `enabled`, `source:"yolo"\|"truth"` | `enabled=false` = overlay 关；`truth` = 地面真值路径（`requireLive=false`）；`yolo` = live 优先路径（`requireLive=true`，无新鲜结果按 DetectionFreshness 既有规则回退）。复用 M9 `DetectionOverlay` |
 
@@ -81,6 +82,7 @@ Unity 渲染钟把 `rate` 写进所喂帧的 `playback.effective_multiplier`（S
 {"type":"detach"}
 {"type":"clock","playhead_s":12.5,"rate":1,"state":"PLAYING"}
 {"type":"camera","preset":"top"}
+{"type":"camera_free","pos":{"east":37012.5,"north":6955012.25,"height_m":120},"yaw_deg":45,"pitch_deg":-35,"fov_deg":60}
 {"type":"theme","value":"night"}
 {"type":"detection","enabled":true,"source":"truth"}
 {"type":"ready","protocol":"twin-bridge@1","build":"1.0","scene":"SangoTwin","modes_supported":["live","replay"]}
@@ -96,3 +98,10 @@ Unity 渲染钟把 `rate` 写进所喂帧的 `playback.effective_multiplier`（S
 - C# 回环：`TwinBridgeMessageTests`（EditMode）——§6 样例字面量反序列化 + serialize→deserialize→serialize 逐位无损 + 未知字段容忍。
 - web 侧：`tests/web_gui/twin-view.test.mjs`——同一批 §6 字面量为期望构造/解析。
 - E2E：`tools/sango_twin_bridge_probe.mjs`——伪 UI 驱动真 web_gui 页面走 hello→attach→clock→camera 全消息面，断言 ready/attached/state 回包与 SIM TIME 对拍。
+
+## 8. 演进记录（只加字段条款 §1 的行级台账）
+
+| 日期 | 段 | 变更 | 溯源 |
+|---|---|---|---|
+| 2026-10-02 | P2-S3 | 契约冻结（§1-§7） | spec #89，`a430fc62` |
+| 2026-10-02 | P2-S4 | web→Unity 新增 `camera_free` 消息（§2 表 + §6 样例）；`state.camera`/`attached.camera` 新增回显词汇 `"free"`（§3 注）。**只加字段/只加词汇**：既有消息形状零改动（`JsonUtility` 忽略未知字段、web `JSON.parse` 宽松消费，双侧旧实现互通）。语义边界：仅 Deployment twin 态的默认关联动开关产生此消息；单向 Cesium 主→Twin 从，反向不做，逐帧锁步不做 | spec #89 S4；CesiumJS `camera.changed`（`percentageChanged` 0.01）位姿折算纯函数 = web `twin-view.js#cameraFreePose`，Unity 应用 = `CameraRig.SetFreePose` |

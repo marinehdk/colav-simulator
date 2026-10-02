@@ -27,6 +27,12 @@ namespace Sango
         /// <summary>camera 预设词汇（契约 §2，词序 = CameraView 枚举序）。</summary>
         public static readonly string[] CameraPresets = { "bridge", "bow", "chase", "top", "overlook" };
 
+        /// <summary>
+        /// camera_free 后 state.camera/attached.camera 的回显词汇（P2-S4 演进条款新增，契约 §8）：
+        /// 分屏联动 spike 的自由位姿生效中；任何 camera 预设消息收回控制权。
+        /// </summary>
+        public const string CameraFreePreset = "free";
+
         /// <summary>theme 词汇 → WeatherController.timeOfDayHours（契约 §2：day=12, dusk=17.5, night=0）。</summary>
         public static readonly string[] ThemeValues = { "day", "dusk", "night" };
 
@@ -81,6 +87,12 @@ namespace Sango
         public string value;
         public bool enabled;
         public string source;
+        // camera_free（P2-S4 契约 §8 演进记录新增，只加字段）：pos 为相机锚点全域 UTM 米
+        // （与 attached.anchor 同一框架，Unity 侧减锚得场景坐标）；pitch 负=俯；fov 垂直向度。
+        public TwinBridgeFreePose pos;
+        public double yaw_deg;
+        public double pitch_deg;
+        public double fov_deg;
 
         /// <summary>契约 §6 attach 样例字面量（冻结；EditMode/web 测试对拍同源）。</summary>
         public const string ContractAttachSample =
@@ -89,6 +101,16 @@ namespace Sango
             "\"replay\":{\"t_start\":0.1,\"t_end\":40,\"trusted_t_end\":40}}";
 
         public static TwinBridgeCommand FromJson(string json) => JsonUtility.FromJson<TwinBridgeCommand>(json);
+    }
+
+    /// <summary>camera_free.pos 子对象（P2-S4 演进）：相机锚点全域 UTM 米 + 高度（米，
+    /// 椭球零视觉约定，与 ENC 网格 h=0 同一视觉基准）。JsonUtility 语义同 replay：键缺失 = 零值实例。</summary>
+    [Serializable]
+    public class TwinBridgeFreePose
+    {
+        public double east;
+        public double north;
+        public double height_m;
     }
 
     /// <summary>attach.replay 子对象（replay 模式必带，秒）。JsonUtility 语义：键缺失时给

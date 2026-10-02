@@ -3810,6 +3810,14 @@ canvas#simCanvas.route-pick-mode { cursor: crosshair; }
 .scene3d-host { position: absolute; inset: 0; visibility: hidden; pointer-events: none; }
 .view-3d > .scene3d-host { visibility: visible; pointer-events: auto; z-index: 4; }
 .view-3d > #simCanvas, .view-3d > #replayCanvas, .view-3d > .vessel-marker-layer, .view-3d > .vessel-detail-placard { visibility: hidden; pointer-events: none; }
+/* Deployment live twin (P2-S4): third display state, same substitution pattern as 3D. */
+.deployment-twin-host { position: absolute; inset: 0; display: none; gap: 6px; background: #000; }
+.view-twin > .deployment-twin-host { display: flex; visibility: visible; pointer-events: auto; z-index: 4; }
+.view-twin > #simCanvas, .view-twin > #replayCanvas, .view-twin > .vessel-marker-layer, .view-twin > .vessel-detail-placard { visibility: hidden; pointer-events: none; }
+.deployment-twin-main { position: relative; flex: 1 1 auto; min-width: 0; overflow: hidden; }
+.twin-link-toggle { position: absolute; top: 12px; right: 12px; z-index: 7; display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 4px; background: color-mix(in srgb, var(--ob-surface) 86%, transparent); font-size: 12px; cursor: pointer; }
+.twin-link-pane { flex: 0 0 38%; min-width: 260px; position: relative; overflow: hidden; border-left: 1px solid var(--ob-border); background: #0d1211; }
+.twin-link-pane .scene3d-root { position: absolute; inset: 0; }
 .scene3d-root, .scene3d-canvas { position: absolute; inset: 0; overflow: hidden; }
 .scene3d-pois { position: absolute; inset: 0; pointer-events: none; --obc-poi-layer-height: 0px; z-index: 3; }
 .scene3d-pois > obc-poi-vessel { pointer-events: auto; }

@@ -35,6 +35,14 @@ namespace Sango
         /// <summary>当前视图（C 键循环；面板/日志同源）。</summary>
         public CameraView CurrentView { get; private set; } = CameraView.Bridge;
 
+        // ── 自由位姿（twin-bridge camera_free，P2-S4 联动 spike；见 SetFreePose） ──
+        Vector3? m_FreePos;
+        Quaternion m_FreeRot;
+        float m_FreeFov;
+
+        /// <summary>自由位姿生效中（bridge state.camera 以 "free" 回显；任何 SetView 清除）。</summary>
+        public bool FreePoseActive => m_FreePos.HasValue;
+
         Vector3 m_FromPos;
         Quaternion m_FromRot;
         float m_FromFov;
@@ -69,6 +77,14 @@ namespace Sango
             var target = CameraViews.Resolve(CurrentView, FollowPos(), FollowYawDeg(), bridgeShipRelative);
             // pitch 取负进 Unity（根因注释见 ApplyPose）：目标旋转在此单点构造。
             var targetRot = Quaternion.Euler(-target.PitchDeg, target.YawDeg, 0f);
+            if (FreePoseActive)
+            {
+                // camera_free 生效期：直贴自由位姿，预设解算不参与（联动消息离散，过渡插值会放大
+                // 延迟；预设 camera 消息经 SetView 清除后回到本行之下的常规路径）。5s 诊断账本跳过
+                // （自由位姿下 followPos/census 语义不再对应当前视口）。
+                ApplyPose(m_FreePos.Value, m_FreeRot, m_FreeFov);
+                return;
+            }
             if (CurrentView == CameraView.TopDown && tacticalHeightM > 0f)
                 target.Position.y = FollowPos().y + tacticalHeightM;
             var mount = CurrentView == CameraView.Bridge ? bridgeMount : CurrentView == CameraView.Bow ? bowMount : null;
@@ -176,9 +192,30 @@ namespace Sango
         /// <summary>C 键入口：循环到下一视图。</summary>
         public void CycleView() => SetView(CameraViews.Next(CurrentView));
 
+        /// <summary>
+        /// 应用自由位姿（twin-bridge camera_free，P2-S4 联动 spike）：立即直贴 + 生效期 LateUpdate
+        /// 持续保持。**复用 CameraPose 语义：pitch 负 = 俯**（ApplyPose 同一取负进 Unity 的约定），
+        /// yaw = 北向东顺时针度（场景 +z 北/+x 东，TwinPose 同向），fov = 垂直向度。
+        /// 位置由调用方折算成场景坐标（bridge 减 attached.anchor）。任何 SetView（预设/C 键）清除。
+        /// </summary>
+        public void SetFreePose(Vector3 position, float yawDeg, float pitchDeg, float fovDeg)
+        {
+            m_FreePos = position;
+            m_FreeRot = Quaternion.Euler(-pitchDeg, yawDeg, 0f);
+            m_FreeFov = fovDeg;
+            m_Blend = 1f; // 直贴：自由位姿是离散跟随事件，过渡插值会放大联动延迟
+            if (controlledCamera == null) controlledCamera = GetComponent<Camera>();
+            if (controlledCamera != null) ApplyPose(position, m_FreeRot, fovDeg);
+            Debug.Log($"[Sango.M2E2] camera free pose -> pos={position.ToString("F1")} yaw={yawDeg:0.#}° pitch={pitchDeg:0.#}° fov={fovDeg:0.#}°");
+        }
+
+        /// <summary>清除自由位姿（预设接管；SetView 单点调用）。</summary>
+        public void ClearFreePose() => m_FreePos = null;
+
         /// <summary>切视图：捕获当前位姿/FOV → 过渡计时归零（全透视，无投影切换）。</summary>
         public void SetView(CameraView view)
         {
+            ClearFreePose(); // 预设消息收回控制权（camera_free 联动 spike 单向语义的退出缝）
             if (view == CurrentView || controlledCamera == null) return;
             m_FromPos = controlledCamera.transform.position;
             m_FromRot = controlledCamera.transform.rotation;

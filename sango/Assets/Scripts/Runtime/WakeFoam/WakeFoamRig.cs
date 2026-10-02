@@ -39,6 +39,11 @@ namespace Sango
         [Tooltip("强度乘子 ∈ [0,1]（Simulation 面板尾迹滑条实时驱动；High/Low 两档共用一个滑条）。")]
         public float intensityMultiplier = 1f;
 
+        // Twin 外部速度源（P2-S4 D 收口：强度接 Twin 会话 sog）。Func 不可序列化：仅运行期由
+        // TwinSessionDriver.WireTwinVisuals 注入；空 = Demo 路径逐位不变（follower.SpeedMps 原样）。
+        [Tooltip("Twin 速度源（本槽位最新 sog，m/s）；非空时代替 follower.SpeedMps。")]
+        public System.Func<float> twinSpeedMps;
+
         // ── 预算常量（头注"预算"节的代码锚；粒子总量 = 2 × PerSide）──────────────────
         public const int MaxSprayParticlesPerSide = 72; // ≥ 55/s × 1.1 s 寿命，满发不饿死
         public const float MaxSprayRatePerSide = 55f;   // 粒子/秒·侧（巡航满发活粒子 ~60/侧）
@@ -97,7 +102,7 @@ namespace Sango
 
         void LateUpdate()
         {
-            float speed = follower != null ? follower.SpeedMps : 0f;
+            float speed = twinSpeedMps != null ? twinSpeedMps() : follower != null ? follower.SpeedMps : 0f;
             ApplySpeed(speed);
             ApplyDecalSuppression();
         }
