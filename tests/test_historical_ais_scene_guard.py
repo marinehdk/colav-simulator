@@ -27,9 +27,9 @@ EXPECTED_SCENARIO_YAML_SHA256 = {
     "ais_scenario1": "aa2383d9efc987e2845ba1dada7580a384255f51c7557bdf28aa7feb30ad8503",
     "ais_scenario_west_coast": "ec9a7045541d70478b2539f27d6ec22f1ea7008c5ca0810b502922d60b62f7c2",
     "boknafjorden_generation_test": "ddce6bb026b82c5ac2fe2401dc44de295a9d06500f47940662fbd5301d7354ba",
-    "crossing_give_way": "3fa4a46b1bf3d0b9bcf20ef878edcbfdb9cc9b975d653b8adf2b051763e2ba72",
+    "crossing_give_way": "4053052023e17a1828e215698f5bd7087dfbe0cb35a3b505cc85b5ca609176fe",
     "crossing_stand_on": "83485565d21030a46a2e36920746d32a2720a357ce7db1c20b93de1ca86f3f91",
-    "head_on": "0005ab9993afd8d0de4d408865ed6729c5cfab9bf8585d3876c4772e55df90a9",
+    "head_on": "e1d052364e5b183ff2b91ed4ab4c930d2fc46edda83c99b5e39dfbd8813ed19d",
     "head_on_sbmpc": "cee9a5dfc968d170c3a870c17f71bfd76585352bc5c28ec87c00b573485c5ffb",
     "imazu_cases/imazu01": "496d45a1e8432067c2429d72ec49476b1a8b43cef2c5f7c9cbd2805815c7fd6f",
     "imazu_cases/imazu02": "ff3690622f07585eca318d9681ac91e2335126915e2b6cbec23b29d333807aa6",
@@ -54,10 +54,16 @@ EXPECTED_SCENARIO_YAML_SHA256 = {
     "imazu_cases/imazu21": "0d355160a53511a6ad357fce5b0107597690dfe02f6604c58363900320fb75f3",
     "imazu_cases/imazu22": "f45570b8f01e4dce91a61df9366ca14d38f6a96348b6fe004266d8bbe1067e5a",
     "overtaken": "443ae23c7a2f39b4d83875d39624020ffdc41f3e1b8a4faa83f1b06caa0a2dea",
-    "overtaking": "bb7c7a103cea3d513d530837d1c5fd9d8ac24d58123642998189bec5c32a619d",
+    # Re-sealed 2026-10-02 (spec #91 batch-2a) after deliberate committed rewrites
+    # that postdate the original pins (2026-08-26 13227567): overtaking.yaml +
+    # crossing_give_way.yaml 31d37a31 (finite mission endpoints),
+    # paper_ccta2023_multiship.yaml f44c7d8c (three-ship C-route redesign),
+    # head_on.yaml 7a1bd1bf (P3-S6 closeout). Corpus re-characterization, not
+    # descriptor re-identification.
+    "overtaking": "943a52d1adcb5c42e44a0560aac825fd3fa275179d29354b8619e62b4e174116",
     "overtaking_port_corridor": "aa71ae94abe31f572428caa5ac7c5f4ee6c381e73ae5dbbafd749ed85ee27cc1",
     "paper_ccta2023_head_on": "65268eb4e5fc43072974e7654aee6a8b5be148e969e0277b226c8d2903d3ff9b",
-    "paper_ccta2023_multiship": "5dfdb3d5c95b2fb0b565386ac818a6c1a75f2a8cbab1854a7c8a7c13c1007486",
+    "paper_ccta2023_multiship": "1236fa03510b1e178a026263724d048b07f6c7eb8d775a4eb41103f942841bc1",
     "planning_example": "9edecccb4650166cefddcc293d57e6370075d531f026cece1b1c39af80921fd3",
     "rl_scenario": "2c0d06e758a2bfd8efd7e388d2adce93806fce7402aac186caa5666db8b0e979",
     "rl_scenario_smaller": "8214092112da7307bbfccc73fb9d93d19bd11361ccbdd89fb4bb3760ec65ab98",
@@ -139,6 +145,10 @@ def test_existing_verified_exact_tuples_remain_unchanged_and_independent() -> No
 
     # ADR-0004: the Historical AIS scene is Counterfactual-only EXPERIMENTAL —
     # never verified, never nominal-selectable, and confined to the multiship rule.
+    # Re-sealed 2026-10-02 (spec #91 batch-2a): c683d681 (2026-08-26, "run all
+    # AIS algorithms through full window") deliberately added the mid_mpc_ipopt
+    # god tuple, and the P3-S6 flip (7a1bd1bf) mirrors every EXPERIMENTAL god
+    # tuple with a vimmjipda parallel — the guard pins predate both.
     hais_experimental = {
         tuple(item[field] for field in tuple_fields)
         for item in catalog["experimental_combinations"]
@@ -147,6 +157,10 @@ def test_existing_verified_exact_tuples_remain_unchanged_and_independent() -> No
     assert hais_experimental == {
         ("multiship", HISTORICAL_AIS_SCENE_ID, "vo", "god"),
         ("multiship", HISTORICAL_AIS_SCENE_ID, "potocnik_colreg_fan_mpc", "god"),
+        ("multiship", HISTORICAL_AIS_SCENE_ID, "mid_mpc_ipopt", "god"),
+        ("multiship", HISTORICAL_AIS_SCENE_ID, "vo", "vimmjipda"),
+        ("multiship", HISTORICAL_AIS_SCENE_ID, "potocnik_colreg_fan_mpc", "vimmjipda"),
+        ("multiship", HISTORICAL_AIS_SCENE_ID, "mid_mpc_ipopt", "vimmjipda"),
     }
     hais_scenarios = [item for item in catalog["scenarios"] if item["id"] == HISTORICAL_AIS_SCENE_ID]
     assert len(hais_scenarios) == 1

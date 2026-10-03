@@ -2476,7 +2476,20 @@ def api_select_algorithm(algorithm: str = "vo") -> dict[str, Any]:
             algorithm_id,
             current.tracker_id,
         )
-        description = manager.create(replace(current, algorithm_id=algorithm_id))
+        replacement = replace(current, algorithm_id=algorithm_id)
+        if algorithm_id != current.algorithm_id:
+            # The deprecated selector swaps the algorithm identity, so the
+            # previous algorithm's spacing/product profile (filled by
+            # CreateSessionRequest.to_spec) must not ride along: a foreign
+            # non-empty algorithm_config masks the new algorithm's published
+            # profile (registry build_algorithm treats a non-empty config as
+            # authoritative and the potocnik factory key lives only there —
+            # stale VO config surfaced as "Unsupported algorithm:
+            # potocnik_colreg_fan_mpc"). Re-derive the product profile for the
+            # new id exactly as the create path would.
+            spacing_profile = _product_spacing_profile(algorithm_id)
+            replacement.algorithm_config = copy.deepcopy(spacing_profile) if spacing_profile is not None else {}
+        description = manager.create(replacement)
     except Exception as exc:
         raise HTTPException(status_code=422, detail=_execution_error_detail(exc)) from exc
     return {"status": "ok", "algorithm": algorithm_id, **description}

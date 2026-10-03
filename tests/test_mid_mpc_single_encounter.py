@@ -81,21 +81,34 @@ def _run_and_assert_common(  # noqa: PLR0915 - one end-to-end evidence gate
         assert details["optimization_quality_passed"] is True
         if details["accepted_by_quality_gate"]:
             assert details["native_solver_status"] == "Timeout"
-            assert details["accepted_candidate_source"] == "IPOPT_BEST_FEASIBLE_ITERATE"
-            assert details["accepted_iteration"] >= 1
-            assert (
-                details["seed_max_constraint_violation"] > 0.0
-                or (
-                    not details["selected_target_ids"]
-                    and details["objective_improvement"]
-                    >= details["seed_objective_total"] - max(0.03, details["seed_objective_total"] * 1.05)
+            if details["accepted_candidate_source"] == "PRIMAL_SEED":
+                # f0971c67/39a0be8e contract: a deadline-truncated solve ships
+                # the repaired seed when it is primal feasible and dominates
+                # every feasible iterate. The shipped objective IS the seed
+                # objective (improvement exactly 0) and no iterate index is
+                # published. Probe evidence (spec #91 batch-2a): past-CPA rows
+                # seed at objective ~5.5e-20 while the ENFORCE deadline cuts
+                # the solve to 1 iteration, so the lone feasible iterate
+                # cannot beat the seed — the seed is the honest quality
+                # carrier for that row and the gate accepts it by design.
+                assert details["accepted_iteration"] is None
+                assert details["objective_improvement"] == 0.0
+            else:
+                assert details["accepted_candidate_source"] == "IPOPT_BEST_FEASIBLE_ITERATE"
+                assert details["accepted_iteration"] >= 1
+                assert (
+                    details["seed_max_constraint_violation"] > 0.0
+                    or (
+                        not details["selected_target_ids"]
+                        and details["objective_improvement"]
+                        >= details["seed_objective_total"] - max(0.03, details["seed_objective_total"] * 1.05)
+                    )
+                    or details["objective_improvement"]
+                    > max(
+                        1.0e-6,
+                        abs(details["seed_objective_total"]) * 1.0e-8,
+                    )
                 )
-                or details["objective_improvement"]
-                > max(
-                    1.0e-6,
-                    abs(details["seed_objective_total"]) * 1.0e-8,
-                )
-            )
         assert 0.0 < details["solver_elapsed_ms"] < 20_000.0
         assert constraints["max_constraint_violation"] <= 1.0e-3
         assert math.isfinite(constraints["cpa_slack"])
@@ -112,7 +125,14 @@ def _run_and_assert_common(  # noqa: PLR0915 - one end-to-end evidence gate
     initial = np.asarray(run.session.frames[0]["Ship0"]["state"], dtype=float)
     final = np.asarray(run.session.frames[-1]["Ship0"]["state"], dtype=float)
     assert abs(_angle_delta(_course(final), _course(initial))) < math.radians(5.0)
-    assert abs(float(np.hypot(final[3], final[4]) - np.hypot(initial[3], initial[4]))) < 0.1
+    # 31d37a31 arrival contract (2026-09-08): a finite mission endpoint brakes
+    # the ownship to a stop — mid-MPC replaces cruise references on the final
+    # clear leg with braking references and a finite terminal-position
+    # objective (test_mid_mpc_single_product_runtime.py pins goal_reached +
+    # speed <= 0.05 m/s on the same contract). The previous "final speed
+    # recovers to within 0.1 m/s of cruise" pin (2ce2f1d2, 2026-08-10)
+    # predates the arrival-braking semantic and contradicts it.
+    assert float(np.hypot(final[3], final[4])) <= 0.1
     return run
 
 

@@ -50,6 +50,23 @@ class VIMMJIPDAExistenceAdapter(cs_trackers.ITracker):
             existence[int(track.index)] = float(getattr(track, "existence_probability", 1.0))
         return existence
 
+    def _credited_sensor_ids(self) -> tuple[int, ...]:
+        """Sensor-model-v1 channel ids the external interface actually steps.
+
+        Spec #91 multi-source wiring: the external acceptance check fuses the
+        legacy Radar plus any sensor declaring the
+        ``provides_ne_position_measurements`` capability (RadarXBand,
+        ExternalCameraSensor), so the credited channels are derived from the
+        wired sensor list instead of the previous radar-only constant.
+        """
+        ids = {
+            cs_trackers.sensor_channel_id(sensor)
+            for sensor in getattr(self._inner, "sensors", None) or ()
+            if isinstance(sensor, cs_sensing.Radar)
+            or getattr(sensor, "provides_ne_position_measurements", False)
+        }
+        return tuple(sorted(ids)) or (1,)
+
     def _snapshot(self, raw: tuple, existence: float, observed_at_s: float, generated_at_s: float) -> cs_trackers.TrackSnapshot:
         target_id, state, covariance, length_m, width_m = raw
         return cs_trackers.TrackSnapshot(
@@ -64,9 +81,12 @@ class VIMMJIPDAExistenceAdapter(cs_trackers.ITracker):
             source=self.source_label,
             existence_prob=max(0.0, min(1.0, float(existence))),
             quality=cs_trackers.track_quality(status=cs_trackers.TrackStatus.UPDATED, age_s=0.0, source_count=1),
-            # The external VIMMJIPDA interface fuses the Radar channel only
-            # (sensor-model-v1 §2 radar_x = 1).
-            sources=(cs_trackers.TrackSource(sensor_id=1, last_seen_age_s=0.0),),
+            # Channels actually fused by the external interface (spec #91:
+            # legacy Radar + capability-flagged radar_x / camera sensors).
+            sources=tuple(
+                cs_trackers.TrackSource(sensor_id=sensor_id, last_seen_age_s=0.0)
+                for sensor_id in self._credited_sensor_ids()
+            ),
         )
 
     def track(

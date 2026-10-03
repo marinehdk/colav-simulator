@@ -225,6 +225,13 @@ class ModularShipAdapter(IShip):
                         np.deg2rad(route_limits["max_yaw_rate_deg_s"]["value"]),
                     ),
                     os_max_speed_rate_mps2=route_limits["max_decel_mps2"]["value"],
+                    # Envelope pair (kuwata _configure_envelope requires both):
+                    # guidance surge cap on avoidance legs + steerage floor,
+                    # the same ship_guidance_node pair e751e5f3 wired for the
+                    # original stack. e9bb3ec2 added the floor without the cap,
+                    # so modular-stack VO solves hit "Ownship speed envelope
+                    # requires both the avoidance cap and the steerage floor".
+                    os_avoidance_speed_cap_mps=guidance_limits["emergency_avoidance_speed_cap_mps"]["value"],
                     os_min_steerage_speed_mps=guidance_limits["minimum_steerage_speed"]["value"],
                     os_max_speed_mps=guidance_limits["max_transit_speed"]["value"],
                     dt=dt,

@@ -570,6 +570,12 @@ class RadarXBand(ISensor):
     sensor-model-v1 frame is available via :meth:`generate_sfd_frame`.
     """
 
+    #: Capability flag consumed by the external vimmjipda tracker's acceptance
+    #: check (spec #91 multi-source wiring): this class's ``generate_measurements``
+    #: output is the ISensor ``list[(do_idx, z)]`` NE position tuple shape the
+    #: external manager steps on, with ``R(...)`` providing the NE covariance.
+    provides_ne_position_measurements = True
+
     def __init__(self, params: RadarXParams | None = None) -> None:
         self.type: str = "radar_x"
         self._params: RadarXParams = params if params is not None else RadarXParams()
@@ -1019,6 +1025,12 @@ class ExternalCameraSensor(ISensor):
     ``list[(do_idx, z)]`` shape with NaN placeholders for the true targets —
     directly consumable by the existing KF/GodTracker measurement cache.
     """
+
+    #: Capability flag consumed by the external vimmjipda tracker's acceptance
+    #: check (spec #91 multi-source wiring): this class's ``generate_measurements``
+    #: output is the ISensor ``list[(do_idx, z)]`` NE position tuple shape the
+    #: external manager steps on, with ``R(...)`` providing the NE covariance.
+    provides_ne_position_measurements = True
 
     def __init__(self, params: ExternalCameraParams | None = None) -> None:
         self.type: str = "camera_eo" if (params is None or params.sensor_id == 2) else "camera_ir"
