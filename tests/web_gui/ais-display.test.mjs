@@ -246,6 +246,23 @@ test('aisTargets layer draws last, toggles off, and its symbols win the shared h
   assert.equal(String(selections.at(-1)?.target.id), '2');
   assert.equal(selections.at(-1)?.context.viaAis, undefined);
 
+  // P3-S6 seam: under the vimmjipda default the fusion chain labels tracks
+  // independently of the AIS obstacle ids (prewarm consumes label ids), so a
+  // DOM AIS-symbol click by obstacle id must still resolve the transponder
+  // truth (with `ais`) instead of the bare {id} fallback that keeps the
+  // AIS card shut.
+  display.render(aisSnapshot({
+    seq: 3,
+    executed_tracker: 'vimmjipda',
+    tracks: [{ labels: [16], generations: [1], states: [[410, 610, 0.5, 3]],
+      covariances: [], nis: [0], existence_prob: [0.9] }],
+  }));
+  display.selectTarget('1');
+  assert.equal(String(selections.at(-1)?.target.id), '1');
+  assert.equal(selections.at(-1)?.target.ais.state, 'active');
+  assert.equal(Number.isFinite(selections.at(-1)?.context.anchor?.x), true);
+  assert.equal(display.getSelectedTargetId(), '1');
+
   display.setLayerVisible('aisTargets', false);
   display.render(aisSnapshot({ seq: 2 }));
   assert.equal(display.getDrawSequence().includes('aisTargets'), false);

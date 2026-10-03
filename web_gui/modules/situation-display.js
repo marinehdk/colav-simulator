@@ -2129,9 +2129,20 @@ export function createSituationDisplay(options) {
 
   function selectTarget(id, target = null, contextOptions = {}) {
     selectedTargetId = id === undefined || id === null ? null : id;
+    const data = currentData || lastRenderedData || {};
     const resolved = target
       || (selectedTargetId === null ? null
-        : targetsForDisplay(currentData || lastRenderedData || {}).find(item => String(item.id) === String(selectedTargetId))
+        : targetsForDisplay(data).find(item => String(item.id) === String(selectedTargetId))
+        // P3-S6 seam (vimmjipda default + prewarm): the fusion chain labels
+        // tracks independently of the AIS obstacle ids, so an AIS-symbol
+        // click by obstacle id must fall back to the transponder truth —
+        // the bare {id} fallback below carries no `ais` and the AIS card
+        // would stay shut whenever the track label differs from the MMSI
+        // target id.
+        || (Array.isArray(data?.obstacles)
+          ? data.obstacles.find(item => item?.ais != null
+            && String(item.id) === String(selectedTargetId))
+          : null)
         || (Number.isFinite(Number(selectedTargetId)) ? { id: selectedTargetId } : null));
     const point = resolved && Number.isFinite(resolved.x) && Number.isFinite(resolved.y)
       ? worldToCanvas(resolved.x, resolved.y)
