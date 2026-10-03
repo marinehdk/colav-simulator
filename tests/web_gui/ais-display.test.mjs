@@ -350,3 +350,12 @@ test('shell, module and 3D scene wire the AIS layer end to end', async () => {
     assert.match(svg, new RegExp(clause));
   }
 });
+
+test('P3-S5 trackExistenceForTarget associates the nearest track inside the radius',()=>{
+ const ship = {id:1, x:1000, y:1000};
+ const trackSet = {labels:[7,8],generations:[1,1],states:[[1050,1000,0,0],[5000,5000,0,0]],existence_prob:[0.6,0.99]};
+ assert.equal(ais.trackExistenceForTarget(ship, trackSet), 0.6);
+ assert.equal(ais.trackExistenceForTarget(ship, {states:[[3000,3000,0,0]],existence_prob:[0.9]}), null);
+ assert.equal(ais.trackExistenceForTarget(ship, {states:[[1050,1000,0,0]]}), null);
+ assert.equal(ais.trackExistenceForTarget({x:NaN,y:1000}, trackSet), null);
+});

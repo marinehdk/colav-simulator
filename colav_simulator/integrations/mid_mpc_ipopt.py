@@ -1300,6 +1300,7 @@ class _MidMpcFacade:
             generated_at_s=float(track.generated_at_s),
             health=health,
             source=track.source,
+            existence_prob=float(getattr(track, "existence_prob", 1.0)),
         )
 
     def _target_prediction(

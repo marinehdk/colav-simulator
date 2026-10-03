@@ -5,6 +5,7 @@ import {
   associationLabel,
   localRadarMeasurementPoints,
   matchAisAssociations,
+  trackExistenceForTarget,
 } from './ais-display.js';
 
 const metric = (value, digits = 1) => Number.isFinite(value) ? value.toFixed(digits) : '—';
@@ -56,8 +57,13 @@ export function targetPresentation(projection, ship, encInfo = null) {
     { label: 'DCPA', value: metric(dcpa, 2), unit: 'NM' },
   ];
   const aisRows = aisCardRows(projection, ship, encInfo);
+  // P3-S5: obstacles always carry the CONF row (— when no track sits on the
+  // target); the ownship has no tracker track and omits the row entirely.
+  const confRow = ship?.ais == null
+    ? []
+    : [{ label: 'CONF', value: metric(trackExistenceForTarget(ship, projection?.raw?.tracks?.[0]), 3), unit: '' }];
   return { alert, relation, role: ROLES[role] || '职责未知', blocks,
-    metrics: [...aisRows, ...blocks, { label: 'TCPA', value: metric(tcpa), unit: 'MIN' },
+    metrics: [...aisRows, ...confRow, ...blocks, { label: 'TCPA', value: metric(tcpa), unit: 'MIN' },
       { label: projection?.raw?.executed_tracker === 'god' ? 'HDG' : 'COG', value: metric(degrees(ship.psi), 0), unit: 'DEG' },
       { label: 'SOG', value: metric(Number.isFinite(ship.sog) ? ship.sog * 3600 / NM : null), unit: 'KN' }],
     note: assessed ? (risk?.lifecycleCommitment || risk?.commitment || '') : '当前无有效 COLAV 评估；CPA / TCPA 不可用',

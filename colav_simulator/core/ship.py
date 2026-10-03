@@ -842,6 +842,18 @@ class Ship(IShip):
         xs_i_upd = [track[1].tolist() for track in tracks]
         P_i_upd = [track[2].tolist() for track in tracks]
         NISes = [float(NIS) for NIS in NISes]
+        # P3-S5 (spec #90): sensor-model-v1 §6 additive confidence arrays. Field-less
+        # tracks (legacy tuples) default to certain existence / full quality / no
+        # sources so the legacy publication shape stays byte-compatible.
+        existence_probabilities = [float(getattr(track, "existence_prob", 1.0)) for track in tracks]
+        qualities = [float(getattr(track, "quality", 1.0)) for track in tracks]
+        sources = [
+            [
+                {"sensor_id": int(track_source.sensor_id), "last_seen_age_s": track_source.last_seen_age_s}
+                for track_source in getattr(track, "sources", ())
+            ]
+            for track in tracks
+        ]
 
         if self.t_start <= t < self.t_end:
             csog_state = self.csog_state
@@ -871,6 +883,9 @@ class Ship(IShip):
             "do_NISes": NISes,
             "do_labels": labels,
             "do_generations": generations,
+            "do_existence_probabilities": existence_probabilities,
+            "do_qualities": qualities,
+            "do_sources": sources,
             "active": active,
             # predicted trajectory from COLAV/planner
         }

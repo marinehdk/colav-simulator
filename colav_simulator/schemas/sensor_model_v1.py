@@ -159,6 +159,11 @@ class TrackManagement(_Strict):
     terminate_after: int = Field(default=6, ge=1)
 
 
+#: P3-S5 confirmed-tracks 数据产品默认存在概率门限（锚定契约 §4 confirm_threshold；
+#: milliAmpere 语义 = 确认航迹才进运动规划，报告 07 §2.2）。
+CONFIRMED_TRACKS_DEFAULT_THRESHOLD = TrackManagement().confirm_threshold
+
+
 class SfdGeneratorConfig(_Strict):
     """量测流生成器退化参数包（契约 §4；全部默认值 = VIMM 标定锚）。"""
 

@@ -148,6 +148,31 @@ export function associationLabel(association) {
 }
 
 /**
+ * P3-S5 (spec #90): existence probability of the track associated with one
+ * target — nearest track state within the AIS association radius
+ * (sensor-model-v1 §6 confidence arrays). Returns null when no track sits on
+ * the target (ownship, legacy publishers without existence_prob).
+ */
+export function trackExistenceForTarget(ship, trackSet) {
+  const x = Number(ship?.x);
+  const y = Number(ship?.y);
+  if (![x, y].every(Number.isFinite)) return null;
+  const states = trackSet && Array.isArray(trackSet.states) ? trackSet.states : [];
+  let bestRange = AIS_TRACK_ASSOCIATION_RADIUS_M;
+  let probability = null;
+  states.forEach((state, index) => {
+    if (!Array.isArray(state) || [state[0], state[1]].some(v => !Number.isFinite(v))) return;
+    const range = Math.hypot(state[0] - x, state[1] - y);
+    if (range <= bestRange) {
+      bestRange = range;
+      const value = Number(trackSet.existence_prob?.[index]);
+      probability = Number.isFinite(value) ? value : null;
+    }
+  });
+  return probability;
+}
+
+/**
  * Canvas renderer for one AIS symbol (mirrors the SVG assets). `rotation`
  * is the screen-space orientation in radians (heading already composed with
  * the map rotation by the caller). `blinkOn=false` renders the flashing

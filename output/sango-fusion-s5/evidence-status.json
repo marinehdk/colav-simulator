@@ -1,0 +1,34 @@
+{
+  "probe": "sango_tracks_s5_probe",
+  "tracker": "god",
+  "session_id": "acc9e2d6-e98d-4f6f-ab0d-bdb720091ee8",
+  "assertions": [
+    {
+      "name": "live session created (tracker_id=god)",
+      "ok": true,
+      "detail": "status 200"
+    },
+    {
+      "name": "WS envelope truth[].tracks carries §6 existence_prob/quality/sources arrays",
+      "ok": true,
+      "detail": "labels=7 existence=[1,1,1,1,1,1,1]"
+    },
+    {
+      "name": "GET confirmed-tracks returns the frozen sensor-model@1/tracks envelope",
+      "ok": true,
+      "detail": "tracks=7"
+    },
+    {
+      "name": "chart legend carries the three existence-probability bands",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "vessel placard carries the CONF row",
+      "ok": true,
+      "detail": "CONF=1.000"
+    }
+  ],
+  "failures": [],
+  "at": "2026-10-03T00:58:10.275Z"
+}

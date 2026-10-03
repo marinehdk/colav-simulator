@@ -232,6 +232,7 @@ def _target_observation(track: TrackSnapshot) -> TargetObservation:
         generated_at_s=track.generated_at_s,
         health=health,
         source=track.source,
+        existence_prob=float(getattr(track, "existence_prob", 1.0)),
     )
 
 

@@ -255,7 +255,12 @@ class IntegrationRegistry:
             module = importlib.import_module("vimmjipda.vimmjipda_tracker_interface")
             config_path = self._resolve_vimmjipda_config(config)
             params = module.VIMMJIPDAParams.from_yaml(config_path)
-            return module.VIMMJIPDA(params=params)
+            # P3-S5 (spec #90): wrap the external tracker so its existence
+            # probability reaches TrackSnapshot consumers; the external repo
+            # itself stays untouched.
+            from colav_simulator.integrations.vimmjipda_existence import VIMMJIPDAExistenceAdapter
+
+            return VIMMJIPDAExistenceAdapter(module.VIMMJIPDA(params=params))
         raise ColavExecutionError(PlanStatus.INVALID_INPUT, f"Unsupported tracker: {tracker_id}")
 
     def _resolve_vimmjipda_config(self, config: dict[str, Any]) -> Path:

@@ -96,3 +96,9 @@ test('placard compass symbol is geometrically centered under the N label', () =>
     /\.vessel-placard-dial obc-chart-object-vessel-button \{[^}]*position: absolute;[^}]*left: 50%;[^}]*top: 50%;[^}]*translate\(-50%, -50%\)/s,
   );
 });
+
+test('P3-S5 2D placard carries the CONF existence row wired to the associated track', () => {
+  assert.match(index, /id="vesselPlacardConf"/);
+  assert.match(app, /trackExistenceForTarget/);
+  assert.match(app, /placardMetric\('vesselPlacardConf'/);
+});

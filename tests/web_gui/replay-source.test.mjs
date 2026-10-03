@@ -99,6 +99,9 @@ function framePayload({ north0, east0, psi0, north1, east1, psi1 }, { solve } = 
       do_generations: [2],
       do_covariances: [[1.0, 0.5]],
       do_NISes: [3.5],
+      do_existence_probabilities: [0.997],
+      do_qualities: [0.9],
+      do_sources: [[{ sensor_id: 1, last_seen_age_s: 0.0 }]],
       colav: { planner },
     },
     Ship1: {
@@ -225,7 +228,16 @@ test('at an exact stored frame the replay projection equals the live projection 
     u: 2.0, v: 0.1, r: 0.02, sog: 2.2, cog: 0.21,
     trajectory: [[50, 1010]], active: true,
     measurements: [[1, 2, 3]],
-    tracks: { labels: [1], generations: [2], states: [[60, 120, 0.1, 0.2]], covariances: [[1.0, 0.5]], nis: [3.5] },
+    tracks: {
+      labels: [1],
+      generations: [2],
+      states: [[60, 120, 0.1, 0.2]],
+      covariances: [[1.0, 0.5]],
+      nis: [3.5],
+      existence_prob: [0.997],
+      quality: [0.9],
+      sources: [[{ sensor_id: 1, last_seen_age_s: 0.0 }]],
+    },
     colav: FRAME_A.payload.Ship0.colav,
   };
   const ship1 = {

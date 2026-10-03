@@ -1007,6 +1007,9 @@ obc-clock:not(:defined),
   border-radius: 0;
 }
 .color-box.track { background: var(--accent-green); }
+.color-box.track-conf-confirmed { background: #37c995; }
+.color-box.track-conf-tentative { background: rgba(245,165,36,0.95); }
+.color-box.track-conf-dim { background: rgba(148,163,160,0.75); }
 .color-box.measurement { background: var(--accent-amber); }
 .color-box.covariance { background: transparent; border: 1px solid var(--accent-green); border-radius: 50%; }
 .color-box.horizon  { background: #55d6b7; }

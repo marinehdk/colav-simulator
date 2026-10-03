@@ -11,6 +11,7 @@ import asyncio
 import copy
 import json
 import logging
+import math
 import os
 import re
 import shutil
@@ -70,6 +71,13 @@ from colav_simulator.historical_scenario_assembly import HistoricalAISSceneAssem
 from colav_simulator.historical_scenario_catalog import HistoricalAISScenarioCatalog
 from colav_simulator.modular_gnc.catalog import list_stack_catalog
 from colav_simulator.schemas.observations_v1 import ObservationFrame
+from colav_simulator.schemas.sensor_model_v1 import (
+    CONFIRMED_TRACKS_DEFAULT_THRESHOLD,
+    ConfirmedTrack,
+    ConfirmedTrackList,
+    TrackSourceContribution,
+)
+from colav_simulator.core.tracking.trackers import sensor_channel_id
 from gui_server import canonical_threat as _canonical_threat
 from gui_server.gnc_balance import balance_telemetry
 from gui_server.historical_api import router as historical_api_router
@@ -1356,6 +1364,79 @@ class WebSessionManager:
                 "pending_measurements": jsonable(pending),
             }
 
+    def confirmed_tracks(self, session_id: str, min_existence_prob: float = CONFIRMED_TRACKS_DEFAULT_THRESHOLD) -> dict[str, Any]:
+        """P3-S5 (spec #90) high-confidence track data product (sensor-model-v1 §5).
+
+        Filters the ownship's latest tracker snapshot set by the existence-prob
+        gate and returns the frozen ``sensor-model@1/tracks`` envelope. God
+        truth tracks carry no measurement-derived sources (empty ``sources[]``);
+        the frozen schema requires >=1 entry, so the ownship's primary ranging
+        channel (radar_x=1) is reported with unknown age for those — a
+        data-product boundary convention, not a measurement claim.
+        """
+        if not math.isfinite(min_existence_prob) or not 0.0 <= min_existence_prob <= 1.0:
+            raise ValueError("min_existence_prob must be a finite value in [0, 1]")
+        with self.lock:
+            prepared = self._require(session_id)
+            session = prepared.session
+            frame = getattr(session, "last_frame", None) or {}
+            raw = frame.get("Ship0", {}) if isinstance(frame, dict) else {}
+            origin_e, origin_n = session.enc.origin
+            labels = raw.get("do_labels", [])
+            generations = raw.get("do_generations", [])
+            states = raw.get("do_estimates", [])
+            covariances = raw.get("do_covariances", [])
+            existence = raw.get("do_existence_probabilities", [])
+            qualities = raw.get("do_qualities", [])
+            sources = raw.get("do_sources", [])
+            own_sensors = getattr(session.ship_list[0], "sensors", None) or []
+            primary_channel = next(
+                (sensor_channel_id(sensor) for sensor in own_sensors if not sensor.bypass_fusion),
+                1,
+            )
+            tracks: list[ConfirmedTrack] = []
+            for index, label in enumerate(labels):
+                existence_prob = float(existence[index]) if index < len(existence) else 1.0
+                if existence_prob < min_existence_prob:
+                    continue
+                state = np.asarray(states[index], dtype=float)
+                covariance = np.asarray(covariances[index], dtype=float)[:2, :2]
+                # Fusion covariances can lose exact symmetry through the E↔N
+                # permutation round-trip; the frozen schema requires a symmetric
+                # 2x2, so the data-product boundary normalizes (documented).
+                covariance = (covariance + covariance.T) / 2.0
+                velocity = state[2:4]
+                speed = float(np.linalg.norm(velocity))
+                heading_rad = float(np.arctan2(velocity[1], velocity[0])) if speed > 1.0e-6 else 0.0
+                track_sources = sources[index] if index < len(sources) else []
+                source_entries = [
+                    TrackSourceContribution(
+                        sensor_id=int(source.get("sensor_id", primary_channel)),
+                        last_seen_age_s=source.get("last_seen_age_s"),
+                    )
+                    for source in (track_sources or [])
+                    if isinstance(source, dict)
+                ] or [TrackSourceContribution(sensor_id=primary_channel, last_seen_age_s=None)]
+                tracks.append(
+                    ConfirmedTrack(
+                        track_key=f"{int(label)}:{int(generations[index]) if index < len(generations) and generations[index] else 1}",
+                        target_id=int(label),
+                        generation=int(generations[index]) if index < len(generations) and generations[index] else 1,
+                        existence_prob=existence_prob,
+                        quality=float(qualities[index]) if index < len(qualities) else 1.0,
+                        sources=source_entries,
+                        position_ne_m=[float(state[0] - origin_n), float(state[1] - origin_e)],
+                        velocity_ne_mps=[float(velocity[0]), float(velocity[1])],
+                        heading_rad=heading_rad,
+                        position_cov_ne_m2=[[float(covariance[0][0]), float(covariance[0][1])], [float(covariance[1][0]), float(covariance[1][1])]],
+                        class_name=None,
+                        class_confidence=None,
+                    )
+                )
+            t_s = float(raw.get("timestamp", session.simulator.t))
+            envelope = ConfirmedTrackList(schema_version="sensor-model@1/tracks", t_s=t_s, tracks=tracks)
+            return jsonable(envelope.model_dump(mode="json"))
+
     def _telemetry(self, snapshot: Any) -> dict[str, Any]:  # noqa: C901, PLR0912, PLR0915
         if not self.prepared:
             return {
@@ -1776,6 +1857,23 @@ class WebSessionManager:
                 local[0] -= origin_n
                 local[1] -= origin_e
             states.append(local)
+        # P3-S5 (spec #90): sensor-model-v1 §6 additive confidence arrays.
+        # Parallel to labels[]; missing frame keys fall back to None (= legacy
+        # publisher shape), which TracksSnapshotV1 treats as optional.
+        existence = [float(value) for value in raw.get("do_existence_probabilities", [])]
+        qualities = [float(value) for value in raw.get("do_qualities", [])]
+        sources = []
+        for track_sources in raw.get("do_sources", []):
+            entries = []
+            for source in track_sources if isinstance(track_sources, list) else ():
+                if isinstance(source, dict):
+                    entries.append(
+                        {
+                            "sensor_id": int(source.get("sensor_id", 1)),
+                            "last_seen_age_s": source.get("last_seen_age_s"),
+                        }
+                    )
+            sources.append(entries)
         return jsonable(
             {
                 "labels": raw.get("do_labels", []),
@@ -1783,6 +1881,9 @@ class WebSessionManager:
                 "states": states,
                 "covariances": raw.get("do_covariances", []),
                 "nis": raw.get("do_NISes", []),
+                "existence_prob": existence or None,
+                "quality": qualities or None,
+                "sources": sources or None,
             }
         )
 
@@ -2108,6 +2209,22 @@ def api_session_observations_status(session_id: str) -> dict[str, Any]:
         return manager.observation_status(session_id)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail="SESSION_NOT_FOUND") from exc
+
+
+# P3-S5 (spec #90) high-confidence track data product: the ownship's latest
+# tracker snapshot set gated by existence probability, in the frozen
+# sensor-model-v1 §5 envelope. Whitelist-additive route; compact-v1 untouched.
+@app.get("/api/sessions/{session_id}/confirmed-tracks")
+def api_session_confirmed_tracks(
+    session_id: str,
+    min_existence_prob: float = CONFIRMED_TRACKS_DEFAULT_THRESHOLD,
+) -> dict[str, Any]:
+    try:
+        return manager.confirmed_tracks(session_id, min_existence_prob)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="SESSION_NOT_FOUND") from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail="VALIDATION_ERROR") from exc
 
 
 @app.post("/api/sessions/{session_id}/start")

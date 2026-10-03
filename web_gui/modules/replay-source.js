@@ -103,6 +103,11 @@ function localTracks(raw, originN, originE) {
     states,
     covariances: raw.do_covariances ?? [],
     nis: raw.do_NISes ?? [],
+    // P3-S5 (spec #90): sensor-model-v1 §6 additive confidence arrays —
+    // passthrough only; rendering decisions live in situation-display.
+    existence_prob: raw.do_existence_probabilities ?? null,
+    quality: raw.do_qualities ?? null,
+    sources: raw.do_sources ?? null,
   };
 }
 

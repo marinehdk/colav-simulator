@@ -249,6 +249,9 @@ class TrackedObstacle:
     status: str = "LEGACY_UNKNOWN"
     source: str = "legacy"
     generated_at_s: float | None = None
+    # P3-S5 (spec #90): IPDA existence gate (sensor-model-v1 §5/§6). Default 1.0
+    # preserves the legacy no-confidence path (missing field == certain existence).
+    existence_prob: float = 1.0
 
     def __post_init__(self) -> None:
         """Copy and validate one tracked obstacle."""
@@ -275,6 +278,8 @@ class TrackedObstacle:
         generated_at_s = self.observed_at_s + self.age_s if self.generated_at_s is None else self.generated_at_s
         if not np.isfinite(generated_at_s) or generated_at_s < self.observed_at_s:
             raise ValueError("track generated_at_s must not precede observation")
+        if not math.isfinite(self.existence_prob) or not 0.0 <= self.existence_prob <= 1.0:
+            raise ValueError("track existence_prob must be a finite value in [0, 1]")
         object.__setattr__(self, "generated_at_s", float(generated_at_s))
 
     @property
@@ -732,6 +737,9 @@ class CustomMPCAdapter(ICOLAV):
                     status = raw_track.status.value
                     source = raw_track.source
                     generated_at_s = raw_track.generated_at_s
+                    # P3-S5: snapshot-carried existence gate (default 1.0 keeps
+                    # the legacy path for trackers without the field).
+                    existence_prob = float(getattr(raw_track, "existence_prob", 1.0))
                 else:
                     age_s = float(track_ages.get(target_id, 0.0))
                     observed_at_s = max(0.0, float(t) - age_s)
@@ -739,6 +747,7 @@ class CustomMPCAdapter(ICOLAV):
                     status = "LEGACY_UNKNOWN"
                     source = "legacy"
                     generated_at_s = float(t)
+                    existence_prob = 1.0
                 if age_s > self.descriptor.execution_profile.max_track_age_s:
                     raise ValueError(f"track {target_id} age {age_s}s exceeds profile maximum")
                 tracks.append(
@@ -755,6 +764,7 @@ class CustomMPCAdapter(ICOLAV):
                         status=status,
                         source=source,
                         generated_at_s=generated_at_s,
+                        existence_prob=existence_prob,
                     )
                 )
             planner_input = PlannerInput(

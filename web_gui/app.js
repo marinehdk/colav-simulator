@@ -22,6 +22,7 @@ import {
   associationLabel,
   localRadarMeasurementPoints,
   matchAisAssociations,
+  trackExistenceForTarget,
 } from './modules/ais-display.js';
 import { buildPpiModel, createRadarPpi } from './modules/radar-ppi.js?v=20261002-ppi-v1';
 import { routeLegs, routeProgress } from './modules/route-progress.js?v=20260901-route-card-v1';
@@ -484,6 +485,12 @@ function showVesselPlacard(target, context = {}) {
   placardMetric('vesselPlacardTcpa', Number.isFinite(tcpaMin) ? tcpaMin.toFixed(1) : '---');
   placardMetric('vesselPlacardHeading', Number.isFinite(headingDeg) ? Math.round(headingDeg).toString() : '---');
   placardMetric('vesselPlacardSpeed', Number.isFinite(speedKnots) ? speedKnots.toFixed(1) : '---');
+  // P3-S5 (spec #90): track existence probability of the associated track
+  // (sensor-model-v1 §6); '---' for the ownship or without an associated track.
+  const existenceProb = isOwnship
+    ? null
+    : trackExistenceForTarget(target, latestMonitorProjection?.raw?.tracks?.[0]);
+  placardMetric('vesselPlacardConf', Number.isFinite(existenceProb) ? existenceProb.toFixed(3) : '---');
   const symbol = document.getElementById('vesselPlacardSymbol');
   if (symbol) Object.assign(symbol, {
     type: 'flat-large',

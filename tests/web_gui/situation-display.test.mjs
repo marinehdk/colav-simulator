@@ -20,7 +20,10 @@ function recordingCtx() {
       }
       return undefined;
     },
-    set() { return true; },
+    set(target, prop, value) {
+      calls.push([`set:${String(prop)}`, value]);
+      return true;
+    },
   });
   return ctx;
 }
@@ -658,5 +661,41 @@ test('3D reads the chart-owned immutable mission route, including after changed 
   const route = display.getMissionRoute();
   display.renderFrame({...first,seq:2,waypoints:[[999,1000],[777,888]]},false);
   assert.deepEqual(display.getMissionRoute(),route);
+  display.destroy();
+});
+
+test('P3-S5 track confidence bands and colors follow the frozen legend thresholds', async () => {
+  const { trackConfidenceBand, trackConfidenceColor } = await import(new URL('../../web_gui/modules/situation-display.js', import.meta.url).href);
+  assert.equal(trackConfidenceBand(0.997), 'confirmed');
+  assert.equal(trackConfidenceBand(0.9), 'confirmed');
+  assert.equal(trackConfidenceBand(0.89), 'tentative');
+  assert.equal(trackConfidenceBand(0.5), 'tentative');
+  assert.equal(trackConfidenceBand(0.49), 'dim');
+  assert.equal(trackConfidenceBand(0.0), 'dim');
+  assert.equal(trackConfidenceBand(undefined), null);
+  assert.equal(trackConfidenceBand('nan'), null);
+  assert.equal(trackConfidenceColor(0.997), '#37c995');
+  assert.equal(trackConfidenceColor(0.7), 'rgba(245,165,36,0.95)');
+  assert.equal(trackConfidenceColor(0.2), 'rgba(148,163,160,0.75)');
+  assert.equal(trackConfidenceColor(undefined, '#fallback'), '#fallback');
+});
+
+test('P3-S5 drawTracks colors points by the per-track existence probability', async () => {
+  const { display } = await createDisplay();
+  display.setLayerVisible('tracks', true);
+  const snapshot = sampleSnapshot();
+  snapshot.tracks = [{
+    labels: [1, 2, 3],
+    generations: [1, 1, 1],
+    states: [[1000, 1000, 0, 0], [2000, 2000, 0, 0], [3000, 3000, 0, 0]],
+    covariances: [],
+    nis: [0, 0, 0],
+    existence_prob: [0.99, 0.7, 0.2],
+  }];
+  display.renderFrame(snapshot);
+  const fills = ctxStub.calls.filter(([prop]) => prop === 'set:fillStyle').map(([, value]) => value);
+  assert.ok(fills.includes('#37c995'), 'confirmed track renders green');
+  assert.ok(fills.includes('rgba(245,165,36,0.95)'), 'tentative track renders amber');
+  assert.ok(fills.includes('rgba(148,163,160,0.75)'), 'dim track renders gray');
   display.destroy();
 });

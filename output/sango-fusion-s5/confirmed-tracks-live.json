@@ -1,0 +1,244 @@
+{
+  "schema_version": "sensor-model@1/tracks",
+  "t_s": 0.1,
+  "tracks": [
+    {
+      "track_key": "1:1",
+      "target_id": 1,
+      "generation": 1,
+      "existence_prob": 1,
+      "quality": 1,
+      "sources": [
+        {
+          "sensor_id": 1,
+          "last_seen_age_s": null
+        }
+      ],
+      "position_ne_m": [
+        1963.7368816062808,
+        989.7402616702238
+      ],
+      "velocity_ne_mps": [
+        -0.02593748475636056,
+        4.115470266152887
+      ],
+      "heading_rad": 1.5770986785721892,
+      "position_cov_ne_m2": [
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0
+        ]
+      ],
+      "class_name": null,
+      "class_confidence": null
+    },
+    {
+      "track_key": "2:1",
+      "target_id": 2,
+      "generation": 1,
+      "existence_prob": 1,
+      "quality": 1,
+      "sources": [
+        {
+          "sensor_id": 1,
+          "last_seen_age_s": null
+        }
+      ],
+      "position_ne_m": [
+        1689.491632439196,
+        1724.4812443265982
+      ],
+      "velocity_ne_mps": [
+        0.0983377339305196,
+        -4.114376982580645
+      ],
+      "heading_rad": -1.5468998740975655,
+      "position_cov_ne_m2": [
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0
+        ]
+      ],
+      "class_name": null,
+      "class_confidence": null
+    },
+    {
+      "track_key": "3:1",
+      "target_id": 3,
+      "generation": 1,
+      "existence_prob": 1,
+      "quality": 1,
+      "sources": [
+        {
+          "sensor_id": 1,
+          "last_seen_age_s": null
+        }
+      ],
+      "position_ne_m": [
+        1960.6680384501815,
+        2174.7905036191514
+      ],
+      "velocity_ne_mps": [
+        0.8249273750820367,
+        -2.4363518945834284
+      ],
+      "heading_rad": -1.2443211566180354,
+      "position_cov_ne_m2": [
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0
+        ]
+      ],
+      "class_name": null,
+      "class_confidence": null
+    },
+    {
+      "track_key": "4:1",
+      "target_id": 4,
+      "generation": 1,
+      "existence_prob": 1,
+      "quality": 1,
+      "sources": [
+        {
+          "sensor_id": 1,
+          "last_seen_age_s": null
+        }
+      ],
+      "position_ne_m": [
+        2704.0179430255666,
+        1240.1709719291175
+      ],
+      "velocity_ne_mps": [
+        -4.114091778202403,
+        -0.10962255804070462
+      ],
+      "heading_rad": -3.1149533291958473,
+      "position_cov_ne_m2": [
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0
+        ]
+      ],
+      "class_name": null,
+      "class_confidence": null
+    },
+    {
+      "track_key": "5:1",
+      "target_id": 5,
+      "generation": 1,
+      "existence_prob": 1,
+      "quality": 1,
+      "sources": [
+        {
+          "sensor_id": 1,
+          "last_seen_age_s": null
+        }
+      ],
+      "position_ne_m": [
+        2549.7609079955146,
+        879.7454732644765
+      ],
+      "velocity_ne_mps": [
+        1.1420921128685013,
+        2.8675983426239386
+      ],
+      "heading_rad": 1.1917780883435898,
+      "position_cov_ne_m2": [
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0
+        ]
+      ],
+      "class_name": null,
+      "class_confidence": null
+    },
+    {
+      "track_key": "6:1",
+      "target_id": 6,
+      "generation": 1,
+      "existence_prob": 1,
+      "quality": 1,
+      "sources": [
+        {
+          "sensor_id": 1,
+          "last_seen_age_s": null
+        }
+      ],
+      "position_ne_m": [
+        3043.131903826259,
+        1990.359884037658
+      ],
+      "velocity_ne_mps": [
+        0.5673325691829013,
+        -4.076260789087019
+      ],
+      "heading_rad": -1.4325050513733144,
+      "position_cov_ne_m2": [
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0
+        ]
+      ],
+      "class_name": null,
+      "class_confidence": null
+    },
+    {
+      "track_key": "8:1",
+      "target_id": 8,
+      "generation": 1,
+      "existence_prob": 1,
+      "quality": 1,
+      "sources": [
+        {
+          "sensor_id": 1,
+          "last_seen_age_s": null
+        }
+      ],
+      "position_ne_m": [
+        2941.49138165731,
+        1283.3246706741775
+      ],
+      "velocity_ne_mps": [
+        1.5433292184567806,
+        -0.002930133372905417
+      ],
+      "heading_rad": -0.0018985773205185833,
+      "position_cov_ne_m2": [
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0
+        ]
+      ],
+      "class_name": null,
+      "class_confidence": null
+    }
+  ]
+}

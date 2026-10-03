@@ -545,6 +545,8 @@
                       <span>HDG</span><strong id="vesselPlacardHeading">---</strong><small>DEG</small>
                       <span>TCPA</span><strong id="vesselPlacardTcpa">---</strong><small>min</small>
                       <span>SPD</span><strong id="vesselPlacardSpeed">---</strong><small>kn</small>
+                      <!-- P3-S5 (spec #90): track existence probability (sensor-model-v1 §6) -->
+                      <span>CONF</span><strong id="vesselPlacardConf">---</strong><small>P</small>
                     </div>
                   </div>
                 </obc-poi-card>
@@ -626,6 +628,9 @@
                         <div class="legend-category" data-legend-group="perception">
                           <span class="legend-category-title">感知</span>
                           <span class="legend-item" data-legend-layer="tracks"><span class="color-box track"></span>Tracker</span>
+                          <span class="legend-item" data-legend-layer="tracks"><span class="color-box track-conf-confirmed"></span>存在概率 ≥0.9</span>
+                          <span class="legend-item" data-legend-layer="tracks"><span class="color-box track-conf-tentative"></span>存在概率 0.5–0.9</span>
+                          <span class="legend-item" data-legend-layer="tracks"><span class="color-box track-conf-dim"></span>存在概率 &lt;0.5</span>
                           <span class="legend-item" data-legend-layer="measurements"><span class="color-box measurement"></span>量测</span>
                           <span class="legend-item" data-legend-layer="covariance"><span class="color-box covariance"></span>协方差</span>
                           <span class="legend-item" data-legend-layer="radarRange"><span class="color-box radar-range"></span>探测圈</span>

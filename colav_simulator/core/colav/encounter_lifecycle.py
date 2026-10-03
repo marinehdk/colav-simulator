@@ -143,6 +143,13 @@ class PlannerOddProfile:
     # at 324 m). The trend must persist over half the window to veto.
     release_trend_window_s: float = 30.0
     release_closing_rate_mps: float = 0.5
+    # P3-S5 (spec #90): IPDA existence escalation gate. Targets whose track
+    # existence probability sits below this value stay monitor-only (no ACTIVE
+    # escalation, no maneuver commitment) — the milliAmpere/ECC19 gating
+    # precedent (research report 07 §2.2). 0.5 is the conservative default: it
+    # only holds back tracks the tracker itself already considers more probably
+    # absent than present, so real-traffic escalation behavior is unchanged.
+    existence_escalation_threshold: float = 0.5
 
     def __post_init__(self) -> None:
         """Validate one published Planner ODD profile."""
@@ -155,6 +162,8 @@ class PlannerOddProfile:
             raise ValueError("comfortable clearance cannot be below hard clearance")
         if not 0.0 < self.covariance_confidence < 1.0:
             raise ValueError("covariance confidence must be between zero and one")
+        if not 0.0 <= self.existence_escalation_threshold <= 1.0:
+            raise ValueError("existence escalation threshold must be between zero and one")
         if self.max_targets < 1:
             raise ValueError("max_targets must be positive")
 
@@ -193,6 +202,10 @@ class TargetObservation:
     generated_at_s: float
     health: ObservationHealth
     source: str
+    # P3-S5 (spec #90): IPDA existence gate (sensor-model-v1 §5). Default 1.0 =
+    # legacy no-confidence path (missing field == certain existence), which also
+    # covers GodTracker truth snapshots.
+    existence_prob: float = 1.0
 
     def __post_init__(self) -> None:
         """Freeze and validate one target observation."""
@@ -209,6 +222,8 @@ class TargetObservation:
             raise ValueError("target observation times are invalid")
         if not self.source:
             raise ValueError("target source is required")
+        if not math.isfinite(self.existence_prob) or not 0.0 <= self.existence_prob <= 1.0:
+            raise ValueError("target existence_prob must be a finite value in [0, 1]")
 
     @property
     def age_s(self) -> float:
@@ -1016,6 +1031,22 @@ def _advance_observation_health(
     return effective_health
 
 
+def _existence_holds_back(cycle: EncounterCycle, target: TargetObservation) -> bool:
+    """P3-S5 (spec #90) low-existence escalation gate (additive weight path).
+
+    Below ``profile.existence_escalation_threshold`` a target stays monitor-only:
+    encounter classification and CANDIDATE bookkeeping continue, but no ACTIVE
+    escalation and no maneuver commitment happen (milliAmpere/ECC19 gating
+    precedent, research report 07 §2.2 — only confirmed tracks drive maneuver
+    planning; the gate value is a false-alarm-budget quantity, not a probability
+    reading). The main transition table above is untouched; the default 1.0
+    (legacy field-less path, GodTracker truth) never holds back, and committed
+    targets are exempt — mid-maneuver existence dips must not abort an active
+    avoidance.
+    """
+    return float(getattr(target, "existence_prob", 1.0)) < cycle.profile.existence_escalation_threshold
+
+
 def _advance_uncommitted(  # noqa: PLR0912, PLR0915 - explicit lifecycle transition table
     state: _TargetState,
     cycle: EncounterCycle,
@@ -1052,6 +1083,10 @@ def _advance_uncommitted(  # noqa: PLR0912, PLR0915 - explicit lifecycle transit
             state.baseline_course_rad = cycle.ownship.heading_rad
             state.baseline_speed_mps = float(np.linalg.norm(cycle.ownship.velocity_ne_mps))
             state.required_course_change_rad = _substantial_course_change(cycle, target, geometry)
+        if _existence_holds_back(cycle, target):
+            # P3-S5: low-existence give-way/overtaking target stays CANDIDATE
+            # (monitor-only); escalation is delayed while the gate holds.
+            return False
         if not _scheduled_action_due(state, cycle, target, geometry):
             return False
         if (
@@ -1088,7 +1123,7 @@ def _advance_uncommitted(  # noqa: PLR0912, PLR0915 - explicit lifecycle transit
         elif elapsed_s >= cycle.profile.rule17_window_s:
             state.rule17 = Rule17Stage.MAY_ACT
             state.rule17_basis = "TARGET_ACTION_INADEQUATE_DYNAMICS_UNKNOWN"
-        if state.rule17 in {Rule17Stage.MAY_ACT, Rule17Stage.MUST_ACT}:
+        if state.rule17 in {Rule17Stage.MAY_ACT, Rule17Stage.MUST_ACT} and not _existence_holds_back(cycle, target):
             state.passing_side = PassingSide.STARBOARD
             _commit(state, cycle, target, geometry)
             return True
@@ -1214,8 +1249,9 @@ def _advance_unknown_role(
     state.rule17_basis = "UNKNOWN_ROLE_SAFETY_ONLY"
     if state.candidate_since_s is None:
         state.candidate_since_s = cycle.sim_time_s
-    if _urgent_action_required(cycle, target, geometry) or (
-        cycle.sim_time_s - state.candidate_since_s >= cycle.profile.entry_confirmation_s
+    if not _existence_holds_back(cycle, target) and (
+        _urgent_action_required(cycle, target, geometry)
+        or (cycle.sim_time_s - state.candidate_since_s >= cycle.profile.entry_confirmation_s)
     ):
         state.risk = RiskPhase.ACTIVE
 

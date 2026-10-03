@@ -246,3 +246,55 @@ def test_all_vessels_keep_at_least_300_seconds_at_both_scenario_timesteps() -> N
             trail = _sample_display_trail(list(manager._telemetry_trails[ship]))
             assert trail[-1][0] - trail[0][0] >= 300.0 - 1e-9, (dt, ship, trail[0], trail[-1])
             assert len(trail) <= TELEMETRY_MAX_TRAIL_POINTS
+
+
+def test_local_tracks_publishes_additive_confidence_parallel_arrays() -> None:
+    """P3-S5 (spec #90): sensor-model-v1 §6 additive confidence arrays pass through."""
+    raw = {
+        "do_labels": [7, 8],
+        "do_generations": [1, 2],
+        "do_estimates": [[6958050.0, 40550.0, -2.0, 0.0], [6958100.0, 40600.0, 1.0, 1.0]],
+        "do_covariances": [[[49.0, 0.0], [0.0, 49.0]], [[36.0, 0.0], [0.0, 36.0]]],
+        "do_NISes": [2.31, 0.7],
+        "do_existence_probabilities": [0.997, 0.4],
+        "do_qualities": [0.9, 0.32],
+        "do_sources": [
+            [{"sensor_id": 1, "last_seen_age_s": 0.4}, {"sensor_id": 5, "last_seen_age_s": 1.2}],
+            [{"sensor_id": 1, "last_seen_age_s": 3.0}],
+        ],
+    }
+
+    document = WebSessionManager._local_tracks(raw, origin_n=6958000.0, origin_e=40500.0)
+
+    assert document["labels"] == [7, 8]
+    assert document["states"][0] == [50.0, 50.0, -2.0, 0.0]
+    assert document["nis"] == [2.31, 0.7]
+    assert document["existence_prob"] == [0.997, 0.4]
+    assert document["quality"] == [0.9, 0.32]
+    assert document["sources"] == [
+        [{"sensor_id": 1, "last_seen_age_s": 0.4}, {"sensor_id": 5, "last_seen_age_s": 1.2}],
+        [{"sensor_id": 1, "last_seen_age_s": 3.0}],
+    ]
+    # The frozen §6 shape validates against TracksSnapshotV1 (parallel arrays).
+    from colav_simulator.schemas.sensor_model_v1 import TracksSnapshotV1
+
+    TracksSnapshotV1.model_validate(document)
+
+
+def test_local_tracks_legacy_frame_without_confidence_fields_stays_valid() -> None:
+    raw = {
+        "do_labels": [7],
+        "do_generations": [1],
+        "do_estimates": [[0.0, 0.0, 0.0, 0.0]],
+        "do_covariances": [[[0.0, 0.0], [0.0, 0.0]]],
+        "do_NISes": [float("nan")],
+    }
+
+    document = WebSessionManager._local_tracks(raw, origin_n=0.0, origin_e=0.0)
+
+    assert document["existence_prob"] is None
+    assert document["quality"] is None
+    assert document["sources"] is None
+    from colav_simulator.schemas.sensor_model_v1 import TracksSnapshotV1
+
+    TracksSnapshotV1.model_validate(document)

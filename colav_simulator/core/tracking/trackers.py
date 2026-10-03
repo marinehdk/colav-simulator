@@ -12,6 +12,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Iterator, Sequence
 from dataclasses import dataclass, field
 from enum import StrEnum
+import math
 from typing import Any
 
 import numpy as np
@@ -19,6 +20,35 @@ import scipy.linalg as la
 
 import colav_simulator.common.config_parsing as cp
 import colav_simulator.core.sensing as sens
+
+
+def sensor_channel_id(sensor: "sens.ISensor") -> int:
+    """Map one sensor instance to its sensor-model-v1 §2 channel id (P3-S5).
+
+    RadarXBand/ExternalCameraSensor/LidarContact carry an explicit ``sensor_id``
+    in their params (contract §2 vocabulary); legacy Radar/AIS are keyed by their
+    ``type`` label. Unknown sensors default to the radar channel (1) — the radar
+    is the primary ranging source the KF main chain fuses today.
+    """
+    params = getattr(sensor, "_params", None)
+    explicit = getattr(params, "sensor_id", None)
+    if isinstance(explicit, int) and 1 <= explicit <= 5:
+        return explicit
+    label = str(getattr(sensor, "type", "") or "")
+    return {"radar": 1, "radar_x": 1, "camera_eo": 2, "camera_ir": 3, "lidar": 4, "ais": 5}.get(label, 1)
+
+
+def track_quality(*, status: "TrackStatus", age_s: float, source_count: int) -> float:
+    """Composite track quality in [0, 1] (sensor-model-v1 §5; S5 definition).
+
+    quality = 0.4·association (UPDATED this cycle) + 0.4·recency exp(-age/5 s)
+    + 0.2·source diversity (min(1, sources/2)). The 5 s recency scale is the
+    PlannerOddProfile.usable_age_s decision horizon (encounter_lifecycle).
+    """
+    association = 1.0 if status is TrackStatus.UPDATED else 0.0
+    recency = float(np.exp(-max(0.0, age_s) / 5.0))
+    diversity = min(1.0, max(0, source_count) / 2.0)
+    return round(0.4 * association + 0.4 * recency + 0.2 * diversity, 6)
 
 
 class TrackStatus(StrEnum):
@@ -52,8 +82,35 @@ def track_key_sort(key: TrackKey) -> tuple[int, int]:
 
 
 @dataclass(frozen=True)
+class TrackSource:
+    """One contributing sensor reference for a track (sensor-model-v1 §6 ``sources[]``).
+
+    ``sensor_id`` uses the frozen contract §2 channel vocabulary; ``last_seen_age_s``
+    is the age of the most recent measurement that sensor contributed to the track.
+    """
+
+    sensor_id: int
+    last_seen_age_s: float | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        return {"sensor_id": int(self.sensor_id), "last_seen_age_s": self.last_seen_age_s}
+
+    @classmethod
+    def from_dict(cls, payload: dict[str, Any]) -> "TrackSource":
+        age = payload.get("last_seen_age_s")
+        return cls(sensor_id=int(payload["sensor_id"]), last_seen_age_s=None if age is None else float(age))
+
+
+@dataclass(frozen=True)
 class TrackSnapshot(Sequence[Any]):
-    """Immutable tracker-authoritative observation with legacy tuple access."""
+    """Immutable tracker-authoritative observation with legacy tuple access.
+
+    P3-S5 (spec #90) additive confidence fields: ``existence_prob`` (IPDA-style
+    existence gate — GodTracker pins 1.0 since truth implies certain existence),
+    ``quality`` (composite, see :func:`track_quality`) and ``sources`` (channel
+    ids of sensors that contributed measurements). Legacy 5-tuple consumers are
+    untouched: the additive fields ride behind ``as_legacy_tuple``.
+    """
 
     key: TrackKey
     state: np.ndarray
@@ -64,6 +121,9 @@ class TrackSnapshot(Sequence[Any]):
     generated_at_s: float
     status: TrackStatus
     source: str
+    existence_prob: float = 1.0
+    quality: float = 1.0
+    sources: tuple[TrackSource, ...] = ()
 
     def __post_init__(self) -> None:
         """Freeze and validate tracker output arrays and metadata."""
@@ -89,6 +149,19 @@ class TrackSnapshot(Sequence[Any]):
             raise ValueError("observation time cannot be after generation time")
         if not self.source:
             raise ValueError("track source must be non-empty")
+        for name in ("existence_prob", "quality"):
+            value = float(getattr(self, name))
+            if not math.isfinite(value) or not 0.0 <= value <= 1.0:
+                raise ValueError(f"track {name} must be a finite value in [0, 1]")
+        sources = tuple(
+            value if isinstance(value, TrackSource) else TrackSource.from_dict(value) for value in self.sources
+        )
+        for value in sources:
+            if not 1 <= value.sensor_id <= 5:
+                raise ValueError("track source sensor_id must use the sensor-model-v1 §2 vocabulary (1-5)")
+            if value.last_seen_age_s is not None and (not math.isfinite(value.last_seen_age_s) or value.last_seen_age_s < 0.0):
+                raise ValueError("track source last_seen_age_s must be a non-negative finite age")
+        object.__setattr__(self, "sources", sources)
         state.setflags(write=False)
         covariance.setflags(write=False)
         object.__setattr__(self, "state", state)
@@ -104,6 +177,41 @@ class TrackSnapshot(Sequence[Any]):
 
     def as_legacy_tuple(self) -> tuple[int, np.ndarray, np.ndarray, float, float]:
         return self.target_id, self.state, self.covariance, self.length_m, self.width_m
+
+    def to_dict(self) -> dict[str, Any]:
+        """JSON-safe snapshot document (P3-S5; inverse of :meth:`from_dict`)."""
+        return {
+            "key": {"target_id": self.key.target_id, "generation": self.key.generation},
+            "state": self.state.tolist(),
+            "covariance": self.covariance.tolist(),
+            "length_m": self.length_m,
+            "width_m": self.width_m,
+            "observed_at_s": self.observed_at_s,
+            "generated_at_s": self.generated_at_s,
+            "status": self.status.value,
+            "source": self.source,
+            "existence_prob": self.existence_prob,
+            "quality": self.quality,
+            "sources": [value.to_dict() for value in self.sources],
+        }
+
+    @classmethod
+    def from_dict(cls, payload: dict[str, Any]) -> "TrackSnapshot":
+        """Rebuild one snapshot from its :meth:`to_dict` document (round-trip)."""
+        return cls(
+            key=TrackKey(target_id=int(payload["key"]["target_id"]), generation=int(payload["key"]["generation"])),
+            state=np.asarray(payload["state"], dtype=float),
+            covariance=np.asarray(payload["covariance"], dtype=float),
+            length_m=float(payload["length_m"]),
+            width_m=float(payload["width_m"]),
+            observed_at_s=float(payload["observed_at_s"]),
+            generated_at_s=float(payload["generated_at_s"]),
+            status=TrackStatus(payload["status"]),
+            source=str(payload["source"]),
+            existence_prob=float(payload.get("existence_prob", 1.0)),
+            quality=float(payload.get("quality", 1.0)),
+            sources=tuple(payload.get("sources", ())),
+        )
 
     def __len__(self) -> int:
         """Expose legacy tuple length."""
@@ -168,6 +276,12 @@ class ITracker(ABC):
         Innovation error Squared (NIS) values for the most recent update step for
         each track, and the track labels.
 
+        P3-S5 (spec #90): concrete trackers return :class:`TrackSnapshot` items
+        whose additive ``existence_prob``/``quality``/``sources`` fields carry the
+        existence-probability channel as an interface first-class citizen. The
+        second tuple element stays the NIS channel, so legacy consumers (tuple
+        unpacking on both returns) remain source-compatible.
+
         Args:
             ownship_state (np.ndarray): Ownship state vector on the form [x, y, Vx,
                 Vy] used for simulating sensor measurements.
@@ -184,18 +298,49 @@ class ITracker(ABC):
 
 @dataclass
 class KFParams:
-    """Class for holding KF parameters."""
+    """Class for holding KF parameters.
+
+    P3-S5 additive existence-recursion parameters (documented surrogate, not a
+    full IPDA): the exact-association KF has no clutter model, so existence is a
+    Musicki-IPDA-style monitor recursion — predicted existence decays by
+    ``p_survival`` on cycles without an associated measurement, and a detection
+    recovers it via ``p ← p + p_detection·(1-p)`` (Bayesian update with no false
+    alarm channel). ``p_exist_init`` seeds new tracks.
+    """
 
     P_0: np.ndarray = field(default_factory=lambda: np.diag([49.0, 49.0, 0.5, 0.5]))
     q: float = 0.4
+    p_survival: float = 0.98
+    p_detection: float = 0.9
+    p_exist_init: float = 0.5
+
+    def __post_init__(self) -> None:
+        for name in ("p_survival", "p_detection", "p_exist_init"):
+            value = float(getattr(self, name))
+            if not math.isfinite(value) or not 0.0 <= value <= 1.0:
+                raise ValueError(f"KF {name} must be a finite value in [0, 1]")
 
     def to_dict(self) -> dict:  # noqa: D102
-        output_dict = {"P_0": self.P_0.diagonal().tolist(), "q": self.q}
+        output_dict = {
+            "P_0": self.P_0.diagonal().tolist(),
+            "q": self.q,
+            "p_survival": self.p_survival,
+            "p_detection": self.p_detection,
+            "p_exist_init": self.p_exist_init,
+        }
         return output_dict
 
     @classmethod
     def from_dict(cls, config_dict: dict) -> "KFParams":  # noqa: D102
-        return KFParams(P_0=np.diag(config_dict["P_0"]), q=config_dict["q"])
+        # Additive P3-S5 keys fall back to the dataclass defaults so existing
+        # scenario ``tracker.kf`` documents (P_0/q only) keep loading.
+        return KFParams(
+            P_0=np.diag(config_dict["P_0"]),
+            q=config_dict["q"],
+            p_survival=float(config_dict.get("p_survival", 0.98)),
+            p_detection=float(config_dict.get("p_detection", 0.9)),
+            p_exist_init=float(config_dict.get("p_exist_init", 0.5)),
+        )
 
 
 @dataclass
@@ -328,6 +473,12 @@ class GodTracker(ITracker):
                 generated_at_s=t,
                 status=TrackStatus.UPDATED,
                 source="god",
+                # P3-S5: GodTracker truth implies certain existence (the state is
+                # copied from ground truth, sensors never gate it), so the
+                # existence gate pins at 1.0 and the composite quality is full.
+                existence_prob=1.0,
+                quality=1.0,
+                sources=(),
             )
             for i, label in enumerate(self._labels)
         ]
@@ -382,6 +533,10 @@ class KF(ITracker):
         self._observed_at_s: list[float] = []
         self._statuses: list[TrackStatus] = []
         self._snapshots: list[TrackSnapshot] = []
+        # P3-S5 existence channel: per-track existence probability plus the
+        # per-track {channel_id -> last contributing timestamp} source map.
+        self._existence: list[float] = []
+        self._source_seen: list[dict[int, float]] = []
 
     def reset(self) -> None:
         self._track_initialized = []
@@ -400,6 +555,8 @@ class KF(ITracker):
         self._observed_at_s = []
         self._statuses = []
         self._snapshots = []
+        self._existence = []
+        self._source_seen = []
 
     def set_sensor_list(self, sensor_list: list[sens.ISensor]) -> None:
         self.sensors = sensor_list
@@ -437,6 +594,8 @@ class KF(ITracker):
                 self._NIS.append(np.nan)
                 self._observed_at_s.append(t)
                 self._statuses.append(TrackStatus.COASTING)
+                self._existence.append(self._params.p_exist_init)
+                self._source_seen.append({})
             elif do_idx in self._labels:
                 self._track_initialized[self._labels.index(do_idx)] = True
 
@@ -473,10 +632,19 @@ class KF(ITracker):
                             if not np.isnan(NIS_i):
                                 self._NIS[i] = NIS_i
                                 measurement_used = True
+                                self._source_seen[i][sensor_channel_id(self.sensors[sensor_id])] = t
 
             self._statuses[i] = TrackStatus.UPDATED if measurement_used else TrackStatus.COASTING
             if measurement_used:
                 self._observed_at_s[i] = t
+                # P3-S5 existence recursion (KF surrogate): an associated
+                # detection confirms existence; otherwise survival decay applies.
+                self._existence[i] = min(
+                    1.0,
+                    self._existence[i] + self._params.p_detection * (1.0 - self._existence[i]),
+                )
+            elif self._track_initialized[i]:
+                self._existence[i] = self._params.p_survival * self._existence[i]
 
         self._snapshots = [
             TrackSnapshot(
@@ -489,6 +657,16 @@ class KF(ITracker):
                 generated_at_s=t,
                 status=self._statuses[i],
                 source="kf",
+                existence_prob=self._existence[i],
+                quality=track_quality(
+                    status=self._statuses[i],
+                    age_s=t - self._observed_at_s[i],
+                    source_count=len(self._source_seen[i]),
+                ),
+                sources=tuple(
+                    TrackSource(sensor_id=sensor_id, last_seen_age_s=t - seen_at)
+                    for sensor_id, seen_at in sorted(self._source_seen[i].items())
+                ),
             )
             for i in range(n_tracked_do)
             if not self._track_terminated[i]

@@ -146,6 +146,29 @@ const PALETTE_DEFAULTS = {
    PURE EXPORTS (directly unit-testable)
 ══════════════════════════════════════════════ */
 
+/* P3-S5 (spec #90): track existence-probability confidence bands (legend:
+   ≥0.9 confirmed / 0.5–0.9 tentative / <0.5 dim). Missing values fall back to
+   the classic track color so legacy publishers render unchanged. */
+export const TRACK_CONFIDENCE_CONFIRMED_MIN = 0.9;
+export const TRACK_CONFIDENCE_TENTATIVE_MIN = 0.5;
+
+export function trackConfidenceBand(probability) {
+  const value = Number(probability);
+  if (!Number.isFinite(value)) return null;
+  if (value >= TRACK_CONFIDENCE_CONFIRMED_MIN) return 'confirmed';
+  if (value >= TRACK_CONFIDENCE_TENTATIVE_MIN) return 'tentative';
+  return 'dim';
+}
+
+export function trackConfidenceColor(probability, fallback = '#37c995') {
+  switch (trackConfidenceBand(probability)) {
+    case 'confirmed': return '#37c995';
+    case 'tentative': return 'rgba(245,165,36,0.95)';
+    case 'dim': return 'rgba(148,163,160,0.75)';
+    default: return fallback;
+  }
+}
+
 export function validRoute(route) {
   return Array.isArray(route) && route.length >= 2
     && Array.isArray(route[0]) && route[0].length >= 2
@@ -1300,7 +1323,10 @@ export function createSituationDisplay(options) {
       if (visibleLayers.covariance) {
         drawCovariance(point, trackSet.covariances?.[index]);
       }
-      ctx.fillStyle = palette['--situation-track'];
+      // P3-S5 (spec #90): existence-probability confidence coloring —
+      // ≥0.9 confirmed (green) / 0.5–0.9 tentative (amber) / <0.5 dim (gray);
+      // missing values keep the classic track color (legacy publishers).
+      ctx.fillStyle = trackConfidenceColor(trackSet.existence_prob?.[index], palette['--situation-track']);
       ctx.beginPath();
       ctx.arc(point.x, point.y, 3.5, 0, Math.PI * 2);
       ctx.fill();
