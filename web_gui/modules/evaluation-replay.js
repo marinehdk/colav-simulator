@@ -9,7 +9,7 @@
  * only and never mutates an Active Session.
  */
 
-import { createSituationDisplay } from './situation-display.js?v=20260923-vo-sea-v1';
+import { createSituationDisplay } from './situation-display.js?v=20261003-grid-guard-v1';
 import { createDeploymentView } from './deployment-view.js?v=20260924-chase-vo-v1';
 import { createTelemetryProjection } from './telemetry-projection.js';
 import { projectReplayFrame, REPLAY_PRESENTATION_MODE } from './replay-source.js?v=20260924-replay-sidebar-v2';

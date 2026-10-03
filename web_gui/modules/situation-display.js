@@ -781,6 +781,11 @@ export function createSituationDisplay(options) {
       panY = 0;
       return;
     }
+    // Fitting against a zero-sized wrapper (workface hidden) computes the floor
+    // scale (0.005) and a ±17.5 px pan that outlive the session switch; the next
+    // zero-sized drawGrid then hits gridPx = 0 (infinite-loop bounds). The real
+    // fit happens on reveal: ResizeObserver → resize() → fitENCView below.
+    if (!(wrapper.clientWidth > 0 && wrapper.clientHeight > 0)) return;
     viewScale = Math.max(
       0.005,
       Math.max(wrapper.clientWidth / encInfo.width, wrapper.clientHeight / encInfo.height),
@@ -1130,6 +1135,12 @@ export function createSituationDisplay(options) {
   function drawGrid(W, H) {
     const gridWorld = chooseGridSpacing(W / viewScale);
     const gridPx = gridWorld * viewScale;
+    // A hidden wrapper (Deployment not the active workface) draws with W/H = 0;
+    // a 0 gridWorld then yields gridPx = 0 and loop bounds of ±Infinity — and
+    // `i++` is a no-op at ±Infinity, so the row/column loops below would never
+    // terminate and hard-block the main thread (S6 E2E hang, spec #90). Bail
+    // out on any degenerate geometry instead of drawing it.
+    if (!(W > 0 && H > 0) || !(gridPx > 0) || !Number.isFinite(gridPx)) return;
     const cx = W / 2 + panX, cy = H / 2 + panY;
     ctx.strokeStyle = palette['--situation-grid'];
     ctx.lineWidth = 1;

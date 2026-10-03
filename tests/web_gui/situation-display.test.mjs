@@ -509,6 +509,37 @@ test('ENC generation guards: a new session generation cancels in-flight loads an
   assert.equal(display.getViewScale(), Math.max(800 / ENC_INFO.width, 600 / ENC_INFO.height));
 });
 
+test('zero-sized wrapper (hidden workface) never degenerates the grid into infinite loop bounds (S6 E2E hang)', async () => {
+  // The E2E probe page stays on Config while the Deployment workface (which
+  // hosts the chart) is hidden, so the wrapper stays 0x0 across session A.
+  // Session A's ENC onload used to fit the hidden wrapper (viewScale 0.005,
+  // pan ∓17.5); session B's grid redraw then computed gridWorld = 0 →
+  // gridPx = 0 → row bounds of ±Infinity where `i++` is a no-op — a hard
+  // main-thread spin that deaded every CDP evaluate (spec #90 S6 hang).
+  let encRun = 'run-a';
+  const wrapper = fakeWrapper(0, 0);
+  const { display } = await createDisplay({
+    wrapper,
+    fetchInfo: async () => ({ ...ENC_INFO, run_id: encRun }),
+  });
+  await display.beginSession('run-a');
+  // fitENCView on a hidden wrapper must leave the view untouched (no poisoned
+  // floor-scale/pan), not seed it with the degenerate 0.005 / ∓17.5 fit.
+  assert.equal(display.getEncStatus(), 'ready');
+  assert.equal(display.getViewScale(), 0.45);
+  // Session replacement: encReady resets → the grid path redraws on the still
+  // hidden wrapper. Under the regression this call never returned (infinite
+  // grid loop); it must draw nothing and terminate.
+  encRun = 'run-b';
+  const encB = display.beginSession('run-b');
+  display.renderFrame(sampleSnapshot({ run_id: 'run-b', seq: 2 }));
+  // Reveal heals the view: the real fit comes from the revealed wrapper.
+  wrapper.clientWidth = 800;
+  wrapper.clientHeight = 600;
+  await encB;
+  assert.equal(display.getViewScale(), Math.max(800 / ENC_INFO.width, 600 / ENC_INFO.height));
+});
+
 test('destroy removes canvas listeners and is idempotent', async () => {
   const { display, canvas } = await createDisplay();
   await display.beginSession('run-1');

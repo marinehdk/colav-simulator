@@ -11,7 +11,7 @@ import {
   voCandidateColor,
   drawVelocityArrow,
   simplifiedMpcFanGeometry,
-} from './modules/situation-display.js?v=20260923-vo-disc-v1';
+} from './modules/situation-display.js?v=20261003-grid-guard-v1';
 import { buildRadarModel, createRadarMiniMap } from './modules/radar-mini-map.js?v=20260827-instrument-polish-v1';
 import {
   AIS_STATE_COLORS,
