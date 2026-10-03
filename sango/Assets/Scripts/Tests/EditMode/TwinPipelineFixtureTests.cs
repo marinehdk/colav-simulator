@@ -35,12 +35,17 @@ namespace Sango.Tests
             var anchor = TwinAnchor.FromShip(frame.truth[0]);
             Assert.That(anchor.EastM, Is.EqualTo(39632.9978).Within(0.5));
             Assert.That(anchor.NorthM, Is.EqualTo(6957632.9978).Within(0.5));
-            Assert.That(TwinPose.ScenePosition(frame.truth[0], anchor), Is.EqualTo(Vector3.zero).Within(0.5f));
+            // P3-12：锚点变换 = 减锚 + 登记平移——首帧本船落 M6 登记落点（海峡水面），
+            // 目标保持对遇相对几何（场景 (0,0) 直落语义已退役，批 1 台账）。
+            var landing = M6TwinGeo.LandingM;
+            var ownScene = TwinPose.ScenePosition(frame.truth[0], anchor);
+            Assert.That(ownScene.x, Is.EqualTo(landing.x).Within(0.5f));
+            Assert.That(ownScene.z, Is.EqualTo(landing.y).Within(0.5f));
 
             // 对遇几何（录制事实）：目标在本船东北向 ~1735.8m 处。
             var targetLocal = TwinPose.ScenePosition(frame.truth[1], anchor);
-            Assert.That(targetLocal.x, Is.EqualTo(1735.834f).Within(0.5f));
-            Assert.That(targetLocal.z, Is.EqualTo(1735.834f).Within(0.5f));
+            Assert.That(targetLocal.x - ownScene.x, Is.EqualTo(1735.834f).Within(0.5f));
+            Assert.That(targetLocal.z - ownScene.z, Is.EqualTo(1735.834f).Within(0.5f));
         }
 
         [Test]

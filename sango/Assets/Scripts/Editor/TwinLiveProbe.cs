@@ -201,11 +201,12 @@ namespace Sango.Editor
                 failures.Add("live: no same-seq resend observed (S0 实证步间 ~10Hz 重发应出现)");
             if (gateCounts[(int)TwinFrameDecision.Accept] < 3) failures.Add("live: fewer than 3 accepted solver steps");
             if (!anchorSet) failures.Add("live: no anchor established");
-            if (Math.Abs(ownFirst.posX) > 0.01 || Math.Abs(ownFirst.posZ) > 0.01)
-                failures.Add($"live: ownship not anchored to origin ({ownFirst.posX:0.000},{ownFirst.posZ:0.000})");
+            if (Math.Abs(ownFirst.posX - anchor.LandingM.x) > 0.01 || Math.Abs(ownFirst.posZ - anchor.LandingM.y) > 0.01)
+                failures.Add($"live: ownship not anchored at geo landing ({ownFirst.posX:0.000},{ownFirst.posZ:0.000} vs {anchor.LandingM})");
             AssertClose(failures, "live: own yaw = psi·Rad2Deg", ownLast.yawDeg, ownLast.psiRad * 57.29578, 0.01);
-            AssertClose(failures, "live: own pos from anchor math", ownLast.posX, ownLast.eastM - anchor.EastM, 0.01);
-            AssertClose(failures, "live: own pos z from anchor math", ownLast.posZ, ownLast.northM - anchor.NorthM, 0.01);
+            // P3-12：场景位 = 减锚 + 登记平移（TwinAnchor.ToLocal 同式）。
+            AssertClose(failures, "live: own pos from anchor math", ownLast.posX, ownLast.eastM - anchor.EastM + anchor.LandingM.x, 0.01);
+            AssertClose(failures, "live: own pos z from anchor math", ownLast.posZ, ownLast.northM - anchor.NorthM + anchor.LandingM.y, 0.01);
             if (lastSim <= firstSim) failures.Add("live: sim_time did not advance");
             if (multiplier < 0.5 || multiplier > 1.5) failures.Add($"live: effective_multiplier out of sane range ({multiplier:0.000})");
             AssertClose(failures, "live: own heading 45° NE at t0 (head_on 事实)",
@@ -315,9 +316,10 @@ namespace Sango.Editor
             report.sealedOwnPosZ = ownLast.y;
             report.sealedTargetPosX = targetLast.x;
             report.sealedTargetPosZ = targetLast.y;
-            if (ownLast.magnitude > 7000f)
+            // P3-12：锚点变换含登记平移——合理性门对落点相对量判（原点语义已退役）。
+            if ((ownLast - anchor.LandingM).magnitude > 7000f)
                 failures.Add($"sealed: ownship local position implausible ({ownLast}) — 锚定失效");
-            if (targetLast.sqrMagnitude < 1f) failures.Add("sealed: target did not move off anchor origin");
+            if ((targetLast - anchor.LandingM).sqrMagnitude < 1f) failures.Add("sealed: target did not move off anchor origin");
         }
 
         [Serializable]

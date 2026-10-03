@@ -1,7 +1,7 @@
 [detector] model loaded from /Users/marine/Code/Colav-Simulator/models/yolov8n.pt in 0.0s (task=detect)
 [detector] SUB connected tcp://127.0.0.1:5556 (topic sango.frame) -> PUB bound tcp://127.0.0.1:5557 (topic sango.detection)
 [detector] conf=0.12 boat_class_id=8 source=yolo-detector device=cpu
-[detector] forward branch ON -> http://127.0.0.1:8011/api/sessions/614732e3-288a-4bfd-88ae-b5d040d0e323/observations (mount mast_ptz_eo, timeout 2.0s)
-[detector] rx=1 tx=1 seq=8 infer=728.2ms conf=0.12 detections=1
+[detector] forward branch ON -> http://127.0.0.1:8011/api/sessions/f13714be-3370-43c2-8519-fff4fde362db/observations (mount mast_ptz_eo, timeout 2.0s)
+[detector] rx=1 tx=1 seq=8 infer=731.6ms conf=0.12 detections=1
 [detector] forward: ok=10 err=0 last=HTTP 200 {"accepted":true,"frame_seq":19,"detections_accepted":1}
-[detector] rx=10 tx=10 seq=19 infer=51.4ms conf=0.12 detections=1
+[detector] rx=10 tx=10 seq=19 infer=48.6ms conf=0.12 detections=1

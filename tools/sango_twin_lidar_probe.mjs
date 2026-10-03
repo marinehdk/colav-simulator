@@ -341,9 +341,19 @@ try {
 
   // Top-down camera preset over the same lidar mode: own-ship/near-field band
   // as points from above (second viewpoint; presets stay orthogonal, contract §2).
+  // P3-12: the twin ships now sit over OPEN water (geo registration — the old
+  // landing pointed the mast at scene-origin terrain, so this frame used to pass
+  // on land returns). HDRP water is absent from the cloud by design, so points
+  // exist only while the intruder is inside the ~100 m band — switch immediately
+  // after the forward frame's point window and poll the SAME std gate instead of
+  // a fixed sleep (assertion strength unchanged).
   await cdp.evaluate(`(() => { window.__deploymentTwin?.client?.sendCamera('top'); return true; })()`);
-  await sleep(3000);
-  stats.lidarTop = await videoFrameStats(cdp);
+  const topDeadline = Date.now() + 180000;
+  while (Date.now() < topDeadline) {
+    stats.lidarTop = await videoFrameStats(cdp);
+    if (stats.lidarTop && stats.lidarTop.std > 0.5) break;
+    await sleep(3000);
+  }
   check('LiDAR top-preset frame captured (camera/lidar orthogonality)',
     Boolean(stats.lidarTop && stats.lidarTop.std > 0.5), statsText(stats.lidarTop));
   check('LiDAR top-preset frame artifact', saveFrame(stats.lidarTop, join(OUT_DIR, 'lidar-top-frame.jpg')));

@@ -81,6 +81,14 @@ namespace Sango
         int m_LastSeq = -1;
         CameraRig m_CameraRig; // 槽位视觉接线用（TopDown 矢量隐藏语义）；查找一次缓存
 
+        // P3-12 地理配准观测面：接受帧船位的场景坐标包络（±x/±z 极值，锚点变换后）
+        // → M6TwinGeo.ClassifyFit 出 geo_fit。观测驱动（ENC 设计域 live 侧不可知）。
+        Vector2 m_SceneMin, m_SceneMax;
+        bool m_HasExtent;
+        string m_GeoFit = "";
+        M6TwinGeo.FitReport m_FitReport;
+        float m_LastLoggedWaterFrac = -1f;
+
         long m_RxCount;
         int m_AcceptedCount, m_DuplicateCount, m_RebuildCount, m_MalformedCount, m_UnslottedCount;
 
@@ -112,6 +120,16 @@ namespace Sango
 
         /// <summary>首帧锚定原点（bridge attached.anchor 用；未锚定 null）。</summary>
         public TwinAnchor? Anchor => m_Anchor;
+
+        /// <summary>
+        /// geo_fit 词汇（P3-12，twin-bridge-v1 §3/§8；bridge state.geo_fit 用）：
+        /// inside = 会话观测包络落在 M6 水面且 DEM 覆盖内 / partial = 混入陆域 /
+        /// outside = DEM 覆盖外开阔海面 / "" = 尚无接受帧。
+        /// </summary>
+        public string GeoFit => m_GeoFit;
+
+        /// <summary>最近一次 geo_fit 判定的分数面（诊断/探针证据；未判定 Fit=null）。</summary>
+        public M6TwinGeo.FitReport FitReport => m_FitReport;
 
         /// <summary>
         /// 本船（truth[0]）槽位 GameObject（P3-S2：桅杆机位族宿主；未挂槽 null）。
@@ -196,6 +214,7 @@ namespace Sango
             m_Clock.Reset();
             m_LastSeq = -1;
             m_CanInterpolate = false;
+            ResetGeoFit();
         }
 
         void OnDisable() => StopTwin();
@@ -216,22 +235,77 @@ namespace Sango
         float m_LastDiagLog = -999f;
 
         /// <summary>
-        /// 低频诊断行（spec #91 前置批 P3-11 验证面）：槽位数 + 每船场景坐标/艏向——
-        /// 探针从 Player.log 对拍 WS truth（数据 → 槽位位姿正确性）的唯一现场证据
-        /// （槽位 GameObject 无调试通道；CameraRig 5s census 同款工艺）。
+        /// 低频诊断行（spec #91 前置批 P3-11 验证面）：槽位数 + 每船场景坐标/艏向/地形高程
+        /// （P3-12 e= 字段：M6TwinGeo.ElevationAt 实采，负值 = 船在水面；无地形=开阔海面
+        /// 时省略段）——探针从 Player.log 对拍 WS truth（数据 → 槽位位姿正确性）与"船在
+        /// 水面"断言的唯一现场证据（槽位 GameObject 无调试通道；CameraRig 5s census 同款工艺）。
         /// </summary>
         void LogDiagnostic()
         {
             if (Time.unscaledTime - m_LastDiagLog < DiagIntervalS) return;
             m_LastDiagLog = Time.unscaledTime;
+            ClassifyGeoFit();
             if (m_Latest?.truth == null || !m_Anchor.HasValue) return;
             var ships = string.Join(" ", System.Linq.Enumerable.Select(m_Latest.truth, ship =>
             {
                 if (ship == null) return "";
                 var position = TwinPose.ScenePosition(ship, m_Anchor.Value);
-                return $"id{ship.id}=({position.x:0.0},{position.z:0.0}m,ψ{TwinPose.YawDegrees(ship.psi):0}°)";
+                float elevation = M6TwinGeo.ElevationAt(position);
+                string elevSegment = float.IsNaN(elevation) ? "" : $",e{elevation:0.0}m";
+                return $"id{ship.id}=({position.x:0.0},{position.z:0.0}m,ψ{TwinPose.YawDegrees(ship.psi):0}°{elevSegment})";
             }));
             Debug.Log($"[Sango.Twin] diag slots={m_Slots.Count} sim={RenderSimTime:0.0}s {ships}");
+        }
+
+        /// <summary>接受帧船位 → 场景坐标包络累积（P3-12 geo_fit 观测面；锚点变换后）。</summary>
+        void AccumulateExtent(ColavTelemetry frame)
+        {
+            if (frame?.truth == null || !m_Anchor.HasValue) return;
+            foreach (var ship in frame.truth)
+            {
+                if (ship == null) continue;
+                var local = m_Anchor.Value.ToLocal(ship.east, ship.north);
+                if (!m_HasExtent)
+                {
+                    m_SceneMin = m_SceneMax = local;
+                    m_HasExtent = true;
+                }
+                else
+                {
+                    m_SceneMin = new Vector2(Mathf.Min(m_SceneMin.x, local.x), Mathf.Min(m_SceneMin.y, local.y));
+                    m_SceneMax = new Vector2(Mathf.Max(m_SceneMax.x, local.x), Mathf.Max(m_SceneMax.y, local.y));
+                }
+            }
+        }
+
+        /// <summary>
+        /// geo_fit 判定（诊断节拍复用，≤0.2 Hz）：观测包络 → M6TwinGeo.ClassifyFit。
+        /// 首次判定/词汇或分数变化落一行 geo 登记日志（探针解析面：anchor/landing/fit/分数）。
+        /// </summary>
+        void ClassifyGeoFit()
+        {
+            if (!m_HasExtent) return;
+            m_FitReport = M6TwinGeo.ClassifyFit(m_SceneMin, m_SceneMax);
+            string previous = m_GeoFit;
+            m_GeoFit = m_FitReport.Fit;
+            bool fractionsMoved = Mathf.Abs(m_FitReport.WaterFraction - m_LastLoggedWaterFrac) > 0.01f;
+            if (m_GeoFit != previous || fractionsMoved)
+            {
+                m_LastLoggedWaterFrac = m_FitReport.WaterFraction;
+                var landing = M6TwinGeo.LandingM;
+                Debug.Log($"[Sango.Twin] geo anchor=({m_Anchor?.EastM ?? 0:0.#},{m_Anchor?.NorthM ?? 0:0.#}) " +
+                          $"landing=({landing.x:0},{landing.y:0}) fit={m_GeoFit} " +
+                          $"water={m_FitReport.WaterFraction:0.000} terrain={m_FitReport.TerrainFraction:0.000} " +
+                          $"extent=[{m_SceneMin.x:0},{m_SceneMin.y:0}..{m_SceneMax.x:0},{m_SceneMax.y:0}]m");
+            }
+        }
+
+        void ResetGeoFit()
+        {
+            m_HasExtent = false;
+            m_GeoFit = "";
+            m_FitReport = default;
+            m_LastLoggedWaterFrac = -1f;
         }
 
         /// <summary>
@@ -326,6 +400,7 @@ namespace Sango
                     m_Clock.Reset();
                     m_LastSeq = -1;
                     m_CanInterpolate = false;
+                    ResetGeoFit();
                     Debug.LogWarning($"[Sango.Twin] seq regression {regressedFrom} -> {frame.seq}; session rebuilt");
                 }
                 ColavTelemetry previous = m_Latest;
@@ -336,6 +411,7 @@ namespace Sango
                 m_Latest = frame;
                 m_LastSeq = frame.seq;
                 if (!m_Anchor.HasValue) m_Anchor = TwinAnchor.FromShip(frame.truth[0]);
+                AccumulateExtent(frame);
                 m_AcceptedCount++;
             }
         }

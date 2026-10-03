@@ -2,26 +2,35 @@ using UnityEngine;
 
 namespace Sango
 {
-    /// <summary>Twin 场景锚点：UTM 全域 east/north 大数（米）减去后的局部原点（P2-S1 spec #89）。</summary>
+    /// <summary>
+    /// Twin 场景锚点：会话 NE 全域大数（米）减锚点后加 M6 场景登记平移（P2-S1 spec #89
+    /// 锚定 + P3-12 spec #91 地理配准）。场景落点与 provenance 见 M6TwinGeo。
+    /// </summary>
     public struct TwinAnchor
     {
-        /// <summary>锚点东向（米，UTM 48N/33 域全域值）。</summary>
+        /// <summary>锚点东向（米，会话 NE 域全域值；live=首帧本船、replay=ENC origin）。</summary>
         public double EastM;
 
         /// <summary>锚点北向（米）。</summary>
         public double NorthM;
 
+        /// <summary>M6 场景登记平移（锚定局部原点的场景落点；工厂方法注入 M6TwinGeo.LandingM）。</summary>
+        public Vector2 LandingM;
+
         /// <summary>静态字段原点（如 replay context enc.origin_*；live compact 静态字段无原点）。</summary>
         public static TwinAnchor FromOrigin(double eastM, double northM)
-            => new TwinAnchor { EastM = eastM, NorthM = northM };
+            => new TwinAnchor { EastM = eastM, NorthM = northM, LandingM = M6TwinGeo.LandingM };
 
         /// <summary>首帧本船锚（truth[0]；live compact-v1 静态字段无原点，S0 实证走本路）。</summary>
         public static TwinAnchor FromShip(ColavTelemetry.ShipEntry ownship)
-            => new TwinAnchor { EastM = ownship.east, NorthM = ownship.north };
+            => new TwinAnchor { EastM = ownship.east, NorthM = ownship.north, LandingM = M6TwinGeo.LandingM };
 
-        /// <summary>全域 east/north → 锚定局部 east/north（米；double 内做减法防大数吞小数）。</summary>
+        /// <summary>
+        /// 会话 NE → 场景 (east, north)（米）：double 域先减锚防大数吞小数，再加登记平移
+        /// （P3-12：落点在海峡水面——原语义直落场景 (0,0) = 区域中心陆域，批 1 台账）。
+        /// </summary>
         public Vector2 ToLocal(double eastM, double northM)
-            => new Vector2((float)(eastM - EastM), (float)(northM - NorthM));
+            => new Vector2((float)(eastM - EastM) + LandingM.x, (float)(northM - NorthM) + LandingM.y);
     }
 
     /// <summary>
@@ -33,7 +42,7 @@ namespace Sango
     /// </summary>
     public static class TwinPose
     {
-        /// <summary>本船/目标场景位置：truth east/north 减锚点后 (east→x, 0, north→z)。</summary>
+        /// <summary>本船/目标场景位置：truth NE 过锚点登记变换（减锚 + M6 登记平移）后 (east→x, 0, north→z)。</summary>
         public static Vector3 ScenePosition(ColavTelemetry.ShipEntry ship, TwinAnchor anchor)
         {
             var local = anchor.ToLocal(ship.east, ship.north);

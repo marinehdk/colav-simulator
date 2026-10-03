@@ -1,0 +1,20 @@
+{
+  "registration": {
+    "anchor": {
+      "east": 39740.9,
+      "north": 6957741
+    },
+    "landing": {
+      "x": 21000,
+      "z": -5000
+    },
+    "fit": "inside",
+    "water": 1,
+    "terrain": 1
+  },
+  "waterProof": {
+    "ownElevationM": -46.4,
+    "targetElevationM": -41.4
+  },
+  "diag": "[Sango.Twin] diag slots=2 sim=88.3s id0=(21200.6,-4799.5m,ψ44°,e-46.4m) id1=(22323.5,-3676.5m,ψ-135°,e-41.4m)"
+}

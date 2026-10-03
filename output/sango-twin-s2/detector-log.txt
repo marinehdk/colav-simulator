@@ -1,34 +1,32 @@
 [detector] model loaded from /Users/marine/Code/Colav-Simulator/models/yolov8n.pt in 0.0s (task=detect)
 [detector] SUB connected tcp://127.0.0.1:5556 (topic sango.frame) -> PUB bound tcp://127.0.0.1:5557 (topic sango.detection)
 [detector] conf=0.25 boat_class_id=8 source=yolo-detector device=cpu
-[detector] forward branch ON -> http://127.0.0.1:8010/api/sessions/242be9af-a140-495b-b4f4-87f5af4c507d/observations (mount mast_ptz_eo, timeout 2.0s)
+[detector] forward branch ON -> http://127.0.0.1:8010/api/sessions/1a0b9fa6-318a-4426-8a0f-ef847aa2226e/observations (mount mast_ptz_eo, timeout 2.0s)
 [detector] feed frame dumped -> /Users/marine/Code/Colav-Simulator/output/sango-twin-s2/feed-frame.jpg (mount  seq 0)
-[detector] rx=1 tx=1 seq=0 infer=1046.3ms conf=0.25 detections=0
-[detector] forward: ok=10 err=0 last=HTTP 200 {"accepted":true,"frame_seq":19,"detections_accepted":0}
-[detector] rx=10 tx=10 seq=19 infer=29.6ms conf=0.25 detections=0
-[detector] forward: ok=20 err=0 last=HTTP 200 {"accepted":true,"frame_seq":29,"detections_accepted":0}
-[detector] rx=20 tx=20 seq=29 infer=29.6ms conf=0.25 detections=0
-[detector] forward: ok=30 err=0 last=HTTP 200 {"accepted":true,"frame_seq":39,"detections_accepted":0}
-[detector] rx=30 tx=30 seq=39 infer=34.7ms conf=0.25 detections=0
-[detector] forward: ok=40 err=0 last=HTTP 200 {"accepted":true,"frame_seq":49,"detections_accepted":0}
-[detector] rx=40 tx=40 seq=49 infer=37.3ms conf=0.25 detections=0
-[detector] forward: ok=50 err=0 last=HTTP 200 {"accepted":true,"frame_seq":59,"detections_accepted":0}
-[detector] rx=50 tx=50 seq=59 infer=37.7ms conf=0.25 detections=0
-[detector] forward: ok=60 err=0 last=HTTP 200 {"accepted":true,"frame_seq":69,"detections_accepted":0}
-[detector] rx=60 tx=60 seq=69 infer=94.0ms conf=0.25 detections=0
-[detector] forward: ok=70 err=0 last=HTTP 200 {"accepted":true,"frame_seq":86,"detections_accepted":0}
-[detector] rx=70 tx=70 seq=86 infer=133.9ms conf=0.25 detections=0
-[detector] forward: ok=80 err=0 last=HTTP 200 {"accepted":true,"frame_seq":101,"detections_accepted":1}
-[detector] rx=80 tx=80 seq=101 infer=94.0ms conf=0.25 detections=1
-[detector] forward: ok=90 err=0 last=HTTP 200 {"accepted":true,"frame_seq":113,"detections_accepted":1}
-[detector] rx=90 tx=90 seq=113 infer=104.9ms conf=0.25 detections=1
-[detector] forward: ok=100 err=0 last=HTTP 200 {"accepted":true,"frame_seq":129,"detections_accepted":1}
-[detector] rx=100 tx=100 seq=129 infer=77.5ms conf=0.25 detections=1
-[detector] forward: ok=110 err=0 last=HTTP 200 {"accepted":true,"frame_seq":140,"detections_accepted":1}
-[detector] rx=110 tx=110 seq=140 infer=126.4ms conf=0.25 detections=1
-[detector] forward: ok=120 err=0 last=HTTP 200 {"accepted":true,"frame_seq":151,"detections_accepted":1}
-[detector] rx=120 tx=120 seq=151 infer=52.9ms conf=0.25 detections=1
-[detector] forward: ok=130 err=0 last=HTTP 200 {"accepted":true,"frame_seq":164,"detections_accepted":1}
-[detector] rx=130 tx=130 seq=164 infer=55.8ms conf=0.25 detections=1
-[detector] forward: ok=140 err=0 last=HTTP 200 {"accepted":true,"frame_seq":179,"detections_accepted":1}
-[detector] rx=140 tx=140 seq=179 infer=58.0ms conf=0.25 detections=1
+[detector] rx=1 tx=1 seq=0 infer=1017.1ms conf=0.25 detections=0
+[detector] forward: ok=10 err=0 last=HTTP 200 {"accepted":true,"frame_seq":18,"detections_accepted":0}
+[detector] rx=10 tx=10 seq=18 infer=31.6ms conf=0.25 detections=0
+[detector] forward: ok=20 err=0 last=HTTP 200 {"accepted":true,"frame_seq":28,"detections_accepted":0}
+[detector] rx=20 tx=20 seq=28 infer=37.3ms conf=0.25 detections=0
+[detector] forward: ok=30 err=0 last=HTTP 200 {"accepted":true,"frame_seq":38,"detections_accepted":0}
+[detector] rx=30 tx=30 seq=38 infer=58.0ms conf=0.25 detections=0
+[detector] forward: ok=40 err=0 last=HTTP 200 {"accepted":true,"frame_seq":48,"detections_accepted":0}
+[detector] rx=40 tx=40 seq=48 infer=39.2ms conf=0.25 detections=0
+[detector] forward: ok=50 err=0 last=HTTP 200 {"accepted":true,"frame_seq":58,"detections_accepted":0}
+[detector] rx=50 tx=50 seq=58 infer=78.2ms conf=0.25 detections=0
+[detector] forward: ok=60 err=0 last=HTTP 200 {"accepted":true,"frame_seq":76,"detections_accepted":0}
+[detector] rx=60 tx=60 seq=76 infer=322.4ms conf=0.25 detections=0
+[detector] forward: ok=70 err=0 last=HTTP 200 {"accepted":true,"frame_seq":90,"detections_accepted":1}
+[detector] rx=70 tx=70 seq=90 infer=71.5ms conf=0.25 detections=1
+[detector] forward: ok=80 err=0 last=HTTP 200 {"accepted":true,"frame_seq":102,"detections_accepted":1}
+[detector] rx=80 tx=80 seq=102 infer=63.3ms conf=0.25 detections=1
+[detector] forward: ok=90 err=0 last=HTTP 200 {"accepted":true,"frame_seq":114,"detections_accepted":1}
+[detector] rx=90 tx=90 seq=114 infer=74.9ms conf=0.25 detections=1
+[detector] forward: ok=100 err=0 last=HTTP 200 {"accepted":true,"frame_seq":126,"detections_accepted":1}
+[detector] rx=100 tx=100 seq=126 infer=72.1ms conf=0.25 detections=1
+[detector] forward: ok=110 err=0 last=HTTP 200 {"accepted":true,"frame_seq":138,"detections_accepted":1}
+[detector] rx=110 tx=110 seq=138 infer=50.5ms conf=0.25 detections=1
+[detector] forward: ok=120 err=0 last=HTTP 200 {"accepted":true,"frame_seq":150,"detections_accepted":1}
+[detector] rx=120 tx=120 seq=150 infer=58.9ms conf=0.25 detections=1
+[detector] forward: ok=130 err=0 last=HTTP 200 {"accepted":true,"frame_seq":162,"detections_accepted":1}
+[detector] rx=130 tx=130 seq=162 infer=55.5ms conf=0.25 detections=1

@@ -102,9 +102,11 @@ namespace Sango.Tests
 
             var anchor = TwinAnchor.FromShip(first.truth[0]);
             var ownLocal = TwinPose.ScenePosition(first.truth[0], anchor);
-            Assert.That(ownLocal, Is.EqualTo(Vector3.zero).Within(0.01f), "首帧本船锚定到原点");
+            // P3-12：首帧本船锚定到登记落点（减锚 + M6 登记平移；原点直落语义已退役）。
+            var landing = M6TwinGeo.LandingM;
+            Assert.That(ownLocal, Is.EqualTo(new Vector3(landing.x, 0f, landing.y)).Within(0.01f), "首帧本船锚定到 geo 落点");
             var targetLocal = TwinPose.ScenePosition(first.truth[1], anchor);
-            Assert.That(targetLocal.x, Is.GreaterThan(0f), "目标在东侧（head_on 对遇几何）");
+            Assert.That(targetLocal.x, Is.GreaterThan(landing.x), "目标在本船东侧（head_on 对遇几何）");
             Assert.That(TwinPose.InterpolationAlpha(10.25, first.sim_time, second.sim_time), Is.EqualTo(0.5f).Within(1e-4f));
         }
 

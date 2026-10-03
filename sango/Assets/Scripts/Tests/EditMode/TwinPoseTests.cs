@@ -43,17 +43,52 @@ namespace Sango.Tests
         }
 
         [Test]
-        public void Anchor_SubtractsGlobalUtmMagnitudes()
+        public void Anchor_RegistersToSceneLanding()
         {
-            // S0 真流量级：本船 east≈39500、north≈6957500（UTM 域全域大数）。
+            // S0 真流量级：本船 east≈39500、north≈6957500（会话 NE 域全域大数）。
+            // P3-12：ToLocal = 减锚 + M6 登记平移（批 1 缺陷修复：原语义直落场景 (0,0) 陆域）。
             var anchor = TwinAnchor.FromShip(new ColavTelemetry.ShipEntry { east = 39500f, north = 6957500f });
+            Assert.That(anchor.LandingM, Is.EqualTo(M6TwinGeo.LandingM), "工厂注入登记落点（单一真源）");
             var local = anchor.ToLocal(39510.5, 6957520.25);
-            Assert.That(local.x, Is.EqualTo(10.5f).Within(Tolerance), "east − 锚 = 局部东");
-            Assert.That(local.y, Is.EqualTo(20.25f).Within(Tolerance), "north − 锚 = 局部北");
+            Assert.That(local.x, Is.EqualTo(10.5f + M6TwinGeo.LandingM.x).Within(Tolerance), "east − 锚 + 登记东移");
+            Assert.That(local.y, Is.EqualTo(20.25f + M6TwinGeo.LandingM.y).Within(Tolerance), "north − 锚 + 登记北移");
 
             var fromOrigin = TwinAnchor.FromOrigin(37000.0, 6955000.0); // replay context enc.origin_* 形状
             var local2 = fromOrigin.ToLocal(37100.0, 6955100.0);
-            Assert.That(local2, Is.EqualTo(new Vector2(100f, 100f)).Within(Tolerance));
+            Assert.That(local2, Is.EqualTo(M6TwinGeo.LandingM + new Vector2(100f, 100f)).Within(Tolerance));
+        }
+
+        [Test]
+        public void Anchor_ManifestTruthHeadOnGeometryLandsOnWater()
+        {
+            // manifest 真值用例（P3-12）：真实会话事实（replay context enc origin
+            // (37000,6955000)、head_on 本船在 ENC 框中心 (39500,6957500)）。replay 锚 =
+            // ENC origin → 本船场景位 = 落点 + 框内偏移 (2500,2500)，烘焙掩膜判水；
+            // live 锚 = 首帧本船 → 本船场景位 = 落点本身；目标相对几何跨变换不变。
+            var landing = M6TwinGeo.LandingM;
+            var replayAnchor = TwinAnchor.FromOrigin(37000.0, 6955000.0);
+            var ownScene = TwinPose.ScenePosition(
+                new ColavTelemetry.ShipEntry { east = 39500f, north = 6957500f }, replayAnchor);
+            Assert.That(ownScene.x, Is.EqualTo(landing.x + 2500f).Within(Tolerance));
+            Assert.That(ownScene.z, Is.EqualTo(landing.y + 2500f).Within(Tolerance));
+            Assert.That(M6WaterMask.Sample(ownScene.x, ownScene.z), Is.EqualTo(M6WaterMask.Water),
+                "replay 语义本船落水面（登记选点门）");
+
+            var liveAnchor = TwinAnchor.FromShip(new ColavTelemetry.ShipEntry { east = 39500f, north = 6957500f });
+            var liveOwnScene = TwinPose.ScenePosition(
+                new ColavTelemetry.ShipEntry { east = 39500f, north = 6957500f }, liveAnchor);
+            Assert.That(liveOwnScene.x, Is.EqualTo(landing.x).Within(Tolerance));
+            Assert.That(liveOwnScene.z, Is.EqualTo(landing.y).Within(Tolerance));
+            Assert.That(M6WaterMask.Sample(liveOwnScene.x, liveOwnScene.z), Is.EqualTo(M6WaterMask.Water),
+                "live 语义本船落水面（登记落点）");
+
+            // 相对几何跨变换不变：目标东移 2000 m → 场景 x +2000（仍水面）。
+            var targetScene = TwinPose.ScenePosition(
+                new ColavTelemetry.ShipEntry { east = 41500f, north = 6957500f }, liveAnchor);
+            Assert.That(targetScene.x - liveOwnScene.x, Is.EqualTo(2000f).Within(0.5f));
+            Assert.That(targetScene.z - liveOwnScene.z, Is.EqualTo(0f).Within(0.5f));
+            Assert.That(M6WaterMask.Sample(targetScene.x, targetScene.z), Is.EqualTo(M6WaterMask.Water),
+                "落点东 2 km 仍在水面（登记选点门）");
         }
 
         [Test]
@@ -62,18 +97,22 @@ namespace Sango.Tests
             var anchor = TwinAnchor.FromShip(new ColavTelemetry.ShipEntry { east = 39500f, north = 6957500f });
             var position = TwinPose.ScenePosition(
                 new ColavTelemetry.ShipEntry { east = 39600f, north = 6957400f }, anchor);
-            Assert.That(position, Is.EqualTo(new Vector3(100f, 0f, -100f)).Within(Tolerance));
+            Assert.That(position.x, Is.EqualTo(100f + M6TwinGeo.LandingM.x).Within(Tolerance));
+            Assert.That(position.z, Is.EqualTo(-100f + M6TwinGeo.LandingM.y).Within(Tolerance));
+            Assert.That(position.y, Is.EqualTo(0f).Within(Tolerance));
         }
 
         [Test]
-        public void FirstFrameOwnship_AnchorsToZero()
+        public void FirstFrameOwnship_AnchorsToGeoLanding()
         {
-            // 首帧本船锚定后自身在原点（对遇场景 target 由 delta 决定，规格 §实现内容 2）。
+            // 首帧本船锚定到登记落点（对遇场景 target 由 delta 决定，规格 §实现内容 2）。
             var own = new ColavTelemetry.ShipEntry { id = 0, east = 39500f, north = 6957500f, psi = 0.7853982f };
             var anchor = TwinAnchor.FromShip(own);
-            Assert.That(TwinPose.ScenePosition(own, anchor), Is.EqualTo(Vector3.zero).Within(Tolerance));
+            var landing = M6TwinGeo.LandingM;
+            var ownScene = TwinPose.ScenePosition(own, anchor);
+            Assert.That(ownScene, Is.EqualTo(new Vector3(landing.x, 0f, landing.y)).Within(Tolerance));
             var target = new ColavTelemetry.ShipEntry { id = 1, east = 41500f, north = 6959500f };
-            Assert.That(TwinPose.ScenePosition(target, anchor), Is.EqualTo(new Vector3(2000f, 0f, 2000f)).Within(0.5f));
+            Assert.That(TwinPose.ScenePosition(target, anchor), Is.EqualTo(new Vector3(landing.x + 2000f, 0f, landing.y + 2000f)).Within(0.5f));
         }
 
         [Test]

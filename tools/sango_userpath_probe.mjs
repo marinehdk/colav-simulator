@@ -404,8 +404,11 @@ try {
   // P3-11 closure (render-path): the TARGET slot must be instantiated AND posed
   // at the WS-truth scene position — proven by the driver's 5s diag line
   // (Player.log) against the same-instant WS truth (position parity ≤ 5 m,
-  // heading ≤ 8°). The twin ships' surroundings in the M6 strait scene are a
-  // scene-registration matter ledgered as P3-12 (review-residue.md).
+  // heading ≤ 8°). P3-12: the diag line now carries the geo registration
+  // (`geo anchor=… landing=(17000,-4800) fit=… water=…`) and per-ship terrain
+  // elevation (`e-47.3m`), so the same pairing proves the slots sit ON WATER in
+  // the strait scene (elev < 0 = below sea level; the old anchor landed the
+  // session on the +41 m land at the scene origin).
   // diag(sim) ↔ truth(sim_time) paired within 1.5 s of sim (ships close at ~14 m/s
   // → the pairing gate bounds motion skew; tolerance 15 m / 8° covers the rest).
   let parity = null;
@@ -415,28 +418,43 @@ try {
   const norm = a => ((a % 360) + 360) % 360;
   const parseShips = line => {
     const out = {};
-    for (const m of (line ?? '').matchAll(/id(\d+)=\(([\-\d.]+),([\-\d.]+)m,ψ([\-\d.]+)°\)/g)) {
-      out[Number(m[1])] = { x: Number(m[2]), z: Number(m[3]), psi: Number(m[4]) };
+    for (const m of (line ?? '').matchAll(/id(\d+)=\(([\-\d.]+),([\-\d.]+)m,ψ([\-\d.]+)°(,e([\-\d.]+)m)?\)/g)) {
+      out[Number(m[1])] = { x: Number(m[2]), z: Number(m[3]), psi: Number(m[4]), elev: m[6] !== undefined ? Number(m[6]) : null };
     }
     return out;
+  };
+  const parseLanding = text => {
+    for (const m of (text ?? '').matchAll(/geo anchor=\(([\-\d.]+),([\-\d.]+)\) landing=\(([\-\d.]+),([\-\d.]+)\) fit=(\w+) water=([\d.]+) terrain=([\d.]+)/g)) {
+      // keep the LAST registration line (most recent fit decision)
+      var out = {
+        anchor: { east: Number(m[1]), north: Number(m[2]) },
+        landing: { x: Number(m[3]), z: Number(m[4]) },
+        fit: m[5], water: Number(m[6]), terrain: Number(m[7]),
+      };
+    }
+    return out ?? null;
   };
   while (Date.now() < parityDeadline) {
     const truth = await sessionTruth(sessionId);
     if (truth.own && truth.target) {
       const logText = playerLogTail()?.text ?? '';
       const diagLines = [...logText.matchAll(/\[Sango\.Twin\] diag slots=(\d+) sim=([\d.]+)s(.*)/g)];
+      const landing = parseLanding(logText);
       for (const diag of diagLines.reverse()) {
         if (Number(diag[1]) !== 2) continue;
         const simDelta = Math.abs(Number(diag[2]) - truth.simTime);
         if (simDelta > 1.5) continue;
         const diagShips = parseShips(diag[3]);
         const anchor = attached.anchor;
+        const sceneX = landing?.landing?.x ?? 0; // P3-12 registration translation
+        const sceneZ = landing?.landing?.z ?? 0;
         const deltas = [truth.own, truth.target].map((ws, id) => {
           const scene = diagShips[id];
           if (!ws || !scene) return null;
           return {
             id,
-            posErrorM: Math.hypot(ws.east - anchor.east - scene.x, ws.north - anchor.north - scene.z),
+            posErrorM: Math.hypot(ws.east - anchor.east + sceneX - scene.x, ws.north - anchor.north + sceneZ - scene.z),
+            elevationM: scene.elev,
             headingErrorDeg: Math.abs(norm(ws.psi * 180 / Math.PI) - norm(scene.psi)) % 360 > 180
               ? 360 - Math.abs(norm(ws.psi * 180 / Math.PI) - norm(scene.psi)) % 360
               : Math.abs(norm(ws.psi * 180 / Math.PI) - norm(scene.psi)) % 360,
@@ -454,6 +472,24 @@ try {
   check('P3-11 closed: both slots instantiated + posed at WS-truth scene positions (diag ↔ truth parity ≤ 15 m / 8°)',
     Boolean(parity) && parity.every(d => d.posErrorM <= 15 && d.headingErrorDeg <= 8),
     JSON.stringify(parity));
+
+  // ── P3-12 geo registration: anchor → scene landing + coverage + water proof ──
+  const geo = parseLanding(playerLogTail()?.text ?? '');
+  check('P3-12 geo registration logged (anchor → landing=(21000,-5000))',
+    Boolean(geo) && Math.abs(geo.landing.x - 21000) < 1 && Math.abs(geo.landing.z - -5000) < 1,
+    geo ? `anchor=(${geo.anchor.east},${geo.anchor.north}) landing=(${geo.landing.x},${geo.landing.z}) fit=${geo.fit} water=${geo.water} terrain=${geo.terrain}` : 'no geo line');
+  const stateGeoFit = await cdp.evaluate(`window.__deploymentTwin?.lastState?.geo_fit ?? null`);
+  check('P3-12 state.geo_fit echo = inside (M6 water + DEM coverage)',
+    stateGeoFit === (geo?.fit ?? null) && geo?.fit === 'inside',
+    `state.geo_fit=${JSON.stringify(stateGeoFit)} log.fit=${geo?.fit ?? 'none'}`);
+  check('P3-12 both twin ships sampled ON WATER (diag terrain elevation < 0)',
+    Boolean(parity) && parity.every(d => d.elevationM !== null && d.elevationM < 0),
+    parity ? `own=${parity[0].elevationM}m target=${parity[1].elevationM}m` : 'no parity pair');
+  writeFileSync(join(OUT_DIR, 'geo-registration.json'), JSON.stringify({
+    registration: geo,
+    waterProof: parity ? { ownElevationM: parity[0].elevationM, targetElevationM: parity[1].elevationM } : null,
+    diag: parityDiag,
+  }, null, 2));
   const censusLine = (playerLogTail()?.text ?? '').split('\n').filter(l => l.includes('cam view=Bridge')).at(-1) ?? '';
   const censusMatch = censusLine.match(/pos=\(([\-\d.]+), ([\-\d.]+), ([\-\d.]+)\).*followPos=\(([\-\d.]+), ([\-\d.]+), ([\-\d.]+)\)/);
   const censusNear = censusMatch
@@ -463,6 +499,35 @@ try {
     censusLine.trim().slice(0, 180));
   const rigLog = (playerLogTail()?.text ?? '').includes('camera follow retargeted');
   check('viewport camera follows the twin own ship (P3-11 fix log)', rigLog, PLAYER_LOG);
+
+  // ── P3-12 visual record: aerial (top-down) framing of the target via the
+  // contract camera_free surface — the BEFORE evidence (batch 1, 03a/03b) shows
+  // the twin viewport over the +41 m land at the scene origin; the AFTER shot
+  // must show open strait water around the target. The assertion itself rides
+  // the sampled terrain elevations above (authoritative); this is the picture.
+  const aerialTruth = await sessionTruth(sessionId);
+  if (aerialTruth.target) {
+    await cdp.evaluate(`(() => {
+      const client = window.__deploymentTwin?.client;
+      client?.sendCameraFree({
+        east: ${aerialTruth.target.east}, north: ${aerialTruth.target.north},
+        height_m: 350, yaw_deg: 0, pitch_deg: -90, fov_deg: 60,
+      });
+      return true;
+    })()`);
+    const freeEcho = await waitFor('state.camera echo free (aerial pose applied)', () => cdp.evaluate(
+      `(() => window.__deploymentTwin?.lastState?.camera === 'free' ? 'free' : null)()`), 15000);
+    await sleep(2500); // stream encode + buoyancy settle
+    const aerial = await videoFrameStats(cdp);
+    if (aerial?.frame) writeFileSync(join(OUT_DIR, '03c-twin-aerial-target.jpg'), Buffer.from(aerial.frame.split(',')[1], 'base64'));
+    check('P3-12 aerial camera_free over the target accepted (state.camera=free, frame recorded)',
+      freeEcho === 'free' && Boolean(aerial?.frame), `frame=${aerial ? `${aerial.w}x${aerial.h}` : 'none'}`);
+    await cdp.evaluate(`(() => { window.__deploymentTwin?.client?.sendCamera('bridge'); return true; })()`);
+    await waitFor('camera restored to bridge preset', () => cdp.evaluate(
+      `(() => window.__deploymentTwin?.lastState?.camera === 'bridge' ? 'bridge' : null)()`), 15000);
+  } else {
+    check('P3-12 aerial camera_free over the target accepted', false, 'no truth target for the pose');
+  }
 
   // ── ② IR / LiDAR sensor loop on the same viewport ─────────────────────────
   await cdp.evaluate(`(() => { const b = document.querySelector('#deploymentTwinSensorGroup [data-twin-sensor="ir"]'); if (b) b.click(); return true; })()`);
@@ -636,6 +701,7 @@ const lines = [
   '| ① 前端打开/建会话 | `00-frontend-open.png` `01-session-created.png` |',
   '| ① T → EO 画面 | `02-eo-viewport.jpg` `02-eo-viewport-full.png` |',
   '| P3-11 槽位对拍 | `03a-bridge-view-band.jpg` `03b-bridge-view-full.png` `slot-parity.json` `target-geometry.json` |',
+  '| P3-12 地理配准 | `03c-twin-aerial-target.jpg` `geo-registration.json`（水面断言=e<0 实采高程 + geo_fit=inside） |',
   '| ② IR/LiDAR | `04-ir-viewport.jpg` `05-lidar-viewport.jpg` |',
   '| ③ PPI | `06-ppi-panel.png` |',
   '| ④⑤ AIS+CONF | `07-ais-layer.png` `08-target-card-conf.png` |',

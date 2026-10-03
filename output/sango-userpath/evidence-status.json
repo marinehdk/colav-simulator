@@ -1,6 +1,6 @@
 {
   "probe": "sango_userpath_probe",
-  "session_id": "511d158d-7e71-4bb3-84ca-e514e34ff7b1",
+  "session_id": "fdadb7d6-d3fd-4f12-97a3-1f7e261bdbce",
   "assertions": [
     {
       "name": "preflight backend 8010",
@@ -11,11 +11,6 @@
       "name": "preflight URS signaling 8080",
       "ok": true,
       "detail": "http://127.0.0.1:8080/config -> 200"
-    },
-    {
-      "name": "launchd twin-player downed for probe (single-instance)",
-      "ok": true,
-      "detail": "gui/502/com.marine.colav-simulator.twin-player"
     },
     {
       "name": "no leftover twin player",
@@ -30,7 +25,7 @@
     {
       "name": "session adopted as current",
       "ok": true,
-      "detail": "session=511d158d"
+      "detail": "session=fdadb7d6"
     },
     {
       "name": "session started via the UI Start button (user path)",
@@ -40,32 +35,47 @@
     {
       "name": "session state RUNNING",
       "ok": true,
-      "detail": "session=511d158d"
+      "detail": "session=fdadb7d6"
     },
     {
       "name": "① T click → live twin attach + pixel stream",
       "ok": true,
-      "detail": "run=511d158d ships=2"
+      "detail": "run=fdadb7d6 ships=2"
     },
     {
       "name": "① EO viewport shows colored pixels (channel spread + lit sea)",
       "ok": true,
-      "detail": "mean=75.7 std=52.1 spread=77 dark=0.24 lit=0.3980"
+      "detail": "mean=64.4 std=33.9 spread=71 dark=0.03 lit=0.1899"
     },
     {
       "name": "target closed inside the resolvable-range gate (≤ 1600 m)",
       "ok": true,
-      "detail": "range=1567m relBearing=-0.4°"
+      "detail": "range=1595m relBearing=2.1°"
     },
     {
       "name": "P3-11 closed: both slots instantiated + posed at WS-truth scene positions (diag ↔ truth parity ≤ 15 m / 8°)",
       "ok": true,
-      "detail": "[{\"id\":0,\"posErrorM\":0.128742166104933,\"headingErrorDeg\":0.14266289315867198},{\"id\":1,\"posErrorM\":0.08452635376877352,\"headingErrorDeg\":9.200763031458337e-7}]"
+      "detail": "[{\"id\":0,\"posErrorM\":10.816051617283446,\"elevationM\":-46.4,\"headingErrorDeg\":1.3818910877990334},{\"id\":1,\"posErrorM\":10.53293772486065,\"elevationM\":-41.4,\"headingErrorDeg\":0.0000010545607835865667}]"
+    },
+    {
+      "name": "P3-12 geo registration logged (anchor → landing=(21000,-5000))",
+      "ok": true,
+      "detail": "anchor=(39740.9,6957741) landing=(21000,-5000) fit=inside water=1 terrain=1"
+    },
+    {
+      "name": "P3-12 state.geo_fit echo = inside (M6 water + DEM coverage)",
+      "ok": true,
+      "detail": "state.geo_fit=\"inside\" log.fit=inside"
+    },
+    {
+      "name": "P3-12 both twin ships sampled ON WATER (diag terrain elevation < 0)",
+      "ok": true,
+      "detail": "own=-46.4m target=-41.4m"
     },
     {
       "name": "viewport camera rides the twin own ship (census: bridge camera ≈ followPos)",
       "ok": true,
-      "detail": "[Sango.M2E2] cam view=Bridge pos=(402.52, 11.66, 399.14) rot=(0.5, 41.7, 0.0) fov=60.0 followPos=(429.13, -0.34, 429.00) followYaw=41.7"
+      "detail": "[Sango.M2E2] cam view=Bridge pos=(21164.31, 11.68, -4839.47) rot=(0.5, 41.5, 0.0) fov=60.0 followPos=(21190.80, -0.32, -4809.50) followYaw=41.5"
     },
     {
       "name": "viewport camera follows the twin own ship (P3-11 fix log)",
@@ -73,14 +83,19 @@
       "detail": "/Users/marine/Library/Logs/DefaultCompany/sango/Player.log"
     },
     {
+      "name": "P3-12 aerial camera_free over the target accepted (state.camera=free, frame recorded)",
+      "ok": true,
+      "detail": "frame=1280x720"
+    },
+    {
       "name": "② IR switch = black-and-white thermal (channel spread collapses)",
       "ok": true,
-      "detail": "mean=72.4 std=45.3 spread=6 dark=0.21 lit=0.3544"
+      "detail": "mean=64.7 std=27.1 spread=6 dark=0.01 lit=0.1636"
     },
     {
       "name": "② LiDAR switch = dark point-cloud view (vs EO)",
       "ok": true,
-      "detail": "mean=6.1 std=4.4 spread=131 dark=1.00 lit=0.0014"
+      "detail": "mean=6.0 std=4.1 spread=129 dark=1.00 lit=0.0013"
     },
     {
       "name": "② sensor loop returns to EO",
@@ -100,7 +115,7 @@
     {
       "name": "④ AIS target card opens with backend-authoritative fields",
       "ok": true,
-      "detail": "{\"hidden\":false,\"source\":\"AIS\",\"mmsi\":\"101\",\"sog\":\"13.3\",\"state\":\"激活（矢量）\"}"
+      "detail": "{\"hidden\":false,\"source\":\"AIS\",\"mmsi\":\"101\",\"sog\":\"14.1\",\"state\":\"激活（矢量）\"}"
     },
     {
       "name": "⑤ CONF row present on the target card (existence probability)",
@@ -110,29 +125,24 @@
     {
       "name": "⑥ run sealed after session end (READY/INCOMPLETE + trusted prefix)",
       "ok": true,
-      "detail": "state=INCOMPLETE trusted_t_end=98.5s"
+      "detail": "state=INCOMPLETE trusted_t_end=103.5s"
     },
     {
       "name": "⑥ Digital Twin runs table lists sealed runs",
       "ok": true,
-      "detail": "picked=511d158d-7e71-4bb3-84ca-e514e34ff7b1"
+      "detail": "picked=fdadb7d6-d3fd-4f12-97a3-1f7e261bdbce"
     },
     {
       "name": "⑥ sealed replay attach over the SAME user-opened player",
       "ok": true,
-      "detail": "run=511d158d"
+      "detail": "run=fdadb7d6"
     },
     {
       "name": "⑥ replay clock advances on play (user-visible playback)",
       "ok": true,
-      "detail": "sim 0.0s → 5.7s"
-    },
-    {
-      "name": "launchd twin-player restored after probe",
-      "ok": true,
-      "detail": "bootstrapped+kickstarted"
+      "detail": "sim 0.0s → 5.9s"
     }
   ],
   "failures": [],
-  "at": "2026-10-03T15:31:15.838Z"
+  "at": "2026-10-03T16:41:37.364Z"
 }

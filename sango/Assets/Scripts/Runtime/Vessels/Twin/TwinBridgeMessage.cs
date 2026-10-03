@@ -209,7 +209,9 @@ namespace Sango
     }
 
     /// <summary>Unity→web `state`（~1Hz 心跳；契约 §3/§6）。sensor_mode = P3-S0 演进只加字段
-    /// （契约 §8 台账）：主视口传感器模式回显，默认 eo（JsonUtility 恒写全字段——旧 web 宽松消费零影响）。</summary>
+    /// （契约 §8 台账）：主视口传感器模式回显，默认 eo（JsonUtility 恒写全字段——旧 web 宽松消费零影响）。
+    /// geo_fit = P3-12 演进只加字段（契约 §8 台账）：M6 场景覆盖度判定回显
+    /// inside|partial|outside，空串 = 尚无数据面帧（旧 web 宽松消费零影响）。</summary>
     [Serializable]
     public class TwinBridgeState
     {
@@ -222,6 +224,7 @@ namespace Sango
         public TwinBridgeDetectionState detection = new TwinBridgeDetectionState();
         public string camera = "bridge";
         public string sensor_mode = TwinBridge.DefaultSensorMode;
+        public string geo_fit = "";
 
         public string ToJson() => JsonUtility.ToJson(this);
 

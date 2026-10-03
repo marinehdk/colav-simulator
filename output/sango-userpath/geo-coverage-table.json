@@ -1,0 +1,109 @@
+{
+ "generated": "2026-10-02 P3-12 (tools/m6_water_mask.py bake of tmp/m6-data DEM, 200 m cells)",
+ "landing_m": [
+  21000,
+  -5000
+ ],
+ "landing_note": "x>=18 km = active far-ring tile band (first landing (17000,-4800) sat on a far tile hidden under the near band: water visual held but terrain sampling/coast detail missing).",
+ "note": "replay box = [landing, landing+enc_size] (anchor=ENC origin); live box = landing +/- enc_size/2 (anchor=first own ship at ENC center). Old semantics = session box mapped at scene origin (0,0) = region center land (+41.3 m DEM).",
+ "scenarios": [
+  {
+   "scenario": "head_on",
+   "enc_origin_enu": [
+    37000.0,
+    6955000.0
+   ],
+   "enc_size_m": [
+    7000.0,
+    7000.0
+   ],
+   "replay_fit": {
+    "fit": "inside",
+    "water": 1.0,
+    "terrain": 1.0,
+    "samples": 1369
+   },
+   "live_fit": {
+    "fit": "inside",
+    "water": 1.0,
+    "terrain": 1.0,
+    "samples": 1296
+   }
+  },
+  {
+   "scenario": "crossing_stand_on",
+   "enc_origin_enu": [
+    39000.0,
+    6956450.0
+   ],
+   "enc_size_m": [
+    5000.0,
+    5000.0
+   ],
+   "replay_fit": {
+    "fit": "inside",
+    "water": 1.0,
+    "terrain": 1.0,
+    "samples": 729
+   },
+   "live_fit": {
+    "fit": "inside",
+    "water": 1.0,
+    "terrain": 1.0,
+    "samples": 676
+   }
+  },
+  {
+   "scenario": "overtaken",
+   "enc_origin_enu": [
+    39000.0,
+    6956450.0
+   ],
+   "enc_size_m": [
+    6000.0,
+    6000.0
+   ],
+   "replay_fit": {
+    "fit": "inside",
+    "water": 1.0,
+    "terrain": 1.0,
+    "samples": 1024
+   },
+   "live_fit": {
+    "fit": "inside",
+    "water": 1.0,
+    "terrain": 1.0,
+    "samples": 1024
+   }
+  },
+  {
+   "scenario": "romsdal_busy_water_16",
+   "enc_origin_enu": [
+    38500,
+    6955450
+   ],
+   "enc_size_m": [
+    5000,
+    5000
+   ],
+   "replay_fit": {
+    "fit": "inside",
+    "water": 1.0,
+    "terrain": 1.0,
+    "samples": 729
+   },
+   "live_fit": {
+    "fit": "inside",
+    "water": 1.0,
+    "terrain": 1.0,
+    "samples": 676
+   }
+  }
+ ],
+ "old_semantics_head_on_box": {
+  "fit": "partial",
+  "water": 0.1713,
+  "terrain": 1.0,
+  "samples": 1296
+ }
+}

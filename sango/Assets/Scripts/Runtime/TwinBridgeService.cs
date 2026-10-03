@@ -536,10 +536,13 @@ namespace Sango
                 return;
             }
             var anchor = driver.Anchor.Value;
+            // P3-12：会话 NE → 场景统一走锚点登记变换（减锚 + M6 登记平移，与槽位船同源
+            // TwinAnchor.ToLocal——camera_free 位姿与 ships 落点同框架）。
+            var local = anchor.ToLocal(cmd.pos.east, cmd.pos.north);
             var position = new Vector3(
-                (float)(cmd.pos.east - anchor.EastM),
+                local.x,
                 Mathf.Clamp((float)cmd.pos.height_m, -50f, 5000f),
-                (float)(cmd.pos.north - anchor.NorthM));
+                local.y);
             m_CurrentPreset = TwinBridge.CameraFreePreset; // state.camera 回显 free（契约 §3 注）
             cameraRig.SetFreePose(position, (float)cmd.yaw_deg, (float)cmd.pitch_deg,
                 Mathf.Clamp((float)cmd.fov_deg, 10f, 120f));
@@ -882,6 +885,7 @@ namespace Sango
             if (driver != null)
             {
                 state.frame_seq = driver.LastSeq;
+                state.geo_fit = driver.GeoFit; // P3-12（契约 §8 演进只加字段）：geo_fit = M6 覆盖度判定回显
                 double sim = driver.RenderSimTime;
                 if (!double.IsNaN(sim))
                 {
