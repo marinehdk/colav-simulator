@@ -184,7 +184,7 @@ deploymentView = createDeploymentView({
   // P2-S4 A：第三态 twin —— 中心视口换 live 像素流（复用 twin-view 的 URS/bridge 客户端），
   // attach mode=live 活动会话；无 ReplayClock（时钟权威=后端，契约 §2）；sidebar 不动。
   createTwin: async options => {
-    const { createDeploymentTwinViewport } = await import('./modules/deployment-twin.js?v=20261002-sensor-mode-v1');
+    const { createDeploymentTwinViewport } = await import('./modules/deployment-twin.js?v=20261003-twin-health-v1');
     const viewport = createDeploymentTwinViewport({
       ...options,
       host: document.getElementById('deploymentTwinHost'),
@@ -193,6 +193,7 @@ deploymentView = createDeploymentView({
       linkToggle: document.getElementById('twinLinkToggle'),
       statusEl: document.getElementById('deploymentTwinHud'),
       errorEl: document.getElementById('deploymentTwinError'),
+      healthEl: document.getElementById('deploymentTwinHealth'), // spec #91 前置批 B: 流健康状态卡
       // P3-S2 (spec #90): sensor-mode button group + state-echo chip.
       sensorGroup: document.getElementById('deploymentTwinSensorGroup'),
       sensorModeEl: document.getElementById('deploymentTwinSensorMode'),

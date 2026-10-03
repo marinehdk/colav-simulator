@@ -1,0 +1,15 @@
+{
+  "name": "urs-signaling-webapp-vendored",
+  "version": "3.1.0-exp.9",
+  "private": true,
+  "description": "Vendored Unity Render Streaming 3.1.0-exp.9 signaling webapp (official tag build; see README.md). Runtime deps only.",
+  "dependencies": {
+    "commander": "^12.1.0",
+    "cors": "^2.8.5",
+    "debug": "~4.3.4",
+    "express": "~4.18.1",
+    "morgan": "^1.10.0",
+    "uuid": "^9.0.0",
+    "ws": "^8.8.1"
+  }
+}

@@ -11,6 +11,7 @@
 //   1. backend       http://127.0.0.1:8010   (gui_server, untouched)
 //   2. URS signaling http://127.0.0.1:8080   (node WebApp/build/index.js -p 8080)
 //   3. twin player   sango/Builds/sango-twin.app --sango-twin-bridge
+//      (satisfied by the launchd twin-player service when installed, deploy/twin/README.md)
 // Usage:
 //   node tools/sango_twin_bridge_probe.mjs [--run <run_id>] [--keep-chrome]
 // Exit 0 = every assertion passed; artifacts land in output/sango-twin-s3/.

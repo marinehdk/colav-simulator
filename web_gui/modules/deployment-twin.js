@@ -19,6 +19,9 @@
 
 import {
   createTwinStreamClient,
+  createTwinStreamHealthMonitor,
+  probeSignalingReachable,
+  STREAM_ENTRY_TIMEOUT_MS,
   cameraFreePose,
   observeTheme,
   projectTwinHud,
@@ -27,7 +30,7 @@ import {
   themeValue,
   TWIN_SENSOR_MODE_DEFAULT,
   TWIN_SENSOR_MODES,
-} from './twin-view.js?v=20261002-sensor-mode-v1';
+} from './twin-view.js?v=20261003-twin-health-v1';
 import { createGeography } from './scene-geography.js?v=20261002-sensor-mode-v1';
 
 // HUD refresh cadence (Unity state echo is ~1Hz; same as the Evaluation twin).
@@ -40,6 +43,7 @@ export function createDeploymentTwinViewport({
   linkToggle = null, // <input type="checkbox"> 联动 switch (default unchecked)
   statusEl = null, // HUD chip
   errorEl = null, // error slot
+  healthEl = null, // spec #91 前置批 B: stream-health status card (hidden when healthy)
   sensorGroup = null, // P3-S2 sensor-mode button group ([data-twin-sensor] buttons)
   sensorModeEl = null, // P3-S2 current sensor-mode chip (state echo)
   signalingUrl = undefined, // default from twin-view
@@ -51,6 +55,7 @@ export function createDeploymentTwinViewport({
   scheduler = globalThis,
   now = () => Date.now(),
   streamClientFactory = createTwinStreamClient,
+  healthProbe = probeSignalingReachable, // injectable for hermetic tests (spec #91 前置批 B)
   onDebug = () => {},
 } = {}) {
   let streamCtl = null;
@@ -65,10 +70,56 @@ export function createDeploymentTwinViewport({
   let generation = 0;
   const geography = info ? createGeography(info) : null;
 
+  // spec #91 前置批 B: stream health watchdog — 分层状态卡（信令挂→信令服务提示；
+  // 信令通流无→player 服务提示+重试计数），流恢复自动隐藏。onRetry = 真·重连
+  // （close→re-ensure→re-attach），用户手点 T 的等效动作由监视器自动做。
+  const healthMonitor = createTwinStreamHealthMonitor({
+    signalingUrl,
+    now,
+    probe: healthProbe,
+    onHealth: renderHealthCard,
+    onRetry: () => {
+      if (destroyed) return;
+      generation += 1; // 在途 attachLiveWhenReady 定时器全部作废
+      const ctl = streamCtl;
+      streamCtl = null;
+      try { void ctl?.close(); } catch { /* retry again on the next tick */ }
+      void reensureStream();
+    },
+  });
+
+  async function reensureStream() {
+    try {
+      await ensureStream();
+      attachLiveWhenReady();
+    } catch {
+      /* healthMonitor 卡片已在报；下一 tick 重试 */
+    }
+  }
+
+  function renderHealthCard(health) {
+    if (!healthEl) return;
+    if (!health.visible) {
+      healthEl.hidden = true;
+      return;
+    }
+    const title = healthEl.querySelector('.twin-health-title');
+    const detail = healthEl.querySelector('.twin-health-detail');
+    if (title) title.textContent = health.title;
+    if (detail) detail.textContent = health.detail;
+    healthEl.dataset.level = health.level;
+    healthEl.hidden = false;
+  }
+
   function publishDebug() {
     onDebug({
       connection: streamCtl?.connectionState ?? 'idle',
       ready: streamCtl?.client?.ready ?? false,
+      // spec #91 前置批 D: the twin-bridge client itself on the debug facade —
+      // probes drive client.sendCameraFree/sendTheme through it (the old
+      // `__deploymentTwin?.client?.…` calls silently no-op'd on a facade
+      // without the client; the theme only rode attach realignment).
+      client: streamCtl?.client ?? null,
       attached: streamCtl?.client?.attached ?? null,
       lastState: streamCtl?.client?.lastState ?? null,
       errorCount: streamCtl?.client?.errorCount ?? 0,
@@ -186,6 +237,12 @@ export function createDeploymentTwinViewport({
     if (!statusEl) return;
     const hud = projectTwinHud({ connection: streamCtl?.connectionState ?? 'idle', client: streamCtl?.client ?? null, playhead: null, nowMs: now() });
     statusEl.textContent = `${hud.signal.toUpperCase()} · ${hud.fps === null ? '—' : `${hud.fps.toFixed(0)} FPS`} · ${hud.latencyMs === null ? '—' : `${hud.latencyMs.toFixed(0)} MS`}`;
+    // spec #91 前置批 B: health watchdog tick — video readiness is the DOM-side boolean.
+    healthMonitor.tick(Boolean(
+      streamCtl?.connectionState === 'streaming'
+      && video?.readyState >= 2
+      && (video?.videoWidth ?? 0) > 0,
+    ));
     // P3-S2 (spec #90): state echo is the authority for the sensor mode UI.
     const mode = projectSensorMode(streamCtl?.client?.lastState);
     if (sensorGroup) {
@@ -243,14 +300,25 @@ export function createDeploymentTwinViewport({
     },
     async attach() {
       try {
-        await ensureStream();
+        // spec #91 前置批 B: the URS receiver retries a dead signaling forever —
+        // bound the entry so the health card shows instead of an eternal "connecting".
+        await Promise.race([
+          ensureStream(),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('stream entry timeout')), STREAM_ENTRY_TIMEOUT_MS)),
+        ]);
       } catch (error) {
-        if (errorEl) {
-          errorEl.textContent = `Twin stream unreachable at ${signalingUrl} — start the local URS webapp and the sango-twin player.`;
-          errorEl.hidden = false;
-        }
-        throw error;
+        // spec #91 前置批 B: the health card owns stream-unreachable UX now —
+        // the viewport stays open ("孪生流端未连接 · 重试中"), the watchdog
+        // probes signaling (分层提示) and retries; no more dead-end error text.
+        if (errorEl) errorEl.hidden = true;
+        healthMonitor.tick(false);
+        return;
       }
+      healthMonitor.tick(Boolean(
+        streamCtl?.connectionState === 'streaming'
+        && video?.readyState >= 2
+        && (video?.videoWidth ?? 0) > 0,
+      ));
     },
     recenter() { linkScene?.recenter?.(); },
     zoom(direction) { linkScene?.zoom?.(direction); },

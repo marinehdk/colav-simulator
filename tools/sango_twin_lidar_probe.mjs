@@ -20,6 +20,7 @@ import { spawn, execSync } from 'node:child_process';
 import { mkdirSync, writeFileSync, existsSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { twinLaunchdPlayerDown, twinLaunchdPlayerUp } from './lib/twin_launchd.mjs'; // spec #91 前置批：launchd player 共处协议
 
 const BACKEND = 'http://127.0.0.1:8010';
 const SIGNALING = 'http://127.0.0.1:8080';
@@ -172,9 +173,10 @@ function cleanup() {
     console.log(`${label} killed pid=${pid}`);
   }
 }
-process.on('exit', cleanup);
+process.on('exit', () => { try { cleanup(); } finally { twinLaunchdPlayerUp(check); } }); // 末位复位 launchd player（spec #91 前置批）
 async function killLeftovers() {
   for (const pattern of ['MacOS/sango', 'sango_detector_service']) {
+  twinLaunchdPlayerDown(check); // launchd 常驻 player 先停（KeepAlive 会复活被杀实例）
     try {
       const out = execSync(`pgrep -fl "${pattern}" || true`).toString().trim();
       if (!out) continue;

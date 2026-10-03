@@ -1,0 +1,1566 @@
+{
+  "diag": "[Sango.Twin] diag slots=2 sim=91.2s id0=(451.2,452.0m,ψ47°) id1=(1544.6,1544.5m,ψ-135°)",
+  "truth": {
+    "own": {
+      "id": 0,
+      "mmsi": 100,
+      "length": 8.45,
+      "width": 2.71,
+      "x": 2957.1277291700244,
+      "y": 2956.1995065491355,
+      "north": 6957957.12772917,
+      "east": 39956.199506549136,
+      "psi": 0.8178148112312957,
+      "u": 7.090264666617514,
+      "v": -0.3163804799405704,
+      "r": 0.012657764530684235,
+      "sog": 7.097319892098158,
+      "cog": 0.7732225762569991,
+      "trajectory": [
+        [
+          2500,
+          2500
+        ],
+        [
+          2502.4997527953237,
+          2502.4997527954256
+        ],
+        [
+          2507.5226961877197,
+          2507.522696187574
+        ],
+        [
+          2510.033314895816,
+          2510.033314896071
+        ],
+        [
+          2515.0534109370783,
+          2515.053410937122
+        ],
+        [
+          2517.5634164884686,
+          2517.563416488578
+        ],
+        [
+          2522.5833320906386,
+          2522.5833320911115
+        ],
+        [
+          2525.093224911019,
+          2525.093224911194
+        ],
+        [
+          2530.11289182771,
+          2530.1128918280956
+        ],
+        [
+          2532.6226706421003,
+          2532.622670642937
+        ],
+        [
+          2537.642127797939,
+          2537.6421277986738
+        ],
+        [
+          2540.1518093831837,
+          2540.1518093835766
+        ],
+        [
+          2545.1710861735046,
+          2545.171086173781
+        ],
+        [
+          2547.6806841995567,
+          2547.680684199535
+        ],
+        [
+          2552.699806045741,
+          2552.6998060454425
+        ],
+        [
+          2555.2093322873116,
+          2555.209332287239
+        ],
+        [
+          2560.2283210214227,
+          2560.228321021139
+        ],
+        [
+          2565.2472316054627,
+          2565.2472316051862
+        ],
+        [
+          2567.7566599724814,
+          2567.7566599718484
+        ],
+        [
+          2572.775467212312,
+          2572.7754672119117
+        ],
+        [
+          2575.2848477009684,
+          2575.2848477005173
+        ],
+        [
+          2580.303566158749,
+          2580.3035661583417
+        ],
+        [
+          2582.812905515544,
+          2582.8129055151803
+        ],
+        [
+          2587.8315477008,
+          2587.831547700691
+        ],
+        [
+          2590.340851721354,
+          2590.340851721463
+        ],
+        [
+          2595.3594283824787,
+          2595.35942838186
+        ],
+        [
+          2597.868702046573,
+          2597.8687020456127
+        ],
+        [
+          2602.8872224148363,
+          2602.8872224137594
+        ],
+        [
+          2605.3964699991047,
+          2605.3964699979697
+        ],
+        [
+          2610.414942007512,
+          2610.414942005751
+        ],
+        [
+          2612.924167186953,
+          2612.9241671851632
+        ],
+        [
+          2617.942597648129,
+          2617.942597646819
+        ],
+        [
+          2620.4518035799265,
+          2620.451803578406
+        ],
+        [
+          2625.470198349096,
+          2625.470198348019
+        ],
+        [
+          2630.4885721644387,
+          2630.4885721628816
+        ],
+        [
+          2632.9977518524975,
+          2632.997751850671
+        ],
+        [
+          2638.016097956337,
+          2638.0160979553402
+        ],
+        [
+          2640.525264806114,
+          2640.525264805321
+        ],
+        [
+          2645.5435871044174,
+          2645.5435871043155
+        ],
+        [
+          2648.0527429254726,
+          2648.0527429254
+        ],
+        [
+          2653.0710447737947,
+          2653.07104477306
+        ],
+        [
+          2655.580191119574,
+          2655.580191119283
+        ],
+        [
+          2660.5984753975645,
+          2660.5984753973316
+        ],
+        [
+          2663.1076136035845,
+          2663.107613603752
+        ],
+        [
+          2668.12588278763,
+          2668.1258827878264
+        ],
+        [
+          2670.63501400128,
+          2670.635014001389
+        ],
+        [
+          2675.6532702185214,
+          2675.653270218325
+        ],
+        [
+          2678.1623954242095,
+          2678.1623954243623
+        ],
+        [
+          2683.18064050097,
+          2683.1806405012903
+        ],
+        [
+          2685.6897605462,
+          2685.6897605462946
+        ],
+        [
+          2690.70799605269,
+          2690.707996052908
+        ],
+        [
+          2695.7262259405106,
+          2695.7262259408017
+        ],
+        [
+          2698.235338948667,
+          2698.235338948907
+        ],
+        [
+          2703.2535614063963,
+          2703.253561406709
+        ],
+        [
+          2705.7626709723845,
+          2705.7626709725373
+        ],
+        [
+          2710.780887046829,
+          2710.780887047178
+        ],
+        [
+          2713.289993655868,
+          2713.2899936557587
+        ],
+        [
+          2718.308204246685,
+          2718.3082042466704
+        ],
+        [
+          2720.817308315076,
+          2720.817308314705
+        ],
+        [
+          2725.8355141952634,
+          2725.835514194565
+        ],
+        [
+          2728.3446160806343,
+          2728.344616080023
+        ],
+        [
+          2733.362817913294,
+          2733.3628179126536
+        ],
+        [
+          2735.8719179239124,
+          2735.8719179230757
+        ],
+        [
+          2740.890116279945,
+          2740.8901162787442
+        ],
+        [
+          2743.3992146793753,
+          2743.399214678335
+        ],
+        [
+          2748.417410048656,
+          2748.417410046968
+        ],
+        [
+          2750.9265070641413,
+          2750.9265070627007
+        ],
+        [
+          2755.944699866697,
+          2755.944699865191
+        ],
+        [
+          2760.9628911633044,
+          2760.9628911611
+        ],
+        [
+          2763.47198629193,
+          2763.4719862899874
+        ],
+        [
+          2768.490175595507,
+          2768.4901755936153
+        ],
+        [
+          2770.999269801192,
+          2770.999269799504
+        ],
+        [
+          2776.017457392998,
+          2776.0174573915865
+        ],
+        [
+          2778.5265508061275,
+          2778.526550804527
+        ],
+        [
+          2783.5447369283065,
+          2783.5447369262183
+        ],
+        [
+          2786.053829659708,
+          2786.053829657947
+        ],
+        [
+          2791.072014518082,
+          2791.072014516438
+        ],
+        [
+          2793.581106664613,
+          2793.5811066629394
+        ],
+        [
+          2798.5992904379964,
+          2798.599290436221
+        ],
+        [
+          2801.108382081613,
+          2801.1083820799613
+        ],
+        [
+          2806.1265649227425,
+          2806.1265649209454
+        ],
+        [
+          2808.6356561342254,
+          2808.635656132763
+        ],
+        [
+          2813.6538381744176,
+          2813.653838172817
+        ],
+        [
+          2816.162929015234,
+          2816.162929013575
+        ],
+        [
+          2821.181110367179,
+          2821.181110365549
+        ],
+        [
+          2826.199291315861,
+          2826.1992913135546
+        ],
+        [
+          2828.7083816509694,
+          2828.708381648379
+        ],
+        [
+          2833.7265620650724,
+          2833.726562062184
+        ],
+        [
+          2836.235652152449,
+          2836.2356521495167
+        ],
+        [
+          2841.25383210741,
+          2841.2538321043976
+        ],
+        [
+          2843.762921982445,
+          2843.7629219791124
+        ],
+        [
+          2848.7811015434563,
+          2848.7811015397237
+        ],
+        [
+          2851.290191235952,
+          2851.290191231783
+        ],
+        [
+          2856.308370457962,
+          2856.308370453684
+        ],
+        [
+          2858.8174599930644,
+          2858.8174599888225
+        ],
+        [
+          2863.8356389235705,
+          2863.8356389197434
+        ],
+        [
+          2866.344728323631,
+          2866.344728320073
+        ],
+        [
+          2871.3629070045426,
+          2871.362907001014
+        ],
+        [
+          2873.871996289119,
+          2873.871996285532
+        ],
+        [
+          2878.8901747558266,
+          2878.8901747517157
+        ],
+        [
+          2881.3992639407516,
+          2881.399263936735
+        ],
+        [
+          2886.415215175599,
+          2886.4208329326066
+        ],
+        [
+          2891.40558541473,
+          2891.467453317142
+        ],
+        [
+          2893.890599353239,
+          2893.9995194229705
+        ],
+        [
+          2898.8497823551297,
+          2899.0751730797347
+        ],
+        [
+          2901.326467768289,
+          2901.6160424266855
+        ],
+        [
+          2906.278301901184,
+          2906.6994712706146
+        ],
+        [
+          2908.7547589000314,
+          2909.240873821029
+        ],
+        [
+          2913.7325797639787,
+          2914.3037167163784
+        ],
+        [
+          2916.240579046309,
+          2916.813047032745
+        ],
+        [
+          2921.290195653215,
+          2921.7978977311504
+        ],
+        [
+          2923.827257589437,
+          2924.277662086308
+        ],
+        [
+          2928.916003697552,
+          2929.2230990675744
+        ],
+        [
+          2931.46917958837,
+          2931.688791842942
+        ],
+        [
+          2936.6005203742534,
+          2936.5907198586356
+        ],
+        [
+          2939.172620061785,
+          2939.0338616197623
+        ],
+        [
+          2944.320372327231,
+          2943.91863901967
+        ],
+        [
+          2946.8932166434824,
+          2946.3627621896885
+        ],
+        [
+          2952.0267516504973,
+          2951.264309832659
+        ],
+        [
+          2957.1277291700244,
+          2956.1995065491355
+        ]
+      ],
+      "active": true,
+      "historical_sample_kind": null,
+      "dimensions_provenance": null,
+      "measurements": [
+        [
+          [
+            1,
+            [
+              6959048.2718052175,
+              41047.499307331804
+            ]
+          ]
+        ]
+      ],
+      "tracks": {
+        "labels": [
+          1
+        ],
+        "generations": [
+          1
+        ],
+        "states": [
+          [
+            4052.648519971408,
+            4047.553692028676,
+            -4.914345260341445,
+            -5.200298608577424
+          ]
+        ],
+        "covariances": [
+          [
+            [
+              77.38619324072059,
+              -51.723625913872695,
+              6.920649527525558,
+              -3.4178939244250865
+            ],
+            [
+              -51.72362591387268,
+              77.5411191819538,
+              -3.419276051173627,
+              6.932538877406209
+            ],
+            [
+              6.920649527525558,
+              -3.4192760511736418,
+              1.4068467565301666,
+              -0.3806882188883647
+            ],
+            [
+              -3.417893924425072,
+              6.932538877406209,
+              -0.38068821888835047,
+              1.409273117843645
+            ]
+          ]
+        ],
+        "nis": [
+          null
+        ],
+        "existence_prob": [
+          0.9999986713324915
+        ],
+        "quality": [
+          0.9
+        ],
+        "sources": [
+          [
+            {
+              "sensor_id": 1,
+              "last_seen_age_s": 0
+            }
+          ]
+        ]
+      },
+      "colav": {
+        "planner": {
+          "schema_version": "1.0",
+          "algorithm_id": "vo",
+          "solve_id": 92,
+          "sim_time": 91,
+          "solver_executed": true,
+          "status": "SUCCESS",
+          "feasible": true,
+          "reason": null,
+          "elapsed_ms": 25.819750007940456,
+          "iterations": null,
+          "objective": 0.009900264304147291,
+          "predicted_trajectory": [
+            [
+              6957957.12772917
+            ],
+            [
+              39956.199506549136
+            ],
+            [
+              0.7853981633974483
+            ],
+            [
+              7.096774193548387
+            ],
+            [
+              0
+            ],
+            [
+              0
+            ],
+            [
+              0
+            ],
+            [
+              0
+            ],
+            [
+              0
+            ]
+          ],
+          "horizon_dt_s": null,
+          "selected_command": {
+            "course_rad": 0.7853981633974483,
+            "speed_mps": 7.096774193548387
+          },
+          "target_predictions": [],
+          "constraints": {},
+          "algorithm_details": {
+            "reconstruction_label": "kuwata_2011_behavior_compatible_reconstruction",
+            "feasible": true,
+            "fallback": null,
+            "fallback_reason": null,
+            "objective": 0.009900264304147291,
+            "selected_heading_rad": 0.7853981633974483,
+            "reference_velocity_ne_mps": [
+              4.9334770058234225,
+              4.9659646226097465
+            ],
+            "planning_horizon_s": 60,
+            "ownship_envelope": null,
+            "execution_speed_policy": null,
+            "execution_mode": null,
+            "avoidance_speed_window_active": false,
+            "transit_gate_open": true,
+            "avoidance_speed_window_rows": 0,
+            "envelope_excluded_count": 0,
+            "reachable_candidate_count": 4096,
+            "selection_held": false,
+            "selected_speed_mps": 7.096774193548387,
+            "give_way_family_selected": null,
+            "dynamic_hazard_count": 1,
+            "static_hazard_count": 0,
+            "active_rules": {},
+            "track_metrics": {
+              "1": {
+                "tcpa_s": 108.51540411968826,
+                "dcpa_m": 15.511490606069927,
+                "center_distance_m": 1546.3569320314762,
+                "rule_tcpa_s": 108.51540411968826,
+                "rule_dcpa_m": 15.511490606069927,
+                "first_toc_s": null,
+                "current_hull_clearance_m": 1537.0470799567465,
+                "hard_hull_clearance_m": 182,
+                "preferred_hull_clearance_m": 190,
+                "hard_clearance_margin_m": 1355.0470799567465,
+                "preferred_domain_toc_s": 94.50895900862879,
+                "reference_preferred_domain_toc_s": 95.13467563449329,
+                "reference_rule_conflict_tcpa_s": 109.23582899238009,
+                "reference_admission_horizon_s": 60,
+                "monitored_encounter": {
+                  "risk": "ACTIVE",
+                  "role": "GIVE_WAY",
+                  "encounter": "HEAD_ON",
+                  "generation": 1,
+                  "sample_time_s": 90.5,
+                  "route_recovery_allowed": false
+                },
+                "rule_activation_basis": "CURRENT_MOTION",
+                "colregs_eligible": false,
+                "cpa_gate_eligible": false,
+                "commitment_eligible": false,
+                "crossing_completed": false,
+                "crossing_release_count": 0,
+                "stand_on_emergency": false,
+                "overtaking_state": "CLEAR",
+                "overtaking_along_track_m": 1545.6532640680919,
+                "overtaking_cross_track_m": -46.64491952456888,
+                "overtaking_relative_speed_mps": -14.246508345799429,
+                "overtaking_risk_eligible": true,
+                "matched_rules": [
+                  "HO"
+                ],
+                "effective_matched_rules": [
+                  "HO"
+                ],
+                "active_rules": [],
+                "committed_rule": null,
+                "dynamic_hazard_ignored": false
+              }
+            },
+            "base_vo_count": 0,
+            "colregs_v1_count": 0,
+            "crossing_commitment_count": 0,
+            "give_way_commitment_count": 0,
+            "hard_constraint_count": 0,
+            "wvo_only_count": 1507,
+            "preferred_clearance_count": 0,
+            "feasible_candidate_count": 4096,
+            "selected_in_base_vo": false,
+            "selected_in_colregs_v1": false,
+            "current_in_base_vo": false,
+            "stand_on_hold_active": false,
+            "stand_on_emergency_active": false,
+            "driving_target_id": 1,
+            "driving_rule": "HO",
+            "expired_target_ids": [],
+            "selected_in_wvo_only": true,
+            "selected_in_preferred_clearance": false,
+            "hard_hull_clearance_m": 182,
+            "preferred_hull_clearance_m": 190,
+            "ownship_length_m": 8.45,
+            "ownship_width_m": 2.71,
+            "dynamics_prediction_active": false,
+            "selected_ttc_s": null,
+            "reference_velocity_error_mps": 0.09950007188011119,
+            "minimum_feasible_ttc_s": 90.18516581673443,
+            "grid_shape": [
+              32,
+              128
+            ],
+            "solve_period_s": 1,
+            "crossing_commitment_active": false,
+            "crossing_commitment_state": "CLEAR",
+            "give_way_commitment_active": false,
+            "give_way_commitment_rules": [],
+            "give_way_commitment_state": "CLEAR",
+            "give_way_rule_locks": {},
+            "completed_give_way_targets": [],
+            "emergency_rule_relaxation": false,
+            "overtaking_state": "CLEAR",
+            "overtaking_target_id": null,
+            "overtaking_along_track_m": null,
+            "overtaking_cross_track_m": null,
+            "overtaking_relative_speed_mps": null,
+            "overtaking_progress_relaxed": false,
+            "overtaking_release_count": 0,
+            "overtaking_release_reason": null,
+            "overtaking_entry_tcpa_s": null
+          }
+        },
+        "vo": {
+          "reconstruction_label": "kuwata_2011_behavior_compatible_reconstruction",
+          "feasible": true,
+          "fallback": null,
+          "fallback_reason": null,
+          "objective": 0.009900264304147291,
+          "selected_heading_rad": 0.7853981633974483,
+          "reference_velocity_ne_mps": [
+            4.9334770058234225,
+            4.9659646226097465
+          ],
+          "planning_horizon_s": 60,
+          "ownship_envelope": null,
+          "execution_speed_policy": null,
+          "execution_mode": null,
+          "avoidance_speed_window_active": false,
+          "transit_gate_open": true,
+          "avoidance_speed_window_rows": 0,
+          "envelope_excluded_count": 0,
+          "reachable_candidate_count": 4096,
+          "selection_held": false,
+          "selected_speed_mps": 7.096774193548387,
+          "give_way_family_selected": null,
+          "dynamic_hazard_count": 1,
+          "static_hazard_count": 0,
+          "active_rules": {},
+          "track_metrics": {
+            "1": {
+              "tcpa_s": 108.51540411968826,
+              "dcpa_m": 15.511490606069927,
+              "center_distance_m": 1546.3569320314762,
+              "rule_tcpa_s": 108.51540411968826,
+              "rule_dcpa_m": 15.511490606069927,
+              "first_toc_s": null,
+              "current_hull_clearance_m": 1537.0470799567465,
+              "hard_hull_clearance_m": 182,
+              "preferred_hull_clearance_m": 190,
+              "hard_clearance_margin_m": 1355.0470799567465,
+              "preferred_domain_toc_s": 94.50895900862879,
+              "reference_preferred_domain_toc_s": 95.13467563449329,
+              "reference_rule_conflict_tcpa_s": 109.23582899238009,
+              "reference_admission_horizon_s": 60,
+              "monitored_encounter": {
+                "risk": "ACTIVE",
+                "role": "GIVE_WAY",
+                "encounter": "HEAD_ON",
+                "generation": 1,
+                "sample_time_s": 90.5,
+                "route_recovery_allowed": false
+              },
+              "rule_activation_basis": "CURRENT_MOTION",
+              "colregs_eligible": false,
+              "cpa_gate_eligible": false,
+              "commitment_eligible": false,
+              "crossing_completed": false,
+              "crossing_release_count": 0,
+              "stand_on_emergency": false,
+              "overtaking_state": "CLEAR",
+              "overtaking_along_track_m": 1545.6532640680919,
+              "overtaking_cross_track_m": -46.64491952456888,
+              "overtaking_relative_speed_mps": -14.246508345799429,
+              "overtaking_risk_eligible": true,
+              "matched_rules": [
+                "HO"
+              ],
+              "effective_matched_rules": [
+                "HO"
+              ],
+              "active_rules": [],
+              "committed_rule": null,
+              "dynamic_hazard_ignored": false
+            }
+          },
+          "base_vo_count": 0,
+          "colregs_v1_count": 0,
+          "crossing_commitment_count": 0,
+          "give_way_commitment_count": 0,
+          "hard_constraint_count": 0,
+          "wvo_only_count": 1507,
+          "preferred_clearance_count": 0,
+          "feasible_candidate_count": 4096,
+          "selected_in_base_vo": false,
+          "selected_in_colregs_v1": false,
+          "current_in_base_vo": false,
+          "stand_on_hold_active": false,
+          "stand_on_emergency_active": false,
+          "driving_target_id": 1,
+          "driving_rule": "HO",
+          "expired_target_ids": [],
+          "selected_in_wvo_only": true,
+          "selected_in_preferred_clearance": false,
+          "hard_hull_clearance_m": 182,
+          "preferred_hull_clearance_m": 190,
+          "ownship_length_m": 8.45,
+          "ownship_width_m": 2.71,
+          "dynamics_prediction_active": false,
+          "selected_ttc_s": null,
+          "reference_velocity_error_mps": 0.09950007188011119,
+          "minimum_feasible_ttc_s": 90.18516581673443,
+          "grid_shape": [
+            32,
+            128
+          ],
+          "solve_period_s": 1,
+          "crossing_commitment_active": false,
+          "crossing_commitment_state": "CLEAR",
+          "give_way_commitment_active": false,
+          "give_way_commitment_rules": [],
+          "give_way_commitment_state": "CLEAR",
+          "give_way_rule_locks": {},
+          "completed_give_way_targets": [],
+          "emergency_rule_relaxation": false,
+          "overtaking_state": "CLEAR",
+          "overtaking_target_id": null,
+          "overtaking_along_track_m": null,
+          "overtaking_cross_track_m": null,
+          "overtaking_relative_speed_mps": null,
+          "overtaking_progress_relaxed": false,
+          "overtaking_release_count": 0,
+          "overtaking_release_reason": null,
+          "overtaking_entry_tcpa_s": null
+        },
+        "diagnostics": {
+          "status": "SUCCESS",
+          "elapsed_ms": 25.819750007940456,
+          "iterations": null,
+          "feasible": true,
+          "objective": 0.009900264304147291,
+          "reason": null,
+          "requested_algorithm": "vo",
+          "executed_algorithm": "vo",
+          "fallback_used": false,
+          "algorithm_descriptor": null,
+          "details": {
+            "track_count": 1,
+            "dynamic_hazard_count": 1,
+            "static_hazard_count": 0,
+            "active_rules": {},
+            "track_metrics": {
+              "1": {
+                "tcpa_s": 108.51540411968826,
+                "dcpa_m": 15.511490606069927,
+                "center_distance_m": 1546.3569320314762,
+                "rule_tcpa_s": 108.51540411968826,
+                "rule_dcpa_m": 15.511490606069927,
+                "first_toc_s": null,
+                "current_hull_clearance_m": 1537.0470799567465,
+                "hard_hull_clearance_m": 182,
+                "preferred_hull_clearance_m": 190,
+                "hard_clearance_margin_m": 1355.0470799567465,
+                "preferred_domain_toc_s": 94.50895900862879,
+                "reference_preferred_domain_toc_s": 95.13467563449329,
+                "reference_rule_conflict_tcpa_s": 109.23582899238009,
+                "reference_admission_horizon_s": 60,
+                "monitored_encounter": {
+                  "risk": "ACTIVE",
+                  "role": "GIVE_WAY",
+                  "encounter": "HEAD_ON",
+                  "generation": 1,
+                  "sample_time_s": 90.5,
+                  "route_recovery_allowed": false
+                },
+                "rule_activation_basis": "CURRENT_MOTION",
+                "colregs_eligible": false,
+                "cpa_gate_eligible": false,
+                "commitment_eligible": false,
+                "crossing_completed": false,
+                "crossing_release_count": 0,
+                "stand_on_emergency": false,
+                "overtaking_state": "CLEAR",
+                "overtaking_along_track_m": 1545.6532640680919,
+                "overtaking_cross_track_m": -46.64491952456888,
+                "overtaking_relative_speed_mps": -14.246508345799429,
+                "overtaking_risk_eligible": true,
+                "matched_rules": [
+                  "HO"
+                ],
+                "effective_matched_rules": [
+                  "HO"
+                ],
+                "active_rules": [],
+                "committed_rule": null,
+                "dynamic_hazard_ignored": false
+              }
+            },
+            "base_vo_count": 0,
+            "colregs_v1_count": 0,
+            "crossing_commitment_count": 0,
+            "hard_constraint_count": 0,
+            "wvo_only_count": 1507,
+            "preferred_clearance_count": 0,
+            "feasible_candidate_count": 4096,
+            "reachable_candidate_count": 4096,
+            "envelope_excluded_count": 0,
+            "ownship_envelope": null,
+            "planning_horizon_s": 60,
+            "selection_held": false,
+            "selected_in_base_vo": false,
+            "selected_in_colregs_v1": false,
+            "current_in_base_vo": false,
+            "stand_on_hold_active": false,
+            "selected_in_wvo_only": true,
+            "selected_in_preferred_clearance": false,
+            "hard_hull_clearance_m": 182,
+            "preferred_hull_clearance_m": 190,
+            "ownship_length_m": 8.45,
+            "ownship_width_m": 2.71,
+            "selected_ttc_s": null,
+            "reference_velocity_error_mps": 0.09950007188011119,
+            "minimum_feasible_ttc_s": 90.18516581673443,
+            "crossing_commitment_active": false,
+            "crossing_commitment_state": "CLEAR",
+            "emergency_rule_relaxation": false,
+            "overtaking_state": "CLEAR",
+            "overtaking_target_id": null,
+            "overtaking_along_track_m": null,
+            "overtaking_cross_track_m": null,
+            "overtaking_relative_speed_mps": null,
+            "overtaking_progress_relaxed": false,
+            "overtaking_release_count": 0,
+            "overtaking_entry_tcpa_s": null,
+            "solve_period_s": 1,
+            "fallback": null,
+            "fallback_reason": null,
+            "solver_executed": true,
+            "solve_id": 92
+          }
+        }
+      },
+      "latitude": 62.46548283427076,
+      "longitude": 6.059488795037346,
+      "floor_depth_m": 20,
+      "floor_depth_source": "ENC_DEPTH_BIN_LOWER_BOUND"
+    },
+    "target": {
+      "id": 1,
+      "mmsi": 101,
+      "length": 8.45,
+      "width": 2.71,
+      "x": 4049.5729804048315,
+      "y": 4049.5729803638533,
+      "north": 6959049.572980405,
+      "east": 41049.57298036385,
+      "psi": -2.3561945062507057,
+      "u": 6.999999999999999,
+      "v": 8.458131814341219e-8,
+      "r": 2.3721511043558453e-9,
+      "sog": 6.999999999999999,
+      "cog": -2.3561944941676605,
+      "trajectory": [
+        [
+          4500,
+          4500
+        ],
+        [
+          4497.525126266293,
+          4497.525126265849
+        ],
+        [
+          4492.57537879888,
+          4492.575378797548
+        ],
+        [
+          4490.100505065173,
+          4490.100505063398
+        ],
+        [
+          4485.150757597759,
+          4485.150757595096
+        ],
+        [
+          4482.675883864053,
+          4482.675883860953
+        ],
+        [
+          4477.726136396639,
+          4477.726136392674
+        ],
+        [
+          4475.251262662001,
+          4475.251262658545
+        ],
+        [
+          4470.301515192725,
+          4470.301515190309
+        ],
+        [
+          4467.826641458087,
+          4467.826641456202
+        ],
+        [
+          4462.8768939888105,
+          4462.876893988017
+        ],
+        [
+          4460.402020254172,
+          4460.40202025394
+        ],
+        [
+          4455.452272784896,
+          4455.452272785806
+        ],
+        [
+          4452.977399050258,
+          4452.97739905175
+        ],
+        [
+          4448.027651580982,
+          4448.0276515836595
+        ],
+        [
+          4445.552777846344,
+          4445.552777849618
+        ],
+        [
+          4440.603030377068,
+          4440.603030381528
+        ],
+        [
+          4435.653282907791,
+          4435.6532829134085
+        ],
+        [
+          4433.178409173153,
+          4433.178409179338
+        ],
+        [
+          4428.228661703877,
+          4428.228661711146
+        ],
+        [
+          4425.753787969239,
+          4425.753787977017
+        ],
+        [
+          4420.8040405018255,
+          4420.804040508687
+        ],
+        [
+          4418.329166768119,
+          4418.329166774478
+        ],
+        [
+          4413.379419300705,
+          4413.379419305973
+        ],
+        [
+          4410.904545566998,
+          4410.90454557167
+        ],
+        [
+          4405.954798099585,
+          4405.954798102968
+        ],
+        [
+          4403.479924365878,
+          4403.47992436857
+        ],
+        [
+          4398.530176898465,
+          4398.53017689968
+        ],
+        [
+          4396.055303164758,
+          4396.055303165194
+        ],
+        [
+          4391.105555697344,
+          4391.1055556961655
+        ],
+        [
+          4388.6306819636375,
+          4388.630681961629
+        ],
+        [
+          4383.680934496224,
+          4383.680934492528
+        ],
+        [
+          4381.206060762517,
+          4381.206060757977
+        ],
+        [
+          4376.256313295104,
+          4376.2563132889045
+        ],
+        [
+          4371.30656582769,
+          4371.306565819905
+        ],
+        [
+          4368.831692093983,
+          4368.831692085449
+        ],
+        [
+          4363.88194462657,
+          4363.881944616653
+        ],
+        [
+          4361.407070892863,
+          4361.40707088232
+        ],
+        [
+          4356.457323425449,
+          4356.457323413815
+        ],
+        [
+          4353.982449691743,
+          4353.982449679657
+        ],
+        [
+          4349.0327022224665,
+          4349.032702211545
+        ],
+        [
+          4346.557828487828,
+          4346.557828477598
+        ],
+        [
+          4341.608081018552,
+          4341.608081009923
+        ],
+        [
+          4339.133207283914,
+          4339.133207276194
+        ],
+        [
+          4334.183459814638,
+          4334.183459808948
+        ],
+        [
+          4331.70858608,
+          4331.708586075423
+        ],
+        [
+          4326.758838610724,
+          4326.758838608541
+        ],
+        [
+          4324.2839648760855,
+          4324.283964875176
+        ],
+        [
+          4319.334217406809,
+          4319.334217408548
+        ],
+        [
+          4316.859343672171,
+          4316.859343675271
+        ],
+        [
+          4311.909596202895,
+          4311.90959620873
+        ],
+        [
+          4306.959848733619,
+          4306.959848742139
+        ],
+        [
+          4304.484974998981,
+          4304.484975008796
+        ],
+        [
+          4299.535227529705,
+          4299.535227541965
+        ],
+        [
+          4297.0603537950665,
+          4297.060353808454
+        ],
+        [
+          4292.11060632579,
+          4292.110606341186
+        ],
+        [
+          4289.635732591152,
+          4289.635732607414
+        ],
+        [
+          4284.685985121876,
+          4284.685985139535
+        ],
+        [
+          4282.211111387238,
+          4282.211111405413
+        ],
+        [
+          4277.261363919824,
+          4277.261363936792
+        ],
+        [
+          4274.786490186118,
+          4274.7864902022775
+        ],
+        [
+          4269.836742718704,
+          4269.836742732841
+        ],
+        [
+          4267.361868984997,
+          4267.361868997919
+        ],
+        [
+          4262.412121518515,
+          4262.412121527705
+        ],
+        [
+          4259.93724778574,
+          4259.937247792419
+        ],
+        [
+          4254.987500320189,
+          4254.987500321535
+        ],
+        [
+          4252.512626587413,
+          4252.512626585965
+        ],
+        [
+          4247.562879121862,
+          4247.562879114652
+        ],
+        [
+          4242.613131656311,
+          4242.613131643215
+        ],
+        [
+          4240.138257923536,
+          4240.1382579075
+        ],
+        [
+          4235.188510457985,
+          4235.188510436194
+        ],
+        [
+          4232.71363672521,
+          4232.713636700639
+        ],
+        [
+          4227.763889259659,
+          4227.763889229849
+        ],
+        [
+          4225.289015526883,
+          4225.289015494658
+        ],
+        [
+          4220.33926805947,
+          4220.339268024778
+        ],
+        [
+          4217.864394325763,
+          4217.864394290133
+        ],
+        [
+          4212.914646858349,
+          4212.914646821504
+        ],
+        [
+          4210.439773123711,
+          4210.43977308755
+        ],
+        [
+          4205.490025654435,
+          4205.4900256204055
+        ],
+        [
+          4203.015151918866,
+          4203.01515188723
+        ],
+        [
+          4198.065404447727,
+          4198.065404421657
+        ],
+        [
+          4195.5905307121575,
+          4195.590530689253
+        ],
+        [
+          4190.640783239156,
+          4190.64078322515
+        ],
+        [
+          4188.165909502655,
+          4188.165909493422
+        ],
+        [
+          4183.216162029654,
+          4183.2161620304905
+        ],
+        [
+          4178.26641455479,
+          4178.266414568076
+        ],
+        [
+          4175.791540817358,
+          4175.791540836981
+        ],
+        [
+          4170.8417933424935,
+          4170.841793374821
+        ],
+        [
+          4168.366919605061,
+          4168.366919643675
+        ],
+        [
+          4163.417172131129,
+          4163.417172181034
+        ],
+        [
+          4160.942298394628,
+          4160.942298449452
+        ],
+        [
+          4155.992550921626,
+          4155.992550985531
+        ],
+        [
+          4153.517677186057,
+          4153.517677253112
+        ],
+        [
+          4148.567929714918,
+          4148.567929787154
+        ],
+        [
+          4146.09305598028,
+          4146.093056053549
+        ],
+        [
+          4141.143308511935,
+          4141.143308584935
+        ],
+        [
+          4138.668434778228,
+          4138.668434849882
+        ],
+        [
+          4133.718687313609,
+          4133.718687378234
+        ],
+        [
+          4131.243813581765,
+          4131.243813641624
+        ],
+        [
+          4126.294066119939,
+          4126.294066166862
+        ],
+        [
+          4123.819192389958,
+          4123.819192428746
+        ],
+        [
+          4118.869444930926,
+          4118.869444951197
+        ],
+        [
+          4113.919697472826,
+          4113.919697472156
+        ],
+        [
+          4111.444823744707,
+          4111.444823732214
+        ],
+        [
+          4106.495076288469,
+          4106.495076251791
+        ],
+        [
+          4104.02020256035,
+          4104.020202511463
+        ],
+        [
+          4099.070455104113,
+          4099.07045503096
+        ],
+        [
+          4096.595581375994,
+          4096.59558129096
+        ],
+        [
+          4091.6458339178935,
+          4091.6458338118973
+        ],
+        [
+          4089.1709601888433,
+          4089.17096007301
+        ],
+        [
+          4084.221212727949,
+          4084.2212125969527
+        ],
+        [
+          4081.746338997036,
+          4081.7463388599426
+        ],
+        [
+          4076.7965915324166,
+          4076.7965913883236
+        ],
+        [
+          4074.32171779871,
+          4074.3217176538456
+        ],
+        [
+          4069.3719703285024,
+          4069.3719701877853
+        ],
+        [
+          4066.8970965920016,
+          4066.897096456276
+        ],
+        [
+          4061.947349115275,
+          4061.947348996364
+        ],
+        [
+          4059.472475375049,
+          4059.472475267954
+        ],
+        [
+          4054.522727891803,
+          4054.522727814103
+        ],
+        [
+          4049.5729804048315,
+          4049.5729803638533
+        ]
+      ],
+      "active": true,
+      "historical_sample_kind": null,
+      "dimensions_provenance": null,
+      "measurements": null,
+      "tracks": {
+        "labels": [],
+        "generations": [],
+        "states": [],
+        "covariances": [],
+        "nis": [],
+        "existence_prob": null,
+        "quality": null,
+        "sources": null
+      },
+      "colav": {
+        "planner": {
+          "schema_version": "1.0",
+          "algorithm_id": "nominal",
+          "solve_id": 0,
+          "sim_time": 91,
+          "solver_executed": false,
+          "status": "SUCCESS",
+          "feasible": true,
+          "reason": null,
+          "elapsed_ms": 0,
+          "iterations": null,
+          "objective": null,
+          "predicted_trajectory": [
+            [
+              6959049.572980405
+            ],
+            [
+              41049.57298036385
+            ],
+            [
+              -2.3561944908877672
+            ],
+            [
+              7
+            ],
+            [
+              0
+            ],
+            [
+              0
+            ],
+            [
+              0
+            ],
+            [
+              0
+            ],
+            [
+              0
+            ]
+          ],
+          "horizon_dt_s": null,
+          "selected_command": {
+            "course_rad": -2.3561944908877672,
+            "speed_mps": 7
+          },
+          "target_predictions": [],
+          "constraints": {},
+          "algorithm_details": {
+            "planner_kind": "nominal_guidance"
+          }
+        }
+      },
+      "ais": {
+        "age_s": 1,
+        "state": "active"
+      }
+    },
+    "simTime": 91
+  },
+  "parity": [
+    {
+      "id": 0,
+      "posErrorM": 0.128742166104933,
+      "headingErrorDeg": 0.14266289315867198
+    },
+    {
+      "id": 1,
+      "posErrorM": 0.08452635376877352,
+      "headingErrorDeg": 9.200763031458337e-7
+    }
+  ]
+}

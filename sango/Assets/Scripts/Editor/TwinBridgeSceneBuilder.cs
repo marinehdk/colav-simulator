@@ -107,7 +107,14 @@ namespace Sango.Editor.TwinBridge
             // P3-S2 (spec #90): 桅杆传感器机位族（运行期 own-ship 槽位出现后挂载）
             // + IR 白热 Custom Pass 体积（IrViewPass 静态闸 = 关，sensor_mode=ir 才激活，
             // 作用域 = 流相机；Demo 渲染零变化）。
-            service.mastRig = bridge.AddComponent<Sango.Vessels.Mast.MastSensorRig>();
+            // P3-11 (spec #91 前置批)：rig 必须在**独立子 GameObject** 上——旧烘焙把它
+            // AddComponent 在 "Twin Bridge" 本体上，而槽位船 Instantiate 的父 transform
+            // 恰是同一 GO；Attach 的 SetParent(槽位) 成环，Unity 6000.3.24f1 静默拒绝
+            // （无异常无日志），rig 永久停在原点世界位姿：EO 馈送不随船、画面无目标船
+            // （live/replay 同病）。独立子 GO 上 Attach 只搬轻量 rig 宿主，无环。
+            var mastRigGo = new GameObject("Mast sensor rig");
+            mastRigGo.transform.SetParent(bridge.transform, worldPositionStays: false);
+            service.mastRig = mastRigGo.AddComponent<Sango.Vessels.Mast.MastSensorRig>();
             var irVolumeGo = new GameObject("Twin IR WhiteHot Pass");
             var irVolume = irVolumeGo.AddComponent<UnityEngine.Rendering.HighDefinition.CustomPassVolume>();
             irVolume.isGlobal = true;

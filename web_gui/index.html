@@ -507,6 +507,10 @@
                       <input type="checkbox" id="twinLinkToggle" aria-label="海图↔孪生相机联动（Cesium 主，单向）"> 联动
                     </label>
                     <div class="scene3d-error" id="deploymentTwinError" role="alert" hidden></div>
+                    <div class="twin-health-card" id="deploymentTwinHealth" role="status" hidden>
+                      <strong class="twin-health-title">孪生流端未连接</strong>
+                      <span class="twin-health-detail"></span>
+                    </div>
                   </div>
                   <div class="twin-link-pane" id="twinLinkPane" aria-label="联动主视口（Cesium）" hidden></div>
                 </div>
@@ -1003,6 +1007,10 @@
             <video id="twinVideo" class="twin-video" autoplay playsinline muted aria-label="Digital Twin pixel stream"></video>
             <div class="twin-hud deployment-control-state" id="twinHud" aria-live="polite">TWIN IDLE</div>
             <div class="scene3d-error" id="twinError" role="alert" hidden></div>
+            <div class="twin-health-card" id="twinHealth" role="status" hidden>
+              <strong class="twin-health-title">孪生流端未连接</strong>
+              <span class="twin-health-detail"></span>
+            </div>
           </div>
         </div>
         <footer class="replay-timeline-bar">
@@ -1153,6 +1161,6 @@
   <script type="module" src="/static/modules/historical-ais-workbench.js?v=20260923-vo-primitive-v1"></script>
   <script type="module" src="/static/modules/replay-runs.js?v=20260916-replay-layout-v4"></script>
   <script type="module" src="/static/modules/evaluation-replay.js?v=20261002-eval-twin-v1"></script>
-  <script type="module" src="/static/modules/twin-view.js?v=20261002-sensor-mode-v1"></script>
+  <script type="module" src="/static/modules/twin-view.js?v=20261003-twin-health-v1"></script>
 </body>
 </html>

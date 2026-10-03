@@ -1,5 +1,5 @@
 {
-  "session_id": "f985a83d-fd93-4402-877b-945e1442f5a2",
+  "session_id": "614732e3-288a-4bfd-88ae-b5d040d0e323",
   "status": {
     "accepted_frames_total": 5,
     "channels": [
@@ -34,7 +34,7 @@
         "t_s": 3.5,
         "mount_id": "mast_ptz_eo",
         "frame_seq": 13,
-        "frame_time_s": 2.61
+        "frame_time_s": 2.605
       },
       {
         "sensor_id": 2,
@@ -58,7 +58,7 @@
         "t_s": 3.5,
         "mount_id": "mast_ptz_eo",
         "frame_seq": 14,
-        "frame_time_s": 2.808
+        "frame_time_s": 2.802
       }
     ]
   }

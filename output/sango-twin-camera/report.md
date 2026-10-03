@@ -1,7 +1,7 @@
 # P1-1a E2E — camera-only KF causal probe (sango_twin_camera_probe)
 
-- date: 2026-10-03T07:45:20.518Z
-- session: `f985a83d-fd93-4402-877b-945e1442f5a2` (rule14/head_on_camera/nominal/scenario_default — scene-built KF, external_cameras the ONLY sensor)
+- date: 2026-10-03T15:44:18.168Z
+- session: `614732e3-288a-4bfd-88ae-b5d040d0e323` (rule14/head_on_camera/nominal/scenario_default — scene-built KF, external_cameras the ONLY sensor)
 - backend: diagnostic launcher on 8011 (product surface untouched); feed: replay of the composed frame
   (real twin render + target at its georef-projected box) through the REAL YOLO service and observations endpoint.
   Twin render gap (no target vessel ahead of ownship in live mode) ledgered in review-residue.md.
@@ -13,13 +13,14 @@
 
 ## Assertions
 
+- PASS  launchd twin-player downed for probe (single-instance) — gui/502/com.marine.colav-simulator.twin-player
 - PASS  feed canvas artifact present (real twin render) — /Users/marine/Code/Colav-Simulator/output/sango-twin-camera/feed-frame.jpg
 - PASS  boat crop artifact present (YOLO-verified repo paper figure) — /Users/marine/Code/Colav-Simulator/output/sango-twin-camera/boat-crop.png
 - PASS  composed frame built (target at georef-projected pixel box) — /Users/marine/Code/Colav-Simulator/output/sango-twin-camera/composed-frame.jpg
 - PASS  diagnostic camera-kf backend up (8011, standard app surface) — /tmp/sango-camera-kf-session.log
-- PASS  camera-only kf session seeded (scenario_default -> scene-built KF) — session=f985a83d-fd93-4402-877b-945e1442f5a2
+- PASS  camera-only kf session seeded (scenario_default -> scene-built KF) — session=614732e3-288a-4bfd-88ae-b5d040d0e323
 - PASS  request identity is scenario_default (scene-built tracker: kf + assembled sensors) — spec.tracker_id=scenario_default
-- PASS  session started — session=f985a83d-fd93-4402-877b-945e1442f5a2
+- PASS  session started — session=614732e3-288a-4bfd-88ae-b5d040d0e323
 - PASS  replay feeder publishing on the FramePublisher endpoint — seq=0
 - PASS  YOLO detector up (CPU) with forward branch -> 8011 observations — /tmp/sango-camera-detector.log
 - PASS  LEG ON: observations accepted (composed frame -> real YOLO -> POST -> backend) — [{"sensor_id":2,"mount_id":"mast_ptz_eo","frames":5,"detections":5,"last_frame_seq":14}]

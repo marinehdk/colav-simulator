@@ -23,6 +23,7 @@ import { spawn, execSync } from 'node:child_process';
 import { mkdirSync, writeFileSync, existsSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { twinLaunchdPlayerDown, twinLaunchdPlayerUp } from './lib/twin_launchd.mjs'; // spec #91 前置批：launchd player 共处协议
 
 const BACKEND = 'http://127.0.0.1:8010';
 const SIGNALING = 'http://127.0.0.1:8080';
@@ -204,6 +205,7 @@ async function enterTwinWithVideo(cdp, attempts = 4, timeoutMs = 45000) {
 let playerPid = null;
 function killLeftoverPlayers() {
   try {
+  twinLaunchdPlayerDown(check); // launchd 常驻 player 先停（KeepAlive 会复活被杀实例）
     const out = execSync('pgrep -fl "MacOS/sango" || true').toString().trim();
     if (!out) return check('no leftover twin player', true);
     for (const line of out.split('\n')) {
@@ -290,6 +292,7 @@ const chrome = spawn('/Applications/Google Chrome.app/Contents/MacOS/Google Chro
 process.on('exit', () => {
   try { chrome.kill(); } catch { /* already gone */ }
   if (!process.argv.includes('--keep-player')) killPlayer(); // 结束必杀（单实例纪律；--keep-player 除外）
+  twinLaunchdPlayerUp(check); // 末位复位 launchd player（spec #91 前置批）
 });
 
 let attachedFirst = null;

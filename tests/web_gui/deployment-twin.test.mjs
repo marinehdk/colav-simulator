@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-import { createDeploymentTwinViewport } from '../../web_gui/modules/deployment-twin.js?v=20261002-sensor-mode-v1';
+import { createDeploymentTwinViewport } from '../../web_gui/modules/deployment-twin.js?v=20261003-twin-health-v1';
 
 const html = await readFile(new URL('../../web_gui/index.html', import.meta.url), 'utf8');
 const styles = await readFile(new URL('../../web_gui/style.css', import.meta.url), 'utf8');
@@ -161,6 +161,7 @@ function viewportHarness({
     info,
     scheduler,
     streamClientFactory: factory,
+    healthProbe: async () => false, // watchdog idle in unit tests (spec #91 前置批 B)
     createLinkScene: async ({ host, onCameraMoved }) => {
       linkCameraMoved = onCameraMoved;
       const scene = { host, renders: 0, destroyed: 0, render() { scene.renders += 1; }, destroy() { scene.destroyed += 1; }, recenter() {}, zoom() {} };
@@ -297,6 +298,7 @@ test('link scene failure clears the toggle back to off', async () => {
   const linkPane = { hidden: true };
   const viewport = createDeploymentTwinViewport({
     linkPane, linkToggle, scheduler, streamClientFactory: fakeStreamFactory(client),
+    healthProbe: async () => false, // watchdog idle in unit tests (spec #91 前置批 B)
     sessionId: () => 's', info,
     createLinkScene: async () => { throw new Error('GPU gone'); },
   });

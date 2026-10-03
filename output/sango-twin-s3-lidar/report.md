@@ -1,13 +1,13 @@
 # P3-S3 LiDAR point-cloud view E2E — sango_twin_lidar_probe
 
-- date: 2026-10-03T03:04:37.318Z
-- live session: `301b1f91-4b6a-4e6a-9dff-ae5682208b5a` (rule14/head_on/vo, tracker=god — capabilities gate)
+- date: 2026-10-03T15:42:37.056Z
+- live session: `52327a4d-cfc5-4f80-a937-8a96ec6f7ca7` (rule14/head_on/vo, tracker=god — capabilities gate)
 - mode cycle: eo → ir → lidar → eo through the real Deployment button group; state echoes all four
-- EO baseline: mean=78.9 std=64.5 spread=35 dark=0.12 lit=0.2899
-- IR (S2 non-regression): mean=83.0 std=55.0 spread=5 dark=0.00 lit=0.3041
-- LiDAR: mean=8.9 std=16.8 spread=104 dark=0.97 lit=0.0167 — dark backdrop + sparse lit points, mean < 0.6× EO
-- LiDAR top-preset (camera orthogonality): mean=8.9 std=16.8 spread=103 dark=0.97 lit=0.0168
-- EO restore: mean=78.9 std=64.4 spread=36 dark=0.12 lit=0.2903
+- EO baseline: mean=75.6 std=52.0 spread=76 dark=0.24 lit=0.3947
+- IR (S2 non-regression): mean=72.2 std=44.6 spread=5 dark=0.21 lit=0.3570
+- LiDAR: mean=6.1 std=4.3 spread=132 dark=1.00 lit=0.0014 — dark backdrop + sparse lit points, mean < 0.6× EO
+- LiDAR top-preset (camera orthogonality): mean=6.0 std=0.6 spread=10 dark=1.00 lit=0.0000
+- EO restore: mean=76.7 std=53.3 spread=63 dark=0.24 lit=0.4056
 
 ## 点云管线选型（写档）
 
@@ -51,24 +51,25 @@
 
 - PASS  preflight backend 8010 — http://127.0.0.1:8010/api/capabilities -> 200
 - PASS  preflight URS signaling 8080 — http://127.0.0.1:8080/config -> 200
+- PASS  launchd twin-player downed for probe (single-instance) — gui/502/com.marine.colav-simulator.twin-player
 - PASS  live session created (POST /api/sessions, tracker=god; capabilities-gated) — status 200
-- PASS  live session started — session=301b1f91-4b6a-4e6a-9dff-ae5682208b5a
-- PASS  video frames arriving (live pixel stream) — attached run=301b1f91 ships=2
-- PASS  EO baseline frame captured — mean=78.9 std=64.5 spread=35 dark=0.12 lit=0.2899
+- PASS  live session started — session=52327a4d-cfc5-4f80-a937-8a96ec6f7ca7
+- PASS  video frames arriving (live pixel stream) — attached run=52327a4d ships=2
+- PASS  EO baseline frame captured — mean=75.6 std=52.0 spread=76 dark=0.24 lit=0.3947
 - PASS  EO frame artifact
 - PASS  IR switch: state echo sensor_mode=ir
 - PASS  IR = black-and-white thermal (max channel spread ~0) — maxSpread=5
 - PASS  IR frame artifact
 - PASS  LiDAR switch: state echo sensor_mode=lidar (contract §3)
 - PASS  sensor-mode chip shows the un-pended LiDAR label — SENSOR LiDAR
-- PASS  LiDAR frame captured — mean=8.9 std=16.8 spread=104 dark=0.97 lit=0.0167
-- PASS  LiDAR = deep-dark backdrop (dark fraction dominates EO) — lidar dark=0.97 vs eo dark=0.12
-- PASS  LiDAR = point cloud on the backdrop (sparse lit points present) — lit=0.0167
-- PASS  LiDAR mean luminance collapses vs EO (quantified frame diff) — lidar mean=8.9 vs eo mean=78.9
+- PASS  LiDAR frame captured — mean=6.1 std=4.3 spread=132 dark=1.00 lit=0.0014
+- PASS  LiDAR = deep-dark backdrop (dark fraction dominates EO) — lidar dark=1.00 vs eo dark=0.24
+- PASS  LiDAR = point cloud on the backdrop (sparse lit points present) — lit=0.0014
+- PASS  LiDAR mean luminance collapses vs EO (quantified frame diff) — lidar mean=6.1 vs eo mean=75.6
 - PASS  LiDAR frame artifact (decoded stream frame)
-- PASS  LiDAR top-preset frame captured (camera/lidar orthogonality) — mean=8.9 std=16.8 spread=103 dark=0.97 lit=0.0168
+- PASS  LiDAR top-preset frame captured (camera/lidar orthogonality) — mean=6.0 std=0.6 spread=10 dark=1.00 lit=0.0000
 - PASS  LiDAR top-preset frame artifact
 - PASS  EO restore: state echo sensor_mode=eo
-- PASS  EO restore = visible light (channel spread returns) — maxSpread=36
+- PASS  EO restore = visible light (channel spread returns) — maxSpread=63
 - PASS  EO restored frame artifact
 - PASS  Player.log double proof (sensor_mode -> lidar + lidar point-cloud view active + mast rig) — /Users/marine/Library/Logs/DefaultCompany/sango/Player.log

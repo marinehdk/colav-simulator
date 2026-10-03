@@ -1,38 +1,1646 @@
 {
-  "accepted_frames_total": 2202,
+  "accepted_frames_total": 115,
   "channels": [
     {
       "sensor_id": 2,
       "mount_id": "mast_ptz_eo",
-      "frames": 2202,
-      "detections": 1,
-      "last_frame_seq": 2215
+      "frames": 115,
+      "detections": 68,
+      "last_frame_seq": 125
     }
   ],
   "pending_measurements": [
     {
       "sensor_id": 2,
       "position_ne_m": [
-        151.25721059646457,
-        12.439548736510915
+        9.305944573134184,
+        9.308967257718905
       ],
       "position_cov_ne_m2": [
         [
-          514.818871762798,
-          41.76219802851522
+          4,
+          0
         ],
         [
-          41.76219802851522,
-          10.450967278607422
+          0,
+          4
         ]
       ],
-      "confidence": 0.3022,
+      "confidence": 0.8497,
       "class_name": "boat",
-      "class_confidence": 0.3022,
-      "t_s": 244.5,
+      "class_confidence": 0.8497,
+      "t_s": 11,
       "mount_id": "mast_ptz_eo",
-      "frame_seq": 2202,
-      "frame_time_s": 238.3694327451814
+      "frame_seq": 47,
+      "frame_time_s": 5.136268742913832
+    },
+    {
+      "sensor_id": 2,
+      "position_ne_m": [
+        9.145244895480573,
+        9.13452616147697
+      ],
+      "position_cov_ne_m2": [
+        [
+          4,
+          0
+        ],
+        [
+          0,
+          4
+        ]
+      ],
+      "confidence": 0.9146,
+      "class_name": "boat",
+      "class_confidence": 0.9146,
+      "t_s": 11,
+      "mount_id": "mast_ptz_eo",
+      "frame_seq": 48,
+      "frame_time_s": 5.244971364795918
+    },
+    {
+      "sensor_id": 2,
+      "position_ne_m": [
+        9.111502223648131,
+        9.117257743964728
+      ],
+      "position_cov_ne_m2": [
+        [
+          4,
+          0
+        ],
+        [
+          0,
+          4
+        ]
+      ],
+      "confidence": 0.8845,
+      "class_name": "boat",
+      "class_confidence": 0.8845,
+      "t_s": 11,
+      "mount_id": "mast_ptz_eo",
+      "frame_seq": 49,
+      "frame_time_s": 5.345068572845805
+    },
+    {
+      "sensor_id": 2,
+      "position_ne_m": [
+        9.166260782629251,
+        9.154526355639973
+      ],
+      "position_cov_ne_m2": [
+        [
+          3.9999999999999996,
+          0
+        ],
+        [
+          0,
+          3.9999999999999996
+        ]
+      ],
+      "confidence": 0.8881,
+      "class_name": "boat",
+      "class_confidence": 0.8881,
+      "t_s": 11,
+      "mount_id": "mast_ptz_eo",
+      "frame_seq": 50,
+      "frame_time_s": 5.4450981150793645
+    },
+    {
+      "sensor_id": 2,
+      "position_ne_m": [
+        9.188954696059227,
+        9.204053882662265
+      ],
+      "position_cov_ne_m2": [
+        [
+          4,
+          0
+        ],
+        [
+          0,
+          4
+        ]
+      ],
+      "confidence": 0.9036,
+      "class_name": "boat",
+      "class_confidence": 0.9036,
+      "t_s": 11.5,
+      "mount_id": "mast_ptz_eo",
+      "frame_seq": 51,
+      "frame_time_s": 5.545112825963718
+    },
+    {
+      "sensor_id": 2,
+      "position_ne_m": [
+        9.059006111696362,
+        9.071927424745809
+      ],
+      "position_cov_ne_m2": [
+        [
+          4,
+          0
+        ],
+        [
+          0,
+          4
+        ]
+      ],
+      "confidence": 0.9149,
+      "class_name": "boat",
+      "class_confidence": 0.9149,
+      "t_s": 11.5,
+      "mount_id": "mast_ptz_eo",
+      "frame_seq": 52,
+      "frame_time_s": 5.661761784297052
+    },
+    {
+      "sensor_id": 2,
+      "position_ne_m": [
+        9.567287168465555,
+        9.55814295271557
+      ],
+      "position_cov_ne_m2": [
+        [
+          4.057579662492794,
+          0.057524629037073394
+        ],
+        [
+          0.057524629037073394,
+          4.057469648181197
+        ]
+      ],
+      "confidence": 0.9129,
+      "class_name": "boat",
+      "class_confidence": 0.9129,
+      "t_s": 11.5,
+      "mount_id": "mast_ptz_eo",
+      "frame_seq": 53,
+      "frame_time_s": 5.778323115079365
+    },
+    {
+      "sensor_id": 2,
+      "position_ne_m": [
+        9.448907007463276,
+        9.446009308667271
+      ],
+      "position_cov_ne_m2": [
+        [
+          4.008228047306625,
+          0.008225524008889807
+        ],
+        [
+          0.008225524008889807,
+          4.008223001484975
+        ]
+      ],
+      "confidence": 0.8938,
+      "class_name": "boat",
+      "class_confidence": 0.8938,
+      "t_s": 11.5,
+      "mount_id": "mast_ptz_eo",
+      "frame_seq": 54,
+      "frame_time_s": 5.8950499503968254
+    },
+    {
+      "sensor_id": 2,
+      "position_ne_m": [
+        9.33621096238494,
+        9.321231317517231
+      ],
+      "position_cov_ne_m2": [
+        [
+          4,
+          0
+        ],
+        [
+          0,
+          4
+        ]
+      ],
+      "confidence": 0.8894,
+      "class_name": "boat",
+      "class_confidence": 0.8894,
+      "t_s": 12,
+      "mount_id": "mast_ptz_eo",
+      "frame_seq": 55,
+      "frame_time_s": 5.995099199263039
+    },
+    {
+      "sensor_id": 2,
+      "position_ne_m": [
+        9.347458229400218,
+        9.33667094282282
+      ],
+      "position_cov_ne_m2": [
+        [
+          4,
+          0
+        ],
+        [
+          0,
+          4
+        ]
+      ],
+      "confidence": 0.9089,
+      "class_name": "boat",
+      "class_confidence": 0.9089,
+      "t_s": 12,
+      "mount_id": "mast_ptz_eo",
+      "frame_seq": 56,
+      "frame_time_s": 6.111618324829932
+    },
+    {
+      "sensor_id": 2,
+      "position_ne_m": [
+        9.118053318932652,
+        9.109009772677382
+      ],
+      "position_cov_ne_m2": [
+        [
+          4,
+          0
+        ],
+        [
+          0,
+          4
+        ]
+      ],
+      "confidence": 0.8995,
+      "class_name": "boat",
+      "class_confidence": 0.8995,
+      "t_s": 12,
+      "mount_id": "mast_ptz_eo",
+      "frame_seq": 57,
+      "frame_time_s": 6.211740199829932
+    },
+    {
+      "sensor_id": 2,
+      "position_ne_m": [
+        9.272811505943537,
+        9.264617335436924
+      ],
+      "position_cov_ne_m2": [
+        [
+          4,
+          0
+        ],
+        [
+          0,
+          4
+        ]
+      ],
+      "confidence": 0.8937,
+      "class_name": "boat",
+      "class_confidence": 0.8937,
+      "t_s": 12,
+      "mount_id": "mast_ptz_eo",
+      "frame_seq": 58,
+      "frame_time_s": 6.328297491496598
+    },
+    {
+      "sensor_id": 2,
+      "position_ne_m": [
+        9.296777294017375,
+        9.300468180488679
+      ],
+      "position_cov_ne_m2": [
+        [
+          3.999999999999999,
+          0
+        ],
+        [
+          0,
+          3.999999999999999
+        ]
+      ],
+      "confidence": 0.9153,
+      "class_name": "boat",
+      "class_confidence": 0.9153,
+      "t_s": 12,
+      "mount_id": "mast_ptz_eo",
+      "frame_seq": 59,
+      "frame_time_s": 6.428407823129252
+    },
+    {
+      "sensor_id": 2,
+      "position_ne_m": [
+        9.420971175655723,
+        9.424881411985552
+      ],
+      "position_cov_ne_m2": [
+        [
+          4,
+          0
+        ],
+        [
+          0,
+          4
+        ]
+      ],
+      "confidence": 0.9298,
+      "class_name": "boat",
+      "class_confidence": 0.9298,
+      "t_s": 12.5,
+      "mount_id": "mast_ptz_eo",
+      "frame_seq": 60,
+      "frame_time_s": 6.528408078231292
+    },
+    {
+      "sensor_id": 2,
+      "position_ne_m": [
+        9.521305619738996,
+        9.546419344602327
+      ],
+      "position_cov_ne_m2": [
+        [
+          4.045011677881359,
+          0.04513040223943032
+        ],
+        [
+          0.04513040223943032,
+          4.045249439748973
+        ]
+      ],
+      "confidence": 0.8266,
+      "class_name": "boat",
+      "class_confidence": 0.8266,
+      "t_s": 12.5,
+      "mount_id": "mast_ptz_eo",
+      "frame_seq": 61,
+      "frame_time_s": 6.644112783446712
+    },
+    {
+      "sensor_id": 2,
+      "position_ne_m": [
+        9.3747862232849,
+        9.389851932966849
+      ],
+      "position_cov_ne_m2": [
+        [
+          4,
+          0
+        ],
+        [
+          0,
+          4
+        ]
+      ],
+      "confidence": 0.8544,
+      "class_name": "boat",
+      "class_confidence": 0.8544,
+      "t_s": 12.5,
+      "mount_id": "mast_ptz_eo",
+      "frame_seq": 62,
+      "frame_time_s": 6.744964576247165
+    },
+    {
+      "sensor_id": 2,
+      "position_ne_m": [
+        9.544309672899544,
+        9.54758203993697
+      ],
+      "position_cov_ne_m2": [
+        [
+          4.050297164051634,
+          0.05031440896189168
+        ],
+        [
+          0.05031440896189168,
+          4.050331659784748
+        ]
+      ],
+      "confidence": 0.873,
+      "class_name": "boat",
+      "class_confidence": 0.873,
+      "t_s": 12.5,
+      "mount_id": "mast_ptz_eo",
+      "frame_seq": 63,
+      "frame_time_s": 6.8617159934807255
+    },
+    {
+      "sensor_id": 2,
+      "position_ne_m": [
+        9.614270966500044,
+        9.623816143379372
+      ],
+      "position_cov_ne_m2": [
+        [
+          4.081754281004553,
+          0.08183544774777611
+        ],
+        [
+          0.08183544774777611,
+          4.081916695074426
+        ]
+      ],
+      "confidence": 0.8548,
+      "class_name": "boat",
+      "class_confidence": 0.8548,
+      "t_s": 13,
+      "mount_id": "mast_ptz_eo",
+      "frame_seq": 64,
+      "frame_time_s": 6.961806746031746
+    },
+    {
+      "sensor_id": 2,
+      "position_ne_m": [
+        9.837497182190418,
+        9.839094722330628
+      ],
+      "position_cov_ne_m2": [
+        [
+          4.177792652727035,
+          0.17782152500002166
+        ],
+        [
+          0.17782152500002166,
+          4.177850401961662
+        ]
+      ],
+      "confidence": 0.8758,
+      "class_name": "boat",
+      "class_confidence": 0.8758,
+      "t_s": 13,
+      "mount_id": "mast_ptz_eo",
+      "frame_seq": 65,
+      "frame_time_s": 7.0782822845804985
+    },
+    {
+      "sensor_id": 2,
+      "position_ne_m": [
+        9.90969520714134,
+        9.922218602070643
+      ],
+      "position_cov_ne_m2": [
+        [
+          4.21207223628128,
+          0.21234024293969872
+        ],
+        [
+          0.21234024293969872,
+          4.2126085882919995
+        ]
+      ],
+      "confidence": 0.7784,
+      "class_name": "boat",
+      "class_confidence": 0.7784,
+      "t_s": 13,
+      "mount_id": "mast_ptz_eo",
+      "frame_seq": 66,
+      "frame_time_s": 7.178297200963718
+    },
+    {
+      "sensor_id": 2,
+      "position_ne_m": [
+        10.181551402434707,
+        10.215960890200222
+      ],
+      "position_cov_ne_m2": [
+        [
+          4.339187513635817,
+          0.34033382898308584
+        ],
+        [
+          0.34033382898308584,
+          4.341484018408327
+        ]
+      ],
+      "confidence": 0.5825,
+      "class_name": "boat",
+      "class_confidence": 0.5825,
+      "t_s": 13,
+      "mount_id": "mast_ptz_eo",
+      "frame_seq": 67,
+      "frame_time_s": 7.286640823412698
+    },
+    {
+      "sensor_id": 2,
+      "position_ne_m": [
+        10.045801050961018,
+        10.050514612448751
+      ],
+      "position_cov_ne_m2": [
+        [
+          4.27159586606819,
+          0.27172330078925705
+        ],
+        [
+          0.27172330078925705,
+          4.271850795303605
+        ]
+      ],
+      "confidence": 0.5893,
+      "class_name": "boat",
+      "class_confidence": 0.5893,
+      "t_s": 13,
+      "mount_id": "mast_ptz_eo",
+      "frame_seq": 68,
+      "frame_time_s": 7.403315865929705
+    },
+    {
+      "sensor_id": 2,
+      "position_ne_m": [
+        10.225046468898654,
+        10.238522550695052
+      ],
+      "position_cov_ne_m2": [
+        [
+          4.355044603497584,
+          0.3555125339019953
+        ],
+        [
+          0.3555125339019953,
+          4.355981081014452
+        ]
+      ],
+      "confidence": 0.4819,
+      "class_name": "boat",
+      "class_confidence": 0.4819,
+      "t_s": 13.5,
+      "mount_id": "mast_ptz_eo",
+      "frame_seq": 69,
+      "frame_time_s": 7.519926162131519
+    },
+    {
+      "sensor_id": 2,
+      "position_ne_m": [
+        10.449746794067323,
+        10.439194088088698
+      ],
+      "position_cov_ne_m2": [
+        [
+          4.454916456023849,
+          0.45445705736144487
+        ],
+        [
+          0.45445705736144487,
+          4.453998122624073
+        ]
+      ],
+      "confidence": 0.4253,
+      "class_name": "boat",
+      "class_confidence": 0.4253,
+      "t_s": 13.5,
+      "mount_id": "mast_ptz_eo",
+      "frame_seq": 70,
+      "frame_time_s": 7.620083411281179
+    },
+    {
+      "sensor_id": 2,
+      "position_ne_m": [
+        10.464377204887569,
+        10.462489371842821
+      ],
+      "position_cov_ne_m2": [
+        [
+          4.463460937564207,
+          0.46337732657650416
+        ],
+        [
+          0.46337732657650416,
+          4.463293730672699
+        ]
+      ],
+      "confidence": 0.4548,
+      "class_name": "boat",
+      "class_confidence": 0.4548,
+      "t_s": 13.5,
+      "mount_id": "mast_ptz_eo",
+      "frame_seq": 71,
+      "frame_time_s": 7.7366138676303855
+    },
+    {
+      "sensor_id": 2,
+      "position_ne_m": [
+        10.381042539142072,
+        10.379544272524072
+      ],
+      "position_cov_ne_m2": [
+        [
+          4.424447319206843,
+          0.4243860599343502
+        ],
+        [
+          0.4243860599343502,
+          4.424324809503233
+        ]
+      ],
+      "confidence": 0.5125,
+      "class_name": "boat",
+      "class_confidence": 0.5125,
+      "t_s": 13.5,
+      "mount_id": "mast_ptz_eo",
+      "frame_seq": 72,
+      "frame_time_s": 7.8367857426303855
+    },
+    {
+      "sensor_id": 2,
+      "position_ne_m": [
+        10.44775572605431,
+        10.416699378067278
+      ],
+      "position_cov_ne_m2": [
+        [
+          4.450047082236948,
+          0.44870930029164835
+        ],
+        [
+          0.44870930029164835,
+          4.447375494953695
+        ]
+      ],
+      "confidence": 0.5295,
+      "class_name": "boat",
+      "class_confidence": 0.5295,
+      "t_s": 13.5,
+      "mount_id": "mast_ptz_eo",
+      "frame_seq": 73,
+      "frame_time_s": 7.953304407596372
+    },
+    {
+      "sensor_id": 2,
+      "position_ne_m": [
+        10.33393672760576,
+        10.334682542081282
+      ],
+      "position_cov_ne_m2": [
+        [
+          4.402924924056675,
+          0.4029540037076673
+        ],
+        [
+          0.4029540037076673,
+          4.402983085457379
+        ]
+      ],
+      "confidence": 0.4347,
+      "class_name": "boat",
+      "class_confidence": 0.4347,
+      "t_s": 14,
+      "mount_id": "mast_ptz_eo",
+      "frame_seq": 74,
+      "frame_time_s": 8.053378117913832
+    },
+    {
+      "sensor_id": 2,
+      "position_ne_m": [
+        10.174034089781344,
+        10.157893454670557
+      ],
+      "position_cov_ne_m2": [
+        [
+          4.325821392950866,
+          0.32530449235627273
+        ],
+        [
+          0.32530449235627273,
+          4.324788411800604
+        ]
+      ],
+      "confidence": 0.7357,
+      "class_name": "boat",
+      "class_confidence": 0.7357,
+      "t_s": 14,
+      "mount_id": "mast_ptz_eo",
+      "frame_seq": 75,
+      "frame_time_s": 8.153395202664399
+    },
+    {
+      "sensor_id": 2,
+      "position_ne_m": [
+        10.357863308861852,
+        10.352258467544743
+      ],
+      "position_cov_ne_m2": [
+        [
+          4.4128374455439845,
+          0.4126140511796858
+        ],
+        [
+          0.4126140511796858,
+          4.41239077769842
+        ]
+      ],
+      "confidence": 0.472,
+      "class_name": "boat",
+      "class_confidence": 0.472,
+      "t_s": 14,
+      "mount_id": "mast_ptz_eo",
+      "frame_seq": 76,
+      "frame_time_s": 8.269985785147393
+    },
+    {
+      "sensor_id": 2,
+      "position_ne_m": [
+        10.420257151126862,
+        10.426463140756823
+      ],
+      "position_cov_ne_m2": [
+        [
+          4.44428036426034,
+          0.4445449642120212
+        ],
+        [
+          0.4445449642120212,
+          4.444809721751434
+        ]
+      ],
+      "confidence": 0.5179,
+      "class_name": "boat",
+      "class_confidence": 0.5179,
+      "t_s": 14,
+      "mount_id": "mast_ptz_eo",
+      "frame_seq": 77,
+      "frame_time_s": 8.370093034297051
+    },
+    {
+      "sensor_id": 2,
+      "position_ne_m": [
+        10.36698726285249,
+        10.345312930752698
+      ],
+      "position_cov_ne_m2": [
+        [
+          4.413988775480541,
+          0.41312324628653463
+        ],
+        [
+          0.41312324628653463,
+          4.412259526660396
+        ]
+      ],
+      "confidence": 0.4453,
+      "class_name": "boat",
+      "class_confidence": 0.4453,
+      "t_s": 14.5,
+      "mount_id": "mast_ptz_eo",
+      "frame_seq": 78,
+      "frame_time_s": 8.486417658730158
+    },
+    {
+      "sensor_id": 2,
+      "position_ne_m": [
+        10.301343942061067,
+        10.295583928244014
+      ],
+      "position_cov_ne_m2": [
+        [
+          4.386529341819976,
+          0.38631321327975626
+        ],
+        [
+          0.38631321327975626,
+          4.386097205588178
+        ]
+      ],
+      "confidence": 0.5105,
+      "class_name": "boat",
+      "class_confidence": 0.5105,
+      "t_s": 14.5,
+      "mount_id": "mast_ptz_eo",
+      "frame_seq": 79,
+      "frame_time_s": 8.58674761904762
+    },
+    {
+      "sensor_id": 2,
+      "position_ne_m": [
+        10.303139795549214,
+        10.291620979412983
+      ],
+      "position_cov_ne_m2": [
+        [
+          4.386243285377589,
+          0.3858114689204971
+        ],
+        [
+          0.3858114689204971,
+          4.3853801352302515
+        ]
+      ],
+      "confidence": 0.5817,
+      "class_name": "boat",
+      "class_confidence": 0.5817,
+      "t_s": 14.5,
+      "mount_id": "mast_ptz_eo",
+      "frame_seq": 80,
+      "frame_time_s": 8.70330670351474
+    },
+    {
+      "sensor_id": 2,
+      "position_ne_m": [
+        10.472365850582719,
+        10.47463343013078
+      ],
+      "position_cov_ne_m2": [
+        [
+          4.468018059306781,
+          0.46811939915933953
+        ],
+        [
+          0.46811939915933953,
+          4.468220760954995
+        ]
+      ],
+      "confidence": 0.55,
+      "class_name": "boat",
+      "class_confidence": 0.55,
+      "t_s": 14.5,
+      "mount_id": "mast_ptz_eo",
+      "frame_seq": 81,
+      "frame_time_s": 8.803421159297052
+    },
+    {
+      "sensor_id": 2,
+      "position_ne_m": [
+        10.24298586230725,
+        10.218436125207518
+      ],
+      "position_cov_ne_m2": [
+        [
+          4.355872868904113,
+          0.3550199354320948
+        ],
+        [
+          0.3550199354320948,
+          4.354169046216809
+        ]
+      ],
+      "confidence": 0.6325,
+      "class_name": "boat",
+      "class_confidence": 0.6325,
+      "t_s": 14.5,
+      "mount_id": "mast_ptz_eo",
+      "frame_seq": 82,
+      "frame_time_s": 8.919779825680271
+    },
+    {
+      "sensor_id": 2,
+      "position_ne_m": [
+        10.278316423296928,
+        10.247393961515627
+      ],
+      "position_cov_ne_m2": [
+        [
+          4.370959161604063,
+          0.3698431256541543
+        ],
+        [
+          0.3698431256541543,
+          4.368730447314383
+        ]
+      ],
+      "confidence": 0.5638,
+      "class_name": "boat",
+      "class_confidence": 0.5638,
+      "t_s": 15,
+      "mount_id": "mast_ptz_eo",
+      "frame_seq": 83,
+      "frame_time_s": 9.020006115362811
+    },
+    {
+      "sensor_id": 2,
+      "position_ne_m": [
+        10.32617318443954,
+        10.309791187464725
+      ],
+      "position_cov_ne_m2": [
+        [
+          4.39599625978688,
+          0.39536803000648874
+        ],
+        [
+          0.39536803000648874,
+          4.394740796883635
+        ]
+      ],
+      "confidence": 0.3676,
+      "class_name": "boat",
+      "class_confidence": 0.3676,
+      "t_s": 15,
+      "mount_id": "mast_ptz_eo",
+      "frame_seq": 84,
+      "frame_time_s": 9.120059410430839
+    },
+    {
+      "sensor_id": 2,
+      "position_ne_m": [
+        10.416359329596162,
+        10.370604148542043
+      ],
+      "position_cov_ne_m2": [
+        [
+          4.432457638916002,
+          0.4305580138231988
+        ],
+        [
+          0.4305580138231988,
+          4.428666733074832
+        ]
+      ],
+      "confidence": 0.6412,
+      "class_name": "boat",
+      "class_confidence": 0.6412,
+      "t_s": 15,
+      "mount_id": "mast_ptz_eo",
+      "frame_seq": 85,
+      "frame_time_s": 9.220107745181405
+    },
+    {
+      "sensor_id": 2,
+      "position_ne_m": [
+        10.31570687610656,
+        10.289868872328952
+      ],
+      "position_cov_ne_m2": [
+        [
+          4.389294965251945,
+          0.38831988862406425
+        ],
+        [
+          0.38831988862406425,
+          4.387347254294479
+        ]
+      ],
+      "confidence": 0.3983,
+      "class_name": "boat",
+      "class_confidence": 0.3983,
+      "t_s": 15,
+      "mount_id": "mast_ptz_eo",
+      "frame_seq": 86,
+      "frame_time_s": 9.336663867630385
+    },
+    {
+      "sensor_id": 2,
+      "position_ne_m": [
+        10.287060644477606,
+        10.290402007980447
+      ],
+      "position_cov_ne_m2": [
+        [
+          4.38168089485083,
+          0.3818048694884572
+        ],
+        [
+          0.3818048694884572,
+          4.3819288843945685
+        ]
+      ],
+      "confidence": 0.5461,
+      "class_name": "boat",
+      "class_confidence": 0.5461,
+      "t_s": 15.5,
+      "mount_id": "mast_ptz_eo",
+      "frame_seq": 87,
+      "frame_time_s": 9.453248405612245
+    },
+    {
+      "sensor_id": 2,
+      "position_ne_m": [
+        10.096901911310852,
+        10.100910453293181
+      ],
+      "position_cov_ne_m2": [
+        [
+          4.294610991335448,
+          0.294727953991262
+        ],
+        [
+          0.294727953991262,
+          4.294844963082079
+        ]
+      ],
+      "confidence": 0.4638,
+      "class_name": "boat",
+      "class_confidence": 0.4638,
+      "t_s": 15.5,
+      "mount_id": "mast_ptz_eo",
+      "frame_seq": 88,
+      "frame_time_s": 9.553339328231292
+    },
+    {
+      "sensor_id": 2,
+      "position_ne_m": [
+        10.182107858359814,
+        10.158253846951993
+      ],
+      "position_cov_ne_m2": [
+        [
+          4.328003745396654,
+          0.3272353185451914
+        ],
+        [
+          0.3272353185451914,
+          4.326468691916546
+        ]
+      ],
+      "confidence": 0.5586,
+      "class_name": "boat",
+      "class_confidence": 0.5586,
+      "t_s": 16.5,
+      "mount_id": "mast_ptz_eo",
+      "frame_seq": 100,
+      "frame_time_s": 10.836769323979592
+    },
+    {
+      "sensor_id": 2,
+      "position_ne_m": [
+        10.368150332942605,
+        10.313485012811725
+      ],
+      "position_cov_ne_m2": [
+        [
+          4.408144526890425,
+          0.4059926144960984
+        ],
+        [
+          0.4059926144960984,
+          4.403852047903682
+        ]
+      ],
+      "confidence": 0.5509,
+      "class_name": "boat",
+      "class_confidence": 0.5509,
+      "t_s": 16.5,
+      "mount_id": "mast_ptz_eo",
+      "frame_seq": 101,
+      "frame_time_s": 10.953304365079365
+    },
+    {
+      "sensor_id": 2,
+      "position_ne_m": [
+        10.205705081112683,
+        10.17059610853903
+      ],
+      "position_cov_ne_m2": [
+        [
+          4.336627266065982,
+          0.3354692238461358
+        ],
+        [
+          0.3354692238461358,
+          4.3343151654443535
+        ]
+      ],
+      "confidence": 0.6444,
+      "class_name": "boat",
+      "class_confidence": 0.6444,
+      "t_s": 17,
+      "mount_id": "mast_ptz_eo",
+      "frame_seq": 102,
+      "frame_time_s": 11.053364781746032
+    },
+    {
+      "sensor_id": 2,
+      "position_ne_m": [
+        10.27946828957647,
+        10.211811781955475
+      ],
+      "position_cov_ne_m2": [
+        [
+          4.364311293481579,
+          0.3619135012075424
+        ],
+        [
+          0.3619135012075424,
+          4.3595314905134135
+        ]
+      ],
+      "confidence": 0.4848,
+      "class_name": "boat",
+      "class_confidence": 0.4848,
+      "t_s": 17,
+      "mount_id": "mast_ptz_eo",
+      "frame_seq": 103,
+      "frame_time_s": 11.153517828798185
+    },
+    {
+      "sensor_id": 2,
+      "position_ne_m": [
+        10.310698124580085,
+        10.26022246183129
+      ],
+      "position_cov_ne_m2": [
+        [
+          4.382171260400714,
+          0.38030035433464154
+        ],
+        [
+          0.38030035433464154,
+          4.378438607223915
+        ]
+      ],
+      "confidence": 0.4601,
+      "class_name": "boat",
+      "class_confidence": 0.4601,
+      "t_s": 17,
+      "mount_id": "mast_ptz_eo",
+      "frame_seq": 104,
+      "frame_time_s": 11.269967786281178
+    },
+    {
+      "sensor_id": 2,
+      "position_ne_m": [
+        10.499450071714818,
+        10.447484874712245
+      ],
+      "position_cov_ne_m2": [
+        [
+          4.4704420189163425,
+          0.4681136481985151
+        ],
+        [
+          0.4681136481985151,
+          4.465796801345439
+        ]
+      ],
+      "confidence": 0.5549,
+      "class_name": "boat",
+      "class_confidence": 0.5549,
+      "t_s": 17,
+      "mount_id": "mast_ptz_eo",
+      "frame_seq": 105,
+      "frame_time_s": 11.370041411564625
+    },
+    {
+      "sensor_id": 2,
+      "position_ne_m": [
+        10.55406792089343,
+        10.50543308617489
+      ],
+      "position_cov_ne_m2": [
+        [
+          4.49700031253649,
+          0.4947100555446107
+        ],
+        [
+          0.4947100555446107,
+          4.492430352423538
+        ]
+      ],
+      "confidence": 0.3486,
+      "class_name": "boat",
+      "class_confidence": 0.3486,
+      "t_s": 17.5,
+      "mount_id": "mast_ptz_eo",
+      "frame_seq": 106,
+      "frame_time_s": 11.470135990646257
+    },
+    {
+      "sensor_id": 2,
+      "position_ne_m": [
+        10.224842770956457,
+        10.18966796289169
+      ],
+      "position_cov_ne_m2": [
+        [
+          4.345424619867241,
+          0.34423631358933543
+        ],
+        [
+          0.34423631358933543,
+          4.3430520952418465
+        ]
+      ],
+      "confidence": 0.2578,
+      "class_name": "boat",
+      "class_confidence": 0.2578,
+      "t_s": 17.5,
+      "mount_id": "mast_ptz_eo",
+      "frame_seq": 107,
+      "frame_time_s": 11.585811536281179
+    },
+    {
+      "sensor_id": 2,
+      "position_ne_m": [
+        10.225756037048995,
+        10.199407228828932
+      ],
+      "position_cov_ne_m2": [
+        [
+          4.3475768873625436,
+          0.3466812825156511
+        ],
+        [
+          0.3466812825156511,
+          4.345787985382739
+        ]
+      ],
+      "confidence": 0.4436,
+      "class_name": "boat",
+      "class_confidence": 0.4436,
+      "t_s": 17.5,
+      "mount_id": "mast_ptz_eo",
+      "frame_seq": 108,
+      "frame_time_s": 11.686316992630385
+    },
+    {
+      "sensor_id": 2,
+      "position_ne_m": [
+        10.36596062593162,
+        10.346341616474092
+      ],
+      "position_cov_ne_m2": [
+        [
+          4.413906785389587,
+          0.4131234097472753
+        ],
+        [
+          0.4131234097472753,
+          4.412341516751343
+        ]
+      ],
+      "confidence": 0.4666,
+      "class_name": "boat",
+      "class_confidence": 0.4666,
+      "t_s": 17.5,
+      "mount_id": "mast_ptz_eo",
+      "frame_seq": 109,
+      "frame_time_s": 11.786638286564626
+    },
+    {
+      "sensor_id": 2,
+      "position_ne_m": [
+        10.18699830211699,
+        10.127987462983583
+      ],
+      "position_cov_ne_m2": [
+        [
+          4.323316948183205,
+          0.3214440505979028
+        ],
+        [
+          0.3214440505979028,
+          4.3195820022593985
+        ]
+      ],
+      "confidence": 0.5446,
+      "class_name": "boat",
+      "class_confidence": 0.5446,
+      "t_s": 17.5,
+      "mount_id": "mast_ptz_eo",
+      "frame_seq": 110,
+      "frame_time_s": 11.886768119331066
+    },
+    {
+      "sensor_id": 2,
+      "position_ne_m": [
+        10.129670376889408,
+        10.107762712636031
+      ],
+      "position_cov_ne_m2": [
+        [
+          4.304399871667277,
+          0.30374153927856135
+        ],
+        [
+          0.30374153927856135,
+          4.3030846306799795
+        ]
+      ],
+      "confidence": 0.4183,
+      "class_name": "boat",
+      "class_confidence": 0.4183,
+      "t_s": 18,
+      "mount_id": "mast_ptz_eo",
+      "frame_seq": 111,
+      "frame_time_s": 12.003392240646258
+    },
+    {
+      "sensor_id": 2,
+      "position_ne_m": [
+        10.432880752719939,
+        10.34291890100576
+      ],
+      "position_cov_ne_m2": [
+        [
+          4.43169233455046,
+          0.42796988793373475
+        ],
+        [
+          0.42796988793373475,
+          4.424279539660448
+        ]
+      ],
+      "confidence": 0.2942,
+      "class_name": "boat",
+      "class_confidence": 0.2942,
+      "t_s": 18,
+      "mount_id": "mast_ptz_eo",
+      "frame_seq": 112,
+      "frame_time_s": 12.145060239512471
+    },
+    {
+      "sensor_id": 2,
+      "position_ne_m": [
+        10.334294975735247,
+        10.24296527120896
+      ],
+      "position_cov_ne_m2": [
+        [
+          4.385194013380055,
+          0.38178984740293515
+        ],
+        [
+          0.38178984740293515,
+          4.378415765865336
+        ]
+      ],
+      "confidence": 0.6048,
+      "class_name": "boat",
+      "class_confidence": 0.6048,
+      "t_s": 18,
+      "mount_id": "mast_ptz_eo",
+      "frame_seq": 113,
+      "frame_time_s": 12.245091284013604
+    },
+    {
+      "sensor_id": 2,
+      "position_ne_m": [
+        10.288941761478782,
+        10.236725498354645
+      ],
+      "position_cov_ne_m2": [
+        [
+          4.371726525383529,
+          0.36984001745598577
+        ],
+        [
+          0.36984001745598577,
+          4.367963083534917
+        ]
+      ],
+      "confidence": 0.4424,
+      "class_name": "boat",
+      "class_confidence": 0.4424,
+      "t_s": 18,
+      "mount_id": "mast_ptz_eo",
+      "frame_seq": 114,
+      "frame_time_s": 12.361673745748298
+    },
+    {
+      "sensor_id": 2,
+      "position_ne_m": [
+        10.286108382977545,
+        10.224494008005422
+      ],
+      "position_cov_ne_m2": [
+        [
+          4.368574583485842,
+          0.36636680073888944
+        ],
+        [
+          0.36636680073888944,
+          4.364172242736334
+        ]
+      ],
+      "confidence": 0.3104,
+      "class_name": "boat",
+      "class_confidence": 0.3104,
+      "t_s": 18.5,
+      "mount_id": "mast_ptz_eo",
+      "frame_seq": 115,
+      "frame_time_s": 12.461769409013606
+    },
+    {
+      "sensor_id": 2,
+      "position_ne_m": [
+        10.404742277227342,
+        10.351378024242877
+      ],
+      "position_cov_ne_m2": [
+        [
+          4.425535908258841,
+          0.4233534028744025
+        ],
+        [
+          0.4233534028744025,
+          4.421182091209836
+        ]
+      ],
+      "confidence": 0.5492,
+      "class_name": "boat",
+      "class_confidence": 0.5492,
+      "t_s": 18.5,
+      "mount_id": "mast_ptz_eo",
+      "frame_seq": 116,
+      "frame_time_s": 12.577521286848071
+    },
+    {
+      "sensor_id": 2,
+      "position_ne_m": [
+        9.906956077553332,
+        9.846902175653668
+      ],
+      "position_cov_ne_m2": [
+        [
+          4.196164693753646,
+          0.19497558427861592
+        ],
+        [
+          0.19497558427861592,
+          4.193793682937305
+        ]
+      ],
+      "confidence": 0.7556,
+      "class_name": "boat",
+      "class_confidence": 0.7556,
+      "t_s": 18.5,
+      "mount_id": "mast_ptz_eo",
+      "frame_seq": 117,
+      "frame_time_s": 12.678423703231292
+    },
+    {
+      "sensor_id": 2,
+      "position_ne_m": [
+        9.971201844513416,
+        9.904859403432056
+      ],
+      "position_cov_ne_m2": [
+        [
+          4.223708413923639,
+          0.22221999130838854
+        ],
+        [
+          0.22221999130838854,
+          4.22074147177118
+        ]
+      ],
+      "confidence": 0.7247,
+      "class_name": "boat",
+      "class_confidence": 0.7247,
+      "t_s": 18.5,
+      "mount_id": "mast_ptz_eo",
+      "frame_seq": 118,
+      "frame_time_s": 12.778481490929705
+    },
+    {
+      "sensor_id": 2,
+      "position_ne_m": [
+        9.97676966432482,
+        9.901275191179593
+      ],
+      "position_cov_ne_m2": [
+        [
+          4.2243671813632035,
+          0.22266938911178366
+        ],
+        [
+          0.22266938911178366,
+          4.2209844440981446
+        ]
+      ],
+      "confidence": 0.6282,
+      "class_name": "boat",
+      "class_confidence": 0.6282,
+      "t_s": 18.5,
+      "mount_id": "mast_ptz_eo",
+      "frame_seq": 119,
+      "frame_time_s": 12.89504036989796
+    },
+    {
+      "sensor_id": 2,
+      "position_ne_m": [
+        10.107787795364857,
+        10.033836073431303
+      ],
+      "position_cov_ne_m2": [
+        [
+          4.284079768010969,
+          0.28200135200442505
+        ],
+        [
+          0.28200135200442505,
+          4.279938142336322
+        ]
+      ],
+      "confidence": 0.5828,
+      "class_name": "boat",
+      "class_confidence": 0.5828,
+      "t_s": 19,
+      "mount_id": "mast_ptz_eo",
+      "frame_seq": 120,
+      "frame_time_s": 13.011592949263038
+    },
+    {
+      "sensor_id": 2,
+      "position_ne_m": [
+        9.826589170843363,
+        9.761385013334802
+      ],
+      "position_cov_ne_m2": [
+        [
+          4.159326738435523,
+          0.15826952869912397
+        ],
+        [
+          0.15826952869912397,
+          4.157219334059111
+        ]
+      ],
+      "confidence": 0.6508,
+      "class_name": "boat",
+      "class_confidence": 0.6508,
+      "t_s": 19,
+      "mount_id": "mast_ptz_eo",
+      "frame_seq": 121,
+      "frame_time_s": 13.128380909863946
+    },
+    {
+      "sensor_id": 2,
+      "position_ne_m": [
+        10.021609658375382,
+        9.974168698929134
+      ],
+      "position_cov_ne_m2": [
+        [
+          4.250244711514931,
+          0.24906008653423284
+        ],
+        [
+          0.24906008653423284,
+          4.247881069409687
+        ]
+      ],
+      "confidence": 0.4456,
+      "class_name": "boat",
+      "class_confidence": 0.4456,
+      "t_s": 19,
+      "mount_id": "mast_ptz_eo",
+      "frame_seq": 122,
+      "frame_time_s": 13.24493128543084
+    },
+    {
+      "sensor_id": 2,
+      "position_ne_m": [
+        10.202666502445936,
+        10.18850229576492
+      ],
+      "position_cov_ne_m2": [
+        [
+          4.339345587599455,
+          0.3388744792956937
+        ],
+        [
+          0.3388744792956937,
+          4.3384040250244045
+        ]
+      ],
+      "confidence": 0.6984,
+      "class_name": "boat",
+      "class_confidence": 0.6984,
+      "t_s": 19,
+      "mount_id": "mast_ptz_eo",
+      "frame_seq": 123,
+      "frame_time_s": 13.361616617063492
+    },
+    {
+      "sensor_id": 2,
+      "position_ne_m": [
+        10.277402428910136,
+        10.23539654011256
+      ],
+      "position_cov_ne_m2": [
+        [
+          4.368371392895939,
+          0.36686578212300447
+        ],
+        [
+          0.36686578212300447,
+          4.3653663250955645
+        ]
+      ],
+      "confidence": 0.6401,
+      "class_name": "boat",
+      "class_confidence": 0.6401,
+      "t_s": 19.5,
+      "mount_id": "mast_ptz_eo",
+      "frame_seq": 124,
+      "frame_time_s": 13.478275992063491
+    },
+    {
+      "sensor_id": 2,
+      "position_ne_m": [
+        10.286683083511889,
+        10.267028876653058
+      ],
+      "position_cov_ne_m2": [
+        [
+          4.3770316574805594,
+          0.3763112835512086
+        ],
+        [
+          0.3763112835512086,
+          4.375592286001236
+        ]
+      ],
+      "confidence": 0.7262,
+      "class_name": "boat",
+      "class_confidence": 0.7262,
+      "t_s": 19.5,
+      "mount_id": "mast_ptz_eo",
+      "frame_seq": 125,
+      "frame_time_s": 13.57837969812925
     }
   ]
 }

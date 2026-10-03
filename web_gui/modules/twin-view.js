@@ -34,6 +34,11 @@ export const TWIN_SENSOR_MODE_LABELS = { eo: 'EO', ir: 'IR', lidar: 'LiDAR' };
 // P2-S4 联动 spike（契约 §8）：Cesium 相机变更上报阈值（camera.changed percentageChanged）。
 export const TWIN_LINK_CHANGE_PERCENT = 0.01;
 
+// Stream-entry timeout (spec #91 前置批 B): the official URS receiver's start()
+// retries a dead signaling forever — the viewport must surface the health card
+// instead of hanging in "connecting"; the watchdog owns the retry from there.
+export const STREAM_ENTRY_TIMEOUT_MS = 8000;
+
 // Clock-message pacing: contract §2 fixes ~10Hz while PLAYING.
 const CLOCK_INTERVAL_MS = 100;
 // HUD freshness: Unity state is ~1Hz; no message for this long degrades the signal.
@@ -350,8 +355,7 @@ export function createTwinBridgeClient({ channel = null, now = () => Date.now(),
  * Maps a ReplayClock-like object onto the bridge clock channel at contract
  * cadence. `clock` needs `{ playhead, rate, state }`; scheduler is injectable
  * `{ setInterval, clearInterval }` for deterministic tests.
- */
-export function createTwinClockDriver({ clock, client, scheduler = globalThis, intervalMs = CLOCK_INTERVAL_MS } = {}) {
+ */export function createTwinClockDriver({ clock, client, scheduler = globalThis, intervalMs = CLOCK_INTERVAL_MS } = {}) {
   let timerId = null;
   let bridge = client; // rebound by the page once the channel opens (`client` setter)
   function tick({ force = false } = {}) {
@@ -408,6 +412,128 @@ export function projectTwinHud({ connection = 'idle', client = null, playhead = 
   else if (attached && !state) statusLine = 'TWIN ATTACHED · AWAITING STATE';
   else if (attached && state) statusLine = `TWIN LIVE · SIGNAL ${signal.toUpperCase()}`;
   return { signal, fps, latencyMs: latency, simTime: sim ?? playhead, statusLine };
+}
+
+// ── Twin stream health card (spec #91 前置批 B：用户报障"选 T 后视口无画面"的可视化) ──
+
+/**
+ * ws://host:port → http://host:port (signaling reachability probe URL).
+ * Non-ws schemes pass through unchanged (tests inject relative URLs).
+ */
+export function signalingHttpUrl(wsUrl) {
+  return typeof wsUrl === 'string' && wsUrl.startsWith('ws://') ? `http://${wsUrl.slice(5)}` : wsUrl;
+}
+
+/**
+ * Signaling reachability probe: the webapp serves GET /config (vendor 契约).
+ * Resolves true/false; never rejects (network errors = unreachable).
+ */
+export async function probeSignalingReachable(signalingUrl, fetchRef = globalThis.fetch, timeoutMs = 2500) {
+  try {
+    const response = await fetchRef(`${signalingHttpUrl(signalingUrl)}/config`, { signal: AbortSignal.timeout(timeoutMs) });
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Pure health-card state machine (spec #91 前置批 B)：信令可达性 × video 状态 ×
+ * 重试计数 → OpenBridge 风格状态卡文案。分层：信令挂 = 提示信令服务（twin-signaling）；
+ * 信令通而流无 = 提示 player 服务（twin-player）+ 重试计数；流恢复 = 卡片隐藏。
+ */
+export function projectTwinStreamHealth({ signalingReachable = null, videoConnected = false, retryCount = 0 } = {}) {
+  if (signalingReachable === false) {
+    return {
+      visible: true,
+      level: 'signaling-down',
+      title: '孪生信令未连接',
+      detail: 'URS 信令服务（:8080）不可达 — 请启动 twin-signaling 服务（deploy/twin/README.md），恢复后自动重试',
+    };
+  }
+  if (!videoConnected) {
+    return retryCount > 0
+      ? {
+          visible: true,
+          level: 'retrying',
+          title: `孪生流端未连接 · 重试中（第 ${retryCount} 次）`,
+          detail: '信令已通、像素流未达 — 请确认 sango twin player 在跑（twin-player 服务，deploy/twin/README.md）',
+        }
+      : {
+          visible: true,
+          level: 'waiting',
+          title: '孪生流端未连接',
+          detail: '正在等待 sango twin player（twin-player 服务）接入信令 — deploy/twin/README.md',
+        };
+  }
+  return { visible: false, level: 'ok', title: '', detail: '' };
+}
+
+/**
+ * Watchdog driving <see> projectTwinStreamHealth </see> off a ~250ms tick()
+ * (called from the viewport HUD timers — no timer of its own). Duty cycle:
+ *   - probe signaling reachability every probeEveryMs (tri-state until first answer);
+ *   - count a retry (and fire onRetry) when the video has been down for
+ *     retryAfterMs while the signaling is reachable;
+ *   - emit the health projection on every tick (card render is the onHealth
+ *     caller's job; a visible:false result hides the card).
+ * DOM-free: video readiness is the caller's boolean (video.readyState etc.).
+ */
+export function createTwinStreamHealthMonitor({
+  signalingUrl = TWIN_SIGNALING_URL_DEFAULT,
+  onHealth = () => {},
+  onRetry = null,
+  fetchRef = globalThis.fetch,
+  now = () => Date.now(),
+  probeEveryMs = 3000,
+  retryAfterMs = 5000,
+  probe = probeSignalingReachable,
+} = {}) {
+  let lastProbeMs = -Infinity;
+  let reachable = null; // tri-state: null = first probe in flight
+  let retryCount = 0;
+  let lastVideoOkMs = null;
+  let lastRetryMs = -Infinity;
+  let probing = false;
+
+  function emit(videoConnected) {
+    onHealth(projectTwinStreamHealth({ signalingReachable: reachable, videoConnected, retryCount }));
+  }
+
+  function tick(videoConnected) {
+    const at = now();
+    if (videoConnected) {
+      lastVideoOkMs = at;
+      lastRetryMs = -Infinity;
+      retryCount = 0; // 流恢复即清零（卡片已隐藏；下次断流从"等待"重新起步）
+      emit(true);
+      return;
+    }
+    if (!probing && at - lastProbeMs >= probeEveryMs) {
+      lastProbeMs = at;
+      probing = true;
+      void Promise.resolve(probe(signalingUrl, fetchRef))
+        .then(result => { probing = false; reachable = result === true; emit(false); })
+        .catch(() => { probing = false; reachable = false; emit(false); });
+    }
+    if (reachable !== false && onRetry
+        && (lastVideoOkMs === null || at - lastVideoOkMs > retryAfterMs)) {
+      if (lastRetryMs === -Infinity) {
+        lastRetryMs = at; // baseline: down-transition moment — the first retry waits retryAfterMs too
+      } else if (at - lastRetryMs >= retryAfterMs) {
+        retryCount += 1;
+        lastRetryMs = at;
+        try { void onRetry(); } catch { /* retried on a later tick */ }
+      }
+    }
+    emit(false);
+  }
+
+  return {
+    tick,
+    get signalingReachable() { return reachable; },
+    get retryCount() { return retryCount; },
+  };
 }
 
 // ── DOM wiring (page shell only; tests drive the pure seams above) ──────────
@@ -492,6 +618,37 @@ export function createTwinViewController({
   let range = null;
   let generation = 0;
   let debug = null;
+  // spec #91 前置批 B: stream health watchdog (Evaluation twin viewer) — 状态卡
+  // 双处之一（Deployment live twin 在 deployment-twin.js）。onRetry = 真·重连。
+  const healthMonitor = createTwinStreamHealthMonitor({
+    signalingUrl,
+    now: nowFn,
+    onHealth: renderHealthCard,
+    onRetry: () => {
+      if (!runId) return;
+      ensureStream().then(() => queueAttachWhenReady()).catch(() => { /* 卡片已报，下一 tick 重试 */ });
+    },
+  });
+
+  function videoConnectedNow() {
+    const frame = el('twinVideo');
+    return Boolean(connectionState === 'streaming' && frame && frame.readyState >= 2 && frame.videoWidth > 0);
+  }
+
+  function renderHealthCard(health) {
+    const card = el('twinHealth');
+    if (!card) return;
+    if (!health.visible || !runId) {
+      card.hidden = true;
+      return;
+    }
+    const title = card.querySelector('.twin-health-title');
+    const detail = card.querySelector('.twin-health-detail');
+    if (title) title.textContent = health.title;
+    if (detail) detail.textContent = health.detail;
+    card.dataset.level = health.level;
+    card.hidden = false;
+  }
   // Twin runs pagination (same vocabulary as replay-runs.js: 10/20/50 rows per page).
   const TWIN_PAGE_SIZES = [10, 20, 50];
   let twinRunsRows = [];
@@ -715,17 +872,21 @@ export function createTwinViewController({
     syncPlayButton();
     ensureDebugHandle();
     try {
-      await ensureStream();
+      // spec #91 前置批 B: bound the entry (dead signaling retries forever in the
+      // receiver) — the health card takes over via the catch below.
+      await Promise.race([
+        ensureStream(),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('stream entry timeout')), STREAM_ENTRY_TIMEOUT_MS)),
+      ]);
       if (gen !== generation) return;
       queueAttachWhenReady();
       bindThemeObserver();
     } catch (error) {
+      // spec #91 前置批 B: the health card owns stream-unreachable UX (分层提示
+      // + 自动重试); the viewer stays open instead of a dead-end error line.
       const errorSlot = el('twinError');
-      if (errorSlot) {
-        errorSlot.textContent = `Twin stream unreachable at ${signalingUrl} — start the local URS webapp and the sango-twin player.`;
-        errorSlot.hidden = false;
-      }
-      setConnectionState('idle');
+      if (errorSlot) errorSlot.hidden = true;
+      healthMonitor.tick(false);
     }
   }
 
@@ -745,6 +906,8 @@ export function createTwinViewController({
     if (runs) runs.hidden = false;
     const errorSlot = el('twinError');
     if (errorSlot) errorSlot.hidden = true;
+    const healthCard = el('twinHealth'); // spec #91 前置批 B: viewer closed — card goes with it
+    if (healthCard) healthCard.hidden = true;
   }
 
   function bindThemeObserver() {
@@ -803,6 +966,8 @@ export function createTwinViewController({
     if (chip) chip.textContent = `${hud.signal.toUpperCase()} · ${hud.fps === null ? '—' : `${hud.fps.toFixed(0)} FPS`} · ${hud.latencyMs === null ? '—' : `${hud.latencyMs.toFixed(0)} MS`}`;
     const status = el('twinStatusLine');
     if (status) status.textContent = hud.statusLine;
+    // spec #91 前置批 B: health watchdog tick (viewer-open only; the card hides itself).
+    if (runId) healthMonitor.tick(videoConnectedNow());
     // P3-S2 (spec #90): state echo is the authority for the sensor mode UI.
     applySensorMode(projectSensorMode(client?.lastState));
     const simSlot = el('twinTimeCurrent');

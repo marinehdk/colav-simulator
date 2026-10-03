@@ -78,6 +78,12 @@ namespace Sango
         string m_SensorMode = TwinBridge.DefaultSensorMode;
         FramePublisher m_FeedPublisher; // 桅杆馈送改接（rig attach 后一次性）
         bool m_LidarViewLogged; // P3-S3 lidar 视角激活日志（每次进入模式记一条，探针双证）
+        // P3-11：视口跟随重挂记账（首挂记忆 demo 跟随目标与桥楼/艏锚点，detach 恢复）
+        bool m_FollowRetargeted;
+        Transform m_DemoFollowShip;
+        Transform m_DemoBridgeMount;
+        Transform m_DemoBowMount;
+        bool m_DemoBridgeShipRelative;
 
         // clock 消息面（DataChannel 回调主线程写、泵/状态读；fetch 线程只读 playhead——
         // C# 禁 volatile double，跨线程取值允许一个 tick 的陈旧，泵按 100ms 轮询无碍）
@@ -258,6 +264,10 @@ namespace Sango
         /// 本船位姿（继承姿态），FramePublisher 源相机改接前向 EO 机位
         /// （mast_ptz_eo，任务书"默认源=EO 前向机位"；观测契约 mount_id 引用键），
         /// 捕获分辨率随标定表栅格 640×480。
+        /// P3-11 (spec #91 前置批)：挂载成功同时把 CameraRig.followShip 重挂到 twin
+        /// 本船槽位——旧路径视口相机恒随 M6 demo 船（海峡内，距 twin 槽位 ~5km），
+        /// 流画面永远看不到 twin 会话的船。首挂前记住原跟随目标，detach 恢复（demo
+        /// 零残留）；DetachDataPlane 单点恢复。
         /// </summary>
         void AttachMastRigWhenOwnShipReady()
         {
@@ -271,6 +281,7 @@ namespace Sango
                     Debug.LogWarning("[Sango.TwinBridge] mast rig attach failed (own ship present but feed mount missing)");
                     return;
                 }
+                RetargetCameraFollow(ownShip.transform, ownShip.name);
                 Debug.Log($"[Sango.TwinBridge] mast rig attached to {ownShip.name} mounts={mastRig.BuiltMountCount} feed={mastRig.feedMountId}");
             }
             if (m_FeedPublisher == null) m_FeedPublisher = FindFirstObjectByType<FramePublisher>();
@@ -280,6 +291,34 @@ namespace Sango
                 m_FeedPublisher.mountId = mastRig.feedMountId;
                 m_FeedPublisher.overrideCaptureSize = new Vector2Int(Vessels.Mast.MastCameraTable.FeedWidthPx, Vessels.Mast.MastCameraTable.FeedHeightPx);
                 Debug.Log($"[Sango.TwinBridge] frame feed rewired -> {mastRig.feedMountId} ({Vessels.Mast.MastCameraTable.FeedWidthPx}x{Vessels.Mast.MastCameraTable.FeedHeightPx})");
+            }
+        }
+
+        /// <summary>P3-11：视口跟随重挂（首次记忆原目标；DetachDataPlane 恢复）。
+        /// 同时桥楼/艏锚点让位 + bridgeShipRelative=true——M6 场景的 BridgeCameraMount
+        /// 焊死在 demo 船上（mount 分支优先于 followPos），不摘除则视口永远拍 demo 船
+        /// 桥楼（census 实证：followPos 已是 twin 本船而相机仍钉在 -1493,-5006）。
+        /// 摘除后 Bridge = 船位 + 艏向系 (0,12,-40) 偏移视线沿艏向（CameraViews 语义），
+        /// 流画面 = twin 本船航行动态。detach 全量还原。</summary>
+        void RetargetCameraFollow(Transform ownShip, string ownShipName)
+        {
+            if (cameraRig == null) return;
+            if (!m_FollowRetargeted)
+            {
+                m_FollowRetargeted = true;
+                m_DemoFollowShip = cameraRig.followShip;
+                m_DemoBridgeMount = cameraRig.bridgeMount;
+                m_DemoBowMount = cameraRig.bowMount;
+                m_DemoBridgeShipRelative = cameraRig.bridgeShipRelative;
+            }
+            if (cameraRig.followShip != ownShip)
+            {
+                cameraRig.followShip = ownShip;
+                cameraRig.bridgeMount = null;
+                cameraRig.bowMount = null;
+                cameraRig.bridgeShipRelative = true;
+                Debug.Log($"[Sango.TwinBridge] camera follow retargeted -> {ownShipName}" +
+                          " (bridge mounts detached, ship-relative bridge view)");
             }
         }
 
@@ -413,6 +452,19 @@ namespace Sango
         {
             StopReplayFetch();
             if (driver != null) driver.StopTwin();
+            // P3-11：视口跟随还原（attach 期重挂过才还原；demo 语义零残留）
+            if (m_FollowRetargeted && cameraRig != null)
+            {
+                cameraRig.followShip = m_DemoFollowShip;
+                cameraRig.bridgeMount = m_DemoBridgeMount;
+                cameraRig.bowMount = m_DemoBowMount;
+                cameraRig.bridgeShipRelative = m_DemoBridgeShipRelative;
+                Debug.Log($"[Sango.TwinBridge] camera follow restored -> {(m_DemoFollowShip != null ? m_DemoFollowShip.name : "null")}");
+                m_FollowRetargeted = false;
+                m_DemoFollowShip = null;
+                m_DemoBridgeMount = null;
+                m_DemoBowMount = null;
+            }
             m_RunId = null;
             m_Mode = null;
             m_AttachedSent = false;

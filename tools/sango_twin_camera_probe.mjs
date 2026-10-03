@@ -32,6 +32,7 @@
 import { spawn, execSync } from 'node:child_process';
 import { mkdirSync, writeFileSync, existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { twinLaunchdPlayerDown, twinLaunchdPlayerUp } from './lib/twin_launchd.mjs'; // spec #91 前置批：launchd player 共处协议
 
 const BACKEND = 'http://127.0.0.1:8011'; // diagnostic launcher instance
 const OUT_DIR = new URL('../output/sango-twin-camera/', import.meta.url).pathname;
@@ -85,9 +86,10 @@ function cleanup() {
   killPid(detectorPid, 'detector');
   killPid(launcherPid, 'launcher');
 }
-process.on('exit', cleanup);
+process.on('exit', () => { try { cleanup(); } finally { twinLaunchdPlayerUp(check); } }); // 末位复位 launchd player（spec #91 前置批）
 function killLeftovers() {
   for (const pattern of ['sango_detector_service', 'sango_detector_replay', 'sango_camera_kf_session', 'MacOS/sango']) {
+  twinLaunchdPlayerDown(check); // launchd 常驻 player 先停（本探针不用 player，保持机器可预期）
     try {
       const out = execSync(`pgrep -fl "${pattern}" || true`).toString().trim();
       if (!out) continue;

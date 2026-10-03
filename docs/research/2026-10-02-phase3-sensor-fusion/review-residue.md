@@ -47,6 +47,27 @@
   见 `tools/sango_twin_camera_probe.mjs` 与 `output/sango-twin-camera/report.md`。
   处置：**转后续**（Unity 渲染排查/立项，本批 Unity 零改动纪律内不追）。
 
+- **P3-11 关闭（spec #91 前置批，2026-10-03）**：根因 = `MastSensorRig.Attach` 的
+  SetParent 环——rig 与槽位工厂同 GO（旧场景烘焙），Attach(槽位) 是环被 Unity
+  6000.3.24f1 **静默拒绝**（批模式实证：无异常无日志、层级不变），且旧 Detach 清空
+  rig transform 全部子物体 = 顺带毁掉槽位船（Player.log 双份 rig 构建的来源）；另
+  视口相机恒随 demo 船（followShip 未重挂 + BridgeCameraMount 焊死 demo 船）。
+  修复：rig 独立子 GO 烘焙（TwinBridgeSceneBuilder）+ Attach 环目标显式拒绝 +
+  Detach 只毁自建 mount + followShip 重挂/mount 让位/ship-relative（detach 全还原）。
+  证据：EditMode `MastSensorRigAttachTests`/`TwinBridgeFollowRetargetTests`；
+  census `cam view=Bridge pos=(402.5,11.7,399.1) followPos=(429.1,-0.3,429.0)`；
+  userpath `output/sango-userpath/slot-parity.json`（diag↔truth 槽位位姿对拍
+  0.13 m / 0.08°）。
+- **P3-12（新，spec #91 前置批发现，场景注册设计项）**：twin 会话的锚定（live =
+  本船首帧 UTM、replay = ENC origin）把航行区投到 M6 海峡场景的**陆地贴图上**
+  （camera_free 空中取证：走廊 (500..2500)² 上空为城镇/森林地形，demo 舰水域在
+  (-1500,-5000) 一带；`output/sango-userpath/` 截图组）。目标船槽位位姿正确
+  （P3-11 对拍）但视觉上没入地形——"live 画面目标船肉眼可见"需场景注册决策
+  （M6 地形重配准到 ENC / twin 专用水面环境 / 混合），属 Unity 场景资产级工作，
+  非代码缺陷。处置：**转后续立项**（用户决策场景方案）；userpath 探针以
+  槽位位姿对拍 + census 双证替代"肉眼可见"断言（断言不降：数据面闭环），
+  terrain 取证截图随探针产物在盘。
+
 ## 关票检查单
 
 - [x] P1-1 双管（接线 + 披露）

@@ -57,6 +57,9 @@ namespace Sango
         /// <summary>队列积压上限：主线程长期不取用时丢最旧（DetectionResultConsumer 同款）。</summary>
         const int QueueCap = 64;
 
+        /// <summary>诊断日志周期（秒；CameraRig 5s 诊断行同款工艺，spec #91 前置批 P3-11 验证面）。</summary>
+        const float DiagIntervalS = 5f;
+
         sealed class TwinSlot
         {
             public GameObject Ship;
@@ -207,6 +210,28 @@ namespace Sango
             double now = Time.realtimeSinceStartupAsDouble;
             DrainInbox(now);
             ApplyPoses(now);
+            LogDiagnostic();
+        }
+
+        float m_LastDiagLog = -999f;
+
+        /// <summary>
+        /// 低频诊断行（spec #91 前置批 P3-11 验证面）：槽位数 + 每船场景坐标/艏向——
+        /// 探针从 Player.log 对拍 WS truth（数据 → 槽位位姿正确性）的唯一现场证据
+        /// （槽位 GameObject 无调试通道；CameraRig 5s census 同款工艺）。
+        /// </summary>
+        void LogDiagnostic()
+        {
+            if (Time.unscaledTime - m_LastDiagLog < DiagIntervalS) return;
+            m_LastDiagLog = Time.unscaledTime;
+            if (m_Latest?.truth == null || !m_Anchor.HasValue) return;
+            var ships = string.Join(" ", System.Linq.Enumerable.Select(m_Latest.truth, ship =>
+            {
+                if (ship == null) return "";
+                var position = TwinPose.ScenePosition(ship, m_Anchor.Value);
+                return $"id{ship.id}=({position.x:0.0},{position.z:0.0}m,ψ{TwinPose.YawDegrees(ship.psi):0}°)";
+            }));
+            Debug.Log($"[Sango.Twin] diag slots={m_Slots.Count} sim={RenderSimTime:0.0}s {ships}");
         }
 
         /// <summary>

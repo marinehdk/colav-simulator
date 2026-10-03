@@ -3994,6 +3994,34 @@ canvas#simCanvas.route-pick-mode { cursor: crosshair; }
 .twin-canvas-wrapper { position: relative; display: flex; flex: 1 1 auto; min-height: 0; overflow: hidden; border: 1px solid var(--ob-border); border-radius: var(--radius); background: #000; }
 .twin-video { width: 100%; height: 100%; object-fit: contain; background: #000; }
 .twin-hud { position: absolute; top: 12px; left: 12px; z-index: 6; background: color-mix(in srgb, var(--ob-surface) 86%, transparent); }
+
+/* spec #91 前置批 B: twin stream health card (OpenBridge status idiom) —
+   分层提示：signaling-down = 信令服务；waiting/retrying = player 服务+重试计数。
+   流恢复由 twin-view.js#createTwinStreamHealthMonitor 自动隐藏。 */
+.twin-health-card {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 9;
+  display: grid;
+  gap: 6px;
+  justify-items: center;
+  max-width: min(420px, 80%);
+  padding: 14px 18px;
+  text-align: center;
+  background: color-mix(in srgb, var(--ob-surface, #f0f2f4) 92%, transparent);
+  color: var(--ob-text, #1c2530);
+  border: 1px solid var(--ob-border, #9aa4ae);
+  border-left: 4px solid #c9830a;
+  border-radius: var(--radius, 4px);
+  box-shadow: 0 4px 14px rgb(0 0 0 / 35%);
+}
+.twin-health-card[data-level="signaling-down"] { border-left-color: #b3261e; }
+.twin-health-card[data-level="retrying"] { border-left-color: #c9830a; }
+.twin-health-card[hidden] { display: none; }
+.twin-health-title { font-size: 13px; letter-spacing: 0.02em; }
+.twin-health-detail { font-size: 11px; line-height: 16px; color: var(--ob-muted, #5b6670); }
 /* P3-S2 (spec #90): sensor-mode group + state-echo chip on the twin viewports. */
 .deployment-twin-sensor-group { position: absolute; top: 44px; right: 12px; z-index: 7; }
 .deployment-twin-sensor-mode { position: absolute; bottom: 12px; left: 12px; z-index: 7; background: color-mix(in srgb, var(--ob-surface) 86%, transparent); }

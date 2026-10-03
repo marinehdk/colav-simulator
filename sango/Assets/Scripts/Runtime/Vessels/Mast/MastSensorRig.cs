@@ -28,8 +28,9 @@ namespace Sango.Vessels.Mast
         /// <summary>Feed-mount camera (null until <see cref="Attach"/> succeeds).</summary>
         public Camera FeedCamera { get; private set; }
 
-        /// <summary>Feed-mount world pose at the last attach (diagnostics).</summary>
-        public bool Attached => FeedCamera != null;
+        /// <summary>Rig attached to a vessel root with a live feed (P3-11: also requires the
+        /// parent rewrite to have actually landed — Unity silently refuses cyclic SetParent).</summary>
+        public bool Attached => FeedCamera != null && vesselRoot != null && transform.parent == vesselRoot;
 
         /// <summary>Built mount count (diagnostics/tests).</summary>
         public int BuiltMountCount => _cameras.Count;
@@ -37,14 +38,38 @@ namespace Sango.Vessels.Mast
         /// <summary>
         /// Parents the rig under the vessel root and builds every mount of the
         /// table. Idempotent: re-attach to a new vessel rebuilds the family.
+        /// P3-11 (spec #91 前置批): rejects a cyclic target — when the rig shares a
+        /// GameObject with the slot factory (TwinBridgeSceneBuilder 旧烘焙), the vessel
+        /// slot is a child of the rig transform and SetParent would be a cycle that
+        /// Unity silently refuses (verified on 6000.3.24f1: no exception, hierarchy
+        /// unchanged) — the rig then renders from the stale world pose forever. The
+        /// refusal now fails loudly instead of reporting a phantom attach; re-bake the
+        /// scene (rig on its own child GameObject) to fix the wiring.
         /// </summary>
         public bool Attach(Transform target)
         {
             if (target == null) return false;
             if (vesselRoot == target && FeedCamera != null) return true;
+            if (target.IsChildOf(transform))
+            {
+                // P3-11：目标在 rig 自身子树内（rig 与槽位工厂同 GO 的旧烘焙）——SetParent
+                // 是环，Unity 6000.3.24f1 静默拒绝（实证：无异常无日志、层级不变）。显式拒绝
+                // 并保留现场（不 Detach——共享 GO 上 Detach 会顺带毁掉子树里的槽位船）。
+                Debug.LogError($"[Sango.MastRig] attach refused: target '{target.name}' is inside the rig's own " +
+                               "subtree (rig shares a GameObject with the slot factory). Rebuild the SangoTwin scene " +
+                               "(TwinBridgeSceneBuilder puts the rig on a dedicated child GameObject).");
+                return false;
+            }
             Detach();
             vesselRoot = target;
             transform.SetParent(vesselRoot, worldPositionStays: false);
+            if (transform.parent != vesselRoot)
+            {
+                // 防御兜底：环检查之外的任何静默拒绝（未来 Unity 行为变化）不再假报成功。
+                Debug.LogError($"[Sango.MastRig] attach failed: Unity refused parenting under '{target.name}'");
+                vesselRoot = null;
+                return false;
+            }
             transform.localPosition = Vector3.zero;
             transform.localRotation = Quaternion.identity;
             foreach (var mount in MastCameraTable.Mounts) BuildMount(mount);
@@ -53,22 +78,29 @@ namespace Sango.Vessels.Mast
             return FeedCamera != null && ConfigureFeedTarget();
         }
 
-        /// <summary>Removes the rig from the vessel and destroys the mount hierarchy + feed target.</summary>
+        /// <summary>
+        /// Removes the rig from the vessel and destroys the mount hierarchy + feed target.
+        /// P3-11: destroys only the mount holders this rig built — never the transform's
+        /// whole child set (shared-GO bakes host the twin slot ships as siblings; the old
+        /// child wipe massacred them right after the first attach, forcing a slot rebuild).
+        /// </summary>
         public void Detach()
         {
             FeedCamera = null;
+            foreach (var camera in _cameras.Values)
+                if (camera != null)
+                {
+                    var holder = camera.gameObject;
+                    if (Application.isPlaying) Destroy(holder);
+                    else DestroyImmediate(holder);
+                }
             _cameras.Clear();
             if (_feedTarget != null)
             {
                 _feedTarget.Release();
-                Destroy(_feedTarget);
+                if (Application.isPlaying) Destroy(_feedTarget);
+                else DestroyImmediate(_feedTarget);
                 _feedTarget = null;
-            }
-            for (int i = transform.childCount - 1; i >= 0; i--)
-            {
-                var child = transform.GetChild(i).gameObject;
-                if (Application.isPlaying) Destroy(child);
-                else DestroyImmediate(child);
             }
             transform.SetParent(null, worldPositionStays: false);
             vesselRoot = null;

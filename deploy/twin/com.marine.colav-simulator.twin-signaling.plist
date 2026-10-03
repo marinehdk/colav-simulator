@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>KeepAlive</key>
+	<true/>
+	<key>Label</key>
+	<string>com.marine.colav-simulator.twin-signaling</string>
+	<key>ProcessType</key>
+	<string>Interactive</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/Users/marine/.local/bin/node</string>
+		<string>/Users/marine/Code/Colav-Simulator/deploy/twin/urs-webapp/build/index.js</string>
+		<string>-p</string>
+		<string>8080</string>
+	</array>
+	<key>RunAtLoad</key>
+	<true/>
+	<key>StandardErrorPath</key>
+	<string>/Users/marine/Code/Colav-Simulator/deploy/twin/logs/twin-signaling.error.log</string>
+	<key>StandardOutPath</key>
+	<string>/Users/marine/Code/Colav-Simulator/deploy/twin/logs/twin-signaling.log</string>
+	<key>ThrottleInterval</key>
+	<integer>5</integer>
+	<key>WorkingDirectory</key>
+	<string>/Users/marine/Code/Colav-Simulator/deploy/twin/urs-webapp</string>
+</dict>
+</plist>

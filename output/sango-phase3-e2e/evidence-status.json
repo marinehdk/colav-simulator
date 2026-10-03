@@ -1,7 +1,7 @@
 {
   "probe": "sango_phase3_e2e_probe",
   "default_tracker": "vimmjipda",
-  "session_id": "0e8eb83e-4e36-4983-a99f-98b236d95014",
+  "session_id": "bef5ba12-efb8-4bd4-9a45-312395611fab",
   "assertions": [
     {
       "name": "preflight backend 8010",
@@ -29,9 +29,14 @@
       "detail": "selectable=[\"god\",\"vimmjipda\"]"
     },
     {
+      "name": "launchd twin-player downed for probe (single-instance)",
+      "ok": true,
+      "detail": "gui/502/com.marine.colav-simulator.twin-player"
+    },
+    {
       "name": "fallback session created with EXPLICIT tracker_id=god (revert path live)",
       "ok": true,
-      "detail": "session=f67404dc-5102-47ab-b547-0ae412c0d6ad"
+      "detail": "session=f13d5565-e7e8-4c1b-bf1d-5e8046667a7e"
     },
     {
       "name": "radar_ppi descriptor live on the envelope (radar_x assembled in scenario)",
@@ -81,7 +86,7 @@
     {
       "name": "flipped-default session started (vimmjipda fusion chain)",
       "ok": true,
-      "detail": "session=0e8eb83e-4e36-4983-a99f-98b236d95014"
+      "detail": "session=bef5ba12-efb8-4bd4-9a45-312395611fab"
     },
     {
       "name": "YOLO detector up (CPU) with forward branch",
@@ -91,7 +96,7 @@
     {
       "name": "twin viewport attached to the flipped-tracker session (live pixel stream)",
       "ok": true,
-      "detail": "run=0e8eb83e ships=2"
+      "detail": "run=bef5ba12 ships=2"
     },
     {
       "name": "mast rig attached; FramePublisher feed rewired to mast_ptz_eo (P3-S2 rig family)",
@@ -106,7 +111,7 @@
     {
       "name": "EO baseline frame captured (visible light)",
       "ok": true,
-      "detail": "mean=78.9 std=64.4 spread=34 dark=0.12 lit=0.2907"
+      "detail": "mean=75.9 std=52.1 spread=79 dark=0.24 lit=0.4001"
     },
     {
       "name": "IR switch: state echo sensor_mode=ir (contract §3)",
@@ -121,12 +126,12 @@
     {
       "name": "IR stream frame captured (grayscale stats)",
       "ok": true,
-      "detail": "mean=83.2 std=55.0 spread=5 dark=0.00 lit=0.3060"
+      "detail": "mean=72.2 std=44.6 spread=6 dark=0.21 lit=0.3592"
     },
     {
       "name": "IR = black-and-white thermal (max channel spread ~0)",
       "ok": true,
-      "detail": "maxSpread=5"
+      "detail": "maxSpread=6"
     },
     {
       "name": "LiDAR switch: state echo sensor_mode=lidar",
@@ -136,17 +141,17 @@
     {
       "name": "LiDAR frame captured",
       "ok": true,
-      "detail": "mean=8.9 std=16.7 spread=105 dark=0.97 lit=0.0166"
+      "detail": "mean=6.1 std=4.4 spread=133 dark=1.00 lit=0.0015"
     },
     {
       "name": "LiDAR = point-cloud view (dark backdrop vs EO)",
       "ok": true,
-      "detail": "lidar dark=0.97 vs eo dark=0.12"
+      "detail": "lidar dark=1.00 vs eo dark=0.24"
     },
     {
       "name": "LiDAR point cloud sparse lit points present",
       "ok": true,
-      "detail": "lit=0.0166"
+      "detail": "lit=0.0015"
     },
     {
       "name": "EO restore: state echo sensor_mode=eo (full loop closed)",
@@ -156,7 +161,7 @@
     {
       "name": "EO restore = visible light returns (channel spread back)",
       "ok": true,
-      "detail": "mean=78.9 std=64.4 spread=36 dark=0.12 lit=0.2903"
+      "detail": "mean=76.5 std=52.9 spread=63 dark=0.24 lit=0.4056"
     },
     {
       "name": "Player.log double proof (sensor_mode -> ir / lidar + mast rig)",
@@ -166,27 +171,27 @@
     {
       "name": "observations accepted (YOLO → POST → backend measurement cache)",
       "ok": true,
-      "detail": "accepted_frames=2202"
+      "detail": "accepted_frames=115"
     },
     {
       "name": "measurement cache holds sensor_id=2 camera_eo entries (georeferenced detections)",
       "ok": true,
-      "detail": "[{\"sensor_id\":2,\"mount_id\":\"mast_ptz_eo\",\"frames\":2202,\"detections\":1,\"last_frame_seq\":2215}]"
+      "detail": "[{\"sensor_id\":2,\"mount_id\":\"mast_ptz_eo\",\"frames\":115,\"detections\":68,\"last_frame_seq\":125}]"
     },
     {
       "name": "WS envelope stream captured (live frames)",
       "ok": true,
-      "detail": "frames=5"
+      "detail": "frames=312"
     },
     {
       "name": "WS tracks carry §6 existence_prob/quality/sources arrays (P3-S5 channel)",
       "ok": true,
-      "detail": "labels=1 existence=[0.9999993296184886]"
+      "detail": "labels=1 existence=[0.9999299223955188]"
     },
     {
       "name": "vimmjipda existence probability is measurement-driven (not the pinned god 1.0)",
       "ok": true,
-      "detail": "samples=5 min=1.0000 max=1.0000 confirmed=1"
+      "detail": "samples=5 min=0.9999 max=0.9999 confirmed=1"
     },
     {
       "name": "confirmed-tracks data product live (frozen sensor-model@1/tracks envelope)",
@@ -196,9 +201,9 @@
     {
       "name": "backend-authoritative ais fields present on obstacles of the fusion session (age_s/state)",
       "ok": true,
-      "detail": "sample={\"age_s\":5.5,\"state\":\"active\"}"
+      "detail": "sample={\"age_s\":9,\"state\":\"active\"}"
     }
   ],
   "failures": [],
-  "at": "2026-10-03T03:20:49.618Z"
+  "at": "2026-10-03T15:46:45.927Z"
 }

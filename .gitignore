@@ -150,3 +150,6 @@ codegraph/
 .venv-detector/
 models/*.pt
 sango/tmp/
+
+# Twin launchd runtime logs (spec #91 前置批)
+deploy/twin/logs/
