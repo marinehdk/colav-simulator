@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { drawVODecisionDisc } from '../../web_gui/modules/situation-display.js';
-import { voDiscRadiusM } from '../../web_gui/modules/scene-3d.js';
+import { drawVODecisionDisc } from '../../web_gui/modules/situation-display.js?v=20261004-token-cleanup-v1';
+import { voDiscRadiusM } from '../../web_gui/modules/scene-3d.js?v=20261004-token-cleanup-v1';
 
 function recordingContext() {
   const fills = [];

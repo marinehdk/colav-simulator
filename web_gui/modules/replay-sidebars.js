@@ -1,7 +1,7 @@
 /** Recorded Replay sidebars. Reuse Deployment's card DOM and CSS, but bind only
  * sealed frame facts and the separate event journal at the current playhead. */
-import { buildRadarModel, createRadarMiniMap } from './radar-mini-map.js';
-import { RADAR_DETECTION_RANGE_M } from './situation-display.js';
+import { buildRadarModel, createRadarMiniMap } from './radar-mini-map.js?v=20261004-token-cleanup-v1';
+import { RADAR_DETECTION_RANGE_M } from './situation-display.js?v=20261004-token-cleanup-v1';
 import { renderMonitorEventItems, visibleMonitorEvents } from './monitor-event-presentation.js?v=20260924-replay-events-v1';
 
 const NM = 1852;

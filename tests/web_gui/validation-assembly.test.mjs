@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { createValidationAssembly } from '../../web_gui/modules/validation-assembly.js';
+import { createValidationAssembly } from '../../web_gui/modules/validation-assembly.js?v=20260914-gnc-replay-v3';
 
 const qualifiedProductDomainProfile = {
   profile_id: 'colav.mid-mpc-validation-domain.v1',

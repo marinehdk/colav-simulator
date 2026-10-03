@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { createTelemetryPlayback } from '../../web_gui/modules/telemetry-playback.js';
+import { createTelemetryPlayback } from '../../web_gui/modules/telemetry-playback.js?v=20260908-buffered-motion-v2';
 
 function harness() {
   let now = 0, id = 0;

@@ -1,6 +1,6 @@
 import { chooseVesselAsset, vesselModelMatrix, VESSEL_ASSETS } from './vessel-models.js?v=20260921-fcb-v1';
-import { createGeography, NM, targetKey, riskForTarget, targetAlert, frameIdentity, predictionMarkers, offscreenDirection } from './scene-geography.js?v=20260923-follow-v1';
-import { targetsForDisplay, RADAR_DETECTION_RANGE_M, drawVODecisionDisc } from './situation-display.js?v=20260923-vo-disc-v1';
+import { createGeography, NM, targetKey, riskForTarget, targetAlert, frameIdentity, predictionMarkers, offscreenDirection } from './scene-geography.js?v=20261004-token-cleanup-v1';
+import { targetsForDisplay, RADAR_DETECTION_RANGE_M, drawVODecisionDisc } from './situation-display.js?v=20261004-token-cleanup-v1';
 import { createRoute3D } from './route-3d.js?v=20260921-route-ar-v1';
 import { createSceneCompass } from './scene-compass.js?v=20260923-follow-v1';
 import { targetPresentation, applyTargetAppearance, updateTargetPoi, renderTargetCard } from './scene-target.js?v=20260923-follow-v1';

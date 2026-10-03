@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { routeLegs, routeProgress } from '../../web_gui/modules/route-progress.js';
+import { routeLegs, routeProgress } from '../../web_gui/modules/route-progress.js?v=20260901-route-card-v1';
 
 test('route progress exposes a next leg before WPT2 and null on the final leg after WPT2', () => {
   const legs = routeLegs([[0, 100, 200], [0, 0, 0]]);

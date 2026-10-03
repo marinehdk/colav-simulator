@@ -11,9 +11,108 @@
  */
 
 import { interpolateVesselKinematics } from './kinematics.js';
-import { createGeography } from './scene-geography.js';
+import { createGeography } from './scene-geography.js?v=20261004-token-cleanup-v1';
 
 export const REPLAY_PRESENTATION_MODE = 'HISTORICAL_REPLAY';
+
+/* ── Replay AIS display-state reconstruction (P3-9, spec #91 batch-2b) ──
+ *
+ * Live envelopes carry the backend-authoritative `truth[].ais =
+ * {age_s, state}` (gui_server/main.py::_record_ais_reports +
+ * colav_simulator/core/ais_display.py). A sealed replay has no live
+ * transponder clock, so the report age is REBUILT on the web from the
+ * recorded frames: the functions below are the web mirror of the backend
+ * formulas — SAME constants, SAME M.1371 table, SAME clock walk (the
+ * backend remains the authority; a divergence here is a bug to fix on both
+ * sides together). The replay playhead is the display clock, which makes
+ * the rebuilt age deterministic under seek / playback rate / pause.
+ */
+
+const MPS_PER_KNOT = 1852.0 / 3600.0;
+
+/** Display policy mirrors of core/ais_display.py (same values, same meaning). */
+export const AIS_ACTIVE_SOG_MPS = 0.5;
+export const AIS_LOST_AGE_FACTOR = 3.0;
+
+const AIS_CLASS_A_SOG_KN_ANCHORED = 0.001;
+const AIS_CLASS_A_SOG_KN_MODERATE = 14.0;
+const AIS_CLASS_A_SOG_KN_FAST = 23.0;
+const AIS_CLASS_B_SOG_KN_SLOW = 2.0;
+
+/** Web mirror of `ais_reporting_interval_s` (core/ais_display.py):
+ *  ITU-R M.1371 autonomous-mode position-report interval in seconds. */
+export function aisReportingIntervalS(sogMps, aisClass = 'A') {
+  const sogKnots = Number(sogMps) / MPS_PER_KNOT;
+  if (String(aisClass).toUpperCase() === 'B') {
+    return sogKnots <= AIS_CLASS_B_SOG_KN_SLOW ? 180.0 : 30.0;
+  }
+  if (sogKnots <= AIS_CLASS_A_SOG_KN_ANCHORED) return 180.0;
+  if (sogKnots <= AIS_CLASS_A_SOG_KN_MODERATE) return 10.0;
+  if (sogKnots <= AIS_CLASS_A_SOG_KN_FAST) return 6.0;
+  return 2.0;
+}
+
+/** Web mirror of `ais_target_state` (core/ais_display.py): lost/active/sleeping. */
+export function aisTargetState(sogMps, ageS, aisClass = 'A') {
+  const age = Number(ageS);
+  if (!Number.isFinite(Number(sogMps)) || !Number.isFinite(age)
+    || age > AIS_LOST_AGE_FACTOR * aisReportingIntervalS(sogMps, aisClass)) {
+    return 'lost';
+  }
+  if (Number(sogMps) >= AIS_ACTIVE_SOG_MPS) return 'active';
+  return 'sleeping';
+}
+
+/**
+ * Replay mirror of the backend report clock (`AisReportClock.advance` walked
+ * by main.py::_record_ais_reports over the recorded frames).
+ *
+ * `reportSamples` is one sample per recorded FULL frame carrying the ship,
+ * in ascending `t_s` order: `{t_s, sog_mps, inactive}` (`inactive` mirrors
+ * the historical-replay data-gap kind: no transponder report arrives, the
+ * age keeps growing). A new report emits when the elapsed sim time reaches
+ * the speed-dependent expected interval; the returned age is
+ * `playheadS - lastReport` and grows continuously between reports, exactly
+ * like the live display clock.
+ *
+ * Reconstruction boundary: the window `history` strip carries positions
+ * only (no SOG, no sample kind), so the clock starts at the first full
+ * frame at or before the playhead — ages near a window start read as a
+ * fresh report. The live page loads a bounded recent window the same way.
+ */
+export function replayAisReportAge(reportSamples, playheadS) {
+  const playhead = Number(playheadS);
+  let lastReport = null;
+  for (const sample of Array.isArray(reportSamples) ? reportSamples : []) {
+    const t = Number(sample?.t_s);
+    if (!Number.isFinite(t) || t > playhead) break; // samples are ascending
+    if (sample.inactive) continue; // data gap: hold the clock, age grows
+    const interval = aisReportingIntervalS(sample.sog_mps);
+    if (lastReport === null || t < lastReport || t - lastReport >= interval) {
+      lastReport = t;
+    }
+  }
+  return lastReport === null ? 0.0 : Math.max(0.0, playhead - lastReport);
+}
+
+/** Recorded full-frame samples for one ship id (ascending sim time). */
+function replayAisSamples(frames, shipId) {
+  const samples = [];
+  for (const frame of frames) {
+    const raw = frame?.payload
+      ? Object.values(frame.payload).find(ship => String(ship?.id) === String(shipId))
+      : null;
+    if (!raw || typeof raw !== 'object') continue;
+    const csog = Array.isArray(raw.csog_state) ? raw.csog_state : [];
+    const sog = Number(csog[2]);
+    samples.push({
+      t_s: Number(frame.sim_time),
+      sog_mps: Number.isFinite(sog) ? sog : 0.0,
+      inactive: String(raw.historical_actor_truth?.sample_kind ?? '').toLowerCase() === 'inactive',
+    });
+  }
+  return samples;
+}
 
 // Transport bounds mirroring the live envelope publication policy: the raw
 // stored evidence keeps the complete audit; the envelope carries the recent
@@ -249,13 +348,22 @@ function buildEnvelope({ descriptor, context, sourceFrame, upperFrame, alpha, in
 
   const upperShips = localShips(upperPayload, context).ships;
   const upperById = new Map(upperShips.map(ship => [String(ship.id), ship]));
-  ships.forEach((ship) => {
+  ships.forEach((ship, index) => {
     const upper = upperById.get(String(ship.id));
     if (interpolated && upper) {
       const kinematics = interpolateVesselKinematics(ship, upper, alpha);
       Object.assign(ship, kinematics);
     }
     ship.trajectory = trailsToPlayhead([...history, ...priorFrames], playhead, ship, ship.id, { originN, originE });
+    if (index >= 1) {
+      // P3-9 replay AIS backfill: additive display field on obstacles only
+      // (ownship carries no AIS object), same shape as the live transport.
+      // Age is rebuilt from the recorded full frames at/before the playhead
+      // with the mirror clock; the state judgment uses the displayed
+      // (interpolated) SOG — the playhead analog of the live current SOG.
+      const ageS = replayAisReportAge(replayAisSamples(priorFrames, ship.id), playhead);
+      ship.ais = { age_s: ageS, state: aisTargetState(ship.sog, ageS) };
+    }
   });
 
   const own = ships[0] ?? null;

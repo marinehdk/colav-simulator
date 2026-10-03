@@ -1,0 +1,48 @@
+{
+  "evidence": "P3-9 replay AIS backfill (spec #91 batch-2b)",
+  "produced": "2026-10-04",
+  "acceptance": [
+    {
+      "claim": "M.1371 reporting-rhythm mirror matches the backend table (core/ais_display.py)",
+      "source": "tests/web_gui/replay-source.test.mjs — 'AIS reporting interval mirrors the backend ITU-R M.1371 table'"
+    },
+    {
+      "claim": "lost/active/sleeping judgment mirrors ais_target_state incl. the 3x lost factor and the 0.5 m/s activation gate",
+      "source": "tests/web_gui/replay-source.test.mjs — 'AIS target state mirrors the backend lost/active/sleeping judgment'"
+    },
+    {
+      "claim": "rebuilt age emits reports on the cadence and grows between reports with the playhead as display clock",
+      "source": "tests/web_gui/replay-source.test.mjs — 'rebuilt report age follows the reporting rhythm...'"
+    },
+    {
+      "claim": "inactive data gaps hold the clock and age across the gap (lost after 3 expected intervals)",
+      "source": "tests/web_gui/replay-source.test.mjs — 'inactive data gaps hold the report clock...'"
+    },
+    {
+      "claim": "replay envelope carries ais on obstacles only, same shape as live transport; ownship carries none",
+      "source": "tests/web_gui/replay-source.test.mjs — 'replay envelope carries the rebuilt AIS display field on obstacles only, like live'"
+    },
+    {
+      "claim": "age is a pure function of the playhead: seek back/forth, pause and playback rate never distort it",
+      "source": "tests/web_gui/replay-source.test.mjs — 'rebuilt AIS age is a pure function of the playhead...'; output/sango-ais-replay/ais-replay-seek.png (t=44 -> t=20: TS1 AGE 4.0->0.0 s, TS3 lost->active@10.0 s)"
+    },
+    {
+      "claim": "slim window-history positions (no SOG/kind) never emit reports; clock starts at the first full frame",
+      "source": "tests/web_gui/replay-source.test.mjs — 'window history positions never emit AIS reports...'"
+    },
+    {
+      "claim": "2D chart + card render the rebuilt field in replay mode (TS1 active 5.0 kn AGE 4.0 s; TS2 sleeping 0.0 kn AGE 44.0 s; TS3 lost 6.0 kn AGE 34.0 s)",
+      "source": "output/sango-ais-replay/ais-replay-2d.png, ais-replay-card.png (headless Chrome over tests/web_gui/ais-replay-visual.html, mock sealed frames)"
+    },
+    {
+      "claim": "every web module is imported through exactly one specifier (P3-6 generalization; situation-display.js was 4 tokens + 1 unversioned)",
+      "source": "tests/web_gui/module-specifier-uniqueness.test.mjs"
+    }
+  ],
+  "suite": "node --test tests/web_gui/*.test.mjs -> 487 pass / 0 fail (478 baseline + 9)",
+  "boundaries": [
+    "mock sealed frames (parallel batch owns backend/live probes); per-frame fields match a real frames.jsonl ship record",
+    "window history strip is position-only: rebuilt clock starts at the first full frame at/before the playhead",
+    "ais_class is the backend default 'A' (the live path never sets another class)"
+  ]
+}

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createDeploymentView } from '../../web_gui/modules/deployment-view.js';
+import { createDeploymentView } from '../../web_gui/modules/deployment-view.js?v=20261004-token-cleanup-v1';
 
 const info = { ready: true, run_id: 'a', utm_zone: 33, horizontal_crs: 'EPSG:25833', hemisphere: 'north', display_height_reference: 'ellipsoid-zero-visual-only', origin_e: 39000, origin_n: 6956450, width: 6000, height: 6000 };
 function harness(factory, twinFactory = null) {

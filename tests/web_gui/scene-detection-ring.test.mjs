@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { RADAR_DETECTION_RANGE_M } from '../../web_gui/modules/situation-display.js';
+import { RADAR_DETECTION_RANGE_M } from '../../web_gui/modules/situation-display.js?v=20261004-token-cleanup-v1';
 const source = readFileSync(new URL('../../web_gui/modules/scene-3d.js', import.meta.url), 'utf8');
 const body = source.slice(source.indexOf('  function updateRings() {'), source.indexOf('  function updatePaths() {'));
 function harness() {

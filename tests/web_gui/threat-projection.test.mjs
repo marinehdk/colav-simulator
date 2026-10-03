@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { createTelemetryProjection } from '../../web_gui/modules/telemetry-projection.js';
+import { createTelemetryProjection } from '../../web_gui/modules/telemetry-projection.js?v=20261004-token-cleanup-v1';
 
 function runtime(envelope) {
   return {
@@ -130,7 +130,7 @@ test('legacy envelope without canonical threat facts stays explicitly unavailabl
 });
 
 test('canvas threat style reads explicit backend display class and never uses distance fallbacks', async () => {
-  const { targetThreatStyle } = await import('../../web_gui/modules/situation-display.js');
+  const { targetThreatStyle } = await import('../../web_gui/modules/situation-display.js?v=20261004-token-cleanup-v1');
   const target = { id: 1, generation: 1, x: 0, y: 0 };
   assert.equal(
     targetThreatStyle({

@@ -5,9 +5,9 @@
 <div id="surface"><canvas id="chart"></canvas><div id="scene" class="scene3d-host"></div></div><pre id="result">Loading</pre>
 <script type="module">
 import '/static/vendor/openbridge/openbridge-components.mjs?v=20260920-3d-v1';
-import {createSituationDisplay} from '/static/modules/situation-display.js?v=20260920-3d-v1';
-import {createDeploymentView} from '/static/modules/deployment-view.js?v=20260920-3d-v1';
-import {createScene3D} from '/static/modules/scene-3d.js?v=20260920-3d-v1';
+import {createSituationDisplay} from '/static/modules/situation-display.js?v=20261004-token-cleanup-v1';
+import {createDeploymentView} from '/static/modules/deployment-view.js?v=20261004-token-cleanup-v1';
+import {createScene3D} from '/static/modules/scene-3d.js?v=20261004-token-cleanup-v1';
 const result=document.querySelector('#result'), surface=document.querySelector('#surface'), host=document.querySelector('#scene');
 const enc=await (await fetch('/api/enc_info')).json();
 const chart=createSituationDisplay({canvas:document.querySelector('#chart'),wrapper:surface,fetchInfo:async()=>enc,fetchTile:()=>'/api/enc_tile',loadSprites:false});

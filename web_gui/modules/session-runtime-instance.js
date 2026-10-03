@@ -1,5 +1,5 @@
 import { createActiveSessionRuntime } from './active-session-runtime.js?v=20260908-buffered-motion-v2';
-import { createTelemetryProjection } from './telemetry-projection.js?v=20260908-buffered-motion-v2';
+import { createTelemetryProjection } from './telemetry-projection.js?v=20261004-token-cleanup-v1';
 import { createTelemetryPlayback } from './telemetry-playback.js?v=20260908-buffered-motion-v2';
 
 class SessionHttpError extends Error {

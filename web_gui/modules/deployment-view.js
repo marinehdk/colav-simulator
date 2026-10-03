@@ -1,5 +1,5 @@
-import { targetsForDisplay } from './situation-display.js?v=20260920-3d-v1';
-import { geographyProblem, frameIdentity, targetKey } from './scene-geography.js';
+import { targetsForDisplay } from './situation-display.js?v=20261004-token-cleanup-v1';
+import { geographyProblem, frameIdentity, targetKey } from './scene-geography.js?v=20261004-token-cleanup-v1';
 
 // One display boundary. No session control, network telemetry or physics clock lives here.
 // P2-S4: three display states — '2d' chart, '3d' Cesium scene, 'twin' live pixel-stream

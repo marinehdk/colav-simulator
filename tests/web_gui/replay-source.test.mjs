@@ -1,8 +1,14 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { createTelemetryProjection } from '../../web_gui/modules/telemetry-projection.js';
-import { projectReplayFrame } from '../../web_gui/modules/replay-source.js';
+import { createTelemetryProjection } from '../../web_gui/modules/telemetry-projection.js?v=20261004-token-cleanup-v1';
+import {
+  AIS_LOST_AGE_FACTOR,
+  aisReportingIntervalS,
+  aisTargetState,
+  projectReplayFrame,
+  replayAisReportAge,
+} from '../../web_gui/modules/replay-source.js?v=20261004-token-cleanup-v1';
 
 /* ── Known-literal recorded evidence (no simulator, no current code paths) ── */
 
@@ -471,4 +477,134 @@ test('rejected and historical predictions never masquerade as executable current
     assert.equal(envelope.plans.previous_prediction_horizon.length, style === 'INVALID_HISTORY' ? 2 : 0);
     assert.equal(envelope.plans.rejected_prediction_horizon.length, style === 'REJECTED' ? 2 : 0);
   }
+});
+
+/* ── P3-9 (spec #91 batch-2b): replay AIS display-state reconstruction ──
+   Web mirror of colav_simulator/core/ais_display.py driven the way
+   gui_server/main.py::_record_ais_reports walks it over recorded frames. */
+
+test('AIS reporting interval mirrors the backend ITU-R M.1371 table', () => {
+  const kn = knots => knots * (1852.0 / 3600.0);
+  // Class A: moored/anchored, 0-14 kn, 14-23 kn, >23 kn.
+  assert.equal(aisReportingIntervalS(0), 180.0);
+  assert.equal(aisReportingIntervalS(kn(0.0005)), 180.0); // anchored band (<=0.001 kn)
+  assert.equal(aisReportingIntervalS(kn(0.1)), 10.0); // creeping but not anchored
+  assert.equal(aisReportingIntervalS(kn(5)), 10.0);
+  assert.equal(aisReportingIntervalS(kn(14)), 10.0);
+  assert.equal(aisReportingIntervalS(kn(14.1)), 6.0);
+  assert.equal(aisReportingIntervalS(kn(23)), 6.0);
+  assert.equal(aisReportingIntervalS(kn(23.5)), 2.0);
+  // Class B: <=2 kn -> 180 s, else 30 s.
+  assert.equal(aisReportingIntervalS(kn(2), 'B'), 180.0);
+  assert.equal(aisReportingIntervalS(kn(3), 'B'), 30.0);
+});
+
+test('AIS target state mirrors the backend lost/active/sleeping judgment', () => {
+  assert.equal(AIS_LOST_AGE_FACTOR, 3.0);
+  assert.equal(aisTargetState(2.2, 0), 'active'); // underway
+  assert.equal(aisTargetState(0.1, 0), 'sleeping'); // below the 0.5 m/s gate
+  // interval(2.2 m/s) = 10 s -> lost threshold at 30 s, boundary inclusive.
+  assert.equal(aisTargetState(2.2, 29.9), 'active');
+  assert.equal(aisTargetState(2.2, 30), 'active');
+  assert.equal(aisTargetState(2.2, 30.1), 'lost');
+  // Stationary target: interval 180 s -> lost only after 540 s.
+  assert.equal(aisTargetState(0, 500), 'sleeping');
+  assert.equal(aisTargetState(0, 541), 'lost');
+  // Non-finite SOG (absent csog) reads as lost, like the backend guard.
+  assert.equal(aisTargetState(Number.NaN, 0), 'lost');
+});
+
+test('rebuilt report age follows the reporting rhythm with the playhead as display clock', () => {
+  // Frames every 0.5 s from t=10, SOG 2.2 m/s (interval 10 s): a report
+  // emits at t=10 and again at the first sample reaching t-last >= 10 (t=20).
+  const samples = [];
+  for (let t = 10; t <= 24.5 + 1e-9; t += 0.5) {
+    samples.push({ t_s: Number(t.toFixed(1)), sog_mps: 2.2, inactive: false });
+  }
+  assert.equal(replayAisReportAge(samples, 10), 0); // fresh report at window start
+  assert.ok(Math.abs(replayAisReportAge(samples, 13) - 3) < 1e-9); // grows between reports
+  assert.ok(Math.abs(replayAisReportAge(samples, 19.5) - 9.5) < 1e-9);
+  assert.equal(replayAisReportAge(samples, 20), 0); // re-report on the cadence
+  assert.ok(Math.abs(replayAisReportAge(samples, 24.5) - 4.5) < 1e-9);
+});
+
+test('inactive data gaps hold the report clock so the age grows across the gap', () => {
+  // Ship1 kind fixture: SOG 1.4 m/s (interval 10 s, lost at 30 s).
+  const samples = [{ t_s: 10, sog_mps: 1.4, inactive: false }];
+  for (let t = 10.5; t <= 45; t += 0.5) {
+    samples.push({ t_s: Number(t.toFixed(1)), sog_mps: 1.4, inactive: true });
+  }
+  // No report during the gap: age keeps growing from the last real report.
+  assert.ok(Math.abs(replayAisReportAge(samples, 19.5) - 9.5) < 1e-9);
+  assert.ok(Math.abs(replayAisReportAge(samples, 45) - 35) < 1e-9);
+  assert.equal(aisTargetState(1.4, replayAisReportAge(samples, 45)), 'lost');
+});
+
+test('replay envelope carries the rebuilt AIS display field on obstacles only, like live', () => {
+  const at = playhead => projectReplayFrame({
+    descriptor: DESCRIPTOR, context: CONTEXT, windowDoc: WINDOW_DOC, playhead,
+  });
+  // Exact stored frame A (t=10.0): first full frame emits the report (age 0);
+  // SOG 1.4 m/s is underway -> active. Own ship carries no AIS object.
+  const exact = at(10.0);
+  assert.deepEqual(exact.envelope.obstacles[0].ais, { age_s: 0, state: 'active' });
+  assert.equal(exact.envelope.os.ais, undefined);
+  // Interpolated playhead: age advances with the replay clock; the SOG is
+  // the displayed (interpolated) one for the state judgment.
+  const midway = at(10.25);
+  assert.ok(Math.abs(midway.envelope.obstacles[0].ais.age_s - 0.25) < 1e-9);
+  assert.equal(midway.envelope.obstacles[0].ais.state, 'active');
+});
+
+test('recorded inactive spans project as lost targets through the envelope', () => {
+  const gapFrame = {
+    sequence: 200,
+    sim_time: 45.0,
+    step_time_ms: 5.5,
+    state: 'RUNNING',
+    payload: {
+      Ship0: framePayload({ north0: 2050, east0: 2010, psi0: 0.1, north1: 2060, east1: 1120, psi1: 1.0 }).Ship0,
+      Ship1: {
+        id: 1,
+        mmsi: 200,
+        state: [2060, 1120, 1.0, 1.0, 0.2, 0.0],
+        csog_state: [2060, 1120, 1.4, 1.2],
+        active: true,
+        historical_actor_truth: { sample_kind: 'inactive' },
+      },
+    },
+    events: [],
+    threat_management: THREAT_B,
+  };
+  const windowDoc = { frames: [{ ...FRAME_A, vo_decision_space: undefined }, gapFrame] };
+  const result = projectReplayFrame({ descriptor: DESCRIPTOR, context: CONTEXT, windowDoc, playhead: 45.0 });
+  assert.equal(result.ok, true);
+  assert.equal(result.envelope.obstacles[0].ais.state, 'lost');
+  assert.ok(Math.abs(result.envelope.obstacles[0].ais.age_s - 35) < 1e-9);
+});
+
+test('rebuilt AIS age is a pure function of the playhead (seek, rate and pause safe)', () => {
+  const windowDoc = { frames: [FRAME_A, FRAME_B] };
+  const aisAt = playhead => projectReplayFrame({
+    descriptor: DESCRIPTOR, context: CONTEXT, windowDoc, playhead,
+  }).envelope.obstacles[0].ais;
+  // Seeking forward and back re-derives the same age for the same sim time;
+  // playback rate only changes how fast the playhead moves, never the age.
+  const forward = aisAt(10.5);
+  const back = aisAt(10.0);
+  assert.deepEqual(aisAt(10.5), forward);
+  assert.deepEqual(back, { age_s: 0, state: 'active' });
+  assert.ok(Math.abs(forward.age_s - 0.5) < 1e-9);
+});
+
+test('window history positions never emit AIS reports (position-only strip)', () => {
+  const history = [
+    { sim_time: 1, payload: { Ship0: { id: 0, state: [2040, 2000] }, Ship1: { id: 1, state: [2050, 1110] } } },
+    { sim_time: 5, payload: { Ship1: { id: 1, state: [2055, 1115] } } },
+  ];
+  const result = projectReplayFrame({
+    descriptor: DESCRIPTOR, context: CONTEXT, windowDoc: { frames: [FRAME_A], history }, playhead: 10,
+  });
+  // The clock starts at the first FULL frame (t=10): age 0, not 9.
+  assert.deepEqual(result.envelope.obstacles[0].ais, { age_s: 0, state: 'active' });
 });

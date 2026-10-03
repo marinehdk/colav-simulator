@@ -9,10 +9,10 @@
  * only and never mutates an Active Session.
  */
 
-import { createSituationDisplay } from './situation-display.js?v=20261003-grid-guard-v1';
-import { createDeploymentView } from './deployment-view.js?v=20260924-chase-vo-v1';
-import { createTelemetryProjection } from './telemetry-projection.js';
-import { projectReplayFrame, REPLAY_PRESENTATION_MODE } from './replay-source.js?v=20260924-replay-sidebar-v2';
+import { createSituationDisplay } from './situation-display.js?v=20261004-token-cleanup-v1';
+import { createDeploymentView } from './deployment-view.js?v=20261004-token-cleanup-v1';
+import { createTelemetryProjection } from './telemetry-projection.js?v=20261004-token-cleanup-v1';
+import { projectReplayFrame, REPLAY_PRESENTATION_MODE } from './replay-source.js?v=20261004-token-cleanup-v1';
 import { createReplayClock, ReplayPlayState } from './replay-clock.js?v=20260918-buffering';
 // Keep the URL identical to the shell's standalone module tag. Native ESM
 // treats query-string variants as different module instances; without this
@@ -768,7 +768,7 @@ export function createEvaluationReplayController({
       replayView = createDeploymentView({
         chart: display,
         createScene: async options => {
-          const createScene = sceneFactory ?? (await import('./scene-3d.js?v=20260924-chase-vo-v1')).createScene3D;
+          const createScene = sceneFactory ?? (await import('./scene-3d.js?v=20261004-token-cleanup-v1')).createScene3D;
           return createScene({ ...options, chart: display, host: el('replayScene3dHost'),
             onSelect: id => display.selectTarget(id),
             getPlannerSurface: () => replayVODecisionSpace ? { type: 'vo', vo: replayVODecisionSpace } : null });

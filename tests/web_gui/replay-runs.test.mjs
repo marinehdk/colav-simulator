@@ -4,12 +4,12 @@ import test from 'node:test';
 
 const html = await readFile(new URL('../../web_gui/index.html', import.meta.url), 'utf8');
 const styles = await readFile(new URL('../../web_gui/style.css', import.meta.url), 'utf8');
-const moduleSource = await readFile(new URL('../../web_gui/modules/replay-runs.js', import.meta.url), 'utf8');
+const moduleSource = await readFile(new URL('../../web_gui/modules/replay-runs.js?v=20260916-replay-layout-v4', import.meta.url), 'utf8');
 const entrySource = await readFile(new URL('../../web_gui/vendor/openbridge/entry-source.mjs', import.meta.url), 'utf8');
 const bundleSource = await readFile(new URL('../../web_gui/vendor/openbridge/openbridge-components.mjs', import.meta.url), 'utf8');
 
 const { createReplayRunsClient, projectReplayRunRows, replayStateLabel, renderReplayRuns, setReplayRunOpener } = await import(
-  '../../web_gui/modules/replay-runs.js'
+  '../../web_gui/modules/replay-runs.js?v=20260916-replay-layout-v4'
 );
 
 const evaluationStart = html.indexOf('data-workface-panel="evaluation"');

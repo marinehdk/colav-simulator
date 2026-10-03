@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { targetPresentation } from '../../web_gui/modules/scene-target.js';
-import { buildSceneCompass } from '../../web_gui/modules/scene-compass.js';
+import { targetPresentation } from '../../web_gui/modules/scene-target.js?v=20260923-follow-v1';
+import { buildSceneCompass } from '../../web_gui/modules/scene-compass.js?v=20260923-follow-v1';
 const ship = {id:1,generation:2,x:1000,y:1000,psi:Math.PI,sog:5};
 function fixture(encounter='HEAD_ON',role='GIVE_WAY',displayClass='HIGH') {
  return {raw:{run_id:'r',executed_tracker:'god',os:{x:0,y:0,psi:0},obstacles:[ship]},risk:{targets:[{targetId:1,generation:2,displayClass,encounter,role,dcpaM:185.2,tcpaS:120}]}};

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { createActiveSessionRuntime } from '../../web_gui/modules/active-session-runtime.js';
+import { createActiveSessionRuntime } from '../../web_gui/modules/active-session-runtime.js?v=20260908-buffered-motion-v2';
 
 function deferred() {
   let resolve;

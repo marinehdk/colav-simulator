@@ -2,12 +2,12 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
-import { createHistoricalAISApi } from '../../web_gui/modules/historical-ais-api.js';
+import { createHistoricalAISApi } from '../../web_gui/modules/historical-ais-api.js?v=20260824-canonical-presentation';
 import {
   projectHistoricalAISScenario,
   projectHistoricalAISWorkflow,
-} from '../../web_gui/modules/historical-ais-projection.js';
-import { renderHistoricalAISWorkbench } from '../../web_gui/modules/historical-ais-render.js';
+} from '../../web_gui/modules/historical-ais-projection.js?v=20260824-canonical-presentation';
+import { renderHistoricalAISWorkbench } from '../../web_gui/modules/historical-ais-render.js?v=20260824-canonical-presentation';
 
 const html = await readFile(new URL('../../web_gui/index.html', import.meta.url), 'utf8');
 const styles = await readFile(new URL('../../web_gui/style.css', import.meta.url), 'utf8');
@@ -20,10 +20,10 @@ const descriptor = JSON.parse(await readFile(
   'utf8',
 ));
 const clientSources = await Promise.all([
-  'historical-ais-api.js',
+  'historical-ais-api.js?v=20260824-canonical-presentation',
   'historical-ais-controller.js',
-  'historical-ais-projection.js',
-  'historical-ais-render.js',
+  'historical-ais-projection.js?v=20260824-canonical-presentation',
+  'historical-ais-render.js?v=20260824-canonical-presentation',
   'historical-ais-workbench.js',
 ].map(name => readFile(new URL(`../../web_gui/modules/${name}`, import.meta.url), 'utf8')));
 

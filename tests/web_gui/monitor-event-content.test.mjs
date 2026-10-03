@@ -4,7 +4,7 @@ import {
   eventDisplayContent as format,
   renderMonitorEventItems,
   visibleMonitorEvents,
-} from '../../web_gui/modules/monitor-event-presentation.js';
+} from '../../web_gui/modules/monitor-event-presentation.js?v=20260924-replay-events-v1';
 
 test('Deployment and Replay share the operational event filter and card rows', () => {
   const events = [

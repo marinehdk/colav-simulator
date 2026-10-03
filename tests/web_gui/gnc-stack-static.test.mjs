@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
-import { presetBinding, presetStackId } from '../../web_gui/modules/gnc-presets.js';
+import { presetBinding, presetStackId } from '../../web_gui/modules/gnc-presets.js?v=20260914-gnc-replay-v3';
 
 const html = await readFile(new URL('../../web_gui/index.html', import.meta.url), 'utf8');
 const shell = await readFile(new URL('../../web_gui/modules/config-shell.js', import.meta.url), 'utf8');

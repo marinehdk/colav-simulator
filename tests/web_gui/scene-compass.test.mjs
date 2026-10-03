@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildSceneCompass } from '../../web_gui/modules/scene-compass.js';
+import { buildSceneCompass } from '../../web_gui/modules/scene-compass.js?v=20260923-follow-v1';
 
 const rad = value => value * Math.PI / 180;
 function projection(heading = 180, targets = []) {

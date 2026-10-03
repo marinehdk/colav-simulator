@@ -31,7 +31,7 @@ import {
   TWIN_SENSOR_MODE_DEFAULT,
   TWIN_SENSOR_MODES,
 } from './twin-view.js?v=20261003-twin-health-v1';
-import { createGeography } from './scene-geography.js?v=20261002-sensor-mode-v1';
+import { createGeography } from './scene-geography.js?v=20261004-token-cleanup-v1';
 
 // HUD refresh cadence (Unity state echo is ~1Hz; same as the Evaluation twin).
 const HUD_INTERVAL_MS = 250;

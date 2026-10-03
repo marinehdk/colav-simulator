@@ -5,7 +5,7 @@ import {
   RADAR_FORWARD_HALF_ANGLE_RAD,
   buildRadarModel,
   createRadarMiniMap,
-} from '../../web_gui/modules/radar-mini-map.js';
+} from '../../web_gui/modules/radar-mini-map.js?v=20261004-token-cleanup-v1';
 
 test('radar model keeps only targets inside the canonical detection circle', () => {
   const snapshot = {

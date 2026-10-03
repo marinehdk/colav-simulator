@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { createReplayClock, REPLAY_RATES, ReplayPlayState } from '../../web_gui/modules/replay-clock.js';
+import { createReplayClock, REPLAY_RATES, ReplayPlayState } from '../../web_gui/modules/replay-clock.js?v=20260918-buffering';
 import { interpolateVesselKinematics } from '../../web_gui/modules/kinematics.js';
 
 function drivenClock({ tStart = 0.0, tEnd = 100.0, rate = 1 } = {}) {

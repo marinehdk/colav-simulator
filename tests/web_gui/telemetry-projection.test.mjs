@@ -5,7 +5,7 @@ import {
   createTelemetryProjection,
   SBMPC_SOLVE_PERIOD_FALLBACK_S,
   VO_SOLVE_PERIOD_FALLBACK_S,
-} from '../../web_gui/modules/telemetry-projection.js';
+} from '../../web_gui/modules/telemetry-projection.js?v=20261004-token-cleanup-v1';
 
 /* ── Fake runtime snapshots (plain object literals, public seam only) ── */
 

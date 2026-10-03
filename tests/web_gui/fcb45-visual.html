@@ -5,7 +5,7 @@
 <div id="view"></div><div id="result">Loading</div>
 <script>window.CESIUM_BASE_URL='/web_gui/vendor/cesium/';</script><script src="../../web_gui/vendor/cesium/Cesium.js"></script>
 <script type="module">
-import {vesselModelMatrix} from '../../web_gui/modules/vessel-models.js';
+import {vesselModelMatrix} from '../../web_gui/modules/vessel-models.js?v=20260921-fcb-v1';
 const C=window.Cesium;
 const v=new C.Viewer('view',{baseLayer:false,baseLayerPicker:false,geocoder:false,homeButton:false,animation:false,timeline:false,sceneModePicker:false,navigationHelpButton:false,fullscreenButton:false,selectionIndicator:false,infoBox:false,skyBox:false,skyAtmosphere:false,shouldAnimate:false,requestRenderMode:true,maximumRenderTimeChange:Infinity});
 v.scene.globe.show=false;if(v.scene.sun)v.scene.sun.show=false;if(v.scene.moon)v.scene.moon.show=false;v.scene.backgroundColor=C.Color.fromCssColorString('#cbd3d7');

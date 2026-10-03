@@ -19,7 +19,7 @@ import {
   rangeRingsM,
   snrProxyDb,
   sweepAzimuthRad,
-} from '../../web_gui/modules/radar-ppi.js';
+} from '../../web_gui/modules/radar-ppi.js?v=20261002-ppi-v1';
 
 test('mulberry32 is deterministic per seed and uniform enough', () => {
   const a = mulberry32(42);

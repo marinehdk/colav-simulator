@@ -1,5 +1,5 @@
 import { ENCOUNTER_LABELS, eventDisplayContent, visibleMonitorEvents, renderMonitorEventItems } from './modules/monitor-event-presentation.js?v=20260924-replay-events-v1';
-import { createDeploymentView } from './modules/deployment-view.js?v=20261002-twin-v1';
+import { createDeploymentView } from './modules/deployment-view.js?v=20261004-token-cleanup-v1';
 import { renderBalance, resetBalance } from './modules/gnc-balance.js?v=20260909-balance-v7';
 import { activeSessionRuntime, telemetryProjection } from './modules/session-runtime-instance.js?v=20260908-buffered-motion-v2';
 import './modules/line-graph.js?v=20260826-chart-view-control-v1';
@@ -11,8 +11,8 @@ import {
   voCandidateColor,
   drawVelocityArrow,
   simplifiedMpcFanGeometry,
-} from './modules/situation-display.js?v=20261003-grid-guard-v1';
-import { buildRadarModel, createRadarMiniMap } from './modules/radar-mini-map.js?v=20260827-instrument-polish-v1';
+} from './modules/situation-display.js?v=20261004-token-cleanup-v1';
+import { buildRadarModel, createRadarMiniMap } from './modules/radar-mini-map.js?v=20261004-token-cleanup-v1';
 import {
   AIS_STATE_COLORS,
   AIS_STATE_LABELS,
@@ -173,7 +173,7 @@ document.querySelectorAll('[data-ppi-range]').forEach(btn => {
 deploymentView = createDeploymentView({
   chart: situationDisplay,
   createScene: async options => {
-    const { createScene3D } = await import('./modules/scene-3d.js?v=20261002-cam-link-v1');
+    const { createScene3D } = await import('./modules/scene-3d.js?v=20261004-token-cleanup-v1');
     return createScene3D({ ...options, chart: situationDisplay,
       host: document.getElementById('scene3dHost'),
       onSelect: id => situationDisplay.selectTarget(id),
@@ -201,7 +201,7 @@ deploymentView = createDeploymentView({
       info: options.info,
       // P2-S4 C：联动 spike（默认关）——开 = 分屏从视口（Cesium 主）+ camera.changed 折算发 camera_free。
       createLinkScene: async ({ host, signal, onFailure, onCameraMoved }) => {
-        const { createScene3D } = await import('./modules/scene-3d.js?v=20261002-cam-link-v1');
+        const { createScene3D } = await import('./modules/scene-3d.js?v=20261004-token-cleanup-v1');
         return createScene3D({ ...options, chart: situationDisplay,
           host,
           signal,

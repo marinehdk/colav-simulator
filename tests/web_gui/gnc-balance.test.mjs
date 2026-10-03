@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
-import { thrustPercent, groupedConstraints, environmentDirectionTo } from '../../web_gui/modules/gnc-balance.js';
+import { thrustPercent, groupedConstraints, environmentDirectionTo } from '../../web_gui/modules/gnc-balance.js?v=20260909-balance-v7';
 
 test('signed thrust uses its own ahead/astern capacity and keeps missing data unavailable', () => {
   assert.equal(thrustPercent(-5000, -10000, 20000), -50);
@@ -68,7 +68,7 @@ test('environment dials use To bearings consistently, converting wind From by 18
 });
 
 test('speed contract keeps missing, zero and different execution stages distinct', async () => {
-  const { speedContractRows } = await import('../../web_gui/modules/gnc-balance.js');
+  const { speedContractRows } = await import('../../web_gui/modules/gnc-balance.js?v=20260909-balance-v7');
   const missing = speedContractRows(null);
   assert.equal(missing.length, 5);
   assert.ok(missing.every(row => row.value === '—'));

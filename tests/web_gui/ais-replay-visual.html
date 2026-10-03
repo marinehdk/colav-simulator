@@ -1,0 +1,371 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>Replay AIS backfill visual acceptance (P3-9)</title>
+<style>
+  body { margin: 0; background: #0d1117; font: 13px system-ui; color: #e6edf3; }
+  header { padding: 8px 12px; display: flex; gap: 12px; align-items: baseline; }
+  #stage { position: relative; width: 900px; height: 560px; margin: 0 auto; }
+  #simCanvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .vessel-marker-layer { position: absolute; inset: 0; z-index: 3; overflow: hidden; pointer-events: none; }
+  .ais-marker {
+    position: absolute; left: 0; top: 0; display: grid; place-items: center;
+    padding: 3px; border: none; background: transparent; border-radius: 4px;
+    pointer-events: auto; cursor: pointer; will-change: transform, rotate;
+    filter: drop-shadow(0 1px 2px rgba(0,0,0,0.45));
+  }
+  .ais-marker img { display: block; pointer-events: none; }
+  .ais-marker[data-selected="true"] { outline: 1.5px dashed rgba(255,255,255,0.95); }
+  .ais-marker.flashing img { animation: ais-symbol-flash 1s steps(1, end) infinite; }
+  @keyframes ais-symbol-flash { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0.25; } }
+  .ais-card {
+    position: absolute; right: 10px; bottom: 10px; z-index: 6; width: 300px;
+    background: color-mix(in srgb, #10191f 88%, transparent);
+    border: 1px solid #2b3a46; border-radius: 6px; padding: 10px 12px;
+    font: 12px/1.5 system-ui; color: #e6edf3;
+  }
+  .ais-card h3 { margin: 0 0 6px; font-size: 13px; display: flex; gap: 8px; align-items: center; }
+  .ais-card h3 img { width: 22px; height: 22px; }
+  .ais-card dl { display: grid; grid-template-columns: auto 1fr auto 1fr; gap: 3px 8px; margin: 0; }
+  .ais-card dt { color: #8fa1ad; }
+  .ais-card dd { margin: 0; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .ais-card .assoc { grid-column: 1 / -1; }
+  #replayHud {
+    position: absolute; left: 10px; bottom: 10px; z-index: 6; min-width: 330px;
+    background: color-mix(in srgb, #10191f 88%, transparent);
+    border: 1px solid #2b3a46; border-radius: 6px; padding: 8px 10px;
+    font: 12px/1.5 system-ui;
+  }
+  #replayHud h3 { margin: 0 0 4px; font-size: 12px; color: #9fb8ad; font-weight: 600; }
+  #replayHud table { border-collapse: collapse; margin: 4px 0 8px; }
+  #replayHud th, #replayHud td { padding: 1px 8px 1px 0; text-align: left; font-variant-numeric: tabular-nums; }
+  #replayHud th { color: #8fa1ad; font-weight: 500; }
+  #replayHud td[data-state="lost"] { color: #ff7b8a; }
+  #replayHud td[data-state="active"] { color: #4fe0c6; }
+  #replayHud td[data-state="sleeping"] { color: #2fbfa8; }
+  #controls { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  #controls button {
+    background: #1b2630; color: #e6edf3; border: 1px solid #2b3a46;
+    border-radius: 4px; padding: 3px 9px; cursor: pointer; font: 12px system-ui;
+  }
+  #controls button[data-rate][aria-pressed="true"] { border-color: #4fe0c6; color: #4fe0c6; }
+  #playhead { font-variant-numeric: tabular-nums; color: #9fb8ad; }
+  #status { padding: 6px 12px; font: 12px/16px monospace; color: #9fb8ad; }
+</style>
+</head>
+<body>
+<header>
+  <strong>回放 AIS 回填 — sealed 轨迹帧上的龄期/状态重建（P3-9，web 镜像 M.1371 节律）</strong>
+</header>
+<div id="stage">
+  <canvas id="simCanvas" aria-label="Replay AIS situation display"></canvas>
+  <div class="vessel-marker-layer" id="aisMarkerLayer" role="group" aria-label="AIS 目标符号"></div>
+  <div id="replayHud">
+    <h3>EVALUATION REPLAY · sealed evidence · AIS 重建</h3>
+    <table>
+      <thead><tr><th>TS</th><th>MMSI</th><th>SOG kn</th><th>AGE s</th><th>STATE</th></tr></thead>
+      <tbody id="aisRows"></tbody>
+    </table>
+    <div id="controls">
+      <button id="seekBack10" title="seek -10 s">« 10s</button>
+      <button id="seekBack" title="seek -2 s">‹ 2s</button>
+      <button id="playPause">▶</button>
+      <button id="seekFwd" title="seek +2 s">2s ›</button>
+      <button id="seekFwd10" title="seek +10 s">10s »</button>
+      <span id="playhead">t = 0.0 s</span>
+      <button data-rate="0.5">0.5×</button>
+      <button data-rate="1" aria-pressed="true">1×</button>
+      <button data-rate="5">5×</button>
+      <button data-rate="20">20×</button>
+    </div>
+  </div>
+  <div class="ais-card" id="aisCard" hidden>
+    <h3><img id="cardSymbol" alt=""><span id="cardTitle"></span></h3>
+    <dl>
+      <dt>MMSI</dt><dd id="cardMmsi"></dd>
+      <dt>AGE</dt><dd><span id="cardAge"></span> s</dd>
+      <dt>SOG</dt><dd><span id="cardSog"></span> kn</dd>
+      <dt>COG</dt><dd><span id="cardCog"></span>°</dd>
+      <dt>HDG</dt><dd><span id="cardHdg"></span>°</dd>
+      <dt>STATE</dt><dd id="cardState"></dd>
+      <dt class="assoc">关联</dt><dd class="assoc" id="cardAssoc"></dd>
+    </dl>
+  </div>
+</div>
+<div id="status">loading…</div>
+<script type="module">
+import { createSituationDisplay } from '../../web_gui/modules/situation-display.js?v=20261004-token-cleanup-v1';
+import {
+  AIS_STATE_LABELS, AIS_SYMBOL_ASSETS, AIS_SYMBOL_SIZES,
+  aisSymbolState, associationLabel, localRadarMeasurementPoints, matchAisAssociations,
+} from '../../web_gui/modules/ais-display.js';
+import { projectReplayFrame } from '../../web_gui/modules/replay-source.js?v=20261004-token-cleanup-v1';
+
+// The production assets are mounted at /static (gui_server); the repo-root
+// static server serves them under /web_gui — remap for this harness only.
+const assetUrl = state => `../../web_gui${AIS_SYMBOL_ASSETS[state].replace('/static', '')}`;
+
+/* ── Sealed mock evidence: recorded frames (2 s cadence), immutable static
+   context and the descriptor. TS3 goes transponder-silent (sample_kind
+   "inactive") after t=10 s, so the rebuilt clock must age it across the gap
+   (lost beyond 3 x interval). All ais fields in the HUD/canvas come from
+   projectReplayFrame — nothing here is hand-labelled. ── */
+const RUN_ID = 'ais-replay-harness';
+const ORIGIN_E = 370000, ORIGIN_N = 6955000;
+const T_START = 0, T_END = 44, STEP = 2;
+const TS3_SILENCE_FROM = 10; // s — data gap starts after this frame
+
+const CONTEXT = {
+  schema_version: 'colav.run-replay.context@1', run_id: RUN_ID, scenario_id: 'replay_ais_harness',
+  enc: { origin_east_m: ORIGIN_E, origin_north_m: ORIGIN_N, width_m: 4000, height_m: 3000, utm_zone: 32, image_url: null },
+  enc_navigation_area: null,
+  ships: [
+    { id: 0, mmsi: 219001111, length_m: 45, width_m: 8 },
+    { id: 1, mmsi: 257041500, length_m: 30, width_m: 6 },
+    { id: 2, mmsi: 219005432, length_m: 60, width_m: 10 },
+    { id: 3, mmsi: 265712040, length_m: 24, width_m: 6 },
+  ],
+};
+
+const DESCRIPTOR = {
+  schema_version: 'colav.run-replay.descriptor@1', run_id: RUN_ID,
+  run: {
+    execution_state: 'FINISHED', scenario_id: 'replay_ais_harness',
+    requested_algorithm: 'vo', executed_algorithm: 'vo',
+    requested_tracker: 'god', executed_tracker: 'god',
+    result_ready: true,
+  },
+  replay: {
+    state: 'READY', evidence_level: 'full', trace_schema: 'colav.decision-replay.v1',
+    frame_count: (T_END - T_START) / STEP + 1, t_start: T_START, t_end: T_END,
+    trusted_t_end: T_END, truncated: false,
+  },
+  events: { count: 0, categories: [] },
+  capabilities: { full_frame: true, planner_detail: false, risk_detail: true, continuous_interpolation: true },
+};
+
+function ship(id, mmsi, north, east, psi, u, v, sog, cog, inactive) {
+  return {
+    id, mmsi,
+    state: [north, east, psi, u, v, 0.0],
+    csog_state: [north, east, sog, cog],
+    turn_rate: 0.0, active: true,
+    ...(inactive ? { historical_actor_truth: { sample_kind: 'inactive' } } : {}),
+  };
+}
+
+function framePayload(t) {
+  return {
+    // Ownship underway at ~4 kn.
+    Ship0: ship(0, 219001111, 2000 + 1.0 * t, 1000 + 0.6 * t, 0.4, 2.0, 0.1, 2.06, 0.4, false),
+    // TS1 NE-bound at ~5 kn — steady reports every 10 s.
+    Ship1: ship(1, 257041500, 2260 + 2.0 * t, 1260 + 1.6 * t, 0.8, 2.0, 1.6, 2.57, 0.675, false),
+    // TS2 moored (0 kn — the M.1371 anchored band) — 180 s reporting cadence,
+    // small sleeping symbol.
+    Ship2: ship(2, 219005432, 2680, 640, 0.1, 0.0, 0.0, 0.0, 0.1, false),
+    // TS3 ~6 kn until the recorded data gap freezes it at t=10 s.
+    Ship3: t <= TS3_SILENCE_FROM
+      ? ship(3, 265712040, 1600 + 2.4 * t, 480 + 1.7 * t, 2.4, 2.4, 1.7, 3.08, 0.615, false)
+      : ship(3, 265712040, 1600 + 2.4 * TS3_SILENCE_FROM, 480 + 1.7 * TS3_SILENCE_FROM, 2.4, 2.4, 1.7, 3.08, 0.615, true),
+  };
+}
+
+const WINDOW_DOC = {
+  schema_version: 'colav.run-replay.window@1', run_id: RUN_ID,
+  requested: { from_s: T_START, to_s: T_END },
+  state: 'FINALIZED', trusted_t_end: T_END, truncated: false,
+  history: [],
+  frames: Array.from({ length: (T_END - T_START) / STEP + 1 }, (_, index) => {
+    const t = T_START + index * STEP;
+    return {
+      sequence: index + 1, sim_time: t, step_time_ms: 5.5,
+      state: 'RUNNING', payload: framePayload(t), events: [],
+      threat_management: { status: 'AVAILABLE', vectors: [], schedule: null, conflicts: null, conflict_graph: null, unavailable_reason: null },
+    };
+  }),
+  before: null, after: null, decision_space_before: null,
+};
+
+// Playhead = the replay display clock. All AIS ages rebuild from it.
+let playhead = T_END;
+let rate = 1;
+let playing = false;
+
+function projectEnvelope() {
+  const result = projectReplayFrame({ descriptor: DESCRIPTOR, context: CONTEXT, windowDoc: WINDOW_DOC, playhead });
+  return result.ok ? result.envelope : null;
+}
+
+const ENC_INFO = {
+  ready: true, run_id: RUN_ID,
+  origin_e: ORIGIN_E, origin_n: ORIGIN_N,
+  width: 4000, height: 3000, utm_zone: 32,
+};
+
+const status = document.getElementById('status');
+
+function renderAisMarkers(markers = []) {
+  const layer = document.getElementById('aisMarkerLayer');
+  const active = new Set(markers.map(m => String(m.id)));
+  layer.querySelectorAll('.ais-marker').forEach(el => { if (!active.has(el.dataset.targetId)) el.remove(); });
+  markers.forEach(marker => {
+    let host = layer.querySelector(`.ais-marker[data-target-id="${marker.id}"]`);
+    if (!host) {
+      host = document.createElement('button');
+      host.type = 'button';
+      host.className = 'ais-marker';
+      host.dataset.targetId = String(marker.id);
+      const img = document.createElement('img');
+      img.draggable = false; img.alt = '';
+      host.append(img);
+      host.addEventListener('click', () => display.selectTarget(marker.id, { viaAis: true }));
+      layer.appendChild(host);
+    }
+    const img = host.querySelector('img');
+    const size = AIS_SYMBOL_SIZES[marker.state];
+    host.style.transform = `translate3d(${marker.anchor.x - size / 2}px, ${marker.anchor.y - size / 2}px, 0) rotate(${marker.rotationDeg}deg)`;
+    host.dataset.state = marker.state;
+    host.dataset.selected = String(marker.selected === true);
+    host.classList.toggle('flashing', marker.state === 'dangerous' || marker.state === 'lost');
+    host.setAttribute('aria-label', `AIS TS${marker.id}, ${marker.state}`);
+    if (img.dataset.state !== marker.state) {
+      img.src = assetUrl(marker.state);
+      img.dataset.state = marker.state;
+    }
+    img.style.width = `${size}px`;
+    img.style.height = `${size}px`;
+  });
+}
+
+function renderHud(envelope) {
+  document.getElementById('playhead').textContent = `t = ${playhead.toFixed(1)} s`;
+  const rows = document.getElementById('aisRows');
+  rows.textContent = '';
+  for (const target of envelope.obstacles) {
+    const tr = document.createElement('tr');
+    const cells = [
+      `TS${target.id}`,
+      String(target.mmsi ?? '—'),
+      `${(target.sog / 0.514444).toFixed(1)}`,
+      `${target.ais.age_s.toFixed(1)}`,
+      AIS_STATE_LABELS[aisSymbolState(target.ais, 0)] || target.ais.state,
+    ];
+    cells.forEach((text, index) => {
+      const cell = document.createElement(index === 4 ? 'td' : 'td');
+      if (index === 4) cell.dataset.state = target.ais.state;
+      cell.textContent = text;
+      tr.appendChild(cell);
+    });
+    rows.appendChild(tr);
+  }
+}
+
+function showAisCard(target, context) {
+  const card = document.getElementById('aisCard');
+  if (!context?.viaAis || target?.ais == null) { card.hidden = true; return; }
+  const envelope = projectEnvelope();
+  const associations = matchAisAssociations(
+    envelope.obstacles, envelope.tracks[0],
+    localRadarMeasurementPoints(envelope.measurements[0], ENC_INFO),
+  );
+  const state = aisSymbolState(target.ais, 0);
+  const degrees = rad => Math.round((rad * 180 / Math.PI + 360) % 360);
+  document.getElementById('cardSymbol').src = assetUrl(state);
+  document.getElementById('cardTitle').textContent = `TS${target.id} · 回放 AIS`;
+  document.getElementById('cardMmsi').textContent = target.mmsi;
+  document.getElementById('cardAge').textContent = target.ais.age_s.toFixed(1);
+  document.getElementById('cardSog').textContent = (target.sog / 0.514444).toFixed(1);
+  document.getElementById('cardCog').textContent = degrees(target.cog);
+  document.getElementById('cardHdg').textContent = degrees(target.psi);
+  document.getElementById('cardState').textContent = AIS_STATE_LABELS[state];
+  document.getElementById('cardAssoc').textContent = associationLabel(associations.get(String(target.id)));
+  card.hidden = false;
+}
+
+// Tile fetcher stays local: a 2x2 dark data-URL PNG keeps encReady truthy so
+// the chart boots without an ENC server (same trick as ais-display-visual).
+const TILE = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAFElEQVR4nGP8//8/AzPgAkwGRCcAARO3AqEKAAAAAElFTkSuQmCC';
+const display = createSituationDisplay({
+  canvas: document.getElementById('simCanvas'),
+  wrapper: document.getElementById('stage'),
+  fetchInfo: async () => ({ ...ENC_INFO }),
+  fetchTile: () => TILE,
+  getScenarioId: () => 'replay_ais_harness',
+  onAisMarkersChange: renderAisMarkers,
+  onSelectionChange: showAisCard,
+});
+display.beginSession(RUN_ID);
+
+function render() {
+  const envelope = projectEnvelope();
+  if (!envelope) { status.textContent = `t=${playhead.toFixed(1)} s — no sealed frame`; return; }
+  display.render(envelope);
+  renderHud(envelope);
+  const states = envelope.obstacles.map(t => `TS${t.id}=${t.ais.state}@${t.ais.age_s.toFixed(1)}s`).join(' ');
+  status.textContent = `sealed window 0–44 s @2 s | playhead ${playhead.toFixed(1)} s | ${states} | 数据源: projectReplayFrame 重建，非手工标注`;
+}
+
+// Deterministic overview frame (same trick as the S4 harness): after the
+// async ENC boot settles, re-fit with the chart's own bounding-box fit over
+// os + obstacles (fitTraffic rerenders with the restored view).
+function applyAcceptanceFrame() {
+  display.setLayerVisible('motionVectors', false);
+  display.fitTraffic();
+  render();
+  const params = new URLSearchParams(globalThis.location?.search ?? '');
+  if (params.has('t')) seekTo(Number(params.get('t')));
+  if (params.get('card') === '1') display.selectTarget(1, { viaAis: true });
+  window.__aisReplayHarness = { display, ready: true, projectEnvelope, seek: seconds => { playhead = seconds; render(); } };
+}
+let frameAttempts = 0;
+const frameTimer = setInterval(() => {
+  frameAttempts += 1;
+  const encStatus = display.getEncStatus();
+  if (encStatus === 'ready' || encStatus === 'error' || frameAttempts > 40) {
+    clearInterval(frameTimer);
+    applyAcceptanceFrame();
+  }
+}, 250);
+
+// Seek + playback-rate controls: the ages must follow the replay clock only.
+function seekTo(next) {
+  playhead = Math.max(T_START, Math.min(T_END, Number(next)));
+  render();
+}
+document.getElementById('seekBack10').addEventListener('click', () => seekTo(playhead - 10));
+document.getElementById('seekBack').addEventListener('click', () => seekTo(playhead - 2));
+document.getElementById('seekFwd').addEventListener('click', () => seekTo(playhead + 2));
+document.getElementById('seekFwd10').addEventListener('click', () => seekTo(playhead + 10));
+const playButton = document.getElementById('playPause');
+playButton.addEventListener('click', () => {
+  playing = !playing;
+  playButton.textContent = playing ? '⏸' : '▶';
+});
+for (const button of document.querySelectorAll('#controls button[data-rate]')) {
+  button.addEventListener('click', () => {
+    rate = Number(button.dataset.rate);
+    for (const other of document.querySelectorAll('#controls button[data-rate]')) {
+      other.setAttribute('aria-pressed', String(other === button));
+    }
+  });
+}
+let lastTickMs = null;
+function tick(nowMs) {
+  if (playing && lastTickMs !== null) {
+    seekTo(playhead + ((nowMs - lastTickMs) / 1000) * rate);
+  }
+  lastTickMs = nowMs;
+  requestAnimationFrame(tick);
+}
+requestAnimationFrame(tick);
+
+render();
+window.addEventListener('error', event => {
+  status.textContent = `Harness 错误: ${event.message}`;
+});
+window.__aisReplayHarness = { display, ready: true, projectEnvelope, seek: seekTo };
+window.__aisReplayHarnessReady = true;
+</script>
+</body>
+</html>

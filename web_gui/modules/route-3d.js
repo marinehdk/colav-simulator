@@ -1,4 +1,4 @@
-import { routeCorridorBoundaries, validRoute, waypointLabel } from './situation-display.js?v=20260920-3d-v1';
+import { routeCorridorBoundaries, validRoute, waypointLabel } from './situation-display.js?v=20261004-token-cleanup-v1';
 
 export function routeRibbonQuads(route) {
   if (!validRoute(route) || !route[0].every(Number.isFinite) || !route[1].every(Number.isFinite)) return [];

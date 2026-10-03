@@ -2,8 +2,8 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
-import { createHistoricalAISController } from '../../web_gui/modules/historical-ais-controller.js';
-import { projectHistoricalAISScenario } from '../../web_gui/modules/historical-ais-projection.js';
+import { createHistoricalAISController } from '../../web_gui/modules/historical-ais-controller.js?v=20260824-canonical-presentation';
+import { projectHistoricalAISScenario } from '../../web_gui/modules/historical-ais-projection.js?v=20260824-canonical-presentation';
 
 const descriptor = JSON.parse(await readFile(
   new URL('../../colav_simulator/data/historical_ais_scenarios.json', import.meta.url),
