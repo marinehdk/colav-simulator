@@ -9,6 +9,7 @@ import pytest
 from shapely.geometry import MultiPolygon
 
 from colav_simulator.core.colav.encounter_lifecycle import RiskPhase
+from colav_simulator.core.tracking.trackers import GodTracker
 from colav_simulator.historical_ais import HistoricalAISDatasetReader, HistoricalAISSelection
 from colav_simulator.historical_replay import (
     ENCPreflightEvidence,
@@ -406,10 +407,14 @@ def test_replay_reappearance_rearms_tracker_generation(tmp_path: Path) -> None:
         shore=SimpleNamespace(geometry=MultiPolygon()),
     )
     simulator = Simulator(config=SimulatorConfig(verbose=False))
+    # P3-S6 flip (spec #90): generation re-arm semantics are the GodTracker
+    # lifecycle channel; declare it explicitly instead of eating the flipped
+    # scenario default (now the KF fusion chain).
     prepared = HistoricalReplayFactory.prepare(
         HistoricalReplayRequest(actor_set=actors, t_end_s=11.0, enc_preflight_evidence=_enc_evidence(actors)),
         enc=enc,
         simulator=simulator,
+        trackers=[(0, GodTracker())],
     )
 
     first_generation = None

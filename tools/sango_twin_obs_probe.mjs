@@ -231,19 +231,20 @@ check('observations route live (404 SESSION_NOT_FOUND on unknown session)',
 
 killLeftovers();
 
-// 1) Live session. tracker vocabulary is backend-gated (capabilities: god only
-// until the S6 default flip) — the kf-tracker consumption leg is the pytest
-// ExternalCameraSensorCache integration; this E2E exercises the live chain.
+// 1) Live session. P3-S6 flipped the product default tracker (spec #90): the
+// request sends NO tracker_id, so the default (vimmjipda fusion chain) answers;
+// the measurement-cache consumption below is tracker-independent (cache counts
+// accepted frames + georeferenced detections regardless of the tracker behind).
 const current = await fetch(`${BACKEND}/api/sessions/current`).then(r => (r.ok ? r.json() : null)).catch(() => null);
 if (current?.session_id) await fetch(`${BACKEND}/api/sessions/${current.session_id}/reset`, { method: 'POST' });
 const createRes = await fetch(`${BACKEND}/api/sessions`, {
   method: 'POST', headers: { 'content-type': 'application/json' },
   body: JSON.stringify({
     validation_rule_id: 'rule14', scenario_id: 'head_on', algorithm_id: 'vo',
-    tracker_id: 'god', record_replay_trace: true,
+    record_replay_trace: true,
   }),
 });
-check('live session created (POST /api/sessions, tracker=god; capabilities-gated)', createRes.ok, `status ${createRes.status}`);
+check('live session created (POST /api/sessions, default tracker — S6 flip)', createRes.ok, `status ${createRes.status}`);
 const created = await createRes.json();
 const sessionId = created.session_id ?? created.id;
 await fetch(`${BACKEND}/api/sessions/${sessionId}/start`, { method: 'POST' });
@@ -418,7 +419,7 @@ try {
   lines.push('# P3-S2 observations + sensor_mode E2E — sango_twin_obs_probe');
   lines.push('');
   lines.push(`- date: ${new Date().toISOString()}`);
-  lines.push(`- live session: \`${sessionId}\` (rule14/head_on/vo, tracker=god — capabilities gate; kf leg = pytest cache integration)`);
+  lines.push(`- live session: \`${sessionId}\` (rule14/head_on/vo, default tracker post-S6-flip — vimmjipda chain)`);
   lines.push(`- mast feed: mast_ptz_eo 640x480 (Player.log rig attach + feed rewire); YOLO CPU rx>0`);
   lines.push(`- IR switch: state echo ir, chip "SENSOR IR", grayscale stats ${frameStatsText(grayIr)}`);
   lines.push(`- EO restore: state echo eo, grayscale stats ${frameStatsText(grayEo)}`);

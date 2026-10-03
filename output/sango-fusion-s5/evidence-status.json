@@ -1,7 +1,7 @@
 {
   "probe": "sango_tracks_s5_probe",
   "tracker": "god",
-  "session_id": "acc9e2d6-e98d-4f6f-ab0d-bdb720091ee8",
+  "session_id": "6273d6f5-5cb3-41be-a8c1-fdef8f021967",
   "assertions": [
     {
       "name": "live session created (tracker_id=god)",
@@ -30,5 +30,5 @@
     }
   ],
   "failures": [],
-  "at": "2026-10-03T00:58:10.275Z"
+  "at": "2026-10-03T03:23:33.660Z"
 }

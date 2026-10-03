@@ -345,16 +345,26 @@ class KFParams:
 
 @dataclass
 class Config:
-    """Class for holding tracker configuration parameters."""
+    """Class for holding tracker configuration parameters.
 
-    god_tracker: bool | None = True
+    P3-S6 default flip (spec #90): the scenario-level default tracker is the
+    measurement-fusion KF chain, no longer GodTracker. God remains available
+    via an explicit ``god_tracker: ''`` section in the scenario ship config
+    (or tracker_id="god" at the session boundary) as the diagnostic channel.
+    """
+
+    god_tracker: bool | None = False
     kf: KFParams | None = None
 
     def to_dict(self) -> dict:  # noqa: D102
+        # D3 symmetry fix (P3-S6, spec #90): write the god_tracker key only when
+        # actually true. Writing it for False made from_dict resurrect GodTracker
+        # on every scenario dump/load round-trip, silently revoking the flipped
+        # Config default (god_tracker=False).
         output_dict = {}
         if self.kf is not None:
             output_dict["kf"] = self.kf.to_dict()
-        if self.god_tracker is not None:
+        if self.god_tracker:
             output_dict["god_tracker"] = ""
 
         return output_dict

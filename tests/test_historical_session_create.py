@@ -43,6 +43,7 @@ def test_hais_scene_listed_with_source_presence_gate(monkeypatch) -> None:
         item for item in catalog["scenarios"] if item["id"] == HISTORICAL_AIS_SCENE_ID
     )
     assert catalog_entry["supported_rules"] == ["multiship"]
+    # P3-S6 flip (spec #90): every god tuple carries a vimmjipda parallel.
     experimental = {
         (item["algorithm_id"], item["tracker_id"])
         for item in catalog["experimental_combinations"]
@@ -52,6 +53,9 @@ def test_hais_scene_listed_with_source_presence_gate(monkeypatch) -> None:
         ("vo", "god"),
         ("potocnik_colreg_fan_mpc", "god"),
         ("mid_mpc_ipopt", "god"),
+        ("vo", "vimmjipda"),
+        ("potocnik_colreg_fan_mpc", "vimmjipda"),
+        ("mid_mpc_ipopt", "vimmjipda"),
     }
 
 

@@ -188,11 +188,15 @@ TRACKERS: dict[str, Capability] = {
     "god": Capability("G2", _P1_RULES, _P1_SCENARIOS, ("dynamic",)),
     "kf": Capability("G2", ("rule14",), ("head_on",), ("dynamic",)),
     "vimmjipda": Capability(
-        "G1",
+        # P3-S6 flip (spec #90): product-default tracker tier (god/kf class).
+        # G2 scope = runtime_and_interface_load: S5 offline compare (god vs
+        # fusion, 600 s) plus the phase-3 live E2E chain carried it; the formal
+        # RMSE/NIS/NEES/ID-switch qualification gates stay open.
+        "G2",
         ("rule14", "multiship"),
         ("head_on", "paper_ccta2023_multiship"),
         ("dynamic", "clutter"),
-        "Only a 0.2 s smoke run exists; RMSE, NIS/NEES, and ID-switch gates are open.",
+        "Product default since the P3-S6 flip; RMSE, NIS/NEES, and ID-switch qualification gates remain open.",
     ),
 }
 
@@ -210,9 +214,12 @@ class ProductCapabilityPolicy:
     """
 
     algorithm_ids: tuple[str, ...] = ("vo", "potocnik_colreg_fan_mpc", "mid_mpc_ipopt")
-    tracker_ids: tuple[str, ...] = ("god",)
+    # P3-S6 default tracker flip (spec #90): vimmjipda joins the product
+    # surface and takes the default; god stays selectable as the diagnostic
+    # fallback channel (00-PLAN R3: "god 留诊断").
+    tracker_ids: tuple[str, ...] = ("god", "vimmjipda")
     default_algorithm_id: str = "vo"
-    default_tracker_id: str = "god"
+    default_tracker_id: str = "vimmjipda"
     domain_profile_algorithm_ids: tuple[str, ...] = ("mid_mpc_ipopt",)
 
     def allows_algorithm(self, identifier: str) -> bool:
@@ -807,6 +814,31 @@ EXPERIMENTAL_COMBINATIONS.update(
     }
 )
 
+# P3-S6 default tracker flip (spec #90): every god tuple gains a vimmjipda
+# parallel so the flipped product default validates against the same
+# rule/scenario/algorithm space. These are EXPERIMENTAL selections on purpose —
+# the vimmjipda integration is G1 (RMSE/NIS/NEES/ID-switch gates open; only a
+# 0.2 s smoke run plus the phase-3 E2E chain exist), so no god evidence number
+# is cloned into a VERIFIED claim. Uniqueness of infer_rule is preserved
+# because the mirror keeps the exact rule of its source tuple.
+_FUSION_TRACKER_EVIDENCE = {
+    "seed": 0,
+    "evidence_role": "experimental_fusion_tracker_default",
+    "readiness_grade": "G1",
+    "promotion_status": "NOT_QUALIFIED_VIMMJIPDA_GATES_OPEN",
+    "scope": "phase3_sensor_fusion_default_flip",
+}
+EXPERIMENTAL_COMBINATIONS.update(
+    {
+        (rule_id, scenario_id, algorithm_id, "vimmjipda"): dict(_FUSION_TRACKER_EVIDENCE)
+        for rule_id, scenario_id, algorithm_id, tracker_id in (
+            *VERIFIED_COMBINATIONS,
+            *EXPERIMENTAL_COMBINATIONS,
+        )
+        if tracker_id == "god"
+    }
+)
+
 
 def _combination_documents(
     *,
@@ -1054,7 +1086,9 @@ class CapabilityCatalog:
         experimental = self.policy.filter_documents(_experimental_combination_documents(**filters))
         selectable_combinations = combinations + experimental
         dependency_available = bool(status and status.available)
-        minimum_grade = 2 if identifier in {"nominal", "god", "kf"} else 3
+        # P3-S6 flip (spec #90): vimmjipda joins the product builtin tracker
+        # tier (G2 gate) alongside god/kf; algorithms keep the G3 bar.
+        minimum_grade = 2 if identifier in {"nominal", "god", "kf", "vimmjipda"} else 3
         grade_ready = GRADE_VALUE[capability.readiness_grade] >= minimum_grade
         runtime_ready = dependency_available and GRADE_VALUE[capability.readiness_grade] >= 2
         selectable = runtime_ready and grade_ready and bool(selectable_combinations)

@@ -44,9 +44,9 @@ def test_capability_api_exposes_only_exact_verified_tuples(rule_id: str) -> None
     assert catalog["product_capability_policy"] == {
         "policy_id": "colav-product-v1",
         "algorithm_ids": ["vo", "potocnik_colreg_fan_mpc", "mid_mpc_ipopt"],
-        "tracker_ids": ["god"],
+        "tracker_ids": ["god", "vimmjipda"],
         "default_algorithm_id": "vo",
-        "default_tracker_id": "god",
+        "default_tracker_id": "vimmjipda",
         "constraints": {
             "requires_explicit_validation_rule_id": True,
             "requires_exact_tuple": True,
@@ -78,7 +78,8 @@ def test_capability_api_exposes_only_exact_verified_tuples(rule_id: str) -> None
         assert item["latest_evidence"]["encounter_profile_id"] == "legacy-g3-v1"
 
     selectable_trackers = {item["id"] for item in catalog["trackers"] if item["selectable"]}
-    assert selectable_trackers == {"god"}
+    # P3-S6 flip (spec #90): fusion default selectable alongside the god fallback.
+    assert selectable_trackers == {"god", "vimmjipda"}
     expected_algorithms = {"vo", "potocnik_colreg_fan_mpc", "mid_mpc_ipopt"}
     assert {item["id"] for item in catalog["algorithms"] if item["selectable"]} == expected_algorithms
     assert {

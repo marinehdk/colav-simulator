@@ -31,6 +31,13 @@ ship_list:
         P_0: [49.1, 49.1, 0.11, 0.11]
         q: 0.1
     sensors:
+      # P3-S6 (spec #90) E2E: X-band spoke radar assembly on the ownship
+      # (sensor-model-v1 sensor_id=1). Empty param block = RadarXParams
+      # defaults, which are the frozen contract anchors (24 rpm / 2048 spokes
+      # / sigma_r 8 m / sigma_theta 1 deg / He-2024 clutter 5e-7 per m2 /
+      # mast_top_xband mount). First in the list so the web PPI panel binds
+      # the radar_x measurement group.
+      - radar_x: {}
       - radar:
           max_range: 2000.0
           measurement_rate: 1.0

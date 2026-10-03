@@ -125,7 +125,8 @@ def test_batch_default_specs_are_product_tuples_with_inferred_rules() -> None:
     specs = BatchRunner.default_specs(["vo"], seeds=[0])
     assert specs
     assert all(spec.algorithm_id == "vo" for spec in specs)
-    assert all(spec.tracker_id == "god" for spec in specs)
+    # P3-S6 flip (spec #90): batch defaults follow the product tracker default.
+    assert all(spec.tracker_id == "vimmjipda" for spec in specs)
     assert all(spec.validation_rule_id for spec in specs)
 
 
@@ -149,7 +150,8 @@ def test_cli_product_defaults_and_legacy_endpoints_are_typed() -> None:
     parser = build_parser()
     parsed = parser.parse_args(["run", "--scenario", "head_on"])
     assert parsed.algorithm == "vo"
-    assert parsed.tracker == "god"
+    # P3-S6 flip (spec #90): the product CLI default tracker is the fusion chain.
+    assert parsed.tracker == "vimmjipda"
 
     with TestClient(app) as client:
         for path in ("/api/start", "/api/pause", "/api/reset"):
@@ -177,7 +179,7 @@ def test_algo_status_publishes_product_integrations_and_quarantines_legacy() -> 
     assert response.status_code == 200
     document = response.json()
     product = {item["integration_id"]: item for item in document["product"]}
-    assert set(product) == {"vo", "potocnik_colreg_fan_mpc", "mid_mpc_ipopt", "god"}
+    assert set(product) == {"vo", "potocnik_colreg_fan_mpc", "mid_mpc_ipopt", "god", "vimmjipda"}
     assert all(item["active"] and item["selectable"] for item in product.values())
     assert document["constraints"]["requires_exact_tuple"] is True
     legacy = {item["integration_id"]: item for item in document["internal_legacy"]}

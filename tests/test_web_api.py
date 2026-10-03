@@ -558,7 +558,7 @@ def test_rule14_capability_api_and_combination_validation() -> None:
             "validation_rule_id": "rule14",
             "scenario_id": "head_on",
             "algorithm_id": "vo",
-            "tracker_id": "god",
+            "tracker_id": "vimmjipda",
         }
         capability_fields = {
             "readiness_grade",
@@ -586,7 +586,7 @@ def test_rule14_capability_api_and_combination_validation() -> None:
         assert algorithms["rrt"]["incompatibility_reason"]
         assert algorithms["rlmpc"]["incompatibility_reason"]
         trackers = {item["id"]: item for item in catalog["trackers"]}
-        assert {name for name, item in trackers.items() if item["selectable"]} == {"god"}
+        assert {name for name, item in trackers.items() if item["selectable"]} == {"god", "vimmjipda"}
 
         rejected = client.post(
             "/api/sessions",

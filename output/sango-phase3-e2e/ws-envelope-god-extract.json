@@ -1,0 +1,93 @@
+{
+  "frames_captured": 393,
+  "executed_tracker": "god",
+  "first_track_document": {
+    "labels": [
+      1
+    ],
+    "generations": [
+      1
+    ],
+    "states": [
+      [
+        4207.964899389073,
+        4207.96489935385,
+        -4.949747469467627,
+        -4.9497474671440385
+      ]
+    ],
+    "covariances": [
+      [
+        [
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    ],
+    "nis": [
+      0
+    ],
+    "existence_prob": [
+      1
+    ],
+    "quality": [
+      1
+    ],
+    "sources": [
+      []
+    ]
+  },
+  "finite_radar_measurements": 3,
+  "radar_ppi": {
+    "schema_version": "radar-ppi@1",
+    "sensor_label": "radar_x",
+    "mount_id": "mast_top_xband",
+    "seed": 673228719,
+    "spokes": 2048,
+    "scan_period_s": 2.5,
+    "range_scales_nm": [
+      0.75,
+      1.5,
+      3,
+      6,
+      12,
+      24
+    ],
+    "range_scale_nm": 6,
+    "blind_ring_m": 54.128502043944685,
+    "blind_sectors_deg": [],
+    "clutter_rate_per_m2": 5e-7,
+    "clutter_range_decay": 2,
+    "clutter_ref_range_m": 1000,
+    "sea_state_beaufort": 3,
+    "clutter_texture_nu": 4,
+    "snr_model": {
+      "snr_ref_db": 13,
+      "ref_range_m": 5556,
+      "ref_rcs_m2": 10,
+      "decay_db_per_decade": 40,
+      "pfa": 0.0001
+    },
+    "occlusion": false
+  }
+}

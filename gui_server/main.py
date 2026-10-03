@@ -352,7 +352,10 @@ class SessionCreateRequest(BaseModel):
     scenario_id: str = "head_on"
     validation_rule_id: str | None = None
     algorithm_id: str = "vo"
-    tracker_id: str = "god"
+    # P3-S6 default tracker flip (spec #90): new UI sessions answer on the
+    # vimmjipda fusion chain; god remains explicitly selectable (fallback
+    # channel, 00-PLAN R3).
+    tracker_id: str = "vimmjipda"
     gnc_stack_id: str | None = None
     seed: int = Field(default=0, ge=0)
     episode_index: int = Field(default=0, ge=0)
@@ -1963,7 +1966,7 @@ async def lifespan(_: FastAPI):
                 validation_rule_id="multiship",
                 scenario_id="hais_romsdal_20260701_120007_121007",
                 algorithm_id="vo",
-                tracker_id="god",
+                tracker_id="vimmjipda",
             )
             spec = _historical_session_spec(request)
             if spec is not None:

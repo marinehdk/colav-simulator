@@ -116,6 +116,9 @@ const RULE_LABELS = {
 
 const TRACKER_LABELS = {
   god: 'Truth',
+  // P3-S6 default tracker flip (spec #90): fusion chain takes the default,
+  // Truth stays selectable as the diagnostic fallback.
+  vimmjipda: 'Fusion (IPDA)',
 };
 
 function optionLabel(item, labels) {

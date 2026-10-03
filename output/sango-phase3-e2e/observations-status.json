@@ -1,0 +1,38 @@
+{
+  "accepted_frames_total": 2202,
+  "channels": [
+    {
+      "sensor_id": 2,
+      "mount_id": "mast_ptz_eo",
+      "frames": 2202,
+      "detections": 1,
+      "last_frame_seq": 2215
+    }
+  ],
+  "pending_measurements": [
+    {
+      "sensor_id": 2,
+      "position_ne_m": [
+        151.25721059646457,
+        12.439548736510915
+      ],
+      "position_cov_ne_m2": [
+        [
+          514.818871762798,
+          41.76219802851522
+        ],
+        [
+          41.76219802851522,
+          10.450967278607422
+        ]
+      ],
+      "confidence": 0.3022,
+      "class_name": "boat",
+      "class_confidence": 0.3022,
+      "t_s": 244.5,
+      "mount_id": "mast_ptz_eo",
+      "frame_seq": 2202,
+      "frame_time_s": 238.3694327451814
+    }
+  ]
+}
