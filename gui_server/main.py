@@ -1277,6 +1277,24 @@ class WebSessionManager:
 
     # -- P3-S2 observations endpoint (spec #90; contract observations-v1.md) --
 
+    def _camera_sensor_for(self, prepared: PreparedRun) -> ExternalCameraSensor:
+        """Observation cache target for one session (P1-1a review fix, spec #90).
+
+        A scene that explicitly assembles the ``external_cameras:`` ship sensor
+        key owns an ExternalCameraSensor inside ``ship_list[0].sensors`` — the
+        endpoint feeds THAT instance, so the assembled sensor's records reach
+        the ship tracker's measurement loop (trackers.py iterates self.sensors
+        only). Unassembled scenes keep the session-scoped cache (default-off
+        discipline: the default tracker behaviour is untouched).
+        """
+        ship_sensors = getattr(prepared.session.ship_list[0], "sensors", None) or []
+        for sensor in ship_sensors:
+            if isinstance(sensor, ExternalCameraSensor):
+                return sensor
+        if self.observation_sensor is None:
+            self.observation_sensor = ExternalCameraSensor()
+        return self.observation_sensor
+
     def ingest_observations(self, session_id: str, frame: ObservationFrame) -> dict[str, Any]:
         """Validates, georeferences and caches one camera observation frame.
 
@@ -1302,9 +1320,7 @@ class WebSessionManager:
             ship_state = np.asarray(prepared.session.ship_list[0].state, dtype=float)
             own_north, own_east, own_yaw = float(ship_state[0]), float(ship_state[1]), float(ship_state[2])
             mount = MAST_MOUNTS_BY_ID[frame.mount_id]
-            sensor = self.observation_sensor
-            if sensor is None:
-                sensor = self.observation_sensor = ExternalCameraSensor()
+            sensor = self._camera_sensor_for(prepared)
             records = []
             for detection in frame.detections:
                 georef = georeference_box(
@@ -1348,7 +1364,7 @@ class WebSessionManager:
         reads the same records).
         """
         with self.lock:
-            self._require(session_id)
+            prepared = self._require(session_id)
             channels = [
                 {
                     "sensor_id": sensor_id,
@@ -1359,10 +1375,10 @@ class WebSessionManager:
                 }
                 for (sensor_id, mount_id), totals in sorted(self._observation_totals.items())
             ]
-            sensor = self.observation_sensor
-            pending = sensor.pending_records() if sensor is not None else []
+            sensor = self._camera_sensor_for(prepared)
+            pending = sensor.pending_records()
             return {
-                "accepted_frames_total": sensor.accepted_frames if sensor is not None else 0,
+                "accepted_frames_total": sensor.accepted_frames,
                 "channels": channels,
                 "pending_measurements": jsonable(pending),
             }

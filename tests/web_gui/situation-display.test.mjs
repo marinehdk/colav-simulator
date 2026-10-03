@@ -540,6 +540,27 @@ test('zero-sized wrapper (hidden workface) never degenerates the grid into infin
   assert.equal(display.getViewScale(), Math.max(800 / ENC_INFO.width, 600 / ENC_INFO.height));
 });
 
+test('ownship follow view on a zero-sized wrapper never degenerates viewScale (P3-5)', async () => {
+  // P3-5 review fix (spec #90): the historical-AIS follow view divided by the
+  // wrapper without the fitENCView zero-size gate — on a hidden workface it
+  // computed viewScale = 0 and the scale bar printed "Infinity km".
+  const wrapper = fakeWrapper(0, 0);
+  const { display } = await createDisplay({ wrapper });
+  await display.beginSession('run-1');
+  assert.equal(display.getViewScale(), 0.45);
+  const hais = sampleSnapshot({
+    scenario_id: 'hais_romsdal_test',
+    os: { id: 0, x: 7040000, y: 345000, psi: 0, cog: 0, sog: 2, trajectory: [[7040000, 345000]] },
+  });
+  display.renderFrame(hais);
+  assert.equal(display.getViewScale(), 0.45, 'hidden wrapper leaves the view untouched (no 0 scale)');
+  // Reveal heals: the follow view applies with the real wrapper size.
+  wrapper.clientWidth = 800;
+  wrapper.clientHeight = 600;
+  display.renderFrame({ ...hais, seq: 3 });
+  assert.equal(display.getViewScale(), 800 / (6 * 1852));
+});
+
 test('destroy removes canvas listeners and is idempotent', async () => {
   const { display, canvas } = await createDisplay();
   await display.beginSession('run-1');

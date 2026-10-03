@@ -29,6 +29,7 @@ E2E 关键数值：YOLO CPU 推理 41-55 ms/帧 @640×480；observations 端点 
 | `ir-mode.png` / `eo-mode.png` | 页面整页截图（Deployment twin 视口 + 传感器模式按钮组 + `SENSOR IR`/`SENSOR EO` 状态芯片） |
 | `feed-frame.jpg` | 桅杆前向 EO 馈送机位（`mast_ptz_eo`）实拍帧——YOLO 的输入视图（艏甲板+前向海面） |
 | `observations-status.json` | GET `/api/sessions/{id}/observations`：计数 + 通道 + **pending georef 量测（sensor_id=2，径向协方差）** |
+| `georef-error-stats.json` | **P2-2 终审补证（2026-10-02）**：georef 反算数值误差存证（pytest `test_georef_error_stats.py` 产出——已知真值正投影→1px 量化→georef 反算，多距离/方位/航向采样；YOLO 可检包络（框≥4px，≤300m）内 max 误差 22.9 m ≤ 船长级 45 m 锚，2nm 亚像素尾如实记录） |
 | `detector-log.txt` | YOLO 服务日志尾部（forward 分支 POST 记录） |
 | `player-log-excerpt.txt` | Player.log 尾部（mast rig attach + feed rewire + sensor_mode -> ir） |
 

@@ -137,3 +137,6 @@
 - **阶段发现（遗留立项）**：外部 vimmjipda 接口仅消费 legacy Radar 通道（上游 isinstance
   过滤，外部仓库本阶段不触碰）→ radar_x 进 vimmjipda 融合需外部仓库工作；vimmjipda 会话
   目标进入 2km 雷达量程前无航迹（设计使然）。
+- **终审修复批披露（2026-10-02，P1-1b，与 radar_x 缺口同级）**：YOLO/相机量测已通到 KF
+  链（`external_cameras:` 显式装配，P1-1a 修复）；默认 vimmjipda（外部仓）只消费 legacy
+  Radar——radar_x 与相机两源进外部融合属外部仓库立项（与 radar_x 缺口同级披露）。

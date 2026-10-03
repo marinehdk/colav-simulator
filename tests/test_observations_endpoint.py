@@ -309,6 +309,10 @@ class TestObservationsEndpoint:
 
 class TestExternalCameraSensorCache:
     def test_kf_tracker_consumes_external_measurements_without_exploding(self) -> None:
+        # P1-1a review fix (spec #90): the record below sits inside the default
+        # 50 m association gate of the ground-truth target, so it now rides the
+        # target's do_idx (absolute NE, radar frame convention) instead of the
+        # -1 clutter slot; the KF main chain consumes it on the second cycle.
         sensor = ExternalCameraSensor()
         tracker = KF(sensor_list=[sensor], params=KFParams())
         target = (0, np.array([500.0, 120.0, 0.0, 0.0]), 20.0, 6.0)
@@ -328,8 +332,9 @@ class TestExternalCameraSensorCache:
         tracks, measurements = tracker.track(0.5, 0.5, [target], own)
         assert tracks is not None
         external = measurements[0]
-        assert any(do_idx == -1 for do_idx, _z in external), "external records ride the clutter do_idx slot"
-        assert any(not np.isnan(z).any() for _do_idx, z in external)
+        associated = [z for do_idx, z in external if do_idx == 0 and not np.isnan(z).any()]
+        assert associated, "in-gate record associated onto the truth do_idx (absolute NE)"
+        assert np.allclose(associated[0], [500.0, 120.0])
         # Drain repeats must not raise on an empty inbox.
         for k in range(1, 4):
             tracker.track(0.5 + k * 0.5, 0.5, [target], own)

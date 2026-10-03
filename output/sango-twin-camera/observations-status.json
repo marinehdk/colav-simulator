@@ -1,0 +1,65 @@
+{
+  "session_id": "f985a83d-fd93-4402-877b-945e1442f5a2",
+  "status": {
+    "accepted_frames_total": 5,
+    "channels": [
+      {
+        "sensor_id": 2,
+        "mount_id": "mast_ptz_eo",
+        "frames": 5,
+        "detections": 5,
+        "last_frame_seq": 14
+      }
+    ],
+    "pending_measurements": [
+      {
+        "sensor_id": 2,
+        "position_ne_m": [
+          10.67438810504973,
+          10.639394286561583
+        ],
+        "position_cov_ne_m2": [
+          [
+            4.557140289875506,
+            0.555313818342247
+          ],
+          [
+            0.555313818342247,
+            4.553493334525767
+          ]
+        ],
+        "confidence": 0.6704,
+        "class_name": "boat",
+        "class_confidence": 0.6704,
+        "t_s": 3.5,
+        "mount_id": "mast_ptz_eo",
+        "frame_seq": 13,
+        "frame_time_s": 2.61
+      },
+      {
+        "sensor_id": 2,
+        "position_ne_m": [
+          10.67438810504973,
+          10.639394286561583
+        ],
+        "position_cov_ne_m2": [
+          [
+            4.557140289875506,
+            0.555313818342247
+          ],
+          [
+            0.555313818342247,
+            4.553493334525767
+          ]
+        ],
+        "confidence": 0.6704,
+        "class_name": "boat",
+        "class_confidence": 0.6704,
+        "t_s": 3.5,
+        "mount_id": "mast_ptz_eo",
+        "frame_seq": 14,
+        "frame_time_s": 2.808
+      }
+    ]
+  }
+}

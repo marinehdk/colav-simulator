@@ -128,18 +128,43 @@ def result_json(meta: dict, detections: list[dict], source: str) -> str:
     }, separators=(",", ":"))
 
 
+_MOUNT_SENSOR_IDS: dict[str, int] = {}
+
+
+def mount_sensor_id(mount_id: str) -> int:
+    """mount_id -> observation sensor_id via the backend mast camera table (P3-7).
+
+    Minimal implementation (P3-7 review fix, spec #90): ``colav_simulator.core
+    .mast_cameras`` is the backend-authoritative, stdlib-only calibration table,
+    so the repo copy is imported directly (verified importable from the
+    .venv-detector interpreter). An unknown mount_id fails loudly instead of
+    silently masquerading as the EO channel.
+    """
+    if not _MOUNT_SENSOR_IDS:
+        sys.path.insert(0, str(REPO_ROOT))
+        from colav_simulator.core.mast_cameras import MAST_MOUNTS_BY_ID
+
+        _MOUNT_SENSOR_IDS.update({name: int(mount.sensor_id) for name, mount in MAST_MOUNTS_BY_ID.items()})
+    if mount_id not in _MOUNT_SENSOR_IDS:
+        raise ValueError(f"unknown forward mount_id {mount_id!r} (mast camera table vocabulary)")
+    return _MOUNT_SENSOR_IDS[mount_id]
+
+
 def observation_payload(meta: dict, detections: list[dict], source: str, mount_id: str) -> dict:
     """observations-v1 §3 request body (frozen schema; DetectionResult field subset, contract §6).
 
     mount_id prefers the frame metadata stamp (P3-S2 FrameMetadata.mount_id — the
-    Unity rig labels its feed) and falls back to the CLI value for legacy senders.
+    Unity rig labels its feed) and falls back to the CLI value for legacy senders;
+    sensor_id follows the EFFECTIVE mount through the calibration table (P3-7:
+    no longer hardcoded to camera_eo — an IR feed stamps sensor_id=3).
     """
+    effective_mount = str(meta.get("mount_id") or mount_id)
     return {
         "schema_version": "observations@1",
         "frame_seq": int(meta.get("frame_seq", 0)),
         "frame_time_s": float(meta.get("frame_time_s", 0.0)),
-        "sensor_id": 2,  # camera_eo (contract §2 vocabulary; the EO feed is the forward camera)
-        "mount_id": str(meta.get("mount_id") or mount_id),
+        "sensor_id": mount_sensor_id(effective_mount),
+        "mount_id": effective_mount,
         "source": source,
         "detections": detections,
     }
@@ -266,11 +291,17 @@ def serve(args: argparse.Namespace) -> int:
             rx += 1
             tx += 1
             if args.forward_url:
-                ok, detail = forward_observation(
-                    args.forward_url,
-                    observation_payload(meta, detections, args.source, args.forward_mount),
-                    args.forward_timeout,
-                )
+                # P3-7: payload construction (mount table lookup) can raise on an
+                # unknown mount; like transport failures below, that drops one
+                # frame only — never the ZMQ return path or the serve loop.
+                try:
+                    ok, detail = forward_observation(
+                        args.forward_url,
+                        observation_payload(meta, detections, args.source, args.forward_mount),
+                        args.forward_timeout,
+                    )
+                except Exception as error:  # noqa: BLE001 - one frame dropped
+                    ok, detail = False, f"{type(error).__name__}: {error}"
                 if ok:
                     forwarded += 1
                 else:

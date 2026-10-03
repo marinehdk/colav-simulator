@@ -806,6 +806,10 @@ export function createSituationDisplay(options) {
       || !String(data?.scenario_id || '').startsWith(HISTORICAL_AIS_SCENARIO_PREFIX)
       || !Number.isFinite(data?.os?.x)
       || !Number.isFinite(data?.os?.y)) return;
+    // Same zero-size gate as fitENCView above (P3-5 review fix, spec #90): on a
+    // hidden wrapper viewScale would compute to 0, and the next updateScaleBar
+    // would print an "Infinity km" label that outlives the reveal.
+    if (!(wrapper.clientWidth > 0 && wrapper.clientHeight > 0)) return;
     viewScale = wrapper.clientWidth / HISTORICAL_OWN_SHIP_SPAN_M;
     panX = -Number(data.os.y) * viewScale;
     panY = Number(data.os.x) * viewScale;

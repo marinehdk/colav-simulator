@@ -88,3 +88,16 @@
 **APPROVE**（自审档；主 Agent 独立验收为准）。翻转三处 + 序列化修复按审计顺序执行且
 每步全量验证；六条完成定义全部有探针级实证；边界纪律无违例。遗留（不阻塞关票）：
 radar_x→vimmjipda 融合（外部仓库）、环境退化批 triage、colreg_scoring 段错误立项。
+
+## 终审修复批增补（2026-10-02，REQUEST-CHANGES 修复，spec #90 关票前置）
+
+双轴终审 P1-1/P2-2/P3-5/P3-7 就地修，其余 P3 入 [review-residue.md](review-residue.md)。
+与本自审同级披露（措辞对齐 radar_x 缺口）：**YOLO/相机量测已通到 KF 链
+（`external_cameras:` 显式装配）；默认 vimmjipda（外部仓）只消费 legacy Radar——radar_x
+与相机两源进外部融合属外部仓库立项（与 radar_x 缺口同级披露）**。修复明细：
+ExternalCameraSensor 仿真级最近真值关联（`association_gate_m` 默认 50 m，命中置 do_idx
+绝对 NE、门外保持 -1 杂波槽）+ `external_cameras:` 场景键装配（Config/Builder/
+gui_server 端点挂 ship_list[0].sensors，默认关）；georef 反算误差数值 artifact
+（`output/sango-twin-s2/georef-error-stats.json`，纯函数层）；web
+applyOwnshipFollowView 零尺寸闸（fitENCView 同款）；detector forward sensor_id 按标定表
+解析（不再硬编码 2）。

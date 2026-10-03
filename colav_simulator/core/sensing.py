@@ -164,6 +164,11 @@ class Config:
                 sensor_dict["ais"] = sensor.to_dict()
             elif isinstance(sensor, LidarParams):
                 sensor_dict["lidar"] = sensor.to_dict()
+            elif isinstance(sensor, ExternalCameraParams):
+                # P1-1a review fix (spec #90): explicit scene assembly key
+                # (radar_x precedent) — absent from a scene, no camera sensor
+                # is built and the default tracker behaviour is untouched.
+                sensor_dict["external_cameras"] = sensor.to_dict()
             output_list.append(sensor_dict)
 
         return output_list
@@ -180,6 +185,8 @@ class Config:
                 config.sensor_list.append(cp.convert_settings_dict_to_dataclass(AISParams, sensor_dict["ais"]))
             elif "lidar" in sensor_dict:
                 config.sensor_list.append(LidarParams.from_dict(sensor_dict["lidar"]))
+            elif "external_cameras" in sensor_dict:
+                config.sensor_list.append(ExternalCameraParams.from_dict(sensor_dict["external_cameras"]))
 
         return config
 
@@ -206,6 +213,8 @@ class SensorSuiteBuilder:
                     sensors.append(AIS(sensor_config))
                 elif isinstance(sensor_config, LidarParams):
                     sensors.append(LidarContactSensor(sensor_config))
+                elif isinstance(sensor_config, ExternalCameraParams):
+                    sensors.append(ExternalCameraSensor(sensor_config))
         else:
             sensors = [Radar()]
         return sensors
@@ -962,9 +971,23 @@ class ExternalCameraParams:
     sensor_id: int = 2  # camera_eo (contract observations-v1 §2: 2|3 only)
     max_range_m: float = 2.0 * 1852.0  # 2 nm external camera detection envelope
     inbox_capacity: int = 256  # pending georeferenced records before the oldest drops
+    # P1-1a review fix (spec #90): simulation-level association gate. A drained
+    # record within this distance of the nearest ground-truth target rides that
+    # target's do_idx (radar-generation fidelity — the KF main chain consumes
+    # it); beyond the gate it stays in the -1 clutter slot.
+    association_gate_m: float = 50.0
 
     def to_dict(self) -> dict:
-        return {"sensor_id": self.sensor_id, "max_range_m": self.max_range_m}
+        return {
+            "sensor_id": self.sensor_id,
+            "max_range_m": self.max_range_m,
+            "association_gate_m": self.association_gate_m,
+        }
+
+    @classmethod
+    def from_dict(cls, config_dict: dict) -> "ExternalCameraParams":
+        known = {f: config_dict[f] for f in cls.__dataclass_fields__ if f in config_dict}
+        return cls(**known)
 
 
 class ExternalCameraSensor(ISensor):
@@ -973,13 +996,24 @@ class ExternalCameraSensor(ISensor):
     The endpoint (gui_server, the only writer) georeferences accepted pixel
     boxes into ownship-NED NE records and feeds them to :meth:`submit`; the
     sensor exposes them through the ISensor legacy shape —
-    :meth:`generate_measurements` drains the inbox into ``(do_idx=-1, z)`` NE
-    tuples (RadarXBand clutter convention: external detections carry no ground
-    truth association, so they never hijack the tracker's GT-labelled data
-    association) — and through :meth:`drain_records` /
-    :meth:`sfd_records` for the sensor-model-v1 shaped consumers (S2 status
+    :meth:`generate_measurements` drains the inbox into ``(do_idx, z)`` tuples
+    with **simulation-level nearest-truth association** (P1-1a review fix,
+    spec #90, same fidelity as the Radar generation chain): a record within
+    ``association_gate_m`` (default 50 m) of the nearest ground-truth target
+    is emitted on that target's do_idx in the absolute NE frame (the georef
+    noise is already baked into the record, mirroring the radar's
+    ``z = h(do_state) + noise``), while a beyond-gate record keeps the
+    RadarXBand clutter convention ``(do_idx=-1, z)`` — it never hijacks the
+    tracker's GT-labelled data association. The sensor-model-v1 shaped
+    consumers read :meth:`drain_records` / :meth:`sfd_records` (S2 status
     hook; S5 fusion wiring). Thread-safe: the endpoint posts from the FastAPI
     threadpool while the simulator tick drains from the session thread.
+
+    Assembly discipline (default off): the sensor only joins the tracker's
+    measurement loop when the scene explicitly assembles it through the
+    ``external_cameras:`` ship sensor key (radar_x precedent) — unassembled
+    sessions keep the gui_server session-scoped cache, so the default tracker
+    behaviour is untouched.
 
     Legacy compatibility: ``generate_measurements`` returns the ISensor
     ``list[(do_idx, z)]`` shape with NaN placeholders for the true targets —
@@ -998,6 +1032,19 @@ class ExternalCameraSensor(ISensor):
         self._lock = threading.Lock()
         self._accepted_frames = 0
         self._last_frame_seq: int | None = None
+
+    # ------------------------------------------------------------------ deepcopy/pickle
+    # The scenario generator deep-copies assembled ships per episode
+    # (scenario_generator.generate); locks are neither picklable nor
+    # deepcopyable, so the assembled sensor carries a fresh one per copy.
+    def __getstate__(self) -> dict:
+        state = self.__dict__.copy()
+        state["_lock"] = None
+        return state
+
+    def __setstate__(self, state: dict) -> None:
+        self.__dict__.update(state)
+        self._lock = threading.Lock()
 
     # ------------------------------------------------------------------ ISensor
     def reset(self, seed: int | None) -> None:
@@ -1023,19 +1070,52 @@ class ExternalCameraSensor(ISensor):
         self,
         t: float,  # noqa: ARG002 - ISensor signature; external records carry their own stamps
         true_do_states: list[tuple[int, np.ndarray, float, float]],
-        ownship_state: np.ndarray,  # noqa: ARG002 - records are already ownship-NED
+        ownship_state: np.ndarray,
     ) -> list[tuple[int, np.ndarray]]:
-        """Legacy ISensor output: NaN placeholders + drained external records.
+        """Legacy ISensor output: per-target NE (associated) + clutter slot.
 
-        NaN placeholders per true target; the drained external records ride the
+        NaN placeholders per true target; an associated record REPLACES its
+        target's placeholder (the KF automatic data association keys on do_idx
+        and must not hit the NaN twin first), an unassociated record rides the
         clutter slot as (do_idx=-1, NE) — the simulator measurement cache keeps
         the non-NaN entries (simulator.py extract_valid_sensor_measurements).
+        Associated z is absolute NE (radar frame convention): ownship + the
+        record's ownship-relative georef NE.
         """
         placeholders = [(do_tup[0], np.nan * np.ones(2)) for do_tup in true_do_states]
         measurements: list[tuple[int, np.ndarray]] = list(placeholders)
+        placeholder_at = {do_tup[0]: pos for pos, do_tup in enumerate(true_do_states)}
+        own_ne = np.asarray(ownship_state, dtype=float)[:2]
         for record in self._drain():
-            measurements.append((-1, np.asarray(record["position_ne_m"], dtype=float)))
+            do_idx = self._associate(record, own_ne, true_do_states)
+            if do_idx < 0:
+                measurements.append((-1, np.asarray(record["position_ne_m"], dtype=float)))
+            else:
+                measurements[placeholder_at[do_idx]] = (
+                    do_idx,
+                    own_ne + np.asarray(record["position_ne_m"], dtype=float),
+                )
         return measurements
+
+    def _associate(
+        self, record: dict, own_ne: np.ndarray, true_do_states: list[tuple[int, np.ndarray, float, float]]
+    ) -> int:
+        """Nearest ground-truth target within the association gate, else -1.
+
+        Records are ownship-relative georef NE; truth is absolute NE, so the
+        record is lifted into the absolute frame against the same ownship pose
+        the tracker tick provided (radar-generation fidelity, P1-1a).
+        """
+        gate_m = self._params.association_gate_m
+        if gate_m <= 0.0 or not true_do_states:
+            return -1
+        absolute = own_ne + np.asarray(record["position_ne_m"], dtype=float)
+        best_idx, best_dist = -1, gate_m
+        for do_idx, do_state, _do_length, _do_width in true_do_states:
+            distance = float(np.linalg.norm(np.asarray(do_state, dtype=float)[:2] - absolute))
+            if distance <= best_dist:
+                best_idx, best_dist = int(do_idx), distance
+        return best_idx
 
     # ------------------------------------------------------------------ endpoint side
     def submit(self, records: list[dict], frame_seq: int | None = None) -> int:
