@@ -1,10 +1,11 @@
 // twin_launchd — probes × launchd twin-player coexistence protocol (spec #91 前置批).
 //
-// The persistent twin player runs as the user LaunchAgent
-// com.marine.colav-simulator.twin-player (deploy/twin/, KeepAlive). Player-spawning
-// probes need the machine solo: a respawned launchd player mid-probe double-connects
+// The twin player runs as the user LaunchAgent
+// com.marine.colav-simulator.twin-player (deploy/twin/; manual start via
+// deploy/twin/twinctl — not resident since 2026-10-06). Player-spawning
+// probes need the machine solo: a running launchd player mid-probe double-connects
 // the signaling page (SingleConnection steals the video). Protocol: DOWN before the
-// probe spawns its own player (bootout = job removed, KeepAlive cannot respawn),
+// probe spawns its own player (bootout = job removed),
 // UP on exit (bootstrap + kickstart, back to serving the user's T viewport).
 // Down/Up are no-ops when the service (or its plist) is absent — fresh machines and
 // CI keep the pre-launchd probe semantics untouched.

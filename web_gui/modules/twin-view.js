@@ -448,7 +448,7 @@ export function projectTwinStreamHealth({ signalingReachable = null, videoConnec
       visible: true,
       level: 'signaling-down',
       title: '孪生信令未连接',
-      detail: 'URS 信令服务（:8080）不可达 — 请启动 twin-signaling 服务（deploy/twin/README.md），恢复后自动重试',
+      detail: 'URS 信令服务（:8080）不可达 — 请启动 twin-signaling 服务（deploy/twin/twinctl start），恢复后自动重试',
     };
   }
   if (!videoConnected) {
@@ -457,13 +457,13 @@ export function projectTwinStreamHealth({ signalingReachable = null, videoConnec
           visible: true,
           level: 'retrying',
           title: `孪生流端未连接 · 重试中（第 ${retryCount} 次）`,
-          detail: '信令已通、像素流未达 — 请确认 sango twin player 在跑（twin-player 服务，deploy/twin/README.md）',
+          detail: '信令已通、像素流未达 — 请确认 sango twin player 在跑（twin-player 服务，deploy/twin/twinctl start）',
         }
       : {
           visible: true,
           level: 'waiting',
           title: '孪生流端未连接',
-          detail: '正在等待 sango twin player（twin-player 服务）接入信令 — deploy/twin/README.md',
+          detail: '正在等待 sango twin player（twin-player 服务）接入信令 — 未运行可用 deploy/twin/twinctl start 拉起',
         };
   }
   return { visible: false, level: 'ok', title: '', detail: '' };

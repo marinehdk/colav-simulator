@@ -1,0 +1,70 @@
+#!/bin/bash
+# twinctl — sango twin 双服务手动启停（2026-10-06 起默认不自启：RunAtLoad=false + KeepAlive=false）。
+# 用法: twinctl start|stop|restart|status
+#   start   信令→player 依次拉起（未注册则先 bootstrap）
+#   stop    player→信令依次 bootout（进程随停，不会被拉回）
+#   status  服务注册/运行态 + 8080 探活 + player 进程
+# 原生 launchctl 等价命令见 deploy/twin/README.md。
+set -u
+
+REPO="$(cd "$(dirname "$0")/../.." && pwd)"
+GUI="gui/$(id -u)"
+SIGN=com.marine.colav-simulator.twin-signaling
+PLAY=com.marine.colav-simulator.twin-player
+PLIST_DIR="$HOME/Library/LaunchAgents"
+
+loaded() { launchctl print "$GUI/$1" >/dev/null 2>&1; }
+
+plist_path() {
+  if [ -f "$PLIST_DIR/$1.plist" ]; then echo "$PLIST_DIR/$1.plist"
+  elif [ -f "$REPO/deploy/twin/$1.plist" ]; then echo "$REPO/deploy/twin/$1.plist"
+  else echo ""; fi
+}
+
+start_one() {
+  local label=$1 p
+  p="$(plist_path "$label")"
+  if [ -z "$p" ]; then echo "✗ $label: plist 不存在（$PLIST_DIR 与 deploy/twin/ 均无）"; return 1; fi
+  if ! loaded "$label"; then
+    launchctl bootstrap "$GUI" "$p" || { echo "✗ $label: bootstrap 失败"; return 1; }
+  fi
+  launchctl kickstart "$GUI/$label" && echo "✓ $label: started"
+}
+
+stop_one() {
+  local label=$1
+  if loaded "$label"; then
+    launchctl bootout "$GUI/$label" && echo "✓ $label: stopped (bootout)"
+  else
+    echo "· $label: 未注册（已是停止态）"
+  fi
+}
+
+state_of() {
+  loaded "$1" || { echo "未注册"; return; }
+  launchctl print "$GUI/$1" | grep -E $'^\t(state|pid) =' | tr -d '\t' | sed 's/$/；/' | tr -d '\n'
+  echo ""
+}
+
+do_status() {
+  echo "signaling: $(state_of "$SIGN")"
+  echo "player:    $(state_of "$PLAY")"
+  if curl -s -m 2 http://127.0.0.1:8080/config >/dev/null; then
+    echo "8080:      /config 200（信令活）"
+  else
+    echo "8080:      不可达"
+  fi
+  if pgrep -fl "MacOS/sango" >/dev/null; then
+    echo "player进程: $(pgrep -fl 'MacOS/sango' | head -1)"
+  else
+    echo "player进程: 无"
+  fi
+}
+
+case "${1:-}" in
+  start)   start_one "$SIGN"; start_one "$PLAY" ;;
+  stop)    stop_one "$PLAY";  stop_one "$SIGN" ;;
+  restart) stop_one "$PLAY";  stop_one "$SIGN"; sleep 1; start_one "$SIGN"; start_one "$PLAY" ;;
+  status)  do_status ;;
+  *) echo "用法: $0 start|stop|restart|status"; exit 2 ;;
+esac

@@ -2,7 +2,11 @@
 
 Deployment 选 T 后视口无画面的根因：URS 信令（:8080）与 sango twin player 都是手动进程，
 退出/重启后无人拉起，浏览器（8010 前端）停在"信令活着、player 不在"的空等态。本目录把
-两个常驻进程装成用户域 LaunchAgent（KeepAlive 拉活），装好后 T 视口自动恢复。
+两个进程装成用户域 LaunchAgent 统一管理。
+
+**运行策略（2026-10-06 起）：默认不自启。** plist 为 `RunAtLoad=false` + `KeepAlive=false`
+——开机/登录不拉起、杀进程不复活；仅在人工需要（`deploy/twin/twinctl start`）或 WEB 准备
+孪生仿真（Deployment 选 T，健康卡会提示该命令）时启动。
 
 ## 组件
 
@@ -40,7 +44,22 @@ launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.marine.colav-simulat
 前置：`sango/Builds/sango-twin.app` 已构建（Unity batchmode，见
 `sango/Assets/Scripts/Editor/TwinBridgeSceneBuilder.cs#BuildTwinPlayer`）；8080 无其它进程占用。
 
+bootstrap 后服务仅注册不运行（RunAtLoad=false）——首次拉起用 `deploy/twin/twinctl start`。
+
+## 启停（twinctl）
+
+```bash
+deploy/twin/twinctl start     # 信令→player 依次拉起（未注册则先 bootstrap）
+deploy/twin/twinctl stop      # player→信令依次 bootout（杀进程亦不会复活）
+deploy/twin/twinctl restart
+deploy/twin/twinctl status    # 注册/运行态 + 8080 探活 + player 进程
+```
+
+原生 launchctl 等价：start = `bootstrap`（如未注册）+ `kickstart`；stop = `bootout`。
+
 ## 验证
+
+服务 start 后：
 
 ```bash
 launchctl print gui/$(id -u)/com.marine.colav-simulator.twin-signaling | grep state   # state = running
@@ -64,7 +83,8 @@ tail -50 deploy/twin/logs/twin-signaling.error.log    # 信令起不来看这里
 tail -50 deploy/twin/logs/twin-player.error.log
 launchctl kickstart -k gui/$(id -u)/com.marine.colav-simulator.twin-player      # 手动重启 player
 launchctl kickstart -k gui/$(id -u)/com.marine.colav-simulator.twin-signaling
-# 8080 被杂散 node 占用时：lsof -nP -iTCP:8080 -sTCP:LISTEN 找 PID → kill → KeepAlive 自拉起
+# 8080 被杂散 node 占用时：lsof -nP -iTCP:8080 -sTCP:LISTEN 找 PID → kill → twinctl start 重新拉起（不自拉）
+# 进程（含 player 界面 Cmd+Q / kill -9）退出后不会复活（KeepAlive=false）——恢复用 twinctl start
 ```
 
 ## 与探针的单实例纪律
