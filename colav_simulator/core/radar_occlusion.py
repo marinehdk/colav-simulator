@@ -21,14 +21,36 @@ unoccluded instead of failing.
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 import numpy as np
+from shapely import contains_xy
 
 #: Effective-earth-radius factor for standard atmospheric refraction (k = 4/3).
 REFRACTION_K = 4.0 / 3.0
 
 #: Mean earth radius [m].
 EARTH_RADIUS_M = 6371000.0
+
+
+def enc_land_grid(enc: Any) -> TerrainGrid | None:
+    """Rasterize the authoritative ENC land in its own projected frame.
+
+    Landmask is opaque; it does not claim measured terrain elevations. Coverage
+    is limited to the ENC bbox and stays explicit in shadow video metadata.
+    """
+    geometry = getattr(getattr(enc, "land", None), "geometry", None)
+    bbox = getattr(enc, "bbox", None)
+    if geometry is None or bbox is None or len(bbox) != 4:
+        return None
+    xmin, ymin, xmax, ymax = map(float, bbox)
+    if not np.isfinite([xmin, ymin, xmax, ymax]).all() or xmin >= xmax or ymin >= ymax:
+        raise ValueError("invalid ENC radar land extent")
+    cell_size = max(25.0, (xmax - xmin) / 1024, (ymax - ymin) / 1024)
+    columns = int(np.ceil((xmax - xmin) / cell_size))
+    rows = int(np.ceil((ymax - ymin) / cell_size))
+    east, north = np.meshgrid(xmin + (np.arange(columns) + 0.5) * cell_size, ymax - (np.arange(rows) + 0.5) * cell_size)
+    return TerrainGrid(contains_xy(geometry, east, north).astype(float), xmin, ymax, cell_size, mode="landmask")
 
 
 class TerrainGrid:

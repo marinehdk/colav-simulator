@@ -1,3 +1,5 @@
+import { RadarVideoBuffer } from './radar-video.js?v=20261008-radar-v1';
+
 /**
  * Radar PPI panel (P3-S1, spec #90) — plan-position-indicator canvas for the
  * sensor-model-v1 radar_x X-band model.
@@ -166,7 +168,11 @@ export function rangeRingsM(rangeScaleM) {
  * (seed, scanIndex = floor(sim_time / scan_period)).
  */
 export function buildPpiModel(envelope, { rangeScaleNm = null, descriptor = null } = {}) {
-  const resolvedDescriptor = descriptor ?? envelope?.radar_ppi ?? PPI_DESCRIPTOR_DEFAULT;
+  const scans = envelope?.radar_scans ?? [];
+  const expectedMount = descriptor?.mount_id ?? envelope?.radar_ppi?.mount_id;
+  const scan = scans.find(item => item?.sensor_label === 'radar_x'
+    && (!expectedMount || item?.descriptor?.mount_id === expectedMount));
+  const resolvedDescriptor = scan?.descriptor ?? descriptor ?? envelope?.radar_ppi ?? PPI_DESCRIPTOR_DEFAULT;
   const scales = Array.isArray(resolvedDescriptor.range_scales_nm) && resolvedDescriptor.range_scales_nm.length
     ? resolvedDescriptor.range_scales_nm
     : RANGE_SCALES_NM_DEFAULT;
@@ -188,37 +194,42 @@ export function buildPpiModel(envelope, { rangeScaleNm = null, descriptor = null
     scanIndex: scanPeriodS > 0 ? Math.floor(simTimeS / scanPeriodS) : 0,
     ownshipHeadingRad: Number.isFinite(os?.psi) ? Number(os.psi) : (Number(os?.cog) || 0),
     hasOwnship: Number.isFinite(os?.north) && Number.isFinite(os?.east),
+    ownshipNorth: os?.north,
+    ownshipEast: os?.east,
+    ownshipCourseRad: Number.isFinite(os?.cog) ? Number(os.cog) : (Number(os?.psi) || 0),
+    streamKey: `${envelope?.run_id ?? ''}:${scan?.sensor_instance_id ?? ''}`,
     blips: [],
     clutter: [],
+    scan,
+    status: scan?.status ?? 'NO_MEASUREMENT',
+    tracks: [],
+    ais: [],
+    videoHistory: envelope?.radar_video_history ?? [],
   };
   if (!model.hasOwnship) return model;
+  model.ais = (envelope?.ais_reports ?? []).flatMap(report => [report?.north_m, report?.east_m, report?.t_s].every(Number.isFinite)
+    && model.simTimeS - report.t_s < 180 ? [{ id: report.target_id, northRel: report.north_m - os.north, eastRel: report.east_m - os.east }] : []);
+  const trackSet = envelope?.tracks?.[0];
+  if (envelope?.executed_tracker !== 'god' && Number.isFinite(os?.x) && Number.isFinite(os?.y)) {
+    model.tracks = (trackSet?.states ?? []).flatMap((state, i) => Number.isFinite(state?.[0]) && Number.isFinite(state?.[1])
+      ? [{ northRel: state[0] - os.x, eastRel: state[1] - os.y, id: trackSet.labels?.[i] ?? null }] : []);
+  }
 
-  const sensorGroups = envelope?.measurements?.[0];
-  const radarGroup = Array.isArray(sensorGroups) ? sensorGroups.find(group => Array.isArray(group)) : null;
-  for (const measurement of radarGroup || []) {
-    if (!Array.isArray(measurement) || !Array.isArray(measurement[1])) continue;
-    const [doIdx, ne] = measurement;
-    if (doIdx === undefined || doIdx === null || doIdx < 0) continue; // clutter regenerated below
-    if (!Number.isFinite(ne[0]) || !Number.isFinite(ne[1])) continue;
-    const northRel = ne[0] - Number(os.north);
-    const eastRel = ne[1] - Number(os.east);
+  for (const measurement of scan?.display_returns ?? []) {
+    if (!Number.isFinite(measurement.north_m) || !Number.isFinite(measurement.east_m)) continue;
+    const northRel = measurement.north_m - Number(os.north);
+    const eastRel = measurement.east_m - Number(os.east);
     const rangeM = Math.hypot(northRel, eastRel);
     if (rangeM > rangeScaleM || rangeM < blindRingM) continue;
     model.blips.push({
-      id: doIdx,
+      id: null,
       rangeM,
       azimuthRad: ((Math.atan2(eastRel, northRel) % TWO_PI) + TWO_PI) % TWO_PI,
-      intensity: ppiIntensity(rangeM),
+      intensity: Math.max(0.08, Math.min(1, measurement.confidence ?? 0)),
       northRel,
       eastRel,
     });
   }
-  model.clutter = clutterPoints({
-    seed: Number.isFinite(Number(resolvedDescriptor.seed)) ? Number(resolvedDescriptor.seed) : 0,
-    scanIndex: model.scanIndex,
-    rangeScaleM,
-    descriptor: resolvedDescriptor,
-  });
   return model;
 }
 
@@ -230,6 +241,15 @@ export function createRadarPpi({ canvas, onState = () => {} } = {}) {
   let rangeScaleNm = PPI_DESCRIPTOR_DEFAULT.range_scale_nm;
   let visible = false;
   let lastModel = buildPpiModel(null, {});
+  let videoBuffer = new RadarVideoBuffer();
+  let videoQueue = Promise.resolve();
+  let streamKey = null;
+  let lastVideoKey = null;
+  let videoGeneration = 0;
+  const controls = { headingUp: false, courseUp: false, trueMotion: false, gain: 0, sea: 0, rain: 0, trails: false, detections: false, tracks: false, ais: false, vrmNm: 0, eblDeg: 0 };
+  let motionCenter = null;
+  const rotation = () => controls.headingUp ? lastModel.ownshipHeadingRad : (controls.courseUp ? lastModel.ownshipCourseRad : 0);
+  const videoCanvas = typeof document === 'undefined' ? null : document.createElement('canvas');
 
   function palette() {
     if (typeof document === 'undefined' || typeof getComputedStyle !== 'function') {
@@ -268,6 +288,13 @@ export function createRadarPpi({ canvas, onState = () => {} } = {}) {
     const centerY = height / 2;
     const radius = size / 2 - 14;
     const scalePx = radius * 2;
+    if (!motionCenter || Math.hypot(lastModel.ownshipNorth - motionCenter[0], lastModel.ownshipEast - motionCenter[1]) > lastModel.rangeScaleM * 0.7) {
+      motionCenter = [lastModel.ownshipNorth, lastModel.ownshipEast];
+    }
+    const offsetN = controls.trueMotion ? lastModel.ownshipNorth - motionCenter[0] : 0;
+    const offsetE = controls.trueMotion ? lastModel.ownshipEast - motionCenter[1] : 0;
+    const shipX = centerX + (-offsetN * Math.sin(rotation()) + offsetE * Math.cos(rotation())) / lastModel.rangeScaleM * radius;
+    const shipY = centerY - (offsetN * Math.cos(rotation()) + offsetE * Math.sin(rotation())) / lastModel.rangeScaleM * radius;
     ctx.clearRect(0, 0, width, height);
 
     ctx.save();
@@ -277,8 +304,18 @@ export function createRadarPpi({ canvas, onState = () => {} } = {}) {
     ctx.fill();
     ctx.clip();
 
+    if (videoCanvas && videoBuffer.data && videoBuffer.status === 'SHADOW') {
+      const pixels = Math.max(1, Math.round(radius * 2));
+      videoCanvas.width = pixels; videoCanvas.height = pixels;
+      const vctx = videoCanvas.getContext('2d');
+      const raster = vctx.createImageData(pixels, pixels);
+      raster.data.set(videoBuffer.raster(pixels, { ...lastModel, ownshipNorth: lastModel.ownshipNorth - offsetN, ownshipEast: lastModel.ownshipEast - offsetE }, controls));
+      vctx.putImageData(raster, 0, 0);
+      ctx.drawImage(videoCanvas, centerX - radius, centerY - radius, radius * 2, radius * 2);
+    }
+
     // Afterglow sweep wedge behind the rotating beam.
-    const sweepCanvas = model => model.sweepAzRad - Math.PI / 2;
+    const sweepCanvas = model => model.sweepAzRad - Math.PI / 2 - rotation();
     const sweep = sweepCanvas(lastModel);
     const wedge = ctx.createLinearGradient(centerX, centerY, centerX + Math.cos(sweep) * radius, centerY + Math.sin(sweep) * radius);
     wedge.addColorStop(0, 'rgba(57, 217, 138, 0.35)');
@@ -320,25 +357,58 @@ export function createRadarPpi({ canvas, onState = () => {} } = {}) {
     }
 
     // Target blips (latest radar measurements), brightness = shared SNR proxy.
-    for (const blip of lastModel.blips) {
-      const projected = ppiProject(blip.northRel, blip.eastRel, lastModel.rangeScaleM, scalePx);
+    const displayed = controls.detections ? (lastModel.scan?.shadow_video?.detections ?? []).map(point => ({
+      northRel: point.north_m - lastModel.ownshipNorth, eastRel: point.east_m - lastModel.ownshipEast, intensity: 1,
+    })) : (!lastModel.scan?.shadow_video ? lastModel.blips : []);
+    for (const blip of displayed) {
+      const bearing = rotation();
+      const n = (blip.northRel + offsetN) * Math.cos(bearing) + (blip.eastRel + offsetE) * Math.sin(bearing);
+      const e = -(blip.northRel + offsetN) * Math.sin(bearing) + (blip.eastRel + offsetE) * Math.cos(bearing);
+      const projected = ppiProject(n, e, lastModel.rangeScaleM, scalePx);
+      if (!projected.inside) continue;
       ctx.beginPath();
       ctx.arc(centerX + projected.x - scalePx / 2, centerY + projected.y - scalePx / 2, 2 + 2.5 * blip.intensity, 0, TWO_PI);
       ctx.fillStyle = `rgba(57, 217, 138, ${0.35 + 0.6 * blip.intensity})`;
       ctx.fill();
+    }
+    if (controls.tracks) for (const track of lastModel.tracks) {
+      const bearing = rotation();
+      const n = (track.northRel + offsetN) * Math.cos(bearing) + (track.eastRel + offsetE) * Math.sin(bearing);
+      const e = -(track.northRel + offsetN) * Math.sin(bearing) + (track.eastRel + offsetE) * Math.cos(bearing);
+      const point = ppiProject(n, e, lastModel.rangeScaleM, scalePx);
+      if (!point.inside) continue;
+      ctx.strokeStyle = '#76B6FF';
+      ctx.strokeRect(centerX + point.x - scalePx / 2 - 4, centerY + point.y - scalePx / 2 - 4, 8, 8);
+    }
+    if (controls.ais) for (const target of lastModel.ais) {
+      const bearing = rotation();
+      const n = (target.northRel + offsetN) * Math.cos(bearing) + (target.eastRel + offsetE) * Math.sin(bearing);
+      const e = -(target.northRel + offsetN) * Math.sin(bearing) + (target.eastRel + offsetE) * Math.cos(bearing);
+      const point = ppiProject(n, e, lastModel.rangeScaleM, scalePx);
+      if (!point.inside) continue;
+      const x = centerX + point.x - scalePx / 2; const y = centerY + point.y - scalePx / 2;
+      ctx.strokeStyle = '#FFD36D'; ctx.beginPath(); ctx.moveTo(x, y - 5);
+      ctx.lineTo(x - 4, y + 4); ctx.lineTo(x + 4, y + 4); ctx.closePath(); ctx.stroke();
+    }
+    if (controls.vrmNm > 0 && controls.vrmNm <= lastModel.rangeScaleNm) {
+      ctx.strokeStyle = '#E6B94D'; ctx.beginPath();
+      ctx.arc(shipX, shipY, radius * controls.vrmNm / lastModel.rangeScaleNm, 0, TWO_PI); ctx.stroke();
+      const bearing = controls.eblDeg * Math.PI / 180 - rotation();
+      ctx.beginPath(); ctx.moveTo(shipX, shipY);
+      ctx.lineTo(shipX + Math.sin(bearing) * radius, shipY - Math.cos(bearing) * radius); ctx.stroke();
     }
 
     // Sweep line + ownship marker + bow line.
     ctx.strokeStyle = colors.accent;
     ctx.lineWidth = 1.4;
     ctx.beginPath();
-    ctx.moveTo(centerX, centerY);
-    ctx.lineTo(centerX + Math.cos(sweep) * radius, centerY + Math.sin(sweep) * radius);
+    ctx.moveTo(shipX, shipY);
+    ctx.lineTo(shipX + Math.cos(sweep) * radius, shipY + Math.sin(sweep) * radius);
     ctx.stroke();
 
     ctx.save();
-    ctx.translate(centerX, centerY);
-    ctx.rotate(lastModel.ownshipHeadingRad);
+    ctx.translate(shipX, shipY);
+    ctx.rotate(lastModel.ownshipHeadingRad - rotation());
     ctx.fillStyle = '#EAF6FF';
     ctx.strokeStyle = '#123C70';
     ctx.lineWidth = 1.2;
@@ -364,14 +434,16 @@ export function createRadarPpi({ canvas, onState = () => {} } = {}) {
     ctx.font = '10px JetBrains Mono, monospace';
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
-    ctx.fillText('N', centerX - 4, centerY - radius + 10);
+    ctx.fillText(controls.headingUp ? 'HU' : (controls.courseUp ? 'CU' : 'N'), centerX - 4, centerY - radius + 10);
     ctx.fillText(ringLabel(lastModel.rangeScaleM), centerX + 6, centerY - radius + 24);
     const rings = rangeRingsM(lastModel.rangeScaleM);
     if (rings.length >= 2) ctx.fillText(ringLabel(rings[1]), centerX + 6, centerY - radius / 3 + 6);
     canvas.setAttribute(
       'aria-label',
-      `X 波段雷达 PPI，量程 ${lastModel.rangeScaleNm} 海里，目标 ${lastModel.blips.length}，杂波 ${lastModel.clutter.length}`,
+      `X 波段雷达 PPI，量程 ${lastModel.rangeScaleNm} 海里，点测 ${lastModel.blips.length}，影子 CFAR ${lastModel.scan?.shadow_video?.detections?.length ?? 0}`,
     );
+    canvas.setAttribute('data-radar-video-status', videoBuffer.status);
+    canvas.setAttribute('data-radar-checkpoint', videoBuffer.lastCheckpoint ?? '');
   }
 
   const resizeObserver = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(() => {
@@ -382,6 +454,32 @@ export function createRadarPpi({ canvas, onState = () => {} } = {}) {
   return {
     render(model) {
       lastModel = model || buildPpiModel(null, { descriptor, rangeScaleNm });
+      if (streamKey !== lastModel.streamKey) {
+        streamKey = lastModel.streamKey; videoGeneration++; videoBuffer = new RadarVideoBuffer(); lastVideoKey = null; motionCenter = null;
+        videoQueue = Promise.resolve();
+      }
+      const video = lastModel.scan?.shadow_video;
+      const key = `${streamKey}:${lastModel.scan?.sample_seq}:${video?.chunk?.sha256}`;
+      if (video && key !== lastVideoKey) {
+        lastVideoKey = key;
+        const generation = videoGeneration;
+        const buffer = videoBuffer;
+        videoQueue = videoQueue.then(async () => {
+          if (generation !== videoGeneration) return;
+          if (buffer.lastEnd === null || video.spoke_seq_end < buffer.lastEnd || video.spoke_seq_start > buffer.lastEnd) {
+            for (const earlier of model?.videoHistory ?? []) {
+              if (generation !== videoGeneration) return;
+              await buffer.apply(earlier.shadow_video);
+            }
+          }
+          await buffer.apply(video);
+          if (generation === videoGeneration && visible) draw();
+        }).catch(() => {
+          if (generation === videoGeneration) {
+            videoBuffer.status = 'INVALID_VIDEO'; onState({ visible, videoStatus: 'INVALID_VIDEO' });
+          }
+        });
+      }
       if (visible) draw();
       onState({ visible, rangeScaleNm: lastModel.rangeScaleNm, blips: lastModel.blips.length, clutter: lastModel.clutter.length });
     },
@@ -398,6 +496,12 @@ export function createRadarPpi({ canvas, onState = () => {} } = {}) {
       }
     },
     options() { return { rangeScaleNm, descriptor }; },
+    configure(next) {
+      if (next.trueMotion && !controls.trueMotion) motionCenter = [lastModel.ownshipNorth, lastModel.ownshipEast];
+      Object.assign(controls, next); if (visible) draw();
+    },
+    videoStatus() { return videoBuffer.status; },
+    settled() { return videoQueue; },
     visible() { return visible; },
     setVisible(next) {
       visible = Boolean(next);

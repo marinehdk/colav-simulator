@@ -7,6 +7,8 @@ Every sensor must adhere to the ISensor interface.
 Author: Trym Tengesdal, Ragnar Wien
 """
 
+import copy
+import json
 import threading
 from abc import ABC, abstractmethod
 from collections import deque
@@ -21,6 +23,8 @@ import colav_simulator.common.config_parsing as cp
 import colav_simulator.common.math_functions as mf
 from colav_simulator.core.mast_cameras import MAST_MOUNTS_BY_ID
 from colav_simulator.core.radar_occlusion import TerrainGrid, load_occlusion_grid
+from colav_simulator.core.radar_scan import RadarReturn, RadarScanPacket
+from colav_simulator.core.radar_video import Halo24Profile, RadarVideo
 
 
 class ISensor(ABC):
@@ -520,6 +524,13 @@ class RadarXParams:
     occlusion_mode: str = "elevation"  # "elevation" | "landmask"
     occlusion_downsample: int = 4
     occlusion_grid: TerrainGrid | None = None  # preloaded grid overrides the path
+    shadow_video: bool = True
+    shadow_video_range_bins: int = 1024
+    shadow_video_rain_mm_h: float = 0.0
+    shadow_video_mount_forward_m: float = 0.0
+    shadow_video_mount_starboard_m: float = 0.0
+    shadow_video_pitch_deg: float = 0.0
+    shadow_video_roll_deg: float = 0.0
 
     def __post_init__(self) -> None:  # noqa: D105 (dataclass validation hook)
         if self.range_scale_nm not in self.range_scales_nm:
@@ -528,6 +539,13 @@ class RadarXParams:
         if self.occlusion_mode not in {"elevation", "landmask"}:
             msg = f"occlusion_mode must be 'elevation' or 'landmask', got {self.occlusion_mode!r}"
             raise ValueError(msg)
+        Halo24Profile(range_bins=self.shadow_video_range_bins, rain_mm_h=self.shadow_video_rain_mm_h)
+        mount_values = (
+            self.shadow_video_mount_forward_m, self.shadow_video_mount_starboard_m,
+            self.shadow_video_pitch_deg, self.shadow_video_roll_deg,
+        )
+        if not all(np.isfinite(value) for value in mount_values):
+            raise ValueError("shadow radar mount geometry must be finite")
 
     @classmethod
     def from_dict(cls, config_dict: dict) -> "RadarXParams":
@@ -586,6 +604,15 @@ class RadarXBand(ISensor):
         self._initialized: bool = False
         self._occlusion_grid: TerrainGrid | None = self._params.occlusion_grid
         self._occlusion_resolved: bool = self._params.occlusion_grid is not None
+        self._sample_key = None
+        self._sample_records: tuple[list[dict], list[dict], float] = ([], [], 0.0)
+        self._sample_seq = 0
+        self._display_returns: tuple[RadarReturn, ...] = ()
+        self.last_scan: RadarScanPacket | None = None
+        self._mount_yaw: float | None = None
+        self._shadow_video: RadarVideo | None = None
+        self._shadow_document: dict | None = None
+        self._shadow_terrain_grid: TerrainGrid | None = None
         r_mid = 0.5 * self.active_range_m
         cross_range_var = (r_mid * self._params.sigma_azimuth_rad) ** 2
         radial_var = self._params.sigma_range_m**2
@@ -598,9 +625,26 @@ class RadarXBand(ISensor):
         self._prev_t = 0.0
         self._initialized = False
 
+    def set_mount_yaw(self, yaw_rad: float) -> None:
+        """Bind the ship heading for evidence; preserve legacy sampling semantics."""
+        if not np.isfinite(yaw_rad):
+            raise ValueError("radar mount yaw must be finite")
+        self._mount_yaw = float(yaw_rad)
+
+    def set_shadow_terrain(self, grid: TerrainGrid | None) -> None:
+        """Bind ENC terrain to shadow video only; legacy detections are unchanged."""
+        self._shadow_terrain_grid = grid
+
     def seed(self, seed: int | None) -> None:
         self._seed = seed
         self._rng = np.random.default_rng(seed)
+        self._sample_key = None
+        self._sample_seq = 0
+        self._display_returns = ()
+        self.last_scan = None
+        self._mount_yaw = None
+        self._shadow_video = None
+        self._shadow_document = None
 
     def R(self, xs: np.ndarray) -> np.ndarray:  # noqa: ARG002
         return self._R_ne
@@ -619,19 +663,14 @@ class RadarXBand(ISensor):
         Targets whose bearing was not swept since the previous call return NaN
         placeholders; the tracker-side cache keeps the last valid measurement.
         """
-        if not self._initialized or t < 0.0001:
-            self._prev_t = t
-            self._initialized = True
-            return [(do_tup[0], np.nan * np.ones(2)) for do_tup in true_do_states]
-
-        records, clutter, _ = self._scan(t, true_do_states, ownship_state)
+        records, clutter, _ = self._sample_once(t, true_do_states, ownship_state)
         measurements: list[tuple[int, np.ndarray]] = []
         detected_by_idx = {record["do_idx"]: record for record in records}
         for do_idx, _do_state, _do_length, _do_width in true_do_states:
             record = detected_by_idx.get(do_idx)
-            measurements.append((do_idx, record["position_world"] if record else np.nan * np.ones(2)))
+            measurements.append((do_idx, record["position_world"].copy() if record else np.nan * np.ones(2)))
         for point in clutter:
-            measurements.append((-1, point["position_world"]))
+            measurements.append((-1, point["position_world"].copy()))
         return measurements
 
     def generate_sfd_frame(
@@ -645,14 +684,12 @@ class RadarXBand(ISensor):
 
         Positions are ownship-NED NE meters (world NE minus ownship NE, the v1
         flat-sea convention); record ``t_s`` is the beam-crossing time (<= frame
-        ``t_s``, contract age semantics). This method consumes its own scan, so
-        it is an alternative to — not a wrapper around —
-        :meth:`generate_measurements`.
+        ``t_s``, contract age semantics). Same-time consumers share one scan;
+        converting an existing sample never advances the RNG or antenna.
         """
-        if not self._initialized or t < 0.0001:
-            self._prev_t = t
-            self._initialized = True
-        records, clutter, _ = self._scan(t, true_do_states, ownship_state)
+        if self._sample_key is None or self._sample_key[0] != float(t):
+            self.set_mount_yaw(ownship_yaw)
+        records, clutter, _ = self._sample_once(t, true_do_states, ownship_state)
         own_ne = np.asarray(ownship_state, dtype=float)[:2]
         measurements = []
         for record in records:
@@ -698,7 +735,7 @@ class RadarXBand(ISensor):
             "ownship_pose_at_measurement": {
                 "p_n": float(own_ne[0]),
                 "p_e": float(own_ne[1]),
-                "yaw": float(ownship_yaw),
+                "yaw": self.last_scan.yaw_rad,
                 "pitch": 0.0,
                 "roll": 0.0,
             },
@@ -706,6 +743,79 @@ class RadarXBand(ISensor):
         }
 
     # ------------------------------------------------------------------ internals
+    def _sample_once(self, t: float, targets: list, ownship_state: np.ndarray) -> tuple:
+        if not np.isfinite(t) or t < 0:
+            raise ValueError("radar sample time must be finite and non-negative")
+        own = np.asarray(ownship_state, dtype=float)
+        key = (
+            float(t), own.tobytes(),
+            tuple((i, np.asarray(s).tobytes(), length, width) for i, s, length, width in targets),
+        )
+        if key == self._sample_key:
+            return self._sample_records
+        if self._sample_key is not None and t <= self._sample_key[0]:
+            raise ValueError("radar sampling requires increasing time; reset before replay")
+        previous_t = self._prev_t
+        initial = not self._initialized or t < 0.0001
+        if initial:
+            self._prev_t = t
+            self._initialized = True
+            records, clutter, swept = [], [], 0.0
+        else:
+            records, clutter, swept = self._scan(t, targets, own)
+        observed = []
+        for record in records + clutter:
+            position = record["position_world"]
+            covariance = record.get("cov_ne", np.eye(2) * self._params.sigma_range_m**2)
+            if not np.isfinite(position).all() or not np.isfinite(covariance).all():
+                continue
+            observed.append(RadarReturn(
+                float(position[0]), float(position[1]), float(record.get("t_cross", t)),
+                float(record["snr_db"]) if "snr_db" in record else None,
+                float(record["confidence"]), tuple(tuple(float(v) for v in row) for row in covariance),
+            ))
+        self._display_returns = tuple(
+            r for r in self._display_returns if t - r.t_s < self.scan_period_s
+        ) + tuple(observed)
+        self._display_returns = self._display_returns[-self._params.max_measurements_per_scan:]
+        yaw = self._mount_yaw
+        if yaw is None:
+            yaw = float(np.arctan2(own[3], own[2])) if np.linalg.norm(own[2:4]) > 0.1 else 0.0
+        self._sample_seq += 1
+        self.last_scan = RadarScanPacket(
+            self._params.mount_id, self._sample_seq, int(t // self.scan_period_s), float(previous_t), float(t),
+            (float(own[0]), float(own[1])), yaw,
+            json.dumps(self.ppi_descriptor(), sort_keys=True), tuple(observed), self._display_returns,
+            "INITIALIZING" if initial else "VALID",
+        )
+        if self._params.shadow_video:
+            if self._shadow_video is None:
+                self._shadow_video = RadarVideo(
+                    int(self._params.spokes_per_revolution),
+                    Halo24Profile(
+                        range_bins=self._params.shadow_video_range_bins, rain_mm_h=self._params.shadow_video_rain_mm_h,
+                    ),
+                    self._seed,
+                )
+            try:
+                self._shadow_document = self._shadow_video.step(self, t, targets, own, yaw)
+            except ValueError as exc:
+                self._shadow_document = {
+                    "schema_version": "radar-video@1", "mode": "SHADOW", "status": "INCOMPLETE", "reason": str(exc),
+                }
+        self._sample_key = key
+        self._sample_records = records, clutter, swept
+        return self._sample_records
+
+    def scan_document(self) -> dict | None:
+        """Read-only projection; no sensor sampling or RNG consumption."""
+        if self.last_scan is None:
+            return None
+        document = self.last_scan.to_dict()
+        if self._shadow_document is not None:
+            document["shadow_video"] = copy.deepcopy(self._shadow_document)
+        return document
+
     def _scan(
         self, t: float, true_do_states: list[tuple[int, np.ndarray, float, float]], ownship_state: np.ndarray
     ) -> tuple[list[dict], list[dict], float]:
@@ -860,6 +970,7 @@ class RadarXBand(ISensor):
                 {
                     "position_world": own_ne + radii[i] * np.array([np.cos(bearings[i]), np.sin(bearings[i])]),
                     "confidence": float(confidence[i]),
+                    "snr_db": float(snr_db[i]),
                 }
             )
         return clutter

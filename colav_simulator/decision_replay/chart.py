@@ -19,6 +19,8 @@ SHIP_FIELDS = (
     "waypoints",
     "references",
     "sensor_measurements",
+    "radar_scans",
+    "ais_reports",
     "do_labels",
     "do_generations",
     "do_estimates",
@@ -104,6 +106,18 @@ def chart_events(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
 CHART_STORAGE_SCHEMA = "colav.chart-blocks.v1"
 
 
+def _radar_blocks(scans: list, reference: Callable[[Any], dict]) -> dict:
+    """Intern checkpoints separately from changing spoke packets."""
+    projected = []
+    for original in scans:
+        scan = dict(original)
+        video = scan.get("shadow_video")
+        if isinstance(video, dict) and "checkpoint" in video:
+            scan["shadow_video"] = {**video, "checkpoint": reference(video["checkpoint"])}
+        projected.append(scan)
+    return reference(projected)
+
+
 def pack_chart_record(record: dict[str, Any], known: set[str], encode: Callable[[Any], bytes]) -> set[str]:
     """Intern only immutable display blocks; definitions travel with their first frame."""
     definitions = {}
@@ -115,6 +129,8 @@ def pack_chart_record(record: dict[str, Any], known: set[str], encode: Callable[
         return {"$chart_block": digest}
 
     for ship in record["payload"].values():
+        if "radar_scans" in ship:
+            ship["radar_scans"] = _radar_blocks(ship["radar_scans"], reference)
         planner = ship["colav"]["planner"]
         if "threat_management" in planner:
             planner["threat_management"] = reference(planner["threat_management"])
@@ -164,16 +180,18 @@ class ChartBlockDecoder:
                 raise ValueError("chart block redefinition")
             self.blocks[key] = encoded
 
-        def expand(value: Any) -> Any:
+        def expand(value: Any, ancestors: frozenset[str] = frozenset()) -> Any:
             if isinstance(value, dict):
                 if set(value) == {"$chart_block"}:
                     key = value["$chart_block"]
                     if key not in self.blocks:
                         raise ValueError("missing chart block")
-                    return json.loads(self.blocks[key])
-                return {key: expand(item) for key, item in value.items()}
+                    if key in ancestors or len(ancestors) >= 64:
+                        raise ValueError("cyclic chart block")
+                    return expand(json.loads(self.blocks[key]), ancestors | {key})
+                return {key: expand(item, ancestors) for key, item in value.items()}
             if isinstance(value, list):
-                return [expand(item) for item in value]
+                return [expand(item, ancestors) for item in value]
             return value
 
         return expand({key: value for key, value in record.items() if key not in {"storage_schema", "chart_blocks"}})

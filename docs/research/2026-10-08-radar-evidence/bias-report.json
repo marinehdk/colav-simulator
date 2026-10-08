@@ -1,0 +1,16 @@
+{
+  "schema_version": "radar-bias-estimate@1",
+  "source_kind": "synthetic",
+  "provenance": {
+    "generator": "known synthetic bias example"
+  },
+  "pairs": 6,
+  "range_bias_m": 8.0,
+  "bearing_bias_deg": 2.0,
+  "range_rmse_m": 8.0,
+  "bearing_rmse_deg": 2.0,
+  "corrected_range_rmse_m": 0.0,
+  "corrected_bearing_rmse_deg": 0.0,
+  "runtime_applied": false,
+  "calibration_status": "SYNTHETIC_ONLY_REAL_CALIBRATION_PENDING"
+}

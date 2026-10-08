@@ -99,12 +99,12 @@ test('SPEED Advices gauge follows COMPASS and renders live STW through the vendo
   assert.match(styles, /\.ownship-sensor-page \.live-speed-wrapper {[^}]*--global-typography-instrument-value-large-font-size: 16px;/s);
 });
 
-test('RADAR Mini Map uses canonical detection range and projected Risk levels', () => {
-  assert.match(html, /<canvas[^>]*id="liveRadarMiniMap"[^>]*aria-label="雷达 Mini Map"/);
-  assert.match(app, /createRadarMiniMap/);
-  assert.match(app, /buildRadarModel\(data, RADAR_DETECTION_RANGE_M, targetThreatLevels\)/);
-  assert.match(app, /radarMiniMap\.render\(radarModel\)/);
-  assert.match(styles, /\.ownship-sensor-page \.live-radar-wrapper {[^}]*width: 240px;[^}]*height: 240px;/s);
+test('SENSOR RADAR uses the X-band PPI instead of a truth-position mini map', () => {
+  assert.match(html, /<canvas[^>]*id="ppiCanvas"[^>]*aria-label="X 波段雷达 PPI 显示"/);
+  assert.match(app, /createRadarPpi/);
+  assert.match(app, /buildPpiModel\(data\?\.radar_ppi \? data : null, radarPpi\.options\(\)\)/);
+  assert.doesNotMatch(app, /createRadarMiniMap|buildRadarModel/);
+  assert.match(styles, /\.ppi-canvas-wrapper {[^}]*width: min\(100%, 240px\);/s);
 });
 
 test('ROUTE radius switches between metres and kilometres without ellipsis', () => {

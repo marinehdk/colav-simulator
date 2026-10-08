@@ -5,14 +5,12 @@ import { activeSessionRuntime, telemetryProjection } from './modules/session-run
 import './modules/line-graph.js?v=20260826-chart-view-control-v1';
 import {
   createSituationDisplay,
-  RADAR_DETECTION_RANGE_M,
   plannerSurfaceType,
   wrapRadians,
   voCandidateColor,
   drawVelocityArrow,
   simplifiedMpcFanGeometry,
 } from './modules/situation-display.js?v=20261004-token-cleanup-v1';
-import { buildRadarModel, createRadarMiniMap } from './modules/radar-mini-map.js?v=20261004-token-cleanup-v1';
 import {
   AIS_STATE_COLORS,
   AIS_STATE_LABELS,
@@ -25,6 +23,7 @@ import {
   trackExistenceForTarget,
 } from './modules/ais-display.js';
 import { buildPpiModel, createRadarPpi } from './modules/radar-ppi.js?v=20261002-ppi-v1';
+import { bindRadarControls } from './modules/radar-video.js?v=20261008-radar-v1';
 import { routeLegs, routeProgress } from './modules/route-progress.js?v=20260901-route-card-v1';
 
 /**
@@ -151,22 +150,29 @@ const situationDisplay = createSituationDisplay({
   onTargetMarkersChange: renderVesselMarkers,
   onAisMarkersChange: renderAisMarkers,
 });
-const radarMiniMap = createRadarMiniMap({ canvas: document.getElementById('liveRadarMiniMap') });
-// P3-S1 radar PPI panel (spec #90): overlay toggle + range-scale buttons; the
-// panel draws from the same envelope the chart consumes (additive `radar_ppi`).
+// SENSOR radar card consumes the live envelope, including while paused.
 const radarPpiPanel = document.getElementById('ppiPanel');
-const radarPpi = createRadarPpi({ canvas: document.getElementById('ppiCanvas') });
-function setPpiPanelVisible(visible) {
-  if (radarPpiPanel) radarPpiPanel.hidden = !visible;
-  document.getElementById('ppiBtn')?.setAttribute('aria-pressed', String(visible));
-  radarPpi.setVisible(visible);
+const radarPpi = createRadarPpi({ canvas: document.getElementById('ppiCanvas'), onState: state => {
+  if (state.videoStatus === 'INVALID_VIDEO') setText('ppiStatus', '雷达回波数据异常');
+} });
+radarPpi.setVisible(true);
+bindRadarControls(radarPpiPanel, radarPpi);
+function renderRadarPpi(data) {
+  radarPpi.setDescriptor(data?.radar_ppi);
+  radarPpi.render(buildPpiModel(data?.radar_ppi ? data : null, radarPpi.options()));
+  const video = data?.radar_scans?.[0]?.shadow_video;
+  setText('ppiStatus', video ? `HALO24 · SHADOW${video.status ? ` · ${video.status}` : ''}` : '当前会话无扫描证据');
+  document.getElementById('ppiStatus').hidden = false;
+  radarPpiPanel.querySelectorAll('[data-ppi-range]').forEach(button => {
+    const selected = Number(button.dataset.ppiRange) === radarPpi.options().rangeScaleNm;
+    button.classList.toggle('active', selected);
+    button.setAttribute('aria-pressed', String(selected));
+  });
 }
-document.getElementById('ppiBtn')?.addEventListener('click', () => setPpiPanelVisible(!radarPpi.visible()));
-document.getElementById('ppiCloseBtn')?.addEventListener('click', () => setPpiPanelVisible(false));
-document.querySelectorAll('[data-ppi-range]').forEach(btn => {
+radarPpiPanel.querySelectorAll('[data-ppi-range]').forEach(btn => {
   btn.addEventListener('click', () => {
     radarPpi.setRangeScale(Number(btn.dataset.ppiRange));
-    document.querySelectorAll('[data-ppi-range]').forEach(other => other.classList.toggle('active', other === btn));
+    renderRadarPpi(currentData);
   });
 });
 
@@ -2699,6 +2705,7 @@ function renderProjection(proj) {
   currentData = data;
   if (data.os) {
     if (motionOnly) {
+      renderRadarPpi(data);
       setText('val-sim-time', `${data.sim_time.toFixed(1)} s`);
       setText('liveSimulationTime', `${data.sim_time.toFixed(1)} s`);
       deploymentView.render(proj);
@@ -2710,11 +2717,7 @@ function renderProjection(proj) {
         .filter(target => target.targetId !== null && target.targetId !== undefined)
         .map(target => [String(target.targetId), riskThreatLevel(target)]),
     );
-    const radarModel = buildRadarModel(data, RADAR_DETECTION_RANGE_M, targetThreatLevels);
-    radarMiniMap.render(radarModel);
-    // Radar PPI overlay (P3-S1): descriptor arrives additively per envelope.
-    radarPpi.setDescriptor(data.radar_ppi);
-    if (radarPpi.visible()) radarPpi.render(buildPpiModel(data, radarPpi.options()));
+    renderRadarPpi(data);
     situationDisplay.setTargetThreatLevels(targetThreatLevels);
     deploymentView.render(proj);
     renderTimelineLog(proj);
@@ -2770,7 +2773,7 @@ function resetDeploymentForSession(data) {
   lastDisplayedSolveId = null;
   lastSolveSimTime = null;
   lastRuntimeState = 'CREATED';
-  radarMiniMap.render(buildRadarModel(data, RADAR_DETECTION_RANGE_M, {}));
+  renderRadarPpi(null);
   setRuntimePanelsExpanded(false);
   renderSolveTimeline();
   renderedTimelineEvents = 0;
@@ -2824,7 +2827,7 @@ function syncDeploymentRuntime(snapshot) {
     } else {
       deploymentView.beginSession(null);
       situationDisplay.clearSession();
-      radarMiniMap.render(buildRadarModel(null, RADAR_DETECTION_RANGE_M, {}));
+      renderRadarPpi(null);
       currentData = null;
       setText('val-run-state', 'NO SESSION');
       setText('val-sim-time', '0.0 s');

@@ -4,7 +4,7 @@ import test from 'node:test';
 
 const html = await readFile(new URL('../../web_gui/index.html', import.meta.url), 'utf8');
 const styles = await readFile(new URL('../../web_gui/style.css', import.meta.url), 'utf8');
-const moduleSource = await readFile(new URL('../../web_gui/modules/evaluation-replay.js?v=20261002-eval-twin-v1', import.meta.url), 'utf8');
+const moduleSource = await readFile(new URL('../../web_gui/modules/evaluation-replay.js?v=20261008-sensor-ppi-v1', import.meta.url), 'utf8');
 const adapterSource = await readFile(new URL('../../web_gui/modules/replay-source.js', import.meta.url), 'utf8');
 
 const RUN_ID = 'cdcdcdcd-cdcd-4cdc-8cdc-cdcdcdcdcdcd';
@@ -178,7 +178,7 @@ function makeDisplay() {
 }
 
 async function makeController(displayFactory = null, sceneFactory = null) {
-  const { createEvaluationReplayController } = await import('../../web_gui/modules/evaluation-replay.js?v=20261002-eval-twin-v1');
+  const { createEvaluationReplayController } = await import('../../web_gui/modules/evaluation-replay.js?v=20261008-sensor-ppi-v1');
   const documentRef = makeDocumentRef();
   const network = makeFetchRef();
   const display = makeDisplay();
@@ -552,7 +552,7 @@ async function makePlaybackController() {
   const wall = makeWallClock();
   const scheduler = makeScheduler();
   const base = await makeController();
-  const { createEvaluationReplayController } = await import('../../web_gui/modules/evaluation-replay.js?v=20261002-eval-twin-v1');
+  const { createEvaluationReplayController } = await import('../../web_gui/modules/evaluation-replay.js?v=20261008-sensor-ppi-v1');
   const controller = createEvaluationReplayController({
     documentRef: base.documentRef,
     fetchRef: base.network.fetchRef,
@@ -1044,7 +1044,7 @@ test('Historical AIS Open Replay routes through the shared player without a seco
   assert.match(html, /id="historicalAISOpenReplay"/);
 
   // Outside the mounted product page the shared opener is a safe no-op.
-  const mod = await import('../../web_gui/modules/evaluation-replay.js?v=20261002-eval-twin-v1');
+  const mod = await import('../../web_gui/modules/evaluation-replay.js?v=20261008-sensor-ppi-v1');
   assert.equal(typeof mod.openReplayForRun, 'function');
 });
 

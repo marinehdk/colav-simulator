@@ -561,17 +561,17 @@ try {
   // ── ③④⑤ back to the 2D chart: PPI panel, AIS layer + target card, CONF row ──
   await cdp.evaluate(`(() => { const b = document.getElementById('twinViewportBtn'); if (b) b.click(); return true; })()`);
   await sleep(1500);
-  await cdp.evaluate(`document.getElementById('ppiBtn')?.click()`);
-  const ppiVisible = await waitFor('PPI panel open and drawing', () => cdp.evaluate(
-    `(() => { const p = document.getElementById('ppiPanel'); return p && !p.hidden
+  await cdp.evaluate(`document.querySelector('#ownshipCardPosition [aria-label="SENSOR"]')?.click()`);
+  const ppiVisible = await waitFor('SENSOR PPI drawing', () => cdp.evaluate(
+    `(() => { const p = document.getElementById('ppiPanel'); return p && p.closest('#ownshipSensorPage') && !p.closest('#ownshipSensorPage').hidden && !document.getElementById('ppiBtn')
       && (() => { const c = document.getElementById('ppiCanvas'); if (!c) return false;
         const ctx = c.getContext('2d'); if (!ctx) return false;
         const data = ctx.getImageData(0, 0, c.width, c.height).data;
         let lit = 0; for (let i = 3; i < data.length; i += 4) if (data[i] > 0) lit++;
         return lit > 100; })() ? true : null; })()`), 30000, 700);
-  check('③ PPI panel opens and draws (live radar_x)', Boolean(ppiVisible));
+  check('③ SENSOR PPI draws (live radar_x); chart PPI entry removed', Boolean(ppiVisible));
   await cdp.screenshot(`${OUT_DIR}06-ppi-panel.png`);
-  await cdp.evaluate(`document.getElementById('ppiBtn')?.click()`);
+  await cdp.evaluate(`document.querySelector('#ownshipCardPosition [aria-label="ROUTE"]')?.click()`);
 
   await waitFor('AIS symbols rendered on the live 2D chart', () => cdp.evaluate(
     `document.querySelectorAll('#aisMarkerLayer .ais-marker').length > 0`), 60000);

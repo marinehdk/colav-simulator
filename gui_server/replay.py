@@ -39,6 +39,7 @@ from colav_simulator.decision_replay.chart import CHART_PROFILE, CHART_TRACE_SCH
 if TYPE_CHECKING:  # annotation-only: keeps the sealed read path import-clean
     from colav_simulator.decision_replay.sink import TraceSinkPolicy
 from gui_server.canonical_threat import canonical_threat_projection
+from gui_server.radar_transport import project_radar_window
 
 DESCRIPTOR_SCHEMA = "colav.run-replay.descriptor@1"
 WINDOW_SCHEMA = "colav.run-replay.window@1"
@@ -1209,7 +1210,7 @@ def build_replay_router(  # noqa: C901 - register the bounded replay read and de
     ) -> Response:
         with typed_errors():
             require_sealed_capture(run_id)
-            document = project_window_threat_documents(store.window(run_id, from_s, to_s))
+            document = project_radar_window(project_window_threat_documents(store.window(run_id, from_s, to_s)))
             body = orjson.dumps(document)
             headers = {"Vary": "Accept-Encoding"}
             encodings = request.headers.get("accept-encoding", "").lower().split(",")

@@ -18,7 +18,7 @@ import { createReplayClock, ReplayPlayState } from './replay-clock.js?v=20260918
 // treats query-string variants as different module instances; without this
 // pin the catalog and replay host would own different opener registries.
 import { setReplayRunOpener } from './replay-runs.js?v=20260916-replay-layout-v4';
-import { createReplaySidebars } from './replay-sidebars.js?v=20260924-replay-events-v1';
+import { createReplaySidebars } from './replay-sidebars.js?v=20261008-sensor-ppi-v1';
 import { visibleMonitorEvents } from './monitor-event-presentation.js?v=20260924-replay-events-v1';
 
 // Scrub windows stay small and bounded; the backend enforces the frozen caps.

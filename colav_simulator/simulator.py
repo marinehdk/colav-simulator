@@ -19,6 +19,7 @@ from colav_simulator.core.collision import (
     VesselPose,
     continuous_footprint_collision,
 )
+from colav_simulator.core.radar_occlusion import enc_land_grid
 from colav_simulator.core.ship import Ship
 
 np.set_printoptions(suppress=True, formatter={"float_kind": "{:.4f}".format})
@@ -167,6 +168,8 @@ class Simulator:
         for ship_obj in self.ship_list:
             ship_obj.reset(seed=seed)
 
+        self._bind_shadow_environment(ship_list)
+
         if self.disturbance is not None:
             self.disturbance.reset(seed=seed)
 
@@ -176,6 +179,7 @@ class Simulator:
         self.t_end = sconfig.t_end
         self.dt = sconfig.dt_sim
         self.recent_sensor_measurements = [None] * len(self.ship_list)
+        self._radar_ais_reports: dict[tuple[int, int], dict] = {}
         initial_poses = [self._vessel_pose(ship) for ship in self.ship_list]
         self._motion_segments = [(pose, pose) for pose in initial_poses]
         self._motion_interval = (self.t, self.t)
@@ -370,6 +374,48 @@ class Simulator:
         sim_times = np.arange(self.t_start, t_end, self.dt)
         return pd.DataFrame(sim_data), ship_info, sim_times
 
+    @staticmethod
+    def _bind_radar_pose(ship_obj: Ship) -> None:
+        for sensor in getattr(ship_obj, "sensors", []):
+            bind_yaw = getattr(sensor, "set_mount_yaw", None)
+            if callable(bind_yaw):
+                bind_yaw(float(ship_obj.state[2]))
+
+    def _bind_shadow_environment(self, ships: list[Ship]) -> None:
+        bindings = [getattr(sensor, "set_shadow_terrain", None) for ship in ships for sensor in ship.sensors]
+        if not any(callable(binding) for binding in bindings):
+            return
+        grid = enc_land_grid(self.enc)
+        for binding in bindings:
+            if callable(binding):
+                binding(grid)
+
+    def _radar_evidence(self, ship_obj: Ship, i: int, new_measurements: list) -> dict:
+        """Record radar/AIS evidence without changing production tracker inputs."""
+        for sensor_index, sensor in enumerate(ship_obj.sensors):
+            if getattr(sensor, "type", None) != "ais" or sensor_index >= len(new_measurements):
+                continue
+            for target_id, measurement in new_measurements[sensor_index]:
+                if target_id >= 0 and np.isfinite(measurement[:2]).all():
+                    self._radar_ais_reports[(i, int(target_id))] = {
+                        "target_id": int(target_id), "north_m": float(measurement[0]),
+                        "east_m": float(measurement[1]), "t_s": float(self.t), "source": "SIMULATED_AIS",
+                    }
+        result = {}
+        radar_scans = []
+        for sensor in ship_obj.sensors:
+            scan_document = getattr(sensor, "scan_document", None)
+            if callable(scan_document):
+                document = scan_document()
+                if document is not None:
+                    radar_scans.append({**document, "vessel_id": int(ship_obj.id)})
+        if radar_scans:
+            result["radar_scans"] = radar_scans
+            result["ais_reports"] = [
+                dict(report) for (ship_index, _), report in self._radar_ais_reports.items() if ship_index == i
+            ]
+        return result
+
     def step(self, remote_actor: bool = False) -> dict:
         """Step through the simulation by one time step.
 
@@ -402,6 +448,7 @@ class Simulator:
             tracks, new_measurements = [], []
             if not (i > 0 and self.config.tracking_from_ownship_only):
                 relevant_true_do_states = mhm.get_relevant_do_states(true_do_states, i)
+                self._bind_radar_pose(ship_obj)
                 tracks, new_measurements = ship_obj.track_obstacles(self.t, self.dt, relevant_true_do_states)
 
             self.recent_sensor_measurements[i] = extract_valid_sensor_measurements(
@@ -421,6 +468,7 @@ class Simulator:
 
             sim_data_dict[f"Ship{i}"] = ship_obj.get_sim_data(self.t, self.timestamp_start)
             sim_data_dict[f"Ship{i}"]["sensor_measurements"] = self.recent_sensor_measurements[i]
+            sim_data_dict[f"Ship{i}"].update(self._radar_evidence(ship_obj, i, new_measurements))
             colav_data = ship_obj.get_colav_data()
             if colav_data.get("planner", {}).get("algorithm_id") == "nominal":
                 colav_data["planner"]["sim_time"] = float(self.t)

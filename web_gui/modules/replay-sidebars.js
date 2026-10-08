@@ -1,7 +1,7 @@
 /** Recorded Replay sidebars. Reuse Deployment's card DOM and CSS, but bind only
  * sealed frame facts and the separate event journal at the current playhead. */
-import { buildRadarModel, createRadarMiniMap } from './radar-mini-map.js?v=20261004-token-cleanup-v1';
-import { RADAR_DETECTION_RANGE_M } from './situation-display.js?v=20261004-token-cleanup-v1';
+import { buildPpiModel, createRadarPpi } from './radar-ppi.js?v=20261002-ppi-v1';
+import { bindRadarControls } from './radar-video.js?v=20261008-radar-v1';
 import { renderMonitorEventItems, visibleMonitorEvents } from './monitor-event-presentation.js?v=20260924-replay-events-v1';
 
 const NM = 1852;
@@ -58,8 +58,36 @@ export function createReplaySidebars(documentRef = document) {
   }
   const get = id => documentRef.getElementById(`replay-${id}`);
   const set = (id, value) => { const node = get(id); if (node) node.textContent = value; };
-  const radarCanvas = get('liveRadarMiniMap');
-  const radar = radarCanvas ? createRadarMiniMap({ canvas: radarCanvas }) : null;
+  const radarCanvas = get('ppiCanvas');
+  const radar = radarCanvas ? createRadarPpi({ canvas: radarCanvas, onState: state => {
+    if (state.videoStatus === 'INVALID_VIDEO') set('ppiStatus', '回放雷达数据异常');
+  } }) : null;
+  const radarPanel = get('ppiPanel');
+  if (radar) bindRadarControls(radarPanel, radar);
+  let radarEnvelope = null;
+  const radarRanges = [...(radarPanel?.querySelectorAll('[data-ppi-range]') ?? [])];
+  function renderRadar() {
+    if (!radar) return;
+    const recorded = Boolean(radarEnvelope?.radar_scans?.length);
+    radarCanvas.parentElement.hidden = !recorded;
+    radar.setDescriptor(radarEnvelope?.radar_ppi);
+    radar.setVisible(recorded);
+    radar.render(buildPpiModel(recorded ? radarEnvelope : null, radar.options()));
+    set('ppiStatus', recorded ? 'HALO24 · SHADOW · RECORDED' : '此回放未记录 X 波段雷达量测');
+    get('ppiStatus').hidden = false;
+    for (const button of radarRanges) {
+      const selected = Number(button.dataset.ppiRange) === radar.options().rangeScaleNm;
+      button.disabled = !recorded;
+      button.classList.toggle('active', selected);
+      button.setAttribute('aria-pressed', String(selected));
+    }
+  }
+  for (const button of radarRanges) {
+    button.addEventListener('click', () => {
+      radar.setRangeScale(Number(button.dataset.ppiRange));
+      renderRadar();
+    });
+  }
   const depthReadout = get('sidebarDepthReadout');
   const depthFallback = documentRef.createElement('span');
   depthFallback.className = 'replay-depth-fallback';
@@ -213,14 +241,8 @@ export function createReplaySidebars(documentRef = document) {
       ],
     });
     if (gauge) gauge.setAttribute('aria-label', `本船对水速度 ${fixed(speedKn)} 节`);
-    if (radar) {
-      const levels = Object.fromEntries((snapshot?.risk?.targets ?? [])
-        .filter(target => target.targetId !== null && target.targetId !== undefined)
-        .map(target => [String(target.targetId), {
-          HIGH: 'danger', LOW: 'warn', CLEAR: 'safe',
-        }[target.displayClass] ?? 'unknown']));
-      radar.render(buildRadarModel(raw, RADAR_DETECTION_RANGE_M, levels));
-    }
+    radarEnvelope = raw;
+    renderRadar();
     readout('liveCurrentDepthReadout', own.floor_depth_m, 'm');
     get('liveCurrentDepthReadout')?.setAttribute('aria-label', Number.isFinite(own.floor_depth_m)
       ? `船位 ENC 水深分层下限 ${own.floor_depth_m} 米` : 'ENC 水深未记录');

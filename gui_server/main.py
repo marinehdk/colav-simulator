@@ -80,6 +80,7 @@ from colav_simulator.schemas.sensor_model_v1 import (
 from colav_simulator.core.tracking.trackers import sensor_channel_id
 from gui_server import canonical_threat as _canonical_threat
 from gui_server.gnc_balance import balance_telemetry
+from gui_server.radar_transport import LIVE_CHECKPOINTS, project_scans
 from gui_server.historical_api import router as historical_api_router
 from gui_server.replay import (
     RunReplayStore,
@@ -220,6 +221,8 @@ def _compact_stream_payload(payload: dict[str, Any], *, include_static: bool) ->
     ]
     compact.pop("os", None)
     compact.pop("obstacles", None)
+    compact.pop("radar_scans", None)
+    compact.pop("ais_reports", None)
     for field in ("planner", "latest_planner_solve"):
         compact[field] = {
             key: value for key, value in payload.get(field, {}).items() if key not in repeated_prediction_fields
@@ -233,6 +236,8 @@ def _compact_stream_payload(payload: dict[str, Any], *, include_static: bool) ->
 
 def _static_once_stream_payload(payload: dict[str, Any], *, include_static: bool) -> dict[str, Any]:
     streamed = dict(payload)
+    if payload.get("radar_scans"):
+        streamed["radar_scans"] = project_scans(payload["radar_scans"], LIVE_CHECKPOINTS.reference)
     streamed["transport"] = {
         "schema_version": "colav.telemetry.static-once@1",
         "static_included": include_static,
@@ -1865,6 +1870,8 @@ class WebSessionManager:
             # envelope key survives all transports (_compact_stream_payload only
             # strips truth[]-level keys); web consumes leniently.
             "radar_ppi": _radar_ppi_descriptor(self.prepared),
+            "radar_scans": jsonable(own_raw.get("radar_scans", [])),
+            "ais_reports": jsonable(own_raw.get("ais_reports", [])),
         }
 
     @staticmethod
@@ -2189,6 +2196,15 @@ def api_current_session() -> dict[str, Any]:
     if not description["active"]:
         raise HTTPException(status_code=404, detail="No active session")
     return description
+
+
+@app.get("/api/radar/checkpoints/{key}")
+def api_radar_checkpoint(key: str) -> dict[str, Any]:
+    """Read a bounded cached radar video checkpoint without sensor execution."""
+    document = LIVE_CHECKPOINTS.get(key)
+    if document is None:
+        raise HTTPException(status_code=404, detail="RADAR_CHECKPOINT_UNAVAILABLE")
+    return document
 
 
 @app.get("/api/sessions/{session_id}")

@@ -321,16 +321,16 @@ try {
     blips.length >= 3, `finite_radar_measurements=${blips.length} sample=${JSON.stringify(blips.at(-1)?.[1]?.map(v => Math.round(v)))}`);
   await waitFor('deployment chart adopted the live session', () => cdp.evaluate(
     `document.getElementById('liveControlState')?.textContent === 'RUNNING'`), 90000, 1000);
-  await cdp.evaluate(`document.getElementById('ppiBtn')?.click()`);
+  await cdp.evaluate(`document.querySelector('#ownshipCardPosition [aria-label="SENSOR"]')?.click()`);
   await sleep(1500);
   const ppiVisible = await cdp.evaluate(
-    `(() => { const p = document.getElementById('ppiPanel'); return p && !p.hidden
+    `(() => { const p = document.getElementById('ppiPanel'); return p && p.closest('#ownshipSensorPage') && !p.closest('#ownshipSensorPage').hidden && !document.getElementById('ppiBtn')
       && (() => { const c = document.getElementById('ppiCanvas'); if (!c) return false;
         const ctx = c.getContext('2d'); const d = ctx.getImageData(0, 0, c.width, Math.min(160, c.height)).data;
         for (let i = 3; i < d.length; i += 4) if (d[i] > 0) return true; return false; })(); })()`);
-  check('PPI panel opens and draws on live radar_x data (rings/sweep/blips)', Boolean(ppiVisible));
+  check('SENSOR PPI draws on live radar_x data (rings/sweep/blips); chart PPI entry removed', Boolean(ppiVisible));
   await cdp.screenshot(`${OUT_DIR}ppi-panel.png`);
-  await cdp.evaluate(`document.getElementById('ppiBtn')?.click()`);
+  await cdp.evaluate(`document.querySelector('#ownshipCardPosition [aria-label="ROUTE"]')?.click()`);
   await sleep(400);
 
   // A2) AIS layer + target card (backend-authoritative ais fields).

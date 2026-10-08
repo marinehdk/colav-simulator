@@ -8,15 +8,15 @@ const html = await readFile(new URL('../../web_gui/index.html', import.meta.url)
 const styles = await readFile(new URL('../../web_gui/style.css', import.meta.url), 'utf8');
 const app = await readFile(new URL('../../web_gui/app.js', import.meta.url), 'utf8');
 
-/* ── A：Deployment twin 视口壳层（T 钮 + 视口 DOM + view-twin 接线） ─────────── */
+/* ── A：Deployment twin 视口壳层（DT 钮 + 视口 DOM + view-twin 接线） ────────── */
 
-test('Deployment display bar gains a T twin button right after 3D with full aria semantics', () => {
+test('Deployment display bar gains a DT twin button right after 3D with full aria semantics', () => {
   const start = html.indexOf('<div class="map-mode-control" aria-label="海图视角">');
   assert.ok(start >= 0, 'chart view control exists');
   const control = html.slice(start, html.indexOf('</div>', start));
   assert.ok(control.indexOf('id="scene3dBtn"') >= 0 && control.indexOf('id="scene3dBtn"') < control.indexOf('id="twinViewportBtn"'),
-    'T follows the 3D action');
-  assert.match(control, /id="twinViewportBtn"[^>]*aria-label="数字孪生视景"[^>]*aria-pressed="false"[^>]*title="等待当前会话"[^>]*disabled>T<\/button>/);
+    'DT follows the 3D action');
+  assert.match(control, /id="twinViewportBtn"[^>]*aria-label="数字孪生视景"[^>]*aria-pressed="false"[^>]*title="等待当前会话"[^>]*disabled>DT<\/button>/);
 });
 
 test('twin viewport mirrors the 3D host substitution pattern (video + HUD + link spike, default hidden)', () => {

@@ -92,11 +92,11 @@ test('Digital Twin view section mirrors the replay viewer skeleton', () => {
 
 test('twin-view module is registered in the shell with the evaluation view registry including twin', async () => {
   assert.match(html, /src="\/static\/modules\/twin-view\.js\?v=/);
-  assert.match(html, /src="\/static\/modules\/evaluation-replay\.js\?v=20261002-eval-twin-v1"><\/script>/);
+  assert.match(html, /src="\/static\/modules\/evaluation-replay\.js\?v=20261008-sensor-ppi-v1"><\/script>/);
   const replayModule = await readFile(new URL('../../web_gui/modules/evaluation-replay.js', import.meta.url), 'utf8');
   assert.equal(replayModule.includes("const evaluationViews = ['replay', 'twin', 'results', 'evidence', 'hais']"), true);
   // HAIS Open Replay keeps the SAME module URL as the shell (shared instance identity).
-  assert.equal(haisSource.includes("from './evaluation-replay.js?v=20261002-eval-twin-v1'"), true);
+  assert.equal(haisSource.includes("from './evaluation-replay.js?v=20261008-sensor-ppi-v1'"), true);
 });
 
 test('twin styles: viewport height + pixel-stream video + HUD chip', () => {

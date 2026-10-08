@@ -86,7 +86,7 @@ test('composition root wires the runtime into the projection singleton and expor
 });
 
 test('Config assets retain GNC tags and load the updated runtime shell', () => {
-  const tag = '20261002-sensor-mode-v1';
+  const tag = '20261008-sensor-ppi-v1';
   assert.match(html, new RegExp(`/static/style\\.css\\?v=${tag}`));
   assert.match(html, /\/static\/modules\/config-shell\.js\?v=20260921-poi-v2/);
   assert.match(shell, /validation-assembly\.js\?v=20260914-gnc-replay-v3/);

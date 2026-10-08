@@ -117,6 +117,13 @@ function envelopeFixture() {
     sim_time: 5,
     radar_ppi: { ...PPI_DESCRIPTOR_DEFAULT, seed: 11 },
     os: { north: 10000, east: 20000, psi: 0.5 },
+    radar_scans: [{ sensor_label: 'radar_x', sample_seq: 2, status: 'VALID', descriptor: { ...PPI_DESCRIPTOR_DEFAULT, seed: 11 }, display_returns: [
+      { north_m: 10500, east_m: 20100, t_s: 5, confidence: 0.9 },
+      { north_m: 19000, east_m: 20000, t_s: 5, confidence: 0.6 },
+      { north_m: 10030, east_m: 20030, t_s: 5, confidence: 0.4 },
+      { north_m: Number.NaN, east_m: 20000, t_s: 5, confidence: 0.2 },
+      { north_m: 30000, east_m: 20000, t_s: 5, confidence: 0.2 },
+    ] }],
     measurements: [
       [
         [
@@ -140,24 +147,25 @@ function envelopeFixture() {
   };
 }
 
-test('build PPI model: blips from ownship radar measurements, gated, relative to ownship', () => {
+test('build PPI model uses the named backend scan, not sensor array order or browser clutter', () => {
   const model = buildPpiModel(envelopeFixture(), {});
   assert.equal(model.descriptor.seed, 11, 'envelope additive descriptor wins over default');
   assert.equal(model.rangeScaleM, 6 * N_METERS_PER_NM);
   assert.equal(model.ownshipHeadingRad, 0.5);
-  assert.deepEqual(model.blips.map(blip => blip.id), [3, 7]);
+  assert.deepEqual(model.blips.map(blip => blip.id), [null, null]);
   const blip3 = model.blips[0];
   almostEqual(blip3.rangeM, Math.hypot(500, 100), 1e-6);
   assert.ok(blip3.intensity > 0 && blip3.intensity <= 1);
   assert.ok(model.blips.every(blip => blip.rangeM >= model.blindRingM && blip.rangeM <= model.rangeScaleM));
-  assert.ok(model.clutter.length > 0);
-  assert.ok(model.clutter.every(point => point.rangeM <= model.rangeScaleM));
+  assert.equal(model.clutter.length, 0, 'no browser-generated clutter');
+  const noScan = buildPpiModel({ ...envelopeFixture(), radar_scans: [] });
+  assert.equal(noScan.blips.length, 0, 'legacy measurement groups must not masquerade as a radar scan');
 });
 
 test('build PPI model: range scale override and default descriptor fallback', () => {
   const override = buildPpiModel(envelopeFixture(), { rangeScaleNm: 1.5 });
   assert.equal(override.rangeScaleM, 1.5 * N_METERS_PER_NM);
-  assert.deepEqual(override.blips.map(blip => blip.id), [3]);
+  assert.deepEqual(override.blips.map(blip => blip.id), [null]);
   const fallback = buildPpiModel({ sim_time: 0, os: { north: 0, east: 0, psi: 0 }, measurements: [[]] }, {});
   assert.equal(fallback.descriptor, PPI_DESCRIPTOR_DEFAULT, 'no radar_ppi field falls back to the milliampere defaults');
   assert.equal(fallback.rangeScaleNm, PPI_DESCRIPTOR_DEFAULT.range_scale_nm);
@@ -228,22 +236,25 @@ test('PPI factory draws panels, toggles visibility and switches range scales', (
   ppi.destroy();
 });
 
-test('PPI panel is wired into the deployment shell (button, overlay, range scales)', async () => {
+test('PPI replaces the SENSOR radar card with range scales and no chart toolbar entry', async () => {
   const { readFileSync } = await import('node:fs');
   const root = new URL('../../', import.meta.url);
   const html = readFileSync(new URL('web_gui/index.html', root), 'utf8');
   const app = readFileSync(new URL('web_gui/app.js', root), 'utf8');
-  // display-bar toggle next to 3D/T
-  assert.match(html, /id="ppiBtn"[^>]*aria-label="雷达 PPI 面板"/);
-  // overlay panel inside the canvas wrapper with the full range-scale table
-  assert.match(html, /id="ppiPanel" data-od-id="radar-ppi-panel"[^>]*hidden/);
+  const sensorPage = html.slice(html.indexOf('id="ownshipSensorPage"'), html.indexOf('id="ownshipBalancePage"'));
+  assert.match(sensorPage, /id="ppiPanel" data-od-id="radar-ppi-panel"/);
+  assert.doesNotMatch(html, /id="ppiBtn"|id="ppiCloseBtn"|id="liveRadarMiniMap"/);
+  assert.equal((html.match(/id="ppiCanvas"/g) || []).length, 1);
   for (const nm of ['0.75', '1.5', '3', '6', '12', '24']) {
     assert.match(html, new RegExp(`data-ppi-range="${nm}"`), `range scale button ${nm} nm`);
   }
   assert.match(html, /id="ppiCanvas"/);
-  // app wiring: factory + envelope-driven descriptor + visibility gating
+  // Live and paused frames use the same envelope-driven model.
   assert.match(app, /import \{ buildPpiModel, createRadarPpi \} from '\.\/modules\/radar-ppi\.js\?v=/);
-  assert.match(app, /createRadarPpi\(\{ canvas: document\.getElementById\('ppiCanvas'\) \}\)/);
-  assert.match(app, /radarPpi\.setDescriptor\(data\.radar_ppi\)/);
-  assert.match(app, /if \(radarPpi\.visible\(\)\) radarPpi\.render\(buildPpiModel\(data, radarPpi\.options\(\)\)\)/);
+  assert.match(app, /createRadarPpi\(\{ canvas: document\.getElementById\('ppiCanvas'\), onState:/);
+  assert.match(sensorPage, /live-detail-title"><strong>X-BAND RADAR<\/strong>/);
+  assert.ok(sensorPage.indexOf('id="ppiCanvas"') < sensorPage.indexOf('class="ppi-range-control"'), 'range buttons follow radar image');
+  assert.match(app, /radarPpi\.setDescriptor\(data\?\.radar_ppi\)/);
+  assert.match(app, /renderRadarPpi\(data\)/);
+  assert.match(app, /renderRadarPpi\(currentData\)/);
 });

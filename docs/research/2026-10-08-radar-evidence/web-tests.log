@@ -1,0 +1,2944 @@
+TAP version 13
+# Subtest: a throwing subscriber stays isolated from later subscribers, command resolution, and error state
+ok 1 - a throwing subscriber stays isolated from later subscribers, command resolution, and error state
+  ---
+  duration_ms: 3.070125
+  type: 'test'
+  ...
+# Subtest: bootstrap is idempotent, publishes loading immediately, and confirms no Active Session
+ok 2 - bootstrap is idempotent, publishes loading immediately, and confirms no Active Session
+  ---
+  duration_ms: 0.217083
+  type: 'test'
+  ...
+# Subtest: adopting an Active Session keeps authority, connection, and lifecycle independent
+ok 3 - adopting an Active Session keeps authority, connection, and lifecycle independent
+  ---
+  duration_ms: 2.624208
+  type: 'test'
+  ...
+# Subtest: commands are single-flight, skip duplicate lifecycle mutations, and remain revision-bound
+ok 4 - commands are single-flight, skip duplicate lifecycle mutations, and remain revision-bound
+  ---
+  duration_ms: 1.913166
+  type: 'test'
+  ...
+# Subtest: Create, Reset, and Replay replace atomically and stale callbacks cannot cross session identity
+ok 5 - Create, Reset, and Replay replace atomically and stale callbacks cannot cross session identity
+  ---
+  duration_ms: 6.747458
+  type: 'test'
+  ...
+# Subtest: terminal telemetry loads raw outcomes once per session and ignores replacement-stale responses
+ok 6 - terminal telemetry loads raw outcomes once per session and ignores replacement-stale responses
+  ---
+  duration_ms: 1.220917
+  type: 'test'
+  ...
+# Subtest: reconnect uses capped backoff, suspends offline/background, and resumes immediately
+ok 7 - reconnect uses capped backoff, suspends offline/background, and resumes immediately
+  ---
+  duration_ms: 0.839542
+  type: 'test'
+  ...
+# Subtest: session_not_found refreshes only in foreground and focus adopts authoritative replacement
+ok 8 - session_not_found refreshes only in foreground and focus adopts authoritative replacement
+  ---
+  duration_ms: 1.226833
+  type: 'test'
+  ...
+# Subtest: raw telemetry rejects malformed JSON, wrong identity, and schema gaps without sequence dedup
+ok 9 - raw telemetry rejects malformed JSON, wrong identity, and schema gaps without sequence dedup
+  ---
+  duration_ms: 0.766333
+  type: 'test'
+  ...
+# Subtest: mutation timeout unlocks command, marks authority unknown, and reconciles without retrying mutation
+ok 10 - mutation timeout unlocks command, marks authority unknown, and reconciles without retrying mutation
+  ---
+  duration_ms: 0.63625
+  type: 'test'
+  ...
+# Subtest: destroy cancels transport/timers/listeners and ignores late callbacks
+ok 11 - destroy cancels transport/timers/listeners and ignores late callbacks
+  ---
+  duration_ms: 0.308083
+  type: 'test'
+  ...
+# Subtest: 422 stays local while 409 and 404 reconcile authority without mutation retry
+ok 12 - 422 stays local while 409 and 404 reconcile authority without mutation retry
+  ---
+  duration_ms: 0.497584
+  type: 'test'
+  ...
+# Subtest: public lifecycle gates reject invalid states without network mutations
+ok 13 - public lifecycle gates reject invalid states without network mutations
+  ---
+  duration_ms: 0.328542
+  type: 'test'
+  ...
+# Subtest: reset is permitted while RUNNING but Create remains blocked
+ok 14 - reset is permitted while RUNNING but Create remains blocked
+  ---
+  duration_ms: 0.145583
+  type: 'test'
+  ...
+# Subtest: bootstrap failure exposes unknown authority and permits a clean authority retry
+ok 15 - bootstrap failure exposes unknown authority and permits a clean authority retry
+  ---
+  duration_ms: 0.213583
+  type: 'test'
+  ...
+# Subtest: command responses are bound to session identity and authority revision
+ok 16 - command responses are bound to session identity and authority revision
+  ---
+  duration_ms: 0.195542
+  type: 'test'
+  ...
+# Subtest: telemetry keeps flowing while the window is unfocused but visible
+ok 17 - telemetry keeps flowing while the window is unfocused but visible
+  ---
+  duration_ms: 0.156583
+  type: 'test'
+  ...
+# Subtest: late REST lifecycle response cannot overwrite a newer terminal WebSocket state
+ok 18 - late REST lifecycle response cannot overwrite a newer terminal WebSocket state
+  ---
+  duration_ms: 0.158209
+  type: 'test'
+  ...
+# Subtest: step rejects older sequence while repeated telemetry does not invalidate speed response
+ok 19 - step rejects older sequence while repeated telemetry does not invalidate speed response
+  ---
+  duration_ms: 0.197041
+  type: 'test'
+  ...
+# Subtest: errored outcome retries through authority refresh and unblocks replay
+ok 20 - errored outcome retries through authority refresh and unblocks replay
+  ---
+  duration_ms: 4.523334
+  type: 'test'
+  ...
+# Subtest: persistently failing outcome retry sticks until the next authority refresh
+ok 21 - persistently failing outcome retry sticks until the next authority refresh
+  ---
+  duration_ms: 5.084666
+  type: 'test'
+  ...
+# Subtest: terminal outcome conflict refreshes authority once without retrying outcome reads
+ok 22 - terminal outcome conflict refreshes authority once without retrying outcome reads
+  ---
+  duration_ms: 1.020875
+  type: 'test'
+  ...
+# Subtest: REST lifecycle commands complete while the telemetry socket is disconnected
+ok 23 - REST lifecycle commands complete while the telemetry socket is disconnected
+  ---
+  duration_ms: 0.55275
+  type: 'test'
+  ...
+# Subtest: server 5xx on a lifecycle command retains authority and normalizes the error
+ok 24 - server 5xx on a lifecycle command retains authority and normalizes the error
+  ---
+  duration_ms: 0.636125
+  type: 'test'
+  ...
+# Subtest: expected old-socket not_found waits for pending replacement without competing authority GET
+ok 25 - expected old-socket not_found waits for pending replacement without competing authority GET
+  ---
+  duration_ms: 0.158125
+  type: 'test'
+  ...
+# Subtest: locally failed replacement retains the old session and reconnects its suspended transport
+ok 26 - locally failed replacement retains the old session and reconnects its suspended transport
+  ---
+  duration_ms: 0.874958
+  type: 'test'
+  ...
+# Subtest: ambiguous replacement network loss reconciles authority while light-control network loss retains it
+ok 27 - ambiguous replacement network loss reconciles authority while light-control network loss retains it
+  ---
+  duration_ms: 2.175875
+  type: 'test'
+  ...
+# Subtest: FINISHED controls publish immediately while result generation remains pending
+ok 28 - FINISHED controls publish immediately while result generation remains pending
+  ---
+  duration_ms: 0.213667
+  type: 'test'
+  ...
+# Subtest: symbol state composes backend state with the risk rank (danger only when activated)
+ok 29 - symbol state composes backend state with the risk rank (danger only when activated)
+  ---
+  duration_ms: 0.5455
+  type: 'test'
+  ...
+# Subtest: blink phase is a deterministic half-period square wave
+ok 30 - blink phase is a deterministic half-period square wave
+  ---
+  duration_ms: 0.348292
+  type: 'test'
+  ...
+# Subtest: association matches the nearest track within the gate and flags radar echoes
+ok 31 - association matches the nearest track within the gate and flags radar echoes
+  ---
+  duration_ms: 0.51975
+  type: 'test'
+  ...
+# Subtest: association leaves uncorrelated targets independent
+ok 32 - association leaves uncorrelated targets independent
+  ---
+  duration_ms: 0.433083
+  type: 'test'
+  ...
+# Subtest: association labels name the fused track and radar echo
+ok 33 - association labels name the fused track and radar echo
+  ---
+  duration_ms: 0.238833
+  type: 'test'
+  ...
+# Subtest: radar measurement points drop clutter and need an ENC origin
+ok 34 - radar measurement points drop clutter and need an ENC origin
+  ---
+  duration_ms: 0.369625
+  type: 'test'
+  ...
+# Subtest: symbol renderer draws the SVG asset when loaded and falls back to vectors
+ok 35 - symbol renderer draws the SVG asset when loaded and falls back to vectors
+  ---
+  duration_ms: 0.647709
+  type: 'test'
+  ...
+# Subtest: flashing states dim while the blink phase is off
+ok 36 - flashing states dim while the blink phase is off
+  ---
+  duration_ms: 0.2755
+  type: 'test'
+  ...
+# Subtest: aisTargets layer draws last, toggles off, and its symbols win the shared hit-test
+ok 37 - aisTargets layer draws last, toggles off, and its symbols win the shared hit-test
+  ---
+  duration_ms: 11.869125
+  type: 'test'
+  ...
+# Subtest: AIS DOM markers carry anchors, rotations and states for the deployment layer
+ok 38 - AIS DOM markers carry anchors, rotations and states for the deployment layer
+  ---
+  duration_ms: 0.6115
+  type: 'test'
+  ...
+# Subtest: aisTargets layer is unavailable when the transport carries no AIS objects
+ok 39 - aisTargets layer is unavailable when the transport carries no AIS objects
+  ---
+  duration_ms: 0.257375
+  type: 'test'
+  ...
+# Subtest: dangerous/lost targets drive the blink timer and stop it when cleared
+ok 40 - dangerous/lost targets drive the blink timer and stop it when cleared
+  ---
+  duration_ms: 2.495125
+  type: 'test'
+  ...
+# Subtest: shell, module and 3D scene wire the AIS layer end to end
+ok 41 - shell, module and 3D scene wire the AIS layer end to end
+  ---
+  duration_ms: 18.09675
+  type: 'test'
+  ...
+# Subtest: P3-S5 trackExistenceForTarget associates the nearest track inside the radius
+ok 42 - P3-S5 trackExistenceForTarget associates the nearest track inside the radius
+  ---
+  duration_ms: 0.153917
+  type: 'test'
+  ...
+# Subtest: Deployment boot leaves Config catalog and bootstrap to Validation Assembly
+ok 43 - Deployment boot leaves Config catalog and bootstrap to Validation Assembly
+  ---
+  duration_ms: 1.566
+  type: 'test'
+  ...
+# Subtest: browser startup only dereferences DOM nodes that are present or optional
+ok 44 - browser startup only dereferences DOM nodes that are present or optional
+  ---
+  duration_ms: 1.014833
+  type: 'test'
+  ...
+# Subtest: active product replay and semantic/profile hash projections remain available
+ok 45 - active product replay and semantic/profile hash projections remain available
+  ---
+  duration_ms: 0.188458
+  type: 'test'
+  ...
+# Subtest: Deployment renders only the active algorithm and Truth tracker vocabulary
+ok 46 - Deployment renders only the active algorithm and Truth tracker vocabulary
+  ---
+  duration_ms: 0.729625
+  type: 'test'
+  ...
+# Subtest: Config imports the display labels shared with Replay
+ok 47 - Config imports the display labels shared with Replay
+  ---
+  duration_ms: 0.6155
+  type: 'test'
+  ...
+# Subtest: AIS historical scenario label avoids repeating its Romsdal ENC region
+ok 48 - AIS historical scenario label avoids repeating its Romsdal ENC region
+  ---
+  duration_ms: 0.069625
+  type: 'test'
+  ...
+# Subtest: OpenBridge fallback is empty until failure and clears after a successful bundle load
+ok 49 - OpenBridge fallback is empty until failure and clears after a successful bundle load
+  ---
+  duration_ms: 0.171417
+  type: 'test'
+  ...
+# Subtest: Config starts disabled and boot establishes assembly before binding controls
+ok 50 - Config starts disabled and boot establishes assembly before binding controls
+  ---
+  duration_ms: 0.211291
+  type: 'test'
+  ...
+# Subtest: only Active Session Runtime owns lifecycle REST and WebSocket construction
+ok 51 - only Active Session Runtime owns lifecycle REST and WebSocket construction
+  ---
+  duration_ms: 0.572417
+  type: 'test'
+  ...
+# Subtest: Config and Deployment import the same inert singleton and app is delivered as ESM
+ok 52 - Config and Deployment import the same inert singleton and app is delivered as ESM
+  ---
+  duration_ms: 0.158958
+  type: 'test'
+  ...
+# Subtest: composition root wires the runtime into the projection singleton and exports both
+ok 53 - composition root wires the runtime into the projection singleton and exports both
+  ---
+  duration_ms: 0.857166
+  type: 'test'
+  ...
+# Subtest: Config assets retain GNC tags and load the updated runtime shell
+ok 54 - Config assets retain GNC tags and load the updated runtime shell
+  ---
+  duration_ms: 0.123042
+  type: 'test'
+  ...
+# Subtest: Deployment consumes the projection and no longer interprets raw envelopes inline
+ok 55 - Deployment consumes the projection and no longer interprets raw envelopes inline
+  ---
+  duration_ms: 0.483958
+  type: 'test'
+  ...
+# Subtest: telemetry projection stays DOM-free and transport-free
+ok 56 - telemetry projection stays DOM-free and transport-free
+  ---
+  duration_ms: 0.324
+  type: 'test'
+  ...
+# Subtest: Deployment treats the shared envelope as read-only and never mutates it in place
+ok 57 - Deployment treats the shared envelope as read-only and never mutates it in place
+  ---
+  duration_ms: 0.156917
+  type: 'test'
+  ...
+# Subtest: Config delegates Create and authority refresh through runtime public seam
+ok 58 - Config delegates Create and authority refresh through runtime public seam
+  ---
+  duration_ms: 0.094875
+  type: 'test'
+  ...
+# Subtest: Config activation refreshes the capability catalog without browser cache reuse
+ok 59 - Config activation refreshes the capability catalog without browser cache reuse
+  ---
+  duration_ms: 0.095916
+  type: 'test'
+  ...
+# Subtest: legacy Deployment configuration is hidden and cannot imply it applies to Validation Draft
+ok 60 - legacy Deployment configuration is hidden and cannot imply it applies to Validation Draft
+  ---
+  duration_ms: 0.156375
+  type: 'test'
+  ...
+# Subtest: ENC loading is replacement-bound and stale fetch/image callbacks are inert
+ok 61 - ENC loading is replacement-bound and stale fetch/image callbacks are inert
+  ---
+  duration_ms: 7.645333
+  type: 'test'
+  ...
+# Subtest: Config token layer ports the OpenBridge palette sheet (gap \#3 part)
+ok 62 - Config token layer ports the OpenBridge palette sheet (gap \#3 part)
+  ---
+  duration_ms: 0.179834
+  type: 'test'
+  ...
+# Subtest: Config-scope selectors consume tokens instead of hardcoded hex (gap \#3 part)
+ok 63 - Config-scope selectors consume tokens instead of hardcoded hex (gap \#3 part)
+  ---
+  duration_ms: 0.3945
+  type: 'test'
+  ...
+# Subtest: Stepper chrome shows circular numbers, completion dots, and 20%-per-ready-step progress (gap \#19; 5 steps since GNC Stack)
+ok 64 - Stepper chrome shows circular numbers, completion dots, and 20%-per-ready-step progress (gap \#19; 5 steps since GNC Stack)
+  ---
+  duration_ms: 0.610208
+  type: 'test'
+  ...
+# Subtest: Stepper and Config Summary render tuple business labels instead of raw ids
+ok 65 - Stepper and Config Summary render tuple business labels instead of raw ids
+  ---
+  duration_ms: 0.122542
+  type: 'test'
+  ...
+# Subtest: Rule 15 keeps the Give-way scenario visible when the current tuple disables it
+ok 66 - Rule 15 keeps the Give-way scenario visible when the current tuple disables it
+  ---
+  duration_ms: 0.0485
+  type: 'test'
+  ...
+# Subtest: Algorithm choices expose only the three product algorithms
+ok 67 - Algorithm choices expose only the three product algorithms
+  ---
+  duration_ms: 0.081959
+  type: 'test'
+  ...
+# Subtest: COLREGS naming is consistent across step, card, and summary
+ok 68 - COLREGS naming is consistent across step, card, and summary
+  ---
+  duration_ms: 0.1
+  type: 'test'
+  ...
+# Subtest: Config Contract renders YAML semantics without key-value color coding
+ok 69 - Config Contract renders YAML semantics without key-value color coding
+  ---
+  duration_ms: 0.1
+  type: 'test'
+  ...
+# Subtest: Inspector has assembly-status pill, compact-header sections, and obc-button actions (gap \#18; 32px ruling 2026-08-19: 236px rail must fit without inner scroll)
+ok 70 - Inspector has assembly-status pill, compact-header sections, and obc-button actions (gap \#18; 32px ruling 2026-08-19: 236px rail must fit without inner scroll)
+  ---
+  duration_ms: 0.113583
+  type: 'test'
+  ...
+# Subtest: Create swaps to Open jump when draft is clean and matches the active session (gap \#20)
+ok 71 - Create swaps to Open jump when draft is clean and matches the active session (gap \#20)
+  ---
+  duration_ms: 0.069208
+  type: 'test'
+  ...
+# Subtest: Rule choices render as OpenBridge elevated cards in a 4-column grid (gap \#10)
+ok 72 - Rule choices render as OpenBridge elevated cards in a 4-column grid (gap \#10)
+  ---
+  duration_ms: 0.087417
+  type: 'test'
+  ...
+# Subtest: Rule guide uses floating prev/next icon buttons over the media (gap \#21)
+ok 73 - Rule guide uses floating prev/next icon buttons over the media (gap \#21)
+  ---
+  duration_ms: 0.07175
+  type: 'test'
+  ...
+# Subtest: four rule choices use one consistent vector guide system
+ok 74 - four rule choices use one consistent vector guide system
+  ---
+  duration_ms: 0.10475
+  type: 'test'
+  ...
+# Subtest: Scenario and ENC selection render as horizontal snap carousels (gap \#11)
+ok 75 - Scenario and ENC selection render as horizontal snap carousels (gap \#11)
+  ---
+  duration_ms: 0.077875
+  type: 'test'
+  ...
+# Subtest: Scenario preview draws through the situation-display canvas seam; the phantom overlay_geometry path is gone (C4 rulings 1/9)
+ok 76 - Scenario preview draws through the situation-display canvas seam; the phantom overlay_geometry path is gone (C4 rulings 1/9)
+  ---
+  duration_ms: 0.152708
+  type: 'test'
+  ...
+# Subtest: Rogaland scenarios get a styled placeholder frame instead of a hidden image (gap \#12a)
+ok 77 - Rogaland scenarios get a styled placeholder frame instead of a hidden image (gap \#12a)
+  ---
+  duration_ms: 0.049417
+  type: 'test'
+  ...
+# Subtest: Algorithm selection is a carousel and tracker a 2-column choice grid (gap \#13)
+ok 78 - Algorithm selection is a carousel and tracker a 2-column choice grid (gap \#13)
+  ---
+  duration_ms: 0.077042
+  type: 'test'
+  ...
+# Subtest: production Config takes ordered algorithm and tracker choices only from product policy projection
+ok 79 - production Config takes ordered algorithm and tracker choices only from product policy projection
+  ---
+  duration_ms: 0.149084
+  type: 'test'
+  ...
+# Subtest: Create constraint rendering consumes typed policy projection without algorithm-specific requirement hardcodes
+ok 80 - Create constraint rendering consumes typed policy projection without algorithm-specific requirement hardcodes
+  ---
+  duration_ms: 0.48
+  type: 'test'
+  ...
+# Subtest: Experimental Create uses a non-blocking inline notice instead of native confirm
+ok 81 - Experimental Create uses a non-blocking inline notice instead of native confirm
+  ---
+  duration_ms: 0.164875
+  type: 'test'
+  ...
+# Subtest: Algorithm detail chrome: role eyebrow, grade pill, 20px heading, binding footer (gap \#14)
+ok 82 - Algorithm detail chrome: role eyebrow, grade pill, 20px heading, binding footer (gap \#14)
+  ---
+  duration_ms: 0.158417
+  type: 'test'
+  ...
+# Subtest: Params use obc-number-input-field with inline field errors and retained notices (gap \#15)
+ok 83 - Params use obc-number-input-field with inline field errors and retained notices (gap \#15)
+  ---
+  duration_ms: 0.163625
+  type: 'test'
+  ...
+# Subtest: clearing an OBC number field clears both host and shadow input values
+ok 84 - clearing an OBC number field clears both host and shadow input values
+  ---
+  duration_ms: 1.088667
+  type: 'test'
+  ...
+# Subtest: parameter commit captures a cleared shadow value before the OBC bubble handler restores it
+ok 85 - parameter commit captures a cleared shadow value before the OBC bubble handler restores it
+  ---
+  duration_ms: 0.509708
+  type: 'test'
+  ...
+# Subtest: Execution plan has metric strip, session clock timeline, seed root, and READY/INVALID footer (gap \#16)
+ok 86 - Execution plan has metric strip, session clock timeline, seed root, and READY/INVALID footer (gap \#16)
+  ---
+  duration_ms: 1.84
+  type: 'test'
+  ...
+# Subtest: Review fixes F1/F2: params bind directly to inner inputs; carousel scrollers rebind after upgrade
+ok 87 - Review fixes F1/F2: params bind directly to inner inputs; carousel scrollers rebind after upgrade
+  ---
+  duration_ms: 0.310792
+  type: 'test'
+  ...
+# Subtest: Review fix F3: scroll-snap-type engaged on the fallback host scroller
+ok 88 - Review fix F3: scroll-snap-type engaged on the fallback host scroller
+  ---
+  duration_ms: 0.051292
+  type: 'test'
+  ...
+# Subtest: Review fix F4: CREATED pill is keyed off clean-match, not merely !dirty
+ok 89 - Review fix F4: CREATED pill is keyed off clean-match, not merely !dirty
+  ---
+  duration_ms: 0.042916
+  type: 'test'
+  ...
+# Subtest: Review fix F5: Create accent reaches the obc-button surface via palette var override
+ok 90 - Review fix F5: Create accent reaches the obc-button surface via palette var override
+  ---
+  duration_ms: 0.067666
+  type: 'test'
+  ...
+# Subtest: Review P3 fixes: single-card centering, inert ENC cards, dead rules removed
+ok 91 - Review P3 fixes: single-card centering, inert ENC cards, dead rules removed
+  ---
+  duration_ms: 0.126167
+  type: 'test'
+  ...
+# Subtest: C5 pull-forward: shell background maps onto OpenBridge tokens (no dark base)
+ok 92 - C5 pull-forward: shell background maps onto OpenBridge tokens (no dark base)
+  ---
+  duration_ms: 0.248792
+  type: 'test'
+  ...
+# Subtest: C5 pull-forward: top bar populated with app icon, Beijing clock, and action buttons (gap \#1)
+ok 93 - C5 pull-forward: top bar populated with app icon, Beijing clock, and action buttons (gap \#1)
+  ---
+  duration_ms: 0.240542
+  type: 'test'
+  ...
+# Subtest: C5 pull-forward: workface tabs carry icons and pressed-pill chrome (gap \#2)
+ok 94 - C5 pull-forward: workface tabs carry icons and pressed-pill chrome (gap \#2)
+  ---
+  duration_ms: 0.118542
+  type: 'test'
+  ...
+# Subtest: authority refresh defers results when Create begins during its requests
+ok 95 - authority refresh defers results when Create begins during its requests
+  ---
+  duration_ms: 1.067083
+  type: 'test'
+  ...
+# Subtest: simulation footer keeps rate controls stable and removes empty Cache status
+ok 96 - simulation footer keeps rate controls stable and removes empty Cache status
+  ---
+  duration_ms: 1.174167
+  type: 'test'
+  ...
+# Subtest: OWN SHIP exposes five OpenBridge sensor-source dropdowns with mock option wiring
+ok 97 - OWN SHIP exposes five OpenBridge sensor-source dropdowns with mock option wiring
+  ---
+  duration_ms: 0.369208
+  type: 'test'
+  ...
+# Subtest: top-bar notifications use OpenBridge controls and projected simulation events
+ok 98 - top-bar notifications use OpenBridge controls and projected simulation events
+  ---
+  duration_ms: 0.225042
+  type: 'test'
+  ...
+# Subtest: Deployment top-bar menu and apps buttons collapse the matching sidebars
+ok 99 - Deployment top-bar menu and apps buttons collapse the matching sidebars
+  ---
+  duration_ms: 0.208792
+  type: 'test'
+  ...
+# Subtest: DEPTH uses the live ENC depth bin instead of a fixed 15 m value
+ok 100 - DEPTH uses the live ENC depth bin instead of a fixed 15 m value
+  ---
+  duration_ms: 0.173458
+  type: 'test'
+  ...
+# Subtest: sensor instruments use comparable drawing-region sizes without compass control overlap
+ok 101 - sensor instruments use comparable drawing-region sizes without compass control overlap
+  ---
+  duration_ms: 0.951417
+  type: 'test'
+  ...
+# Subtest: position readouts align right and depth vessel size stays independent of range
+ok 102 - position readouts align right and depth vessel size stays independent of range
+  ---
+  duration_ms: 0.347625
+  type: 'test'
+  ...
+# Subtest: SPEED Advices gauge follows COMPASS and renders live STW through the vendored Web Component
+ok 103 - SPEED Advices gauge follows COMPASS and renders live STW through the vendored Web Component
+  ---
+  duration_ms: 0.538875
+  type: 'test'
+  ...
+# Subtest: SENSOR RADAR uses the X-band PPI instead of a truth-position mini map
+ok 104 - SENSOR RADAR uses the X-band PPI instead of a truth-position mini map
+  ---
+  duration_ms: 0.5055
+  type: 'test'
+  ...
+# Subtest: ROUTE radius switches between metres and kilometres without ellipsis
+ok 105 - ROUTE radius switches between metres and kilometres without ellipsis
+  ---
+  duration_ms: 0.499542
+  type: 'test'
+  ...
+# Subtest: ROUTE and COMPASS ROT normalize rounded zero and retain the last valid value
+ok 106 - ROUTE and COMPASS ROT normalize rounded zero and retain the last valid value
+  ---
+  duration_ms: 0.451333
+  type: 'test'
+  ...
+# Subtest: ROUTE destination times use the same 12px/18px value typography as Current leg
+ok 107 - ROUTE destination times use the same 12px/18px value typography as Current leg
+  ---
+  duration_ms: 0.450625
+  type: 'test'
+  ...
+# Subtest: DCPA and TCPA render units inline after values
+ok 108 - DCPA and TCPA render units inline after values
+  ---
+  duration_ms: 0.327209
+  type: 'test'
+  ...
+# Subtest: Target range defaults to nautical miles and toggles to kilometres from metres
+ok 109 - Target range defaults to nautical miles and toggles to kilometres from metres
+  ---
+  duration_ms: 0.259667
+  type: 'test'
+  ...
+# Subtest: risk cards use the projected threat level for card and COLREGs colors
+ok 110 - risk cards use the projected threat level for card and COLREGs colors
+  ---
+  duration_ms: 0.638042
+  type: 'test'
+  ...
+# Subtest: monitor event list grows into the remaining right-sidebar space
+ok 111 - monitor event list grows into the remaining right-sidebar space
+  ---
+  duration_ms: 0.649917
+  type: 'test'
+  ...
+# Subtest: EVENT LIST uses OpenBridge event-list with projected timeline data
+ok 112 - EVENT LIST uses OpenBridge event-list with projected timeline data
+  ---
+  duration_ms: 0.5155
+  type: 'test'
+  ...
+# Subtest: 海图显示 restores the pre-OpenBridge legend and layer controls in an OpenBridge popover
+ok 113 - 海图显示 restores the pre-OpenBridge legend and layer controls in an OpenBridge popover
+  ---
+  duration_ms: 1.585166
+  type: 'test'
+  ...
+# Subtest: chart view control combines heading, north, ownship-centre and 3D actions as H N C 3D
+ok 114 - chart view control combines heading, north, ownship-centre and 3D actions as H N C 3D
+  ---
+  duration_ms: 0.342
+  type: 'test'
+  ...
+# Subtest: situation display uses black target motion vectors and risk-driven ship outlines
+ok 115 - situation display uses black target motion vectors and risk-driven ship outlines
+  ---
+  duration_ms: 0.329
+  type: 'test'
+  ...
+# Subtest: planner diagnostics render directly on the chart for each supported algorithm
+ok 116 - planner diagnostics render directly on the chart for each supported algorithm
+  ---
+  duration_ms: 0.233125
+  type: 'test'
+  ...
+# Subtest: restored sessions reset planner overlay state without aborting ENC startup
+ok 117 - restored sessions reset planner overlay state without aborting ENC startup
+  ---
+  duration_ms: 0.2185
+  type: 'test'
+  ...
+# Subtest: performance charts use reusable Web Component graphs with English axes and legends
+ok 118 - performance charts use reusable Web Component graphs with English axes and legends
+  ---
+  duration_ms: 0.95225
+  type: 'test'
+  ...
+# Subtest: algorithm detail and performance pages use readable typography and full-width interactive graphs
+ok 119 - algorithm detail and performance pages use readable typography and full-width interactive graphs
+  ---
+  duration_ms: 1.105417
+  type: 'test'
+  ...
+# Subtest: chart selection renders only the anchored OpenBridge vessel placard
+ok 120 - chart selection renders only the anchored OpenBridge vessel placard
+  ---
+  duration_ms: 0.265042
+  type: 'test'
+  ...
+# Subtest: three Workfaces occupy three equal centered columns
+ok 121 - three Workfaces occupy three equal centered columns
+  ---
+  duration_ms: 0.58825
+  type: 'test'
+  ...
+# Subtest: AIS comparison is the fifth left information page, not a monitor panel
+ok 122 - AIS comparison is the fifth left information page, not a monitor panel
+  ---
+  duration_ms: 0.967333
+  type: 'test'
+  ...
+# Subtest: Deployment display bar gains a DT twin button right after 3D with full aria semantics
+ok 123 - Deployment display bar gains a DT twin button right after 3D with full aria semantics
+  ---
+  duration_ms: 0.91925
+  type: 'test'
+  ...
+# Subtest: twin viewport mirrors the 3D host substitution pattern (video + HUD + link spike, default hidden)
+ok 124 - twin viewport mirrors the 3D host substitution pattern (video + HUD + link spike, default hidden)
+  ---
+  duration_ms: 0.325583
+  type: 'test'
+  ...
+# Subtest: app.js wires the twin button, live session attach and chart-only disabling for the twin state
+ok 125 - app.js wires the twin button, live session attach and chart-only disabling for the twin state
+  ---
+  duration_ms: 0.289333
+  type: 'test'
+  ...
+# Subtest: live attach carries mode=live for the active session and never a clock message
+ok 126 - live attach carries mode=live for the active session and never a clock message
+  ---
+  duration_ms: 3.320834
+  type: 'test'
+  ...
+# Subtest: attach resolves the session id lazily at attach time
+ok 127 - attach resolves the session id lazily at attach time
+  ---
+  duration_ms: 0.238167
+  type: 'test'
+  ...
+# Subtest: destroy detaches and tears the stream down
+ok 128 - destroy detaches and tears the stream down
+  ---
+  duration_ms: 0.227125
+  type: 'test'
+  ...
+# Subtest: HUD chip renders from the projected twin state
+ok 129 - HUD chip renders from the projected twin state
+  ---
+  duration_ms: 0.231208
+  type: 'test'
+  ...
+# Subtest: link defaults to off: no companion scene, no subscribers, zero camera_free
+ok 130 - link defaults to off: no companion scene, no subscribers, zero camera_free
+  ---
+  duration_ms: 0.370708
+  type: 'test'
+  ...
+# Subtest: link on creates the split-pane scene and folds camera changes into camera_free only when attached
+ok 131 - link on creates the split-pane scene and folds camera changes into camera_free only when attached
+  ---
+  duration_ms: 8.477125
+  type: 'test'
+  ...
+# Subtest: link off destroys the companion scene and stops all messages (零消息零开销)
+ok 132 - link off destroys the companion scene and stops all messages (零消息零开销)
+  ---
+  duration_ms: 6.776791
+  type: 'test'
+  ...
+# Subtest: render feeds only the companion scene and only while the link is on
+ok 133 - render feeds only the companion scene and only while the link is on
+  ---
+  duration_ms: 7.032708
+  type: 'test'
+  ...
+# Subtest: link scene failure clears the toggle back to off
+ok 134 - link scene failure clears the toggle back to off
+  ---
+  duration_ms: 6.468375
+  type: 'test'
+  ...
+# Subtest: deployment twin shell exposes the sensor-mode button group with the frozen vocabulary
+ok 135 - deployment twin shell exposes the sensor-mode button group with the frozen vocabulary
+  ---
+  duration_ms: 0.306917
+  type: 'test'
+  ...
+# Subtest: sensor-mode click sends the contract literal; §5 realignment rides the attach
+ok 136 - sensor-mode click sends the contract literal; §5 realignment rides the attach
+  ---
+  duration_ms: 0.758542
+  type: 'test'
+  ...
+# Subtest: state echo is the authority: chip text and buttons mirror sensor_mode, lidar is a real mode in S3
+ok 137 - state echo is the authority: chip text and buttons mirror sensor_mode, lidar is a real mode in S3
+  ---
+  duration_ms: 0.251542
+  type: 'test'
+  ...
+# Subtest: H/N/C/3D changes only display state and preserves chart framing over 20 switches
+ok 138 - H/N/C/3D changes only display state and preserves chart framing over 20 switches
+  ---
+  duration_ms: 4.236833
+  type: 'test'
+  ...
+# Subtest: each session enters 3D from the chase camera
+ok 139 - each session enters 3D from the chase camera
+  ---
+  duration_ms: 0.452792
+  type: 'test'
+  ...
+# Subtest: same sequence motion frames reach both display boundaries with the identical immutable data
+ok 140 - same sequence motion frames reach both display boundaries with the identical immutable data
+  ---
+  duration_ms: 0.165417
+  type: 'test'
+  ...
+# Subtest: cancelling pending entry destroys its late viewer and prevents duplicate creation
+ok 141 - cancelling pending entry destroys its late viewer and prevents duplicate creation
+  ---
+  duration_ms: 0.083292
+  type: 'test'
+  ...
+# Subtest: replacement invalidates pending resources, frames and camera state
+ok 142 - replacement invalidates pending resources, frames and camera state
+  ---
+  duration_ms: 0.103083
+  type: 'test'
+  ...
+# Subtest: initialization failure restores chart and exposes retry; destroy is safe for late resolution
+ok 143 - initialization failure restores chart and exposes retry; destroy is safe for late resolution
+  ---
+  duration_ms: 0.107292
+  type: 'test'
+  ...
+# Subtest: missing current geographic contract keeps 3D unavailable without invoking factory
+ok 144 - missing current geographic contract keeps 3D unavailable without invoking factory
+  ---
+  duration_ms: 0.092375
+  type: 'test'
+  ...
+# Subtest: H/N aborts the factory before delayed engine assets can construct a viewer
+ok 145 - H/N aborts the factory before delayed engine assets can construct a viewer
+  ---
+  duration_ms: 0.185375
+  type: 'test'
+  ...
+# Subtest: toggleTwin enters the twin state, forwards projections and exits restore the chart
+ok 146 - toggleTwin enters the twin state, forwards projections and exits restore the chart
+  ---
+  duration_ms: 0.328208
+  type: 'test'
+  ...
+# Subtest: twin forwards zoom and recenter actions to the twin viewer, chart untouched
+ok 147 - twin forwards zoom and recenter actions to the twin viewer, chart untouched
+  ---
+  duration_ms: 0.335459
+  type: 'test'
+  ...
+# Subtest: 3D and twin are mutually exclusive through the public toggles
+ok 148 - 3D and twin are mutually exclusive through the public toggles
+  ---
+  duration_ms: 0.092625
+  type: 'test'
+  ...
+# Subtest: orientation and session replacement exit the twin viewport
+ok 149 - orientation and session replacement exit the twin viewport
+  ---
+  duration_ms: 0.069583
+  type: 'test'
+  ...
+# Subtest: twin state is unavailable without a factory and before a valid chart contract
+ok 150 - twin state is unavailable without a factory and before a valid chart contract
+  ---
+  duration_ms: 0.287125
+  type: 'test'
+  ...
+# Subtest: late twin resolution after exit is destroyed instead of adopted
+ok 151 - late twin resolution after exit is destroyed instead of adopted
+  ---
+  duration_ms: 0.181959
+  type: 'test'
+  ...
+# Subtest: Evaluation workface hosts the replay viewer between the run panel and Historical AIS
+ok 152 - Evaluation workface hosts the replay viewer between the run panel and Historical AIS
+  ---
+  duration_ms: 2.853916
+  type: 'test'
+  ...
+# Subtest: replay frontend reuses the canonical projection/display and never parses raw artifacts or mutates sessions
+ok 153 - replay frontend reuses the canonical projection/display and never parses raw artifacts or mutates sessions
+  ---
+  duration_ms: 0.663042
+  type: 'test'
+  ...
+# Subtest: open loads descriptor, context and initial window; reads are run-scoped GETs only
+ok 154 - open loads descriptor, context and initial window; reads are run-scoped GETs only
+  ---
+  duration_ms: 25.968292
+  type: 'test'
+  ...
+# Subtest: Replay adapts persisted ENC context to the Situation Display contract before rendering
+ok 155 - Replay adapts persisted ENC context to the Situation Display contract before rendering
+  ---
+  duration_ms: 7.871291
+  type: 'test'
+  ...
+# Subtest: Replay fits recorded traffic after its first frame so a short viewport does not clip both vessels
+ok 156 - Replay fits recorded traffic after its first frame so a short viewport does not clip both vessels
+  ---
+  duration_ms: 6.007917
+  type: 'test'
+  ...
+# Subtest: replay controls stay disabled until the initial recorded window is ready
+ok 157 - replay controls stay disabled until the initial recorded window is ready
+  ---
+  duration_ms: 4.264583
+  type: 'test'
+  ...
+# Subtest: direct late seek lands on the recorded bracket without any intermediate time steps
+ok 158 - direct late seek lands on the recorded bracket without any intermediate time steps
+  ---
+  duration_ms: 7.151958
+  type: 'test'
+  ...
+# Subtest: rapid seek A then B: a late A response cannot overwrite the newer B inspection cursor
+ok 159 - rapid seek A then B: a late A response cannot overwrite the newer B inspection cursor
+  ---
+  duration_ms: 9.694125
+  type: 'test'
+  ...
+# Subtest: unbracketable seek shows a buffering state and never invents motion
+ok 160 - unbracketable seek shows a buffering state and never invents motion
+  ---
+  duration_ms: 7.309958
+  type: 'test'
+  ...
+# Subtest: target selection remains local state without an inspection rail
+ok 161 - target selection remains local state without an inspection rail
+  ---
+  duration_ms: 5.237875
+  type: 'test'
+  ...
+# Subtest: replay button returns to the recorded start; close hides the viewer
+ok 162 - replay button returns to the recorded start; close hides the viewer
+  ---
+  duration_ms: 6.893083
+  type: 'test'
+  ...
+# Subtest: incomplete evidence restricts the timeline to the trusted boundary and says so
+ok 163 - incomplete evidence restricts the timeline to the trusted boundary and says so
+  ---
+  duration_ms: 4.982
+  type: 'test'
+  ...
+# Subtest: incomplete evidence without a trusted boundary is unavailable and cannot issue replay reads
+ok 164 - incomplete evidence without a trusted boundary is unavailable and cannot issue replay reads
+  ---
+  duration_ms: 1.195167
+  type: 'test'
+  ...
+# Subtest: reduced trajectory evidence stays explicit and cannot enter the full replay player
+ok 165 - reduced trajectory evidence stays explicit and cannot enter the full replay player
+  ---
+  duration_ms: 1.922916
+  type: 'test'
+  ...
+# Subtest: failed incomplete runs retain failure identity beside the historical replay state
+ok 166 - failed incomplete runs retain failure identity beside the historical replay state
+  ---
+  duration_ms: 5.538625
+  type: 'test'
+  ...
+# Subtest: play advances the playhead from wall elapsed × speed with zero session mutation
+ok 167 - play advances the playhead from wall elapsed × speed with zero session mutation
+  ---
+  duration_ms: 7.849459
+  type: 'test'
+  ...
+# Subtest: rate change preserves playhead continuity; only subsequent elapsed uses the new rate
+ok 168 - rate change preserves playhead continuity; only subsequent elapsed uses the new rate
+  ---
+  duration_ms: 10.105875
+  type: 'test'
+  ...
+# Subtest: playback prefetches bounded windows ahead and never loads the whole Run
+ok 169 - playback prefetches bounded windows ahead and never loads the whole Run
+  ---
+  duration_ms: 238.632459
+  type: 'test'
+  ...
+# Subtest: reaching trusted t_end transitions to ENDED; play restarts deterministically from t_start
+ok 170 - reaching trusted t_end transitions to ENDED; play restarts deterministically from t_start
+  ---
+  duration_ms: 11.433458
+  type: 'test'
+  ...
+# Subtest: seek during PLAYING lands at the target and playback continues from there
+ok 171 - seek during PLAYING lands at the target and playback continues from there
+  ---
+  duration_ms: 11.863875
+  type: 'test'
+  ...
+# Subtest: high-speed playback samples paint frames but keeps every recorded frame seekable
+ok 172 - high-speed playback samples paint frames but keeps every recorded frame seekable
+  ---
+  duration_ms: 18.405
+  type: 'test'
+  ...
+# Subtest: solver-execution evidence is untouched by replay reads (backend counter test seam)
+ok 173 - solver-execution evidence is untouched by replay reads (backend counter test seam)
+  ---
+  duration_ms: 0.595625
+  type: 'test'
+  ...
+# Subtest: timeline renders typed markers from recorded events at recorded times
+ok 174 - timeline renders typed markers from recorded events at recorded times
+  ---
+  duration_ms: 3.96125
+  type: 'test'
+  ...
+# Subtest: Previous/Next Event seeks the correct recorded event after manual seek and rate change
+ok 175 - Previous/Next Event seeks the correct recorded event after manual seek and rate change
+  ---
+  duration_ms: 13.321125
+  type: 'test'
+  ...
+# Subtest: event filtering is presentation-only; the complete journal stays unchanged
+ok 176 - event filtering is presentation-only; the complete journal stays unchanged
+  ---
+  duration_ms: 5.276459
+  type: 'test'
+  ...
+# Subtest: planner events stay in the journal but never appear as playback markers or filters
+ok 177 - planner events stay in the journal but never appear as playback markers or filters
+  ---
+  duration_ms: 5.1185
+  type: 'test'
+  ...
+# Subtest: zero recorded events renders an explicit empty state and navigation is a safe no-op
+ok 178 - zero recorded events renders an explicit empty state and navigation is a safe no-op
+  ---
+  duration_ms: 5.0605
+  type: 'test'
+  ...
+# Subtest: event markers and navigation controls are keyboard-operable buttons
+ok 179 - event markers and navigation controls are keyboard-operable buttons
+  ---
+  duration_ms: 4.895917
+  type: 'test'
+  ...
+# Subtest: Evaluation exposes Replay | Results | Evidence | Historical AIS local views; switching changes Inspection Context only
+ok 180 - Evaluation exposes Replay | Results | Evidence | Historical AIS local views; switching changes Inspection Context only
+  ---
+  duration_ms: 6.442667
+  type: 'test'
+  ...
+# Subtest: Results view surfaces Original Evaluation read-only; result pending stays distinct from replay ready
+ok 181 - Results view surfaces Original Evaluation read-only; result pending stays distinct from replay ready
+  ---
+  duration_ms: 5.145916
+  type: 'test'
+  ...
+# Subtest: Evidence view renders identities, digests, replay state and limitations from the backend document
+ok 182 - Evidence view renders identities, digests, replay state and limitations from the backend document
+  ---
+  duration_ms: 6.303041
+  type: 'test'
+  ...
+# Subtest: a stale Results response cannot overwrite the newly opened Run
+ok 183 - a stale Results response cannot overwrite the newly opened Run
+  ---
+  duration_ms: 12.331916
+  type: 'test'
+  ...
+# Subtest: Results and Evidence expose Original GNC identity and diagnostic-only scope as recorded facts
+ok 184 - Results and Evidence expose Original GNC identity and diagnostic-only scope as recorded facts
+  ---
+  duration_ms: 7.490042
+  type: 'test'
+  ...
+# Subtest: Rate controls retain accessible terminology without redundant deployment labels
+ok 185 - Rate controls retain accessible terminology without redundant deployment labels
+  ---
+  duration_ms: 0.259916
+  type: 'test'
+  ...
+# Subtest: Historical AIS Open Replay routes through the shared player without a second player
+ok 186 - Historical AIS Open Replay routes through the shared player without a second player
+  ---
+  duration_ms: 0.473875
+  type: 'test'
+  ...
+# Subtest: 5x playback fetches before exhaustion and crosses the first boundary without holding
+ok 187 - 5x playback fetches before exhaustion and crosses the first boundary without holding
+  ---
+  duration_ms: 9.766209
+  type: 'test'
+  ...
+# Subtest: slow prefetch explicitly buffers then resumes without inventing elapsed motion
+ok 188 - slow prefetch explicitly buffers then resumes without inventing elapsed motion
+  ---
+  duration_ms: 9.740875
+  type: 'test'
+  ...
+# Subtest: changing rate while buffering does not restart the held clock
+ok 189 - changing rate while buffering does not restart the held clock
+  ---
+  duration_ms: 8.488792
+  type: 'test'
+  ...
+# Subtest: replay vessel click opens recorded placard and draw updates follow motion and seek
+ok 190 - replay vessel click opens recorded placard and draw updates follow motion and seek
+  ---
+  duration_ms: 6.469625
+  type: 'test'
+  ...
+# Subtest: shell and Historical AIS load one replay controller module instance
+ok 191 - shell and Historical AIS load one replay controller module instance
+  ---
+  duration_ms: 0.291542
+  type: 'test'
+  ...
+# Subtest: Replay sends recorded projections to shared 3D on entry and seek, and releases it on close
+ok 192 - Replay sends recorded projections to shared 3D on entry and seek, and releases it on close
+  ---
+  duration_ms: 4.7505
+  type: 'test'
+  ...
+# Subtest: closing Replay during 3D initialization aborts and destroys the late scene
+ok 193 - closing Replay during 3D initialization aborts and destroys the late scene
+  ---
+  duration_ms: 4.013542
+  type: 'test'
+  ...
+# Subtest: FCB lighting regression: v0 had no normals; all v1 rendered primitives have finite unit normals
+ok 194 - FCB lighting regression: v0 had no normals; all v1 rendered primitives have finite unit normals
+  ---
+  duration_ms: 16.950875
+  type: 'test'
+  ...
+# Subtest: reference-driven visible details and source provenance are reproducible
+ok 195 - reference-driven visible details and source provenance are reproducible
+  ---
+  duration_ms: 0.756709
+  type: 'test'
+  ...
+# Subtest: signed thrust uses its own ahead/astern capacity and keeps missing data unavailable
+ok 196 - signed thrust uses its own ahead/astern capacity and keeps missing data unavailable
+  ---
+  duration_ms: 1.279625
+  type: 'test'
+  ...
+# Subtest: SENSOR retains four instruments; BALANCE precedes AIS and uses native OpenBridge instruments
+ok 197 - SENSOR retains four instruments; BALANCE precedes AIS and uses native OpenBridge instruments
+  ---
+  duration_ms: 5.438083
+  type: 'test'
+  ...
+# Subtest: constraint aggregation preserves asymmetric PID and distinct actuator limits
+ok 198 - constraint aggregation preserves asymmetric PID and distinct actuator limits
+  ---
+  duration_ms: 0.366
+  type: 'test'
+  ...
+# Subtest: five-page layout keeps environmental cards separate from propulsion
+ok 199 - five-page layout keeps environmental cards separate from propulsion
+  ---
+  duration_ms: 2.2485
+  type: 'test'
+  ...
+# Subtest: environment dials use To bearings consistently, converting wind From by 180 degrees
+ok 200 - environment dials use To bearings consistently, converting wind From by 180 degrees
+  ---
+  duration_ms: 0.17
+  type: 'test'
+  ...
+# Subtest: speed contract keeps missing, zero and different execution stages distinct
+ok 201 - speed contract keeps missing, zero and different execution stages distinct
+  ---
+  duration_ms: 0.185625
+  type: 'test'
+  ...
+# Subtest: every preset environment variant round trips exact backend binding
+ok 202 - every preset environment variant round trips exact backend binding
+  ---
+  duration_ms: 0.819125
+  type: 'test'
+  ...
+# Subtest: unsupported environment and old custom bindings never silently select another stack
+ok 203 - unsupported environment and old custom bindings never silently select another stack
+  ---
+  duration_ms: 0.114167
+  type: 'test'
+  ...
+# Subtest: GNC page offers complete presets and accessible environment switch with two read-only tables
+ok 204 - GNC page offers complete presets and accessible environment switch with two read-only tables
+  ---
+  duration_ms: 0.288625
+  type: 'test'
+  ...
+# Subtest: evidence stays separate and draft uses backend identities without parsing
+ok 205 - evidence stays separate and draft uses backend identities without parsing
+  ---
+  duration_ms: 0.343834
+  type: 'test'
+  ...
+# Subtest: scenario projection accepts only the canonical versioned descriptor
+ok 206 - scenario projection accepts only the canonical versioned descriptor
+  ---
+  duration_ms: 1.654792
+  type: 'test'
+  ...
+# Subtest: catalog failure produces typed ERROR without a fabricated scenario
+ok 207 - catalog failure produces typed ERROR without a fabricated scenario
+  ---
+  duration_ms: 0.299917
+  type: 'test'
+  ...
+# Subtest: detail failure clears scene facts and exposes typed ERROR
+ok 208 - detail failure clears scene facts and exposes typed ERROR
+  ---
+  duration_ms: 1.344834
+  type: 'test'
+  ...
+# Subtest: Historical AIS benchmark DOM stays additive with no fabricated scene facts
+ok 209 - Historical AIS benchmark DOM stays additive with no fabricated scene facts
+  ---
+  duration_ms: 1.212541
+  type: 'test'
+  ...
+# Subtest: Historical Compare domains stay readable without horizontal overflow on mobile
+ok 210 - Historical Compare domains stay readable without horizontal overflow on mobile
+  ---
+  duration_ms: 0.930167
+  type: 'test'
+  ...
+# Subtest: workflow projection reads canonical presentation and ignores raw evidence shape
+ok 211 - workflow projection reads canonical presentation and ignores raw evidence shape
+  ---
+  duration_ms: 1.265458
+  type: 'test'
+  ...
+# Subtest: DOM separates bounded scene operability from incomplete predictive qualification
+ok 212 - DOM separates bounded scene operability from incomplete predictive qualification
+  ---
+  duration_ms: 1.628292
+  type: 'test'
+  ...
+# Subtest: missing canonical presentation is typed unavailable with null workflow facts
+ok 213 - missing canonical presentation is typed unavailable with null workflow facts
+  ---
+  duration_ms: 0.212375
+  type: 'test'
+  ...
+# Subtest: browser modules do not inspect raw evidence or carry a default scenario
+ok 214 - browser modules do not inspect raw evidence or carry a default scenario
+  ---
+  duration_ms: 0.318541
+  type: 'test'
+  ...
+# Subtest: Historical AIS API adapter uses only dedicated scenario/workflow routes
+ok 215 - Historical AIS API adapter uses only dedicated scenario/workflow routes
+  ---
+  duration_ms: 0.313375
+  type: 'test'
+  ...
+# Subtest: lerpScalar interpolates linearly between known literals
+ok 216 - lerpScalar interpolates linearly between known literals
+  ---
+  duration_ms: 0.398625
+  type: 'test'
+  ...
+# Subtest: interpolateAngle takes the shortest angular path across the wrap
+ok 217 - interpolateAngle takes the shortest angular path across the wrap
+  ---
+  duration_ms: 1.56825
+  type: 'test'
+  ...
+# Subtest: interpolateVesselKinematics interpolates shared finite keys only
+ok 218 - interpolateVesselKinematics interpolates shared finite keys only
+  ---
+  duration_ms: 0.171375
+  type: 'test'
+  ...
+# Subtest: every web module is imported through exactly one specifier (single ES module instance)
+ok 219 - every web module is imported through exactly one specifier (single ES module instance)
+  ---
+  duration_ms: 20.307209
+  type: 'test'
+  ...
+# Subtest: Deployment and Replay share the operational event filter and card rows
+ok 220 - Deployment and Replay share the operational event filter and card rows
+  ---
+  duration_ms: 1.646875
+  type: 'test'
+  ...
+# Subtest: event state ACTIVE/COMMITTED/NONE/LOW agrees with the threat card
+ok 221 - event state ACTIVE/COMMITTED/NONE/LOW agrees with the threat card
+  ---
+  duration_ms: 0.176875
+  type: 'test'
+  ...
+# Subtest: event state ACTIVE/COMMITTED/NONE/HIGH agrees with the threat card
+ok 222 - event state ACTIVE/COMMITTED/NONE/HIGH agrees with the threat card
+  ---
+  duration_ms: 0.115
+  type: 'test'
+  ...
+# Subtest: event state PAST_CLEAR/COMMITTED/NONE/CLEAR agrees with the threat card
+ok 223 - event state PAST_CLEAR/COMMITTED/NONE/CLEAR agrees with the threat card
+  ---
+  duration_ms: 0.065791
+  type: 'test'
+  ...
+# Subtest: event state RELEASED/ACHIEVED/NONE/CLEAR agrees with the threat card
+ok 224 - event state RELEASED/ACHIEVED/NONE/CLEAR agrees with the threat card
+  ---
+  duration_ms: 0.060167
+  type: 'test'
+  ...
+# Subtest: actual speed is server measured and missing measurements clear the previous value
+ok 225 - actual speed is server measured and missing measurements clear the previous value
+  ---
+  duration_ms: 1.1415
+  type: 'test'
+  ...
+# Subtest: actual speed is immediately after the rate selector and before cache delay
+ok 226 - actual speed is immediately after the rate selector and before cache delay
+  ---
+  duration_ms: 0.172625
+  type: 'test'
+  ...
+# Subtest: radar model keeps only targets inside the canonical detection circle
+ok 227 - radar model keeps only targets inside the canonical detection circle
+  ---
+  duration_ms: 0.800875
+  type: 'test'
+  ...
+# Subtest: radar model preserves unknown risk instead of inferring a browser threat level
+ok 228 - radar model preserves unknown risk instead of inferring a browser threat level
+  ---
+  duration_ms: 0.080458
+  type: 'test'
+  ...
+# Subtest: radar draws ownship solid and labels the 1 km and 2 km rings
+ok 229 - radar draws ownship solid and labels the 1 km and 2 km rings
+  ---
+  duration_ms: 1.17125
+  type: 'test'
+  ...
+# Subtest: mulberry32 is deterministic per seed and uniform enough
+ok 230 - mulberry32 is deterministic per seed and uniform enough
+  ---
+  duration_ms: 1.275084
+  type: 'test'
+  ...
+# Subtest: sweep azimuth advances one turn per scan period and wraps
+ok 231 - sweep azimuth advances one turn per scan period and wraps
+  ---
+  duration_ms: 0.336291
+  type: 'test'
+  ...
+# Subtest: ppi projection maps north up, east right, ownship centered, flags outside
+ok 232 - ppi projection maps north up, east right, ownship centered, flags outside
+  ---
+  duration_ms: 0.176042
+  type: 'test'
+  ...
+# Subtest: range rings are thirds of the active scale
+ok 233 - range rings are thirds of the active scale
+  ---
+  duration_ms: 0.151625
+  type: 'test'
+  ...
+# Subtest: shared SNR proxy decays with range and drives blip intensity
+ok 234 - shared SNR proxy decays with range and drives blip intensity
+  ---
+  duration_ms: 0.094209
+  type: 'test'
+  ...
+# Subtest: expected clutter count matches the backend annulus integral at reference sea state
+ok 235 - expected clutter count matches the backend annulus integral at reference sea state
+  ---
+  duration_ms: 0.26675
+  type: 'test'
+  ...
+# Subtest: clutter speckle is deterministic per seed and scan, inside the annulus, capped
+ok 236 - clutter speckle is deterministic per seed and scan, inside the annulus, capped
+  ---
+  duration_ms: 1.093125
+  type: 'test'
+  ...
+# Subtest: build PPI model uses the named backend scan, not sensor array order or browser clutter
+ok 237 - build PPI model uses the named backend scan, not sensor array order or browser clutter
+  ---
+  duration_ms: 0.328375
+  type: 'test'
+  ...
+# Subtest: build PPI model: range scale override and default descriptor fallback
+ok 238 - build PPI model: range scale override and default descriptor fallback
+  ---
+  duration_ms: 0.310417
+  type: 'test'
+  ...
+# Subtest: build PPI model without ownship stays empty and safe
+ok 239 - build PPI model without ownship stays empty and safe
+  ---
+  duration_ms: 0.277084
+  type: 'test'
+  ...
+# Subtest: PPI factory draws panels, toggles visibility and switches range scales
+ok 240 - PPI factory draws panels, toggles visibility and switches range scales
+  ---
+  duration_ms: 0.923458
+  type: 'test'
+  ...
+# Subtest: PPI replaces the SENSOR radar card with range scales and no chart toolbar entry
+ok 241 - PPI replaces the SENSOR radar card with range scales and no chart toolbar entry
+  ---
+  duration_ms: 2.068875
+  type: 'test'
+  ...
+# Subtest: binary backend evidence verifies length and hash before drawing
+ok 242 - binary backend evidence verifies length and hash before drawing
+  ---
+  duration_ms: 14.487
+  type: 'test'
+  ...
+# Subtest: recorded checkpoint and spoke origin support motion compensation and heading-up
+ok 243 - recorded checkpoint and spoke origin support motion compensation and heading-up
+  ---
+  duration_ms: 8.836875
+  type: 'test'
+  ...
+# Subtest: rate presets match the frozen \#69 set
+ok 244 - rate presets match the frozen \#69 set
+  ---
+  duration_ms: 2.087
+  type: 'test'
+  ...
+# Subtest: playhead advances by wall elapsed × speed and clamps to the trusted range
+ok 245 - playhead advances by wall elapsed × speed and clamps to the trusted range
+  ---
+  duration_ms: 0.771542
+  type: 'test'
+  ...
+# Subtest: pause freezes the playhead; ticks while paused are no-ops
+ok 246 - pause freezes the playhead; ticks while paused are no-ops
+  ---
+  duration_ms: 0.180708
+  type: 'test'
+  ...
+# Subtest: changing rate while playing preserves playhead continuity at the change instant
+ok 247 - changing rate while playing preserves playhead continuity at the change instant
+  ---
+  duration_ms: 0.104208
+  type: 'test'
+  ...
+# Subtest: invalid rate changes are rejected without touching playback
+ok 248 - invalid rate changes are rejected without touching playback
+  ---
+  duration_ms: 0.1735
+  type: 'test'
+  ...
+# Subtest: reaching trusted t_end transitions to deterministic ENDED; seek backward then play restarts from t_start
+ok 249 - reaching trusted t_end transitions to deterministic ENDED; seek backward then play restarts from t_start
+  ---
+  duration_ms: 0.0775
+  type: 'test'
+  ...
+# Subtest: play from ENDED restarts deterministically from t_start
+ok 250 - play from ENDED restarts deterministically from t_start
+  ---
+  duration_ms: 0.289333
+  type: 'test'
+  ...
+# Subtest: seek is valid from PLAYING, PAUSED and ENDED and clamps to the trusted range
+ok 251 - seek is valid from PLAYING, PAUSED and ENDED and clamps to the trusted range
+  ---
+  duration_ms: 0.06525
+  type: 'test'
+  ...
+# Subtest: hold() freezes wall consumption during BUFFERING; resume() continues without jump
+ok 252 - hold() freezes wall consumption during BUFFERING; resume() continues without jump
+  ---
+  duration_ms: 0.366042
+  type: 'test'
+  ...
+# Subtest: known literal: (N=0,E=0) → (N=10,E=20) over 2 s shows (5,10) at 1 s of 1× playback
+ok 253 - known literal: (N=0,E=0) → (N=10,E=20) over 2 s shows (5,10) at 1 s of 1× playback
+  ---
+  duration_ms: 0.509792
+  type: 'test'
+  ...
+# Subtest: known literal: 359° → 1° playback interpolation passes through north
+ok 254 - known literal: 359° → 1° playback interpolation passes through north
+  ---
+  duration_ms: 0.291833
+  type: 'test'
+  ...
+# Subtest: Evaluation workface hosts a Replay run panel before the Historical AIS workbench
+ok 255 - Evaluation workface hosts a Replay run panel before the Historical AIS workbench
+  ---
+  duration_ms: 1.89
+  type: 'test'
+  ...
+# Subtest: run rows carry only backend facts and reject malformed payloads
+ok 256 - run rows carry only backend facts and reject malformed payloads
+  ---
+  duration_ms: 0.567041
+  type: 'test'
+  ...
+# Subtest: evidence labels stay truthful for degraded states without inventing detail
+ok 257 - evidence labels stay truthful for degraded states without inventing detail
+  ---
+  duration_ms: 0.06325
+  type: 'test'
+  ...
+# Subtest: render writes OpenBridge table rows with textual state and action cells
+ok 258 - render writes OpenBridge table rows with textual state and action cells
+  ---
+  duration_ms: 0.605959
+  type: 'test'
+  ...
+# Subtest: run rows offer an Open replay inspection action wired to the registered opener
+ok 259 - run rows offer an Open replay inspection action wired to the registered opener
+  ---
+  duration_ms: 0.37475
+  type: 'test'
+  ...
+# Subtest: replay client never touches session endpoints
+ok 260 - replay client never touches session endpoints
+  ---
+  duration_ms: 0.090333
+  type: 'test'
+  ...
+# Subtest: client refresh projects the catalog into the panel and reports failures truthfully
+ok 261 - client refresh projects the catalog into the panel and reports failures truthfully
+  ---
+  duration_ms: 0.411542
+  type: 'test'
+  ...
+# Subtest: replay pagination renders 10 rows by default and supports 20 and 50 row pages
+ok 262 - replay pagination renders 10 rows by default and supports 20 and 50 row pages
+  ---
+  duration_ms: 1.160625
+  type: 'test'
+  ...
+# Subtest: Delete action removes the row without rescanning the catalog
+ok 263 - Delete action removes the row without rescanning the catalog
+  ---
+  duration_ms: 0.620375
+  type: 'test'
+  ...
+# Subtest: Replay uses Config scenario/algorithm names and all five GNC presets
+ok 264 - Replay uses Config scenario/algorithm names and all five GNC presets
+  ---
+  duration_ms: 0.444875
+  type: 'test'
+  ...
+# Subtest: Delete cancellation and API failure preserve rows and report the error
+ok 265 - Delete cancellation and API failure preserve rows and report the error
+  ---
+  duration_ms: 0.722042
+  type: 'test'
+  ...
+# Subtest: Delete ignores repeated clicks while a request is pending
+ok 266 - Delete ignores repeated clicks while a request is pending
+  ---
+  duration_ms: 1.256083
+  type: 'test'
+  ...
+# Subtest: Delete uses the page dialog and waits for its explicit result
+ok 267 - Delete uses the page dialog and waits for its explicit result
+  ---
+  duration_ms: 0.745292
+  type: 'test'
+  ...
+# Subtest: summary rows stay visible without a frame count and never claim verified completeness
+ok 268 - summary rows stay visible without a frame count and never claim verified completeness
+  ---
+  duration_ms: 0.075958
+  type: 'test'
+  ...
+# Subtest: refresh is single-flight and a stale catalog cannot resurrect a deleted run
+ok 269 - refresh is single-flight and a stale catalog cannot resurrect a deleted run
+  ---
+  duration_ms: 0.235458
+  type: 'test'
+  ...
+# Subtest: historical authoritative GNC ids retain their product name
+ok 270 - historical authoritative GNC ids retain their product name
+  ---
+  duration_ms: 0.045709
+  type: 'test'
+  ...
+# Subtest: evaluation column uses only recorded verdicts, independently of replay completeness
+ok 271 - evaluation column uses only recorded verdicts, independently of replay completeness
+  ---
+  duration_ms: 0.17475
+  type: 'test'
+  ...
+# Subtest: replay keeps the latest sealed VO decision grid across held frames and direct seeks
+ok 272 - replay keeps the latest sealed VO decision grid across held frames and direct seeks
+  ---
+  duration_ms: 2.719167
+  type: 'test'
+  ...
+# Subtest: recorded GNC instruments follow the sealed source frame at a scrubbed playhead
+ok 273 - recorded GNC instruments follow the sealed source frame at a scrubbed playhead
+  ---
+  duration_ms: 0.436791
+  type: 'test'
+  ...
+# Subtest: Replay projects recorded UTM position and matched ENC depth at the playhead
+ok 274 - Replay projects recorded UTM position and matched ENC depth at the playhead
+  ---
+  duration_ms: 0.406833
+  type: 'test'
+  ...
+# Subtest: at an exact stored frame the replay projection equals the live projection (except enumerated metadata)
+ok 275 - at an exact stored frame the replay projection equals the live projection (except enumerated metadata)
+  ---
+  duration_ms: 1.185458
+  type: 'test'
+  ...
+# Subtest: playhead between two sealed frames interpolates kinematics only and keeps discrete facts on the source frame
+ok 276 - playhead between two sealed frames interpolates kinematics only and keeps discrete facts on the source frame
+  ---
+  duration_ms: 0.273208
+  type: 'test'
+  ...
+# Subtest: presentation never claims live transport state
+ok 277 - presentation never claims live transport state
+  ---
+  duration_ms: 0.09475
+  type: 'test'
+  ...
+# Subtest: unbracketable playhead is reported instead of extrapolated
+ok 278 - unbracketable playhead is reported instead of extrapolated
+  ---
+  duration_ms: 0.160042
+  type: 'test'
+  ...
+# Subtest: actual track-to-playhead is clipped to the playhead
+ok 279 - actual track-to-playhead is clipped to the playhead
+  ---
+  duration_ms: 0.10075
+  type: 'test'
+  ...
+# Subtest: hold-tick planner display falls back to the reconstructed recorded solve
+ok 280 - hold-tick planner display falls back to the reconstructed recorded solve
+  ---
+  duration_ms: 0.257708
+  type: 'test'
+  ...
+# Subtest: legacy windows without backend threat documents degrade without invention
+ok 281 - legacy windows without backend threat documents degrade without invention
+  ---
+  duration_ms: 0.338166
+  type: 'test'
+  ...
+# Subtest: typed Replay horizons use point pairs and only the moving L4 safety target prediction
+ok 282 - typed Replay horizons use point pairs and only the moving L4 safety target prediction
+  ---
+  duration_ms: 0.266333
+  type: 'test'
+  ...
+# Subtest: history preceding the loaded window survives a seek without including future positions
+ok 283 - history preceding the loaded window survives a seek without including future positions
+  ---
+  duration_ms: 0.092791
+  type: 'test'
+  ...
+# Subtest: prediction evidence advances with the recorded frame and remains frozen between frames
+ok 284 - prediction evidence advances with the recorded frame and remains frozen between frames
+  ---
+  duration_ms: 0.287209
+  type: 'test'
+  ...
+# Subtest: rejected and historical predictions never masquerade as executable current plans
+ok 285 - rejected and historical predictions never masquerade as executable current plans
+  ---
+  duration_ms: 0.128333
+  type: 'test'
+  ...
+# Subtest: AIS reporting interval mirrors the backend ITU-R M.1371 table
+ok 286 - AIS reporting interval mirrors the backend ITU-R M.1371 table
+  ---
+  duration_ms: 0.044
+  type: 'test'
+  ...
+# Subtest: AIS target state mirrors the backend lost/active/sleeping judgment
+ok 287 - AIS target state mirrors the backend lost/active/sleeping judgment
+  ---
+  duration_ms: 0.035583
+  type: 'test'
+  ...
+# Subtest: rebuilt report age follows the reporting rhythm with the playhead as display clock
+ok 288 - rebuilt report age follows the reporting rhythm with the playhead as display clock
+  ---
+  duration_ms: 0.072584
+  type: 'test'
+  ...
+# Subtest: inactive data gaps hold the report clock so the age grows across the gap
+ok 289 - inactive data gaps hold the report clock so the age grows across the gap
+  ---
+  duration_ms: 0.07575
+  type: 'test'
+  ...
+# Subtest: replay envelope carries the rebuilt AIS display field on obstacles only, like live
+ok 290 - replay envelope carries the rebuilt AIS display field on obstacles only, like live
+  ---
+  duration_ms: 0.145667
+  type: 'test'
+  ...
+# Subtest: recorded inactive spans project as lost targets through the envelope
+ok 291 - recorded inactive spans project as lost targets through the envelope
+  ---
+  duration_ms: 0.121875
+  type: 'test'
+  ...
+# Subtest: rebuilt AIS age is a pure function of the playhead (seek, rate and pause safe)
+ok 292 - rebuilt AIS age is a pure function of the playhead (seek, rate and pause safe)
+  ---
+  duration_ms: 0.125333
+  type: 'test'
+  ...
+# Subtest: window history positions never emit AIS reports (position-only strip)
+ok 293 - window history positions never emit AIS reports (position-only strip)
+  ---
+  duration_ms: 0.066208
+  type: 'test'
+  ...
+# Subtest: 3D ribbon follows both 2D boundaries including the shared join at a turn
+ok 294 - 3D ribbon follows both 2D boundaries including the shared join at a turn
+  ---
+  duration_ms: 2.080291
+  type: 'test'
+  ...
+# Subtest: invalid coordinates and zero-length legs cannot create invalid world polygons
+ok 295 - invalid coordinates and zero-length legs cannot create invalid world polygons
+  ---
+  duration_ms: 0.293416
+  type: 'test'
+  ...
+# Subtest: route progress exposes a next leg before WPT2 and null on the final leg after WPT2
+ok 296 - route progress exposes a next leg before WPT2 and null on the final leg after WPT2
+  ---
+  duration_ms: 0.433
+  type: 'test'
+  ...
+# Subtest: malformed waypoint axes cannot produce partial route legs
+ok 297 - malformed waypoint axes cannot produce partial route legs
+  ---
+  duration_ms: 0.618583
+  type: 'test'
+  ...
+# Subtest: ownship heading readout wraps north and matches cardinal directions
+ok 298 - ownship heading readout wraps north and matches cardinal directions
+  ---
+  duration_ms: 0.512667
+  type: 'test'
+  ...
+# Subtest: target compass location is bearing, while arrow rotation independently shows relative heading
+ok 299 - target compass location is bearing, while arrow rotation independently shows relative heading
+  ---
+  duration_ms: 0.288041
+  type: 'test'
+  ...
+# Subtest: 2 km inclusive filter uses displayed positions and excludes inactive or invalid targets
+ok 300 - 2 km inclusive filter uses displayed positions and excludes inactive or invalid targets
+  ---
+  duration_ms: 0.387541
+  type: 'test'
+  ...
+# Subtest: canonical risk colors respect generation and unavailable evidence without CPA reclassification
+ok 301 - canonical risk colors respect generation and unavailable evidence without CPA reclassification
+  ---
+  duration_ms: 0.70075
+  type: 'test'
+  ...
+# Subtest: profile qualification does not hide an available threat level and unchecked targets are white
+ok 302 - profile qualification does not hide an available threat level and unchecked targets are white
+  ---
+  duration_ms: 0.1575
+  type: 'test'
+  ...
+# Subtest: 3D detection ring is one closed 2000 m circle with no bearing or range label entities
+ok 303 - 3D detection ring is one closed 2000 m circle with no bearing or range label entities
+  ---
+  duration_ms: 1.044
+  type: 'test'
+  ...
+# Subtest: ring follows ownship and respects the shared chart radar layer
+ok 304 - ring follows ownship and respects the shared chart radar layer
+  ---
+  duration_ms: 0.369875
+  type: 'test'
+  ...
+# Subtest: UTM positions match backend CRS transforms across both supported zones and full ENC grid
+ok 305 - UTM positions match backend CRS transforms across both supported zones and full ENC grid
+  ---
+  duration_ms: 2.013959
+  type: 'test'
+  ...
+# Subtest: unknown CRS, missing origin and cross-session geography fail closed
+ok 306 - unknown CRS, missing origin and cross-session geography fail closed
+  ---
+  duration_ms: 0.084334
+  type: 'test'
+  ...
+# Subtest: AR uses canonical class, generation and unavailable semantics rather than CPA thresholds
+ok 307 - AR uses canonical class, generation and unavailable semantics rather than CPA thresholds
+  ---
+  duration_ms: 0.137708
+  type: 'test'
+  ...
+# Subtest: prediction timestamps come from plan evidence, never invented from display frame rate
+ok 308 - prediction timestamps come from plan evidence, never invented from display frame rate
+  ---
+  duration_ms: 0.474666
+  type: 'test'
+  ...
+# Subtest: offscreen hints use the projected nearest edge, including above and below
+ok 309 - offscreen hints use the projected nearest edge, including above and below
+  ---
+  duration_ms: 0.161583
+  type: 'test'
+  ...
+# Subtest: visual asset choices never infer AIS facts or change authoritative dimensions
+ok 310 - visual asset choices never infer AIS facts or change authoritative dimensions
+  ---
+  duration_ms: 1.126416
+  type: 'test'
+  ...
+# Subtest: successive predictions reach rendered Cesium polyline on each update without waiting for static geometry rebuilds
+ok 311 - successive predictions reach rendered Cesium polyline on each update without waiting for static geometry rebuilds
+  ---
+  duration_ms: 5.124584
+  type: 'test'
+  ...
+# Subtest: missing or invalid replacement predictions remove the previous line and cached points
+ok 312 - missing or invalid replacement predictions remove the previous line and cached points
+  ---
+  duration_ms: 0.549541
+  type: 'test'
+  ...
+# Subtest: AR target and compass share canonical alert colors; data uses current geometry and authoritative CPA
+ok 313 - AR target and compass share canonical alert colors; data uses current geometry and authoritative CPA
+  ---
+  duration_ms: 1.429084
+  type: 'test'
+  ...
+# Subtest: only canonical COLREG relationship chooses the official relation icon
+ok 314 - only canonical COLREG relationship chooses the official relation icon
+  ---
+  duration_ms: 0.283083
+  type: 'test'
+  ...
+# Subtest: absent, stale or wrong-generation assessment keeps range but never invents CPA or encounter
+ok 315 - absent, stale or wrong-generation assessment keeps range but never invents CPA or encounter
+  ---
+  duration_ms: 0.118625
+  type: 'test'
+  ...
+# Subtest: outside the detection range stays white even if an old risk vector remains
+ok 316 - outside the detection range stays white even if an old risk vector remains
+  ---
+  duration_ms: 0.168
+  type: 'test'
+  ...
+# Subtest: P3-S5 obstacle cards carry the CONF row from the associated track existence
+ok 317 - P3-S5 obstacle cards carry the CONF row from the associated track existence
+  ---
+  duration_ms: 0.417292
+  type: 'test'
+  ...
+# Subtest: expansion restores all current aliases without mutating the received frame or old solve
+ok 318 - expansion restores all current aliases without mutating the received frame or old solve
+  ---
+  duration_ms: 0.732
+  type: 'test'
+  ...
+# Subtest: each frame is self-contained across reconnect and session replacement
+ok 319 - each frame is self-contained across reconnect and session replacement
+  ---
+  duration_ms: 0.119417
+  type: 'test'
+  ...
+# Subtest: legacy packets pass through and malformed alias paths cannot write arbitrary properties
+ok 320 - legacy packets pass through and malformed alias paths cannot write arbitrary properties
+  ---
+  duration_ms: 0.212959
+  type: 'test'
+  ...
+# Subtest: C5 \#4: html carries the day palette by default and the hidden brilliance-menu popover (P:2, P:2003)
+ok 321 - C5 \#4: html carries the day palette by default and the hidden brilliance-menu popover (P:2, P:2003)
+  ---
+  duration_ms: 0.687333
+  type: 'test'
+  ...
+# Subtest: C5 \#4: app.js imports the locally-vendored OpenBridge bundle and wires palette state
+ok 322 - C5 \#4: app.js imports the locally-vendored OpenBridge bundle and wires palette state
+  ---
+  duration_ms: 0.094083
+  type: 'test'
+  ...
+# Subtest: C5 \#4: palette persists under the colav-openbridge-palette key and boot restores without persisting
+ok 323 - C5 \#4: palette persists under the colav-openbridge-palette key and boot restores without persisting
+  ---
+  duration_ms: 0.163375
+  type: 'test'
+  ...
+# Subtest: C5 \#4: dimming button toggles the menu; palette-changed applies; no toast adapter (\#9 deleted)
+ok 324 - C5 \#4: dimming button toggles the menu; palette-changed applies; no toast adapter (\#9 deleted)
+  ---
+  duration_ms: 0.252041
+  type: 'test'
+  ...
+# Subtest: C5 \#4: outside-click and Escape close the menu; clicks inside stop propagation (P:3293)
+ok 325 - C5 \#4: outside-click and Escape close the menu; clicks inside stop propagation (P:3293)
+  ---
+  duration_ms: 0.078709
+  type: 'test'
+  ...
+# Subtest: C5 \#4: style.css flips color-scheme and applies prototype image filters to the preview image and Deployment canvas (P:280-285)
+ok 326 - C5 \#4: style.css flips color-scheme and applies prototype image filters to the preview image and Deployment canvas (P:280-285)
+  ---
+  duration_ms: 0.168042
+  type: 'test'
+  ...
+# Subtest: C5 \#4: brilliance popover chrome follows P:278 (fixed, below top bar, right 112px, 304px, z-index 50)
+ok 327 - C5 \#4: brilliance popover chrome follows P:278 (fixed, below top bar, right 112px, 304px, z-index 50)
+  ---
+  duration_ms: 0.06125
+  type: 'test'
+  ...
+# Subtest: C5 \#6: Noto Sans/PingFang stack with --font-display, 14px/1.7 body, display headings, no webfont import (P:86-118)
+ok 328 - C5 \#6: Noto Sans/PingFang stack with --font-display, 14px/1.7 body, display headings, no webfont import (P:86-118)
+  ---
+  duration_ms: 0.254875
+  type: 'test'
+  ...
+# Subtest: C5 \#7: focus-visible and reduced-motion are global, scoped duplicates removed (P:120, P:1558-1560)
+ok 329 - C5 \#7: focus-visible and reduced-motion are global, scoped duplicates removed (P:120, P:1558-1560)
+  ---
+  duration_ms: 1.286542
+  type: 'test'
+  ...
+# Subtest: C5 \#8: 520 tier degrades top bar, turns Assembly Steps into a horizontal snap strip, stacks Deployment sidebars (P:1499-1557)
+ok 330 - C5 \#8: 520 tier degrades top bar, turns Assembly Steps into a horizontal snap strip, stacks Deployment sidebars (P:1499-1557)
+  ---
+  duration_ms: 0.837
+  type: 'test'
+  ...
+# Subtest: C5 \#22: switchWorkface sets the per-view document title and persists the workface (P:2776, P:3398-3402)
+ok 331 - C5 \#22: switchWorkface sets the per-view document title and persists the workface (P:2776, P:3398-3402)
+  ---
+  duration_ms: 0.235667
+  type: 'test'
+  ...
+# Subtest: C5 \#22: boot restores the persisted workface through switchWorkface (single panel authority)
+ok 332 - C5 \#22: boot restores the persisted workface through switchWorkface (single panel authority)
+  ---
+  duration_ms: 0.10275
+  type: 'test'
+  ...
+# Subtest: C5: cache-bust token bumped for every changed browser-served asset
+ok 333 - C5: cache-bust token bumped for every changed browser-served asset
+  ---
+  duration_ms: 0.190917
+  type: 'test'
+  ...
+# Subtest: validRoute accepts only well-formed [north[], east[]] routes
+ok 334 - validRoute accepts only well-formed [north[], east[]] routes
+  ---
+  duration_ms: 3.751542
+  type: 'test'
+  ...
+# Subtest: chooseGridSpacing picks 1/2/5×10^n with ≤20 divisions
+ok 335 - chooseGridSpacing picks 1/2/5×10^n with ≤20 divisions
+  ---
+  duration_ms: 0.579
+  type: 'test'
+  ...
+# Subtest: clampZoomScale bounds viewScale into [0.005, 5.0]
+ok 336 - clampZoomScale bounds viewScale into [0.005, 5.0]
+  ---
+  duration_ms: 0.14725
+  type: 'test'
+  ...
+# Subtest: planner surface routing distinguishes VO, Fan-MPC, and Mid-MPC
+ok 337 - planner surface routing distinguishes VO, Fan-MPC, and Mid-MPC
+  ---
+  duration_ms: 0.255167
+  type: 'test'
+  ...
+# Subtest: Deployment renders FCB and default SOV OpenBridge ship-type icons without sprite cropping
+ok 338 - Deployment renders FCB and default SOV OpenBridge ship-type icons without sprite cropping
+  ---
+  duration_ms: 5.422666
+  type: 'test'
+  ...
+# Subtest: COLAV threat plot derives directional pressure only from approaching stage 2-4 encounters
+ok 339 - COLAV threat plot derives directional pressure only from approaching stage 2-4 encounters
+  ---
+  duration_ms: 0.601042
+  type: 'test'
+  ...
+# Subtest: ownship threat plot uses a transparent 4L outer radius with labels outside and no SOG
+ok 340 - ownship threat plot uses a transparent 4L outer radius with labels outside and no SOG
+  ---
+  duration_ms: 0.7575
+  type: 'test'
+  ...
+# Subtest: mission route corridor offsets port and starboard boundaries by 4L
+ok 341 - mission route corridor offsets port and starboard boundaries by 4L
+  ---
+  duration_ms: 0.204584
+  type: 'test'
+  ...
+# Subtest: ownship future motion uses a black double-chevron arrow
+ok 342 - ownship future motion uses a black double-chevron arrow
+  ---
+  duration_ms: 0.312792
+  type: 'test'
+  ...
+# Subtest: ownship click selects ownship for the shared placard and never toggles the legacy threat plot
+ok 343 - ownship click selects ownship for the shared placard and never toggles the legacy threat plot
+  ---
+  duration_ms: 1.849167
+  type: 'test'
+  ...
+# Subtest: interpolateTelemetry interpolates positions and wraps angles per vessel id
+ok 344 - interpolateTelemetry interpolates positions and wraps angles per vessel id
+  ---
+  duration_ms: 0.221083
+  type: 'test'
+  ...
+# Subtest: telemetryRenderDurationMs clamps to [100, 1000] ms scaled by playback multiplier
+ok 345 - telemetryRenderDurationMs clamps to [100, 1000] ms scaled by playback multiplier
+  ---
+  duration_ms: 0.098541
+  type: 'test'
+  ...
+# Subtest: updateFrozenRoute freezes first valid route per run and re-freezes per new run
+ok 346 - updateFrozenRoute freezes first valid route per run and re-freezes per new run
+  ---
+  duration_ms: 0.131375
+  type: 'test'
+  ...
+# Subtest: Historical AIS reference route uses normal waypoint labels
+ok 347 - Historical AIS reference route uses normal waypoint labels
+  ---
+  duration_ms: 0.051625
+  type: 'test'
+  ...
+# Subtest: utmToCanvas / canvasToUtm round-trip through the ENC origin mapping
+ok 348 - utmToCanvas / canvasToUtm round-trip through the ENC origin mapping
+  ---
+  duration_ms: 0.324084
+  type: 'test'
+  ...
+# Subtest: fitView sizes the ENC tile to the wrapper without user adjustment, and resize refits until the user pans/zooms
+ok 349 - fitView sizes the ENC tile to the wrapper without user adjustment, and resize refits until the user pans/zooms
+  ---
+  duration_ms: 0.171167
+  type: 'test'
+  ...
+# Subtest: recenterOwnship places ownship at the viewport centre for every scenario
+ok 350 - recenterOwnship places ownship at the viewport centre for every scenario
+  ---
+  duration_ms: 0.65625
+  type: 'test'
+  ...
+# Subtest: render draws the documented LAYER_ORDER sequence and layer toggles filter it
+ok 351 - render draws the documented LAYER_ORDER sequence and layer toggles filter it
+  ---
+  duration_ms: 2.274125
+  type: 'test'
+  ...
+# Subtest: hit-testing resolves the topmost (last drawn) target and reports selection changes
+ok 352 - hit-testing resolves the topmost (last drawn) target and reports selection changes
+  ---
+  duration_ms: 0.670458
+  type: 'test'
+  ...
+# Subtest: OpenBridge target markers receive rotated screen anchors and selection context
+ok 353 - OpenBridge target markers receive rotated screen anchors and selection context
+  ---
+  duration_ms: 3.418917
+  type: 'test'
+  ...
+# Subtest: registered click mode intercepts clicks with UTM coords and is mutually exclusive with selection
+ok 354 - registered click mode intercepts clicks with UTM coords and is mutually exclusive with selection
+  ---
+  duration_ms: 2.187291
+  type: 'test'
+  ...
+# Subtest: ENC generation guards: a new session generation cancels in-flight loads and refits the view
+ok 355 - ENC generation guards: a new session generation cancels in-flight loads and refits the view
+  ---
+  duration_ms: 0.5545
+  type: 'test'
+  ...
+# Subtest: zero-sized wrapper (hidden workface) never degenerates the grid into infinite loop bounds (S6 E2E hang)
+ok 356 - zero-sized wrapper (hidden workface) never degenerates the grid into infinite loop bounds (S6 E2E hang)
+  ---
+  duration_ms: 0.406666
+  type: 'test'
+  ...
+# Subtest: ownship follow view on a zero-sized wrapper never degenerates viewScale (P3-5)
+ok 357 - ownship follow view on a zero-sized wrapper never degenerates viewScale (P3-5)
+  ---
+  duration_ms: 2.705708
+  type: 'test'
+  ...
+# Subtest: destroy removes canvas listeners and is idempotent
+ok 358 - destroy removes canvas listeners and is idempotent
+  ---
+  duration_ms: 0.169292
+  type: 'test'
+  ...
+# Subtest: targetsForDisplay prefers tracker states unless executed_tracker is god
+ok 359 - targetsForDisplay prefers tracker states unless executed_tracker is god
+  ---
+  duration_ms: 0.1445
+  type: 'test'
+  ...
+# Subtest: app.js never references the module-closure animation pipeline vars (P0 regression)
+ok 360 - app.js never references the module-closure animation pipeline vars (P0 regression)
+  ---
+  duration_ms: 7.705666
+  type: 'test'
+  ...
+# Subtest: Config preview adapter is transparent, sprite-less, and side-effect free (P2 fix-round)
+ok 361 - Config preview adapter is transparent, sprite-less, and side-effect free (P2 fix-round)
+  ---
+  duration_ms: 2.541292
+  type: 'test'
+  ...
+# Subtest: LAYER_ORDER sequence claims a slot only when something drew (fix-round tightening)
+ok 362 - LAYER_ORDER sequence claims a slot only when something drew (fix-round tightening)
+  ---
+  duration_ms: 0.804083
+  type: 'test'
+  ...
+# Subtest: Historical AIS follows Ownship at 6NM span and draws comparison-only Shadow
+ok 363 - Historical AIS follows Ownship at 6NM span and draws comparison-only Shadow
+  ---
+  duration_ms: 1.6575
+  type: 'test'
+  ...
+# Subtest: buffered ownship keeps rendering between frames with the same source sequence
+ok 364 - buffered ownship keeps rendering between frames with the same source sequence
+  ---
+  duration_ms: 0.777792
+  type: 'test'
+  ...
+# Subtest: attached VO circle follows buffered ownship at 1x without pointer events
+ok 365 - attached VO circle follows buffered ownship at 1x without pointer events
+  ---
+  duration_ms: 0.830792
+  type: 'test'
+  ...
+# Subtest: attached VO circle follows buffered ownship at 5x without pointer events
+ok 366 - attached VO circle follows buffered ownship at 5x without pointer events
+  ---
+  duration_ms: 0.308917
+  type: 'test'
+  ...
+# Subtest: Deployment final samples bypass secondary interpolation and preserve hidden chart framing
+ok 367 - Deployment final samples bypass secondary interpolation and preserve hidden chart framing
+  ---
+  duration_ms: 0.241042
+  type: 'test'
+  ...
+# Subtest: 3D reads the chart-owned immutable mission route, including after changed telemetry waypoints
+ok 368 - 3D reads the chart-owned immutable mission route, including after changed telemetry waypoints
+  ---
+  duration_ms: 0.152333
+  type: 'test'
+  ...
+# Subtest: P3-S5 track confidence bands and colors follow the frozen legend thresholds
+ok 369 - P3-S5 track confidence bands and colors follow the frozen legend thresholds
+  ---
+  duration_ms: 0.085583
+  type: 'test'
+  ...
+# Subtest: P3-S5 drawTracks colors points by the per-track existence probability
+ok 370 - P3-S5 drawTracks colors points by the per-track existence probability
+  ---
+  duration_ms: 0.659166
+  type: 'test'
+  ...
+# Subtest: three-second real-frame reserve spans an optimizer stall without inventing motion
+ok 371 - three-second real-frame reserve spans an optimizer stall without inventing motion
+  ---
+  duration_ms: 10.301208
+  type: 'test'
+  ...
+# Subtest: pause and session replacement flush delayed frames immediately
+ok 372 - pause and session replacement flush delayed frames immediately
+  ---
+  duration_ms: 0.256625
+  type: 'test'
+  ...
+# Subtest: terminal status drains real frames, then never replays them
+ok 373 - terminal status drains real frames, then never replays them
+  ---
+  duration_ms: 0.398542
+  type: 'test'
+  ...
+# Subtest: an outage longer than the reserve holds the last real position and exposes buffering
+ok 374 - an outage longer than the reserve holds the last real position and exposes buffering
+  ---
+  duration_ms: 0.116958
+  type: 'test'
+  ...
+# Subtest: HOLD frame keeps current separate while display selects the latest real SOLVE
+ok 375 - HOLD frame keeps current separate while display selects the latest real SOLVE
+  ---
+  duration_ms: 1.753959
+  type: 'test'
+  ...
+# Subtest: nominal guidance frames report SOLVE phase without a solver execution
+ok 376 - nominal guidance frames report SOLVE phase without a solver execution
+  ---
+  duration_ms: 0.334917
+  type: 'test'
+  ...
+# Subtest: risk targets follow canonical schedule display order without metric ranking
+ok 377 - risk targets follow canonical schedule display order without metric ranking
+  ---
+  duration_ms: 2.754541
+  type: 'test'
+  ...
+# Subtest: equal schedule contexts use backend priority keys before stable target identity
+ok 378 - equal schedule contexts use backend priority keys before stable target identity
+  ---
+  duration_ms: 0.18875
+  type: 'test'
+  ...
+# Subtest: risk DCPA and TCPA never fall back to legacy root mirrors
+ok 379 - risk DCPA and TCPA never fall back to legacy root mirrors
+  ---
+  duration_ms: 0.137458
+  type: 'test'
+  ...
+# Subtest: missing canonical facts yields unavailable, not an inferred clear state
+ok 380 - missing canonical facts yields unavailable, not an inferred clear state
+  ---
+  duration_ms: 0.11875
+  type: 'test'
+  ...
+# Subtest: static-once telemetry retains ENC navigation data without reinflating runtime envelopes
+ok 381 - static-once telemetry retains ENC navigation data without reinflating runtime envelopes
+  ---
+  duration_ms: 0.320417
+  type: 'test'
+  ...
+# Subtest: absent or empty planner sections degrade to null fields without throwing
+ok 382 - absent or empty planner sections degrade to null fields without throwing
+  ---
+  duration_ms: 0.12375
+  type: 'test'
+  ...
+# Subtest: stub envelope without own ship projects a null navigation section and raw facts only
+ok 383 - stub envelope without own ship projects a null navigation section and raw facts only
+  ---
+  duration_ms: 0.276875
+  type: 'test'
+  ...
+# Subtest: navigation projects raw own ship facts and playback status
+ok 384 - navigation projects raw own ship facts and playback status
+  ---
+  duration_ms: 0.297083
+  type: 'test'
+  ...
+# Subtest: sensor projection preserves tracker generation with the displayed estimate
+ok 385 - sensor projection preserves tracker generation with the displayed estimate
+  ---
+  duration_ms: 0.17425
+  type: 'test'
+  ...
+# Subtest: duplicate envelope keys return the cached snapshot without notifying subscribers
+ok 386 - duplicate envelope keys return the cached snapshot without notifying subscribers
+  ---
+  duration_ms: 0.122209
+  type: 'test'
+  ...
+# Subtest: playback multiplier changes re-project even at an unchanged sequence
+ok 387 - playback multiplier changes re-project even at an unchanged sequence
+  ---
+  duration_ms: 0.069834
+  type: 'test'
+  ...
+# Subtest: events re-delivered across consecutive envelopes yield a single timeline entry
+ok 388 - events re-delivered across consecutive envelopes yield a single timeline entry
+  ---
+  duration_ms: 0.12075
+  type: 'test'
+  ...
+# Subtest: planner_solved timeline entries store trimmed solve facts without the planner payload
+ok 389 - planner_solved timeline entries store trimmed solve facts without the planner payload
+  ---
+  duration_ms: 0.100542
+  type: 'test'
+  ...
+# Subtest: projection does not synthesize COLREG or DCPA events from legacy fields
+ok 390 - projection does not synthesize COLREG or DCPA events from legacy fields
+  ---
+  duration_ms: 0.04225
+  type: 'test'
+  ...
+# Subtest: backend envelope events remain deduplicated across repeated snapshots
+ok 391 - backend envelope events remain deduplicated across repeated snapshots
+  ---
+  duration_ms: 0.067917
+  type: 'test'
+  ...
+# Subtest: backend operational history replaces per-step raw events and survives repeated delivery
+ok 392 - backend operational history replaces per-step raw events and survives repeated delivery
+  ---
+  duration_ms: 0.087666
+  type: 'test'
+  ...
+# Subtest: a new operational event re-projects even when frame sequence and state are unchanged
+ok 393 - a new operational event re-projects even when frame sequence and state are unchanged
+  ---
+  duration_ms: 0.112458
+  type: 'test'
+  ...
+# Subtest: a new session id clears history and dedup keys before projecting
+ok 394 - a new session id clears history and dedup keys before projecting
+  ---
+  duration_ms: 0.075833
+  type: 'test'
+  ...
+# Subtest: safety sections derive from live events and prefer the result document
+ok 395 - safety sections derive from live events and prefer the result document
+  ---
+  duration_ms: 0.10575
+  type: 'test'
+  ...
+# Subtest: terminal snapshots keep reproduction, gate, and execution outcome as distinct fields
+ok 396 - terminal snapshots keep reproduction, gate, and execution outcome as distinct fields
+  ---
+  duration_ms: 0.066084
+  type: 'test'
+  ...
+# Subtest: a throwing listener cannot break other subscribers or projection state
+ok 397 - a throwing listener cannot break other subscribers or projection state
+  ---
+  duration_ms: 0.068375
+  type: 'test'
+  ...
+# Subtest: null envelopes keep the previous projection and reset clears everything
+ok 398 - null envelopes keep the previous projection and reset clears everything
+  ---
+  duration_ms: 0.082667
+  type: 'test'
+  ...
+# Subtest: a FINISHED rebuild at the same sequence with a final reproduction status re-projects
+ok 399 - a FINISHED rebuild at the same sequence with a final reproduction status re-projects
+  ---
+  duration_ms: 0.053625
+  type: 'test'
+  ...
+# Subtest: outcome-only updates re-project at an unchanged envelope key
+ok 400 - outcome-only updates re-project at an unchanged envelope key
+  ---
+  duration_ms: 0.064583
+  type: 'test'
+  ...
+# Subtest: genuinely identical repeats stay suppressed after terminal content tracking
+ok 401 - genuinely identical repeats stay suppressed after terminal content tracking
+  ---
+  duration_ms: 0.107208
+  type: 'test'
+  ...
+# Subtest: planner algorithmId uses only the canonical algorithm_id and never falls back to executed or requested
+ok 402 - planner algorithmId uses only the canonical algorithm_id and never falls back to executed or requested
+  ---
+  duration_ms: 0.056417
+  type: 'test'
+  ...
+# Subtest: solve period falls back per algorithm family using exported constants
+ok 403 - solve period falls back per algorithm family using exported constants
+  ---
+  duration_ms: 0.067
+  type: 'test'
+  ...
+# Subtest: ship0 safety never borrows another vessel result entry
+ok 404 - ship0 safety never borrows another vessel result entry
+  ---
+  duration_ms: 0.049917
+  type: 'test'
+  ...
+# Subtest: a FAILED run with artifacts but no result document stays honest about live values
+ok 405 - a FAILED run with artifacts but no result document stays honest about live values
+  ---
+  duration_ms: 0.068708
+  type: 'test'
+  ...
+# Subtest: timeline history is capped at the dedup budget with the oldest events dropped first
+ok 406 - timeline history is capped at the dedup budget with the oldest events dropped first
+  ---
+  duration_ms: 10.385333
+  type: 'test'
+  ...
+# Subtest: first projection without any envelope emits the empty snapshot once
+ok 407 - first projection without any envelope emits the empty snapshot once
+  ---
+  duration_ms: 0.085125
+  type: 'test'
+  ...
+# Subtest: scheduled target retains backend action time without becoming current primary
+ok 408 - scheduled target retains backend action time without becoming current primary
+  ---
+  duration_ms: 0.181792
+  type: 'test'
+  ...
+# Subtest: canonical threat projection preserves backend vectors, schedule, conflicts, and reasons
+ok 409 - canonical threat projection preserves backend vectors, schedule, conflicts, and reasons
+  ---
+  duration_ms: 3.545375
+  type: 'test'
+  ...
+# Subtest: mobile deployment stacks map, monitor, and information without hidden clipping
+ok 410 - mobile deployment stacks map, monitor, and information without hidden clipping
+  ---
+  duration_ms: 4.767542
+  type: 'test'
+  ...
+# Subtest: legacy envelope without canonical threat facts stays explicitly unavailable
+ok 411 - legacy envelope without canonical threat facts stays explicitly unavailable
+  ---
+  duration_ms: 0.154916
+  type: 'test'
+  ...
+# Subtest: canvas threat style reads explicit backend display class and never uses distance fallbacks
+ok 412 - canvas threat style reads explicit backend display class and never uses distance fallbacks
+  ---
+  duration_ms: 2.080583
+  type: 'test'
+  ...
+# Subtest: projectTwinStreamHealth hides the card while the video is connected
+ok 413 - projectTwinStreamHealth hides the card while the video is connected
+  ---
+  duration_ms: 0.409792
+  type: 'test'
+  ...
+# Subtest: projectTwinStreamHealth layers the signaling-down hint (signaling service)
+ok 414 - projectTwinStreamHealth layers the signaling-down hint (signaling service)
+  ---
+  duration_ms: 0.1375
+  type: 'test'
+  ...
+# Subtest: projectTwinStreamHealth waits without a retry count before the first watchdog retry
+ok 415 - projectTwinStreamHealth waits without a retry count before the first watchdog retry
+  ---
+  duration_ms: 0.056167
+  type: 'test'
+  ...
+# Subtest: projectTwinStreamHealth shows the retry counter while re-connecting (spec copy)
+ok 416 - projectTwinStreamHealth shows the retry counter while re-connecting (spec copy)
+  ---
+  duration_ms: 0.047333
+  type: 'test'
+  ...
+# Subtest: projectTwinStreamHealth keeps the player hint while signaling reachability is still unknown
+ok 417 - projectTwinStreamHealth keeps the player hint while signaling reachability is still unknown
+  ---
+  duration_ms: 0.096667
+  type: 'test'
+  ...
+# Subtest: signalingHttpUrl converts ws:// to http:// for the /config probe
+ok 418 - signalingHttpUrl converts ws:// to http:// for the /config probe
+  ---
+  duration_ms: 0.046042
+  type: 'test'
+  ...
+# Subtest: probeSignalingReachable maps ok/not-ok/network-error to true/false, never rejects
+ok 419 - probeSignalingReachable maps ok/not-ok/network-error to true/false, never rejects
+  ---
+  duration_ms: 0.229875
+  type: 'test'
+  ...
+# Subtest: monitor: healthy video emits a hidden card and resets the retry counter
+ok 420 - monitor: healthy video emits a hidden card and resets the retry counter
+  ---
+  duration_ms: 0.385167
+  type: 'test'
+  ...
+# Subtest: monitor: counts retries only after the retry timeout while signaling is reachable
+ok 421 - monitor: counts retries only after the retry timeout while signaling is reachable
+  ---
+  duration_ms: 0.321833
+  type: 'test'
+  ...
+# Subtest: monitor: signaling down layers the signaling hint and suppresses retries
+ok 422 - monitor: signaling down layers the signaling hint and suppresses retries
+  ---
+  duration_ms: 4.670084
+  type: 'test'
+  ...
+# Subtest: both twin viewports wire the health card markup and the watchdog
+ok 423 - both twin viewports wire the health card markup and the watchdog
+  ---
+  duration_ms: 0.323208
+  type: 'test'
+  ...
+# Subtest: Evaluation left column exposes Digital Twin as view 02 with Results/Evidence/HAIS renumbered and disabled
+ok 424 - Evaluation left column exposes Digital Twin as view 02 with Results/Evidence/HAIS renumbered and disabled
+  ---
+  duration_ms: 1.004875
+  type: 'test'
+  ...
+# Subtest: twin-view.js import specifier is unified across shell, deployment-twin and this file (one ES module instance)
+ok 425 - twin-view.js import specifier is unified across shell, deployment-twin and this file (one ES module instance)
+  ---
+  duration_ms: 3.118583
+  type: 'test'
+  ...
+# Subtest: Digital Twin view section mirrors the replay viewer skeleton
+ok 426 - Digital Twin view section mirrors the replay viewer skeleton
+  ---
+  duration_ms: 0.878292
+  type: 'test'
+  ...
+# Subtest: twin-view module is registered in the shell with the evaluation view registry including twin
+ok 427 - twin-view module is registered in the shell with the evaluation view registry including twin
+  ---
+  duration_ms: 0.919542
+  type: 'test'
+  ...
+# Subtest: twin styles: viewport height + pixel-stream video + HUD chip
+ok 428 - twin styles: viewport height + pixel-stream video + HUD chip
+  ---
+  duration_ms: 0.638875
+  type: 'test'
+  ...
+# Subtest: URS receiver modules are vendored locally (no CDN, one documented signaling patch)
+ok 429 - URS receiver modules are vendored locally (no CDN, one documented signaling patch)
+  ---
+  duration_ms: 1.925584
+  type: 'test'
+  ...
+# Subtest: bridge client builds hello/attach exactly as the frozen contract samples
+ok 430 - bridge client builds hello/attach exactly as the frozen contract samples
+  ---
+  duration_ms: 0.220875
+  type: 'test'
+  ...
+# Subtest: bridge client control messages: camera/theme/detection/detach match contract vocabulary
+ok 431 - bridge client control messages: camera/theme/detection/detach match contract vocabulary
+  ---
+  duration_ms: 0.086125
+  type: 'test'
+  ...
+# Subtest: sensor_mode message matches the frozen contract §8 literal (只加 type 演进)
+ok 432 - sensor_mode message matches the frozen contract §8 literal (只加 type 演进)
+  ---
+  duration_ms: 0.526625
+  type: 'test'
+  ...
+# Subtest: bridge client clock: ~10Hz throttle while PLAYING, transitions always sent, force bypasses
+ok 433 - bridge client clock: ~10Hz throttle while PLAYING, transitions always sent, force bypasses
+  ---
+  duration_ms: 0.356584
+  type: 'test'
+  ...
+# Subtest: clock driver maps a ReplayClock onto the bridge at the contract cadence
+ok 434 - clock driver maps a ReplayClock onto the bridge at the contract cadence
+  ---
+  duration_ms: 0.246375
+  type: 'test'
+  ...
+# Subtest: bridge client parses ready/attached/state and records HUD samples
+ok 435 - bridge client parses ready/attached/state and records HUD samples
+  ---
+  duration_ms: 0.141167
+  type: 'test'
+  ...
+# Subtest: state frames without sensor_mode (old Unity build) still parse — only-additive evolution
+ok 436 - state frames without sensor_mode (old Unity build) still parse — only-additive evolution
+  ---
+  duration_ms: 0.092958
+  type: 'test'
+  ...
+# Subtest: projectTwinHud: idle → attached-awaiting → live ok → degraded → down
+ok 437 - projectTwinHud: idle → attached-awaiting → live ok → degraded → down
+  ---
+  duration_ms: 0.140708
+  type: 'test'
+  ...
+# Subtest: twinReplayRange mirrors Replay readiness semantics
+ok 438 - twinReplayRange mirrors Replay readiness semantics
+  ---
+  duration_ms: 0.069708
+  type: 'test'
+  ...
+# Subtest: themeValue maps the OpenBridge theme attribute onto the contract vocabulary
+ok 439 - themeValue maps the OpenBridge theme attribute onto the contract vocabulary
+  ---
+  duration_ms: 0.032333
+  type: 'test'
+  ...
+# Subtest: camera_free message matches the frozen contract §8 literal (只加字段演进)
+ok 440 - camera_free message matches the frozen contract §8 literal (只加字段演进)
+  ---
+  duration_ms: 0.061291
+  type: 'test'
+  ...
+# Subtest: camera_free send on a closed channel is a no-op like every other message
+ok 441 - camera_free send on a closed channel is a no-op like every other message
+  ---
+  duration_ms: 0.045
+  type: 'test'
+  ...
+# Subtest: cameraFreePose folds the Cesium camera into the contract payload (pure)
+ok 442 - cameraFreePose folds the Cesium camera into the contract payload (pure)
+  ---
+  duration_ms: 0.098292
+  type: 'test'
+  ...
+# Subtest: cameraFreePose wraps yaw and keeps the fov vertical on tall panes
+ok 443 - cameraFreePose wraps yaw and keeps the fov vertical on tall panes
+  ---
+  duration_ms: 0.04575
+  type: 'test'
+  ...
+# Subtest: createTwinStreamClient extraction keeps the official receiver flow (source contract)
+ok 444 - createTwinStreamClient extraction keeps the official receiver flow (source contract)
+  ---
+  duration_ms: 0.059
+  type: 'test'
+  ...
+# Subtest: debug.channelOpen reads the raw RTCDataChannel readyState (was always false via the client-only isOpen facade)
+ok 445 - debug.channelOpen reads the raw RTCDataChannel readyState (was always false via the client-only isOpen facade)
+  ---
+  duration_ms: 0.046083
+  type: 'test'
+  ...
+# Subtest: twin runs table paginates with the same footer controls and page sizes as replay (P3: target run on page 2 reachable)
+ok 446 - twin runs table paginates with the same footer controls and page sizes as replay (P3: target run on page 2 reachable)
+  ---
+  duration_ms: 0.234375
+  type: 'test'
+  ...
+# Subtest: sensorModeItems projects the frozen vocabulary; S3 un-pends lidar (pure)
+ok 447 - sensorModeItems projects the frozen vocabulary; S3 un-pends lidar (pure)
+  ---
+  duration_ms: 0.235959
+  type: 'test'
+  ...
+# Subtest: Evaluation twin footer wires the sensor-mode group, chip and echo path
+ok 448 - Evaluation twin footer wires the sensor-mode group, chip and echo path
+  ---
+  duration_ms: 0.328208
+  type: 'test'
+  ...
+# Subtest: product policy owns selector order and defaults without leaking tuple evidence into Run Specification
+ok 449 - product policy owns selector order and defaults without leaking tuple evidence into Run Specification
+  ---
+  duration_ms: 2.205583
+  type: 'test'
+  ...
+# Subtest: backend-qualified scenario profile is frozen into the Mid-MPC Run Specification
+ok 450 - backend-qualified scenario profile is frozen into the Mid-MPC Run Specification
+  ---
+  duration_ms: 1.135584
+  type: 'test'
+  ...
+# Subtest: Mid-MPC stays blocked when the backend catalog supplies no qualified domain profile
+ok 451 - Mid-MPC stays blocked when the backend catalog supplies no qualified domain profile
+  ---
+  duration_ms: 0.358375
+  type: 'test'
+  ...
+# Subtest: domain-profile block follows policy metadata when assigned to a different algorithm
+ok 452 - domain-profile block follows policy metadata when assigned to a different algorithm
+  ---
+  duration_ms: 0.599334
+  type: 'test'
+  ...
+# Subtest: catalog-qualified Historical AIS domain profile admits Mid-MPC as experimental
+ok 453 - catalog-qualified Historical AIS domain profile admits Mid-MPC as experimental
+  ---
+  duration_ms: 0.38225
+  type: 'test'
+  ...
+# Subtest: missing or malformed product policy is typed unavailable and cannot Create
+ok 454 - missing or malformed product policy is typed unavailable and cannot Create
+  ---
+  duration_ms: 1.020458
+  type: 'test'
+  ...
+# Subtest: bootstrap without an active session uses complete catalog defaults
+ok 455 - bootstrap without an active session uses complete catalog defaults
+  ---
+  duration_ms: 0.340791
+  type: 'test'
+  ...
+# Subtest: active Run Specification becomes the draft and Default clears all overrides
+ok 456 - active Run Specification becomes the draft and Default clears all overrides
+  ---
+  duration_ms: 0.689166
+  type: 'test'
+  ...
+# Subtest: backend GNC stack identity stays authoritative and changing to Legacy requires Create
+ok 457 - backend GNC stack identity stays authoritative and changing to Legacy requires Create
+  ---
+  duration_ms: 0.551125
+  type: 'test'
+  ...
+# Subtest: rule selection repairs only its dependent scenario and keeps algorithm plus tracker
+ok 458 - rule selection repairs only its dependent scenario and keeps algorithm plus tracker
+  ---
+  duration_ms: 0.670666
+  type: 'test'
+  ...
+# Subtest: tuple options never repair a sibling algorithm or tracker behind the user
+ok 459 - tuple options never repair a sibling algorithm or tracker behind the user
+  ---
+  duration_ms: 0.32375
+  type: 'test'
+  ...
+# Subtest: scenario changes clear scenario-specific contracts and clock overrides
+ok 460 - scenario changes clear scenario-specific contracts and clock overrides
+  ---
+  duration_ms: 0.948208
+  type: 'test'
+  ...
+# Subtest: classification controls confirmation, active matching, and RUNNING replacement block
+ok 461 - classification controls confirmation, active matching, and RUNNING replacement block
+  ---
+  duration_ms: 1.315333
+  type: 'test'
+  ...
+# Subtest: create freezes one immutable snapshot and ignores stale completion tokens
+ok 462 - create freezes one immutable snapshot and ignores stale completion tokens
+  ---
+  duration_ms: 0.976667
+  type: 'test'
+  ...
+# Subtest: strict no-fallback is immutable through the public draft interface
+ok 463 - strict no-fallback is immutable through the public draft interface
+  ---
+  duration_ms: 0.154625
+  type: 'test'
+  ...
+# Subtest: public edit accepts only tuple fields and five user-editable parameters
+ok 464 - public edit accepts only tuple fields and five user-editable parameters
+  ---
+  duration_ms: 0.347708
+  type: 'test'
+  ...
+# Subtest: catalog failure leaves Active Spec read-only and replacement repairs stale tuple without retrying
+ok 465 - catalog failure leaves Active Spec read-only and replacement repairs stale tuple without retrying
+  ---
+  duration_ms: 0.49775
+  type: 'test'
+  ...
+# Subtest: snapshot exposes catalog-backed disabled options and scenario-default clock sources
+ok 466 - snapshot exposes catalog-backed disabled options and scenario-default clock sources
+  ---
+  duration_ms: 0.236083
+  type: 'test'
+  ...
+# Subtest: solve period is an optional finite positive editable Run Specification field
+ok 467 - solve period is an optional finite positive editable Run Specification field
+  ---
+  duration_ms: 0.342125
+  type: 'test'
+  ...
+# Subtest: invalid editable params remain visible but cannot produce a create snapshot
+ok 468 - invalid editable params remain visible but cannot produce a create snapshot
+  ---
+  duration_ms: 0.454916
+  type: 'test'
+  ...
+# Subtest: catalog reload failure discards stale catalog truth and keeps the draft read-only
+ok 469 - catalog reload failure discards stale catalog truth and keeps the draft read-only
+  ---
+  duration_ms: 0.155292
+  type: 'test'
+  ...
+# Subtest: unknown current-session authority blocks editing and Create until explicitly refreshed
+ok 470 - unknown current-session authority blocks editing and Create until explicitly refreshed
+  ---
+  duration_ms: 0.451208
+  type: 'test'
+  ...
+# Subtest: loading authority exposes a safe empty read-only snapshot
+ok 471 - loading authority exposes a safe empty read-only snapshot
+  ---
+  duration_ms: 0.055125
+  type: 'test'
+  ...
+# Subtest: authority refresh loading locks a dirty draft until known authority returns
+ok 472 - authority refresh loading locks a dirty draft until known authority returns
+  ---
+  duration_ms: 0.922667
+  type: 'test'
+  ...
+# Subtest: a runtime command in flight locks all Validation Assembly mutations
+ok 473 - a runtime command in flight locks all Validation Assembly mutations
+  ---
+  duration_ms: 0.611042
+  type: 'test'
+  ...
+# Subtest: full Active Session sync replaces a clean draft but preserves and marks a dirty draft
+ok 474 - full Active Session sync replaces a clean draft but preserves and marks a dirty draft
+  ---
+  duration_ms: 0.749375
+  type: 'test'
+  ...
+# Subtest: selectable combinations are final eligibility and metadata readiness is a safety intersection
+ok 475 - selectable combinations are final eligibility and metadata readiness is a safety intersection
+  ---
+  duration_ms: 0.363666
+  type: 'test'
+  ...
+# Subtest: OpenBridge vessel marker and POI card components are vendored
+ok 476 - OpenBridge vessel marker and POI card components are vendored
+  ---
+  duration_ms: 0.898666
+  type: 'test'
+  ...
+# Subtest: Deployment provides target marker and anchored placard layers
+ok 477 - Deployment provides target marker and anchored placard layers
+  ---
+  duration_ms: 0.211291
+  type: 'test'
+  ...
+# Subtest: Situation Display emits screen-space marker anchors without owning DOM cards
+ok 478 - Situation Display emits screen-space marker anchors without owning DOM cards
+  ---
+  duration_ms: 0.145708
+  type: 'test'
+  ...
+# Subtest: Deployment adapter renders marker components and canonical target metrics
+ok 479 - Deployment adapter renders marker components and canonical target metrics
+  ---
+  duration_ms: 0.12975
+  type: 'test'
+  ...
+# Subtest: target marker centers the OpenBridge component exactly on the world anchor
+ok 480 - target marker centers the OpenBridge component exactly on the world anchor
+  ---
+  duration_ms: 0.106417
+  type: 'test'
+  ...
+# Subtest: Risk rings are light-DOM one-pixel translucent circles, not native five-pixel alert rings
+ok 481 - Risk rings are light-DOM one-pixel translucent circles, not native five-pixel alert rings
+  ---
+  duration_ms: 0.174625
+  type: 'test'
+  ...
+# Subtest: target name is one centered label below the complete risk ring
+ok 482 - target name is one centered label below the complete risk ring
+  ---
+  duration_ms: 0.247291
+  type: 'test'
+  ...
+# Subtest: risk rings use the canonical Collision Safety color with readable opacity
+ok 483 - risk rings use the canonical Collision Safety color with readable opacity
+  ---
+  duration_ms: 0.387
+  type: 'test'
+  ...
+# Subtest: ownship sprite does not add a second black contour around the icon
+ok 484 - ownship sprite does not add a second black contour around the icon
+  ---
+  duration_ms: 0.294459
+  type: 'test'
+  ...
+# Subtest: marker and placard follow interpolated anchors through compositor transforms only
+ok 485 - marker and placard follow interpolated anchors through compositor transforms only
+  ---
+  duration_ms: 0.457458
+  type: 'test'
+  ...
+# Subtest: placard compass symbol is geometrically centered under the N label
+ok 486 - placard compass symbol is geometrically centered under the N label
+  ---
+  duration_ms: 0.144583
+  type: 'test'
+  ...
+# Subtest: P3-S5 2D placard carries the CONF existence row wired to the associated track
+ok 487 - P3-S5 2D placard carries the CONF existence row wired to the associated track
+  ---
+  duration_ms: 0.054709
+  type: 'test'
+  ...
+# Subtest: shared VO disc uses the solver candidate states and rejects incomplete grids
+ok 488 - shared VO disc uses the solver candidate states and rejects incomplete grids
+  ---
+  duration_ms: 0.608459
+  type: 'test'
+  ...
+# Subtest: 3D VO surface has vessel-scaled metres, independent of camera zoom
+ok 489 - 3D VO surface has vessel-scaled metres, independent of camera zoom
+  ---
+  duration_ms: 0.087792
+  type: 'test'
+  ...
+1..489
+# tests 489
+# suites 0
+# pass 489
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 8167.825166

@@ -286,11 +286,21 @@ export function projectReplayFrame({ descriptor, context, windowDoc, playhead })
   const time = Number(playhead);
   if (!windowDoc || !descriptor) return { ok: false, reason: 'NO_RECORDED_FRAME', playhead };
 
-  const frames = orderedFrames(windowDoc);
+  const checkpoints = windowDoc.radar_checkpoints ?? {};
+  const recordedFrame = frame => {
+    if (!frame?.payload?.Ship0?.radar_scans) return frame;
+    const scans = frame.payload.Ship0.radar_scans.map(scan => {
+      const video = scan.shadow_video;
+      const key = video?.checkpoint?.$radar_checkpoint;
+      return key ? { ...scan, shadow_video: { ...video, checkpoint: checkpoints[key] ?? null } } : scan;
+    });
+    return { ...frame, payload: { ...frame.payload, Ship0: { ...frame.payload.Ship0, radar_scans: scans } } };
+  };
+  const frames = orderedFrames(windowDoc).map(recordedFrame);
   const bracket = [];
-  if (windowDoc.before && Number.isFinite(Number(windowDoc.before.sim_time))) bracket.push(windowDoc.before);
+  if (windowDoc.before && Number.isFinite(Number(windowDoc.before.sim_time))) bracket.push(recordedFrame(windowDoc.before));
   bracket.push(...frames);
-  const afterFrame = windowDoc.after && Number.isFinite(Number(windowDoc.after.sim_time)) ? windowDoc.after : null;
+  const afterFrame = windowDoc.after && Number.isFinite(Number(windowDoc.after.sim_time)) ? recordedFrame(windowDoc.after) : null;
 
   if (!bracket.length) return { ok: false, reason: 'NO_RECORDED_FRAME', playhead };
 
@@ -427,6 +437,12 @@ function buildEnvelope({ descriptor, context, sourceFrame, upperFrame, alpha, in
     state: sourceFrame.state ?? null,
     truth: ships,
     measurements: ships.map(ship => ship.measurements),
+    radar_scans: ownRaw.radar_scans ?? [],
+    ais_reports: ownRaw.ais_reports ?? [],
+    radar_ppi: ownRaw.radar_scans?.[0]?.descriptor ?? null,
+    radar_video_history: priorFrames.filter(frame => Number(frame.sim_time) <= Number(sourceFrame.sim_time))
+      .map(frame => frame.payload?.Ship0?.radar_scans?.[0])
+      .filter(scan => scan?.shadow_video && Number(sourceFrame.sim_time) - Number(scan.t_s) <= 3),
     tracks: ships.map(ship => ship.tracks),
     plans: {
       waypoints: localWaypoints(ownRaw.waypoints, originN, originE),
