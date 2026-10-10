@@ -33,6 +33,17 @@ namespace Sango
         [Tooltip("横摇钳制上限（度，对称）：涌浪再大也不许倾覆观感。")]
         public float maxRollDeg = BuoyancyParams.Default.MaxRollDeg;
 
+        [Tooltip("横摇固有周期（秒，档位 2 二阶动力学）：45 m 船典型 8-10 s，欠阻尼出谐摇/相位滞后。")]
+        public float rollNaturalPeriodS = BuoyancyParams.Default.RollNaturalPeriodS;
+
+        [Tooltip("横摇阻尼比：实船典型 0.05-0.15（谐摇放大 1/(2ζ) 量级）；≥1 退回临界阻尼。")]
+        [Range(0.01f, 1f)]
+        public float rollDampingRatio = BuoyancyParams.Default.RollDampingRatio;
+
+        [Tooltip("后端权威横摇之上的视觉波频振荡叠加增益（档位 1 混叠）：后端给慢变包络（权威语义不动），视觉欠阻尼振荡叠加其上恢复浪-姿耦合观感。0 = 纯后端值。")]
+        [Range(0f, 1f)]
+        public float backendRollOscillationGain = 0.6f;
+
         [Tooltip("纵摇钳制上限（度，对称）。")]
         public float maxPitchDeg = BuoyancyParams.Default.MaxPitchDeg;
 
@@ -61,8 +72,9 @@ namespace Sango
         public int SampleCount => m_RootLocalCentroids != null ? m_RootLocalCentroids.Length : 0;
         /// <summary>本帧求解目标姿态（heave 米 / roll 度 / pitch 度，钉死约定见求解器）。</summary>
         public Vector3 TargetAttitude => new Vector3(m_TargetHeave, m_TargetRoll, m_TargetPitch);
-        /// <summary>当前平滑后姿态（同上）。</summary>
-        public Vector3 SmoothedAttitude => new Vector3(m_Heave.Value, m_SourceRoll ?? m_Roll.Value, m_Pitch.Value);
+        /// <summary>当前平滑后姿态（同上；横摇为档位 1 混叠结果，与施加一致）。</summary>
+        public Vector3 SmoothedAttitude => new Vector3(m_Heave.Value,
+            BuoyancyAttitudeSolver.BlendRoll(m_SourceRoll, m_Roll.Value, backendRollOscillationGain, maxRollDeg), m_Pitch.Value);
         /// <summary>设计吃水基线（挂载时根 y，= 编目 waterlineOffsetY）。</summary>
         public float DraftBaselineY => m_BaselineY;
 
@@ -204,6 +216,8 @@ namespace Sango
             var p = BuoyancyParams.Default;
             p.MaxRollDeg = maxRollDeg;
             p.MaxPitchDeg = maxPitchDeg;
+            p.RollNaturalPeriodS = rollNaturalPeriodS;
+            p.RollDampingRatio = rollDampingRatio;
             var hullSamples = m_SolverScratch;
             int validSamples = 0;
             int failedThisInstance = 0;
@@ -258,16 +272,20 @@ namespace Sango
 
             float dt = Time.deltaTime;
             m_Heave = BuoyancyAttitudeSolver.Damp(m_Heave, m_TargetHeave, smoothingFrequencyHz, dt);
-            m_Roll = BuoyancyAttitudeSolver.Damp(m_Roll, m_TargetRoll, smoothingFrequencyHz, dt);
+            // 横摇走二阶欠阻尼动力学（档位 2）：固有周期/阻尼比给出谐摇放大与相位滞后，
+            // 替代临界阻尼的"静态贴坡"——升沉/纵倾周期短、阻尼大，保持临界阻尼 Damp。
+            m_Roll = BuoyancyAttitudeSolver.DampUnderdamped(m_Roll, m_TargetRoll, p.RollNaturalPeriodS, p.RollDampingRatio, dt);
             m_Pitch = BuoyancyAttitudeSolver.Damp(m_Pitch, m_TargetPitch, smoothingFrequencyHz, dt);
 
             // 施加：heave 只改根 y（基线 + 偏移）；roll/pitch 叠在脚本拥有的 yaw 上。
-            // 边界（dt-sea-realism 2026-10-10）：后端 has_roll=true 时视觉横摇被 twinRollDeg 全量
-            // 替换（LateUpdate 首行 m_SourceRoll），RollGain 调参只在 has_roll 缺失的会话可见；
-            // heave/pitch 恒走求解器。slot.RollDeg 注入链是权威契约，不可改（TwinEnvironmentTests 钉死）。
+            // 边界（dt-sea-realism 2026-10-10 档位 1）：后端 has_roll=true 时横摇 = 后端包络（权威语义
+            // 不动，传感器证据链仍以遥测为准）+ backendRollOscillationGain × 视觉欠阻尼振荡（浪-姿
+            // 耦合观感）；无后端值走纯视觉。slot.RollDeg 注入链契约不变（TwinEnvironmentTests 钉死）。
             rootPos.y = m_BaselineY + m_Heave.Value;
             transform.position = rootPos;
-            transform.rotation = Quaternion.Euler(m_Pitch.Value, yawDeg, m_SourceRoll ?? m_Roll.Value) * Quaternion.Euler(0, bowYawDeg, 0);
+            transform.rotation = Quaternion.Euler(m_Pitch.Value, yawDeg,
+                BuoyancyAttitudeSolver.BlendRoll(m_SourceRoll, m_Roll.Value, backendRollOscillationGain, maxRollDeg))
+                * Quaternion.Euler(0, bowYawDeg, 0);
         }
 
         Vector3 SampleAtDesignPose(Vector3 centroid)

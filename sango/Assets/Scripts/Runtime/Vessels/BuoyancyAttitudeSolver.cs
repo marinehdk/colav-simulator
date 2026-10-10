@@ -44,6 +44,18 @@ namespace Sango
         /// <summary>纵摇钳制上限（度，对称）。</summary>
         public float MaxPitchDeg;
 
+        /// <summary>
+        /// 横摇固有周期（秒）。二阶横摇动力学（DampUnderdamped）：45 m 船典型 8-10 s。
+        /// ≤0 视为配置错误，退回临界阻尼 Damp（不卡死姿态）。
+        /// </summary>
+        public float RollNaturalPeriodS;
+
+        /// <summary>
+        /// 横摇阻尼比：实船典型 0.05-0.15（欠阻尼，波频激励谐摇放大 1/(2ζ) 量级）。
+        /// ≥1 退回临界阻尼（无过冲）。
+        /// </summary>
+        public float RollDampingRatio;
+
         public static BuoyancyParams Default => new BuoyancyParams
         {
             HeaveGain = 1f,
@@ -51,6 +63,8 @@ namespace Sango
             PitchGain = 0.75f,
             MaxRollDeg = 12f,
             MaxPitchDeg = 8f,
+            RollNaturalPeriodS = 9f,
+            RollDampingRatio = 0.12f,
         };
     }
 
@@ -154,6 +168,45 @@ namespace Sango
             s.Value = target + (offset + motion) * decay;
             s.Velocity = (s.Velocity - omega * motion) * decay;
             return s;
+        }
+
+        /// <summary>
+        /// 欠阻尼二阶横摇动力学（2026-10-10 dt-sea-realism 档位 2）：以 (固有周期, 阻尼比) 描述的
+        /// 二阶系统精确离散化（状态转移矩阵，长渲染帧数值稳定），替代横摇的临界阻尼 Damp——
+        /// 临界阻尼阶跃无越冲，给不出实船横摇的谐摇放大与相位滞后；欠阻尼（ζ≈0.05-0.15）在波频
+        /// 激励附近自然过冲（放大 1/(2ζ) 量级），量级依据实船横摇阻尼比典型值。
+        /// naturalPeriodS≤0 或 ζ≥1（用户配置过阻尼意图）退回临界阻尼 Damp；dt≤0 原样返回。
+        /// </summary>
+        public static DampedScalar DampUnderdamped(DampedScalar s, float target,
+            float naturalPeriodS, float dampingRatio, float dt)
+        {
+            if (dt <= 0f) return s;
+            if (naturalPeriodS <= 0f) return new DampedScalar { Value = target, Velocity = 0f };
+            if (dampingRatio >= 1f) return Damp(s, target, 1f / naturalPeriodS, dt);
+            float zeta = Mathf.Max(0.01f, dampingRatio); // ζ→0 时 ω_d→0 触发 sin(x)/x 极限，钳下限防退化
+            float wn = 2f * Mathf.PI / naturalPeriodS;
+            float wd = wn * Mathf.Sqrt(1f - zeta * zeta);
+            float o = s.Value - target;
+            float v = s.Velocity;
+            float decay = Mathf.Exp(-zeta * wn * dt);
+            float c = Mathf.Cos(wd * dt);
+            float sn = Mathf.Sin(wd * dt) / wd;
+            s.Value = target + decay * (o * c + (v + zeta * wn * o) * sn);
+            s.Velocity = decay * (v * c - (wn * wn * o + zeta * wn * v) * sn);
+            return s;
+        }
+
+        /// <summary>
+        /// 档位 1 横摇混叠（2026-10-10 dt-sea-realism）：后端权威横摇 = 慢变包络（语义不动，传感器
+        /// 证据链仍以遥测为准），视觉欠阻尼振荡按增益叠加其上，恢复"浪-姿耦合"观感——两源频段可分
+        /// （后端包络慢变 vs 波频振荡 5-12 s 周期）。无后端值（本地演示/证据夹具）走纯视觉。
+        /// 叠加结果按 maxRollDeg×1.35 钳制保底（观感倾覆保护，含后端值超钳场景）。
+        /// 纯函数：EditMode 直测（BuoyancyRollDynamicsTests）。
+        /// </summary>
+        public static float BlendRoll(float? backendRollDeg, float visualRollDeg, float gain, float maxRollDeg)
+        {
+            float roll = backendRollDeg.HasValue ? backendRollDeg.Value + Mathf.Clamp01(gain) * visualRollDeg : visualRollDeg;
+            return Mathf.Clamp(roll, -1.35f * maxRollDeg, 1.35f * maxRollDeg);
         }
     }
 }
