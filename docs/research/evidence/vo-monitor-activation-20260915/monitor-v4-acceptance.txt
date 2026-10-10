@@ -1,8 +1,0 @@
-    }
-  ]
-}
-Traceback (most recent call last):
-  File "/Users/marine/Code/.worktrees/Colav-Simulator/gnc-avoidance-contract/tmp/gnc_execution/audit_monitor_activation.py", line 47, in <module>
-    assert all(p['track_crossings'] and all(c['along_m'] < 0 for c in p['track_crossings']) for p in pairs if p['target_id']==3), 'TS3 track must be crossed astern, never ahead'
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-AssertionError: TS3 track must be crossed astern, never ahead

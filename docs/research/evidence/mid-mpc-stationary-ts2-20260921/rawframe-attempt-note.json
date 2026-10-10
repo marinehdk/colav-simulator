@@ -1,1 +1,0 @@
-{"reason":"Stop diagnostic harness during full-frame pickle/GC-heavy finalization; replay identical simulation with evaluator-only frame retention. Original run artifacts retained."}

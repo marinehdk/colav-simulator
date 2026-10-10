@@ -1,8 +1,0 @@
-{
-  "session_id": "e2e9cc51-3516-4839-833f-f69bace150bc",
-  "state": "FAILED",
-  "sim_s": 30.000000000000156,
-  "wall_s": 6.073070166865364,
-  "actual_multiplier": 4.939840834324619,
-  "max_packet_gap_s": 0.20565462508238852
-}

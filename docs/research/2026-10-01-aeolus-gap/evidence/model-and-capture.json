@@ -1,8 +1,0 @@
-{
-  "model": "/Users/marine/Code/Colav-Simulator/models/yolov8n.pt",
-  "sha256": "f59b3d833e2ff32e194b5bb8e08d211dc7c5bdf144b90d2c8412c47ccfc83b36",
-  "device": "cpu",
-  "frame_metadata": "sensor-frames.jsonl",
-  "actual_results": "results.jsonl",
-  "scene": "native/scene.json"
-}

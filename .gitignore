@@ -132,9 +132,29 @@ dmypy.json
 .pyre/
 
 # Package main
-output/animations/
-output/ais/
-output/figures/
+/output/
+/tmp/
+
+# Local reference materials and historical work; tracked code stays versioned.
+/paper/
+/docs/research/
+/docs/manual/
+/reports/
+/slide-deck/
+/deploy/linux/
+/tools/authoritative_mpc/
+/tools/gnc_comparison/
+/helgesen_msc.pdf
+/helgesen_msc.txt
+/tengesdal.pdf
+/tengesdal.txt
+/sfd.html
+/sfd_readme.md
+
+# Machine-specific twin configuration and generated Cesium settings.
+/deploy/twin/remote-runtime.json
+/sango/Assets/CesiumSettings/
+/sango/Assets/CesiumSettings.meta
 
 /main.py
 /scenarios/saved/
