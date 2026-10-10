@@ -24,6 +24,9 @@ loop, same harness shape as tests/test_simulator_vimmjipda.py):
 
 from __future__ import annotations
 
+import importlib
+from types import SimpleNamespace
+
 import numpy as np
 import pytest
 
@@ -132,4 +135,64 @@ def test_vimmjipda_legacy_radar_leg_unchanged(fusion_available: bool) -> None:
     assert accepted > 0
     assert gating_tracks(tracks, truth)
     assert all(source.sensor_id == 1 for track in gating_tracks(tracks, truth) for source in track.sources)
+    tracker.reset()
+
+
+def test_radar_x_clutter_does_not_confirm_near_ownship_ghosts(fusion_available: bool) -> None:
+    """Uniform clutter odds falsely confirmed an unsafe near-hull track at 30 s."""
+    tracker = IntegrationRegistry().build_tracker("vimmjipda")
+    radar = RadarXBand()
+    radar.seed(0)
+    tracker.set_sensor_list([radar])
+    for step in range(1, 121):
+        t = step * 0.5
+        own = np.array([4.9 * t, 4.9 * t, 4.9, 4.9])
+        tracks, measurements = tracker.track(t, 0.5, [], own)
+        # Feed real unlabelled clutter into the manager; do not prune detections.
+        assert all(label == -1 for frame in measurements for label, _ in frame)
+        near = [track for track in tracks if np.linalg.norm(track.state[:2] - own[:2]) < 200.0]
+        assert not near, f"clutter-only scan confirmed near-hull tracks at {t}: {near}"
+    tracker.reset()
+
+
+def test_radar_x_clutter_model_keeps_real_nearby_target(fusion_available: bool) -> None:
+    """The correction changes association odds, never removes nearby contacts."""
+    tracker = IntegrationRegistry().build_tracker("vimmjipda")
+    radar = RadarXBand()
+    radar.seed(0)
+    tracker.set_sensor_list([radar, Radar(RadarParams(max_range=2000.0, generate_clutter=False))])
+    tracks = []
+    for step in range(1, 81):
+        t = step * 0.5
+        own = np.array([4.9 * t, 4.9 * t, 4.9, 4.9])
+        truth = np.array([own[0] + 120.0, own[1], 4.9, 4.9])
+        tracks, _ = tracker.track(t, 0.5, [(7, truth, 30.0, 7.0)], own)
+    assert gating_tracks(tracks, truth, gate_m=30.0), "real near-hull contact must remain tracked"
+    tracker.reset()
+
+
+@pytest.mark.parametrize("murty_threshold", [1, 4])
+def test_radar_x_association_uses_local_clutter_odds(fusion_available: bool, murty_threshold: int) -> None:
+    """Both native hypothesis paths use the same spatial likelihood ratio."""
+    tracker = IntegrationRegistry().build_tracker("vimmjipda")
+    radar = RadarXBand()
+    tracker.set_sensor_list([radar])
+    associator = tracker.inner._manager.tracker.data_associator
+    native = importlib.import_module("vimmjipda.code.tracking.associators")
+    # One track/measurement has exactly two unique hypotheses (best + one).
+    associator.inner = native.MurtyDataAssociator(murty_threshold, murty_threshold, 1)
+    associator.ownship_ne = np.array([4000.0, 900.0])
+    constructs = importlib.import_module("vimmjipda.code.tracking.constructs")
+    measurement = constructs.Measurement(np.array([900.0, 4100.0]), np.eye(2), 30.0)
+    weights = np.array([[5e-6, 0.5]])  # detection weight and missed-detection weight
+    cluster = SimpleNamespace(
+        n_tracks=1, n_measurements=1, measurements={measurement},
+        tracks=[SimpleNamespace(measurements={measurement})], clutter_density=5e-7, w=weights,
+    )
+    probabilities = associator.get_marginal_association_probabilities(cluster)
+    # At 100 m, lambda = 5e-7 * (1000/100)^2 = 5e-5 /m2.
+    # Detected odds = 5e-6 / 5e-5 = 0.1; missed odds = 0.5.
+    assert probabilities[0] == pytest.approx([1.0 / 6.0, 5.0 / 6.0])
+    assert cluster.w is weights
+    assert weights.tolist() == [[5e-6, 0.5]]
     tracker.reset()

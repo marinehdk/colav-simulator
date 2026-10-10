@@ -9,10 +9,12 @@ interface returns legacy 5-tuples plus NaN NIS; the per-track
 (``code/tracking/trackers.py`` predict/update chain — the internal P_D /
 visibility update is external-domain and stays opaque here).
 
-The adapter delegates tracking 1:1 and re-publishes every track as a
+The adapter retains the external tracker and re-publishes every track as a
 ``TrackSnapshot`` (existence from the manager track index map; snapshots mirror
 the inner output tuples exactly, including the extremity-filtered ``track``
 path and the unfiltered ``get_track_information`` path).
+RadarXBand's range-dependent clutter intensity is supplied to association
+odds; the native uniform background remains a conservative lower bound.
 """
 
 from typing import Any
@@ -23,6 +25,50 @@ import colav_simulator.core.sensing as cs_sensing
 import colav_simulator.core.tracking.trackers as cs_trackers
 
 
+class _RadarClutterAssociator:
+    """Adapt per-measurement clutter odds to the native scalar-density API.
+
+    The native associator uses w_ij / lambda in both exact and Murty paths.
+    Scaling each measurement column by lambda_native / lambda(position)
+    supplies the same odds without changing its hypotheses or IPDA recursion.
+    Missed-detection weights, confirmation thresholds and track outputs stay
+    under the external manager's authority.
+    """
+
+    def __init__(self, inner: Any, radars: tuple[cs_sensing.RadarXBand, ...]) -> None:
+        self.inner = inner
+        self.radars = radars
+        self.ownship_ne = np.zeros(2)
+
+    def get_marginal_association_probabilities(self, cluster: Any) -> np.ndarray:
+        if not cluster.n_measurements:
+            return self.inner.get_marginal_association_probabilities(cluster)
+        densities = []
+        for measurement in cluster.measurements:
+            # External measurements use EN, while simulator positions use NE.
+            distance = float(np.linalg.norm(np.asarray(measurement.value)[::-1] - self.ownship_ne))
+            density = 0.0
+            for radar in self.radars:
+                if distance > radar.active_range_m:
+                    continue
+                params = radar.params
+                radius = max(distance, radar.blind_ring_m)
+                sea_factor = 10.0 ** (0.1 * params.clutter_db_per_beaufort * (params.sea_state_beaufort - 3.0))
+                density += (
+                    params.clutter_rate_per_m2
+                    * sea_factor
+                    * (params.clutter_ref_range_m / radius) ** params.clutter_range_decay
+                )
+            densities.append(max(float(cluster.clutter_density), density))
+        original_weights = cluster.w
+        cluster.w = original_weights.copy()
+        cluster.w[:, : cluster.n_measurements] *= float(cluster.clutter_density) / np.asarray(densities)
+        try:
+            return self.inner.get_marginal_association_probabilities(cluster)
+        finally:
+            cluster.w = original_weights
+
+
 class VIMMJIPDAExistenceAdapter(cs_trackers.ITracker):
     """ITracker facade over the external VIMMJIPDA with snapshot existence output."""
 
@@ -30,6 +76,7 @@ class VIMMJIPDAExistenceAdapter(cs_trackers.ITracker):
 
     def __init__(self, inner: Any) -> None:
         self._inner = inner
+        self._clutter_associator: _RadarClutterAssociator | None = None
 
     @property
     def inner(self) -> Any:
@@ -67,7 +114,9 @@ class VIMMJIPDAExistenceAdapter(cs_trackers.ITracker):
         }
         return tuple(sorted(ids)) or (1,)
 
-    def _snapshot(self, raw: tuple, existence: float, observed_at_s: float, generated_at_s: float) -> cs_trackers.TrackSnapshot:
+    def _snapshot(
+        self, raw: tuple, existence: float, observed_at_s: float, generated_at_s: float
+    ) -> cs_trackers.TrackSnapshot:
         target_id, state, covariance, length_m, width_m = raw
         return cs_trackers.TrackSnapshot(
             key=cs_trackers.TrackKey(target_id=int(target_id), generation=1),
@@ -96,6 +145,8 @@ class VIMMJIPDAExistenceAdapter(cs_trackers.ITracker):
         true_do_states: list[tuple[int, np.ndarray, float, float]],
         ownship_state: np.ndarray,
     ) -> tuple[list[cs_trackers.TrackSnapshot], list[tuple[int, np.ndarray]]]:
+        if self._clutter_associator is not None:
+            self._clutter_associator.ownship_ne = np.asarray(ownship_state[:2], dtype=float).copy()
         tracks, sensor_measurements = self._inner.track(t, dt, true_do_states, ownship_state)
         existence = self._existence_by_index()
         snapshots = [
@@ -106,6 +157,14 @@ class VIMMJIPDAExistenceAdapter(cs_trackers.ITracker):
 
     def set_sensor_list(self, sensor_list: list[cs_sensing.ISensor]) -> None:
         self._inner.set_sensor_list(sensor_list)
+        tracker = self._inner._manager.tracker
+        if self._clutter_associator is not None:
+            tracker.data_associator = self._clutter_associator.inner
+            self._clutter_associator = None
+        radars = tuple(sensor for sensor in sensor_list if isinstance(sensor, cs_sensing.RadarXBand))
+        if radars:
+            self._clutter_associator = _RadarClutterAssociator(tracker.data_associator, radars)
+            tracker.data_associator = self._clutter_associator
 
     def get_track_information(
         self, ownship_state: np.ndarray
