@@ -36,6 +36,7 @@ web 侧：`web_gui/modules/twin-view.js` + `web_gui/vendor/urs/`（URS 官方 re
 | `camera` | `preset:"bridge"\|"bow"\|"chase"\|"top"\|"overlook"` | 预设词汇统一表 → `CameraView.{Bridge,Bow,Chase,TopDown,Overlook}`（00-REPORT §5.3） |
 | `camera_free` | `pos:{east,north,height_m}`, `yaw_deg`, `pitch_deg`, `fov_deg` | **P2-S4 演进新增（§8）**：Cesium↔Twin 分屏主从联动的自由位姿（单向 Cesium 主→Twin 从，web 侧默认关，逐帧锁步不做）。`pos` 为相机锚点**全域 UTM 米**（与 `attached.anchor` 同一框架，Unity 侧减锚得场景坐标）；`height_m` 椭球零视觉约定（ENC 网格 h=0 同基准）；`yaw_deg` 北向东顺时针；**`pitch_deg` 负=俯**（CameraPose 语义沿用）；`fov_deg` 垂直向度。生效中 `state.camera`/`attached.camera` 回显 `"free"`；任何 `camera` 预设消息收回控制权 |
 | `theme` | `value:"day"\|"night"\|"dusk"` | 映射 Unity 时刻档：`day=12h, dusk=17.5h, night=0h`（`WeatherGUI.k_TimePresets` 同源） |
+| `stream_profile` | `value:"1080p"\|"1440p"` | WEB 捕获档：1920×1080 / 2560×1440，30 fps，码率范围 6–14 / 10–24 Mbps；相机 TAA。只改变视频捕获与编码；不影响仿真/回放时钟。仅 `ready.video_profiles` 明确支持时发送。 |
 | `detection` | `enabled`, `source:"yolo"\|"truth"` | `enabled=false` = overlay 关；`truth` = 地面真值路径（`requireLive=false`）；`yolo` = live 优先路径（`requireLive=true`，无新鲜结果按 DetectionFreshness 既有规则回退）。复用 M9 `DetectionOverlay` |
 | `sensor_mode` | `value:"eo"\|"ir"\|"lidar"` | **P3-S0 演进新增（§8，spec #90）**：主孪生视口传感器模式——eo=可见光（默认，驾驶舱视角）/ ir=黑白热像 / lidar=点云视角；雷达 PPI/AIS 为 web 面板态不经此桥。词汇 = `TwinBridge.SensorModes` / web `TWIN_SENSOR_MODES`；视口按钮组接线属 S2 |
 
@@ -46,7 +47,7 @@ Unity 渲染钟把 `rate` 写进所喂帧的 `playback.effective_multiplier`（S
 
 | type | 字段 | 语义 |
 |---|---|---|
-| `ready` | `protocol`, `build`, `scene`, `modes_supported[]` | 对 `hello` 的应答；`modes_supported` ⊆ `["live","replay"]` |
+| `ready` | `protocol`, `build`, `scene`, `modes_supported[]`, `video_profiles[]` | 对 `hello` 的应答；`modes_supported` ⊆ `["live","replay"]`；`video_profiles` 缺失或为空 = 不支持画质协商。 |
 | `attached` | `run_id`, `mode`, `anchor:{east,north}`（全域 UTM 米）, `ships`（int，已挂槽位数）, `camera`（当前预设名） | 数据面就绪：replay = context（ENC 原点）取到后发；live = 首帧锚定后发。**数据面重连恢复后重发**（§5） |
 | `state` | `fps`, `frame_seq`, `sim_time`, `clock_skew_ms`, `stream:{state:"ok"\|"degraded"\|"down", latency_ms}`, `detection:{source,enabled,live}`, `camera`, `sensor_mode`, `geo_fit` | ~1Hz 心跳。`sim_time` = Unity 渲染插值钟；`clock_skew_ms` = 渲染钟 − web playhead（ms）；`stream`：replay = 帧泵健康（帧前进 ok / 停滞 degraded / 取数失败 down），live = WS 连接态；`latency_ms` = \|clock_skew\|；未知为 0；`detection.enabled` = web 既有开关态回显（P3 演进只加字段，§8）；`sensor_mode` = 当前主视口传感器模式回显，默认 `"eo"`（P3-S0 演进只加字段，§8，spec #90）；`geo_fit` = M6 场景覆盖度判定回显 `"inside"\|"partial"\|"outside"`，空串 = 尚无数据面帧（P3-12 演进只加字段，§8，spec #91） |
 | `error` | `code`, `message` | 码表见 §4 |
@@ -114,3 +115,94 @@ Unity 渲染钟把 `rate` 写进所喂帧的 `playback.effective_multiplier`（S
 | 2026-10-02 | P3-S2 | `sensor_mode` 接线落地（spec #90）：Unity 侧 `TwinBridgeService.HandleSensorMode`（BAD_MESSAGE 拒未知词汇）+ 渲染效果 = `TwinBridge.SensorModeEffect` 纯函数——eo=默认渲染 / ir=流相机 IR 白热 pass（`IrViewPass` 静态闸，作用域 = 流相机，Demo 渲染零变化）+ 材质温度 tag（`ThermalTagApplier`，温度档表 `MastCameraTable`）/ **lidar=占位：切换被接受 + state 回显，点云渲染留 S3；UI 方案二选一取"pending 明示"**（Evaluation twin + Deployment twin 按钮组常显 LiDAR·S3 徽标，禁用按钮方案弃——保留消息路径可 E2E）。`camera` 预设与 sensor_mode 正交叠加（切换不改 CameraRig 状态，契约 §2）。web：Evaluation twin（`twin-view.js` 控制器 `twinSensorGroup`）与 Deployment twin（`deployment-twin.js` `sensorGroup`）按钮组 + `state.sensor_mode` 回显投影（`projectSensorMode`/`sensorModeItems`，未知/缺字段回退默认 eo）+ §5 重连 realignment 重发当前模式 | spec #90 S2 |
 | 2026-10-02 | P3-S3 | `sensor_mode=lidar` 真实现落地（spec #90，替换 S2 占位）：Unity 侧 `SensorModeEffect` 第二出参改语义 `lidarRenderActive`（词汇/默认值/消息形状零变化）——lidar = 流相机点云视角（`LidarViewPass` 深色背景 + `mast_lidar` 深度采集 16 线点云，`LidarDepthCapturePass` 桅顶深度 CustomPass；静态闸工艺同 IR，Demo 渲染零变化；mast 表加 `mast_lidar` 行 11 m/下倾 10°，后端 `mast_cameras.py` 同字面量互钉）。渲染与相机预设正交叠加不变。web：S2 的 "LiDAR·S3 · PENDING" 徽标移除（`TWIN_SENSOR_MODE_LABELS.lidar='LiDAR'`，`sensorModeItems` 去 `pending` 字段，两处 chip 不再拼 pending 尾巴），三键均真实现。**PiP 副视口降级 backlog**：EO/IR 模式下小窗看 LiDAR 点云需第二路 URS 视频流（调研 §5 640×480@1-2Mbps + 第二硬件编码器 + 第二 track + 接收端多流选择 UI），本段成本不成比例；LiDAR 模式主视口即点云已覆盖核心需求，PiP 留后续段评估 | spec #90 S3 |
 | 2026-10-02 | P3-12 | `state` 新增 `geo_fit` 回显字段（词汇 `inside\|partial\|outside`，空串 = 尚无数据面帧；§3/§6 同步）。**只加字段**：既有消息形状零改动（web `JSON.parse` 宽松消费，旧 web 侧 undefined 已测兼容）。语义：M6 孪生场景地理配准（`scenePos = (NE − anchor) + 登记平移 (17000,−4800)`，会话 NE 域为后端合成域、与场景 EPSG:32648 域纯平移对应）的覆盖度判定——inside = 会话观测包络 ≥98% 水面且 DEM 覆盖内 / partial = 混入陆域 / outside = DEM 覆盖外开阔海面；常量与 provenance = `M6TwinGeo` + `M6WaterMask`（tools/m6_water_mask.py 烘焙） | spec #91 批 1 台账 P3-12；Unity = `TwinBridgeState.geo_fit`/`TwinSessionDriver.GeoFit`，web 宽松消费无需改动 |
+
+| 2026-10-08 | WEB 画质适配 | 新增 stream_profile 命令和 ready.video_profiles 协商字段，1080p/1440p 两档 30 fps；旧 Unity 缺字段时 web 不发新命令。Deployment 使用接收端 RTP 计数计量视频 fps/码率，既有 state.fps 与 clock 字段语义不变。 | DT 清晰度修复 |
+
+### 2026-10-08 DT direct camera and live presentation
+
+`state.camera_pose` is an optional additive object: `east`, `north`,
+`height_m`, `yaw_deg`, `pitch_deg`, `fov_deg`, using the same global UTM and
+vertical FOV convention as `camera_free`. It echoes the actual Unity camera
+so the first direct mouse gesture starts at the displayed pose. Legacy clients
+may ignore it. Mouse gestures coalesce to at most 30 commands/s, with a final
+flush on pointer release; Cesium link mode retains sole camera control.
+
+Live rendering buffers three wall seconds of truth, matching Deployment's
+presentation cache, and interpolates between received distinct snapshot times.
+Missing playback metadata retains the last known rate; same-seq heartbeats can
+update pause/rate without replacing truth. No extrapolation or new simulation
+clock authority. Pause snaps to the authoritative snapshot; resume refills the
+`state.presentation_buffering` optionally reports cache warmup. Replay retains its explicit web clock. Global UTM
+coordinates stay double precision until anchor subtraction and scene placement.
+
+### 2026-10-09 Session environment and six-axis presentation
+
+The additive compact telemetry `environment` object carries session-owned wind,
+current, Hs/period/direction and DT weather settings. Compass bearings are FROM
+north clockwise; HDRP orientation is converted explicitly. Physical settings
+initialize the admitted original/modular environmental models; appearance fields
+never create an additional backend dynamics authority. Wind/current/Hs readbacks
+use the executing field when available. OFF disables external loads and visual
+weather; propulsion-generated bow waves remain possible on calm water.
+
+`truth[].has_roll` and `roll_rad` identify recorded/backend 4DOF roll. Unity
+interpolates this source and applies it in the canonical body frame, accounting
+for prefab bow yaw, without adding surface-fit roll. Heave/pitch remain damped
+water-surface visual responses. `state.motion` echoes `visual_heave_m`,
+`visual_pitch_deg`, `roll_deg` (NED sign) and `roll_source` (`backend_4dof` or
+`surface_visual`). Optional `propwash_foam`, `wave_contact_foam`, and
+`bow_entry_mps` report actual native WaterDecal injection/contact inputs.
+`native_foam_peak` is the asynchronously sampled maximum of the whole water
+decal-region surface channel (10 s cadence, not a per-frame propulsion-only value). Propwash
+requires advancing presented truth (live RUNNING, or advancing replay); initial
+configured speed in CREATED, paused/stalled presentation and seek-back do not
+inject propulsion wake. Ambient wave contact remains independent of propulsion.
+Twin never draws the legacy ribbon/ring meshes. Native foam persists and erodes
+in the water buffer; current influence animates erosion, not mass advection.
+This is six-axis presentation, not a six-DOF hydrodynamic plant.
+
+New replay contexts preserve recorded environment settings; replay frames use
+recorded GNC balance or original `state_8d` for roll. Missing historical appearance
+settings stay null. No replay read executes simulation or manufactures acceptance.
+
+DT bow deformation/foam use water decals; propeller wash uses a water-conforming
+centre strip advected by current and scaled by through-water speed. Ground-speed
+vector displays retain SOG. Rain/sky wind and night navigation lamps are visual
+feedback. Spectral style, rain/snow/wet lens, light streaks and water-wave Hs/period
+mapping are engineering visual approximations, not certified Aeolus or sea trials.
+
+### DT situation display (2026-10-10)
+
+The hybrid display keeps world geometry in Unity and reuses web OpenBridge POIs,
+target cards, AIS symbols and the compass. Dense contacts use OpenBridge offset
+POIs: deterministic head placement prioritizes selection/primary/alarm, reserves
+space for the card, and leaves each pointer on its original vessel projection.
+Auto-grouping is avoided because its shared horizon row ignores per-target
+buttonY. It adds three message types:
+
+- presentation: {presentation:{run_id,seq,sim_time,ribbon,waypoints,lines,targets,
+  time_markers,vo,ships_visible,waypoints_visible}}. Coordinates are global UTM
+  east/north metres. This is read-only display geometry derived from the existing
+  web projection, not a ship-state, clock or threat-authority input. Unity uses
+  the latest display snapshot whose simulation time has reached its presented
+  ship pose. Targets retain the run:id:generation identity and truth flag;
+  tracker POIs keep their estimated position rather than snapping to truth.
+- situation_frame: {run_id,frame_id,source_seq,telemetry_seq,sim_time,width,height,
+  camera,camera_yaw,targets,waypoints,time_markers}. Positions and pick bounds
+  are normalized in the actual stream camera, with y downwards.
+- pick: {run_id,frame_id,x,y}; reply situation_pick includes the selected
+  id,key or null. Picking uses the bounds cached for the displayed video frame,
+  chooses the nearest visible vessel and rejects retired target generations.
+
+The ready field situation_sync="frame-marker@1" advertises support. A 256x16 px
+camera canvas in the upper-left encodes 32 black/white cells: header 0xD3, 16-bit
+frame counter, checksum (high_byte XOR low_byte XOR 0x5A). The web samples decoded
+video on requestVideoFrameCallback, matches that counter and resolution to a
+bounded DataChannel projection cache and applies object-fit:contain offsets.
+The web DT chip covers the marker. Missing, corrupt, mismatched or stale frames
+hide the AR layer; they never reuse a newer camera heartbeat. Video and projection
+may arrive in either order. Reattach/detach clear projection and pick caches.
+
+Threat appearance and CPA availability come from the same scene-target.js
+presentation used by Cesium. The Unity display does not calculate threat levels.
+This display protocol does not create, start, reset or replace an Active Session.

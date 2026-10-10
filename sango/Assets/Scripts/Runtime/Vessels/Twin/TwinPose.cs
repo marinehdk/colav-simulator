@@ -74,8 +74,8 @@ namespace Sango
                 mmsi = b.mmsi,
                 length = b.length,
                 width = b.width,
-                east = Mathf.Lerp(a.east, b.east, t),
-                north = Mathf.Lerp(a.north, b.north, t),
+                east = a.east + (b.east - a.east) * t,
+                north = a.north + (b.north - a.north) * t,
                 psi = Mathf.LerpAngle(a.psi * Mathf.Rad2Deg, b.psi * Mathf.Rad2Deg, t) * Mathf.Deg2Rad,
                 u = Mathf.Lerp(a.u, b.u, t),
                 v = Mathf.Lerp(a.v, b.v, t),
@@ -83,6 +83,8 @@ namespace Sango
                 sog = Mathf.Lerp(a.sog, b.sog, t),
                 cog = Mathf.LerpAngle(a.cog * Mathf.Rad2Deg, b.cog * Mathf.Rad2Deg, t) * Mathf.Deg2Rad,
                 active = b.active,
+                has_roll = b.has_roll,
+                roll_rad = Mathf.LerpAngle(a.roll_rad * Mathf.Rad2Deg, b.roll_rad * Mathf.Rad2Deg, t) * Mathf.Deg2Rad,
             };
         }
 

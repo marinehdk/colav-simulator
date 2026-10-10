@@ -29,6 +29,7 @@ from colav_simulator.core.colav.diagnostics import ColavExecutionError, PlanStat
 from colav_simulator.core.colav.encounter_lifecycle import EncounterLifecycle
 from colav_simulator.core.colav.threat_management import ThreatManagementCoordinator
 from colav_simulator.core.models import KinematicCSOGParams
+from colav_simulator.environment_settings import modular_environment
 from colav_simulator.evaluation import Evaluator, EvaluatorResult, load_evaluator_profile
 from colav_simulator.experiment.capabilities import CapabilityCatalog
 from colav_simulator.experiment.contracts import (
@@ -496,7 +497,7 @@ class ExperimentRunner:
         # scenario loading and override merging so every downstream path
         # (busy-water override included) sees the bound ship_modules.
         if spec.ownship_gnc_stack_id is not None:
-            _inject_ownship_gnc_stack(config, spec.ownship_gnc_stack_id)
+            _inject_ownship_gnc_stack(config, spec.ownship_gnc_stack_id, spec.environment_settings)
         if (
             historical_request is None
             and spec.algorithm_id == "nominal"
@@ -996,7 +997,9 @@ def _ownship_route_rows(config: scenario_config.ScenarioConfig) -> list[list[flo
     return waypoints.T.tolist()
 
 
-def _inject_ownship_gnc_stack(config: scenario_config.ScenarioConfig, stack_id: str) -> None:
+def _inject_ownship_gnc_stack(
+    config: scenario_config.ScenarioConfig, stack_id: str, environment_settings: dict | None = None,
+) -> None:
     """Bind one catalog-validated stack config to the ownship entry (Config step 04)."""
     if stack_id == LEGACY_WITHOUT_MODULES:
         if not config.ship_list:
@@ -1024,11 +1027,15 @@ def _inject_ownship_gnc_stack(config: scenario_config.ScenarioConfig, stack_id: 
         if entry["backend_kind"] == "original_gnc":
             from colav_simulator.original_gnc.configuration import OriginalGncConfig  # noqa: PLC0415
 
-            gnc_configuration = OriginalGncConfig.from_dict({"environment": entry["config"]["environment"]})
+            gnc_configuration = OriginalGncConfig.from_dict(
+                {"environment": entry["config"]["environment"], "environment_settings": environment_settings},
+            )
         else:
             from colav_simulator.authoritative_mpc.configuration import AuthoritativeMpcConfig  # noqa: PLC0415
 
-            gnc_configuration = AuthoritativeMpcConfig.from_dict({"environment": entry["config"]["environment"]})
+            gnc_configuration = AuthoritativeMpcConfig.from_dict(
+                {"environment": entry["config"]["environment"], "environment_settings": environment_settings},
+            )
 
         if not entry["available"]:
             raise ColavExecutionError(PlanStatus.DEPENDENCY_UNAVAILABLE, entry["unavailable_reason"])
@@ -1038,7 +1045,10 @@ def _inject_ownship_gnc_stack(config: scenario_config.ScenarioConfig, stack_id: 
         config.stochasticity = None
         return
     config.ship_list[0].original_gnc = None
-    config.ship_list[0].ship_modules = normalize_ship_modules(entry["config"])
+    modules_config = entry["config"]
+    if environment_settings is not None:
+        modules_config = modular_environment(modules_config, environment_settings)
+    config.ship_list[0].ship_modules = normalize_ship_modules(modules_config)
     if any(stack_id in preset["variants"].values() for preset in catalog["product_presets"]):
         # Product weather has exactly one authority: the selected modular field.
         # OFF must also suppress any legacy scenario disturbance generator.

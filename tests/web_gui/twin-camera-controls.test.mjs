@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createTwinCameraControls } from '../../web_gui/modules/twin-camera-controls.js';
+import { createTwinCameraControls } from '../../web_gui/modules/twin-camera-controls.js?v=20261010-dt-camera-v6';
 
 function harness(yaw) {
   const events = new Map(), poses = [];

@@ -18,6 +18,7 @@ from typing import Any
 import numpy as np
 
 from colav_simulator.core.colav.threat_assessment import ShipDomainProfile
+from colav_simulator.environment_settings import normalize_settings
 
 SCHEMA_VERSION = "1.0"
 
@@ -79,6 +80,7 @@ class RunSpec:
     algorithm_id: str = "nominal"
     tracker_id: str = "scenario_default"
     ownship_gnc_stack_id: str | None = None
+    environment_settings: dict[str, Any] | None = None
     seed: int = 0
     episode_index: int = 0
     dt: float | None = None
@@ -103,6 +105,9 @@ class RunSpec:
 
     def __post_init__(self) -> None:
         """Normalize IDs and reject invalid execution inputs."""
+        self.environment_settings = (
+            normalize_settings(self.environment_settings) if self.environment_settings is not None else None
+        )
         self.scenario_id = self.scenario_id.strip()
         self.validation_rule_id = self.validation_rule_id.strip().lower() if self.validation_rule_id else None
         self.algorithm_id = self.algorithm_id.strip().lower()

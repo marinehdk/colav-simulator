@@ -1,6 +1,6 @@
 import { SCENARIO_LABELS, ALGORITHM_LABELS } from './config-labels.js';
 import { presetBinding, presetStackId } from './gnc-presets.js?v=20260914-gnc-replay-v3';
-import { createValidationAssembly } from './validation-assembly.js?v=20260914-gnc-replay-v3';
+import { createValidationAssembly } from './validation-assembly.js?v=20261009-dt-environment-v1';
 import { activeSessionRuntime, telemetryProjection } from './session-runtime-instance.js?v=20260908-buffered-motion-v2';
 import { createSituationDisplay } from './situation-display.js?v=20261004-token-cleanup-v1';
 
@@ -867,6 +867,56 @@ function renderGncTable(bodyId, rows) {
   }));
 }
 
+function renderEnvironmentSettings(snapshot, enabled, locked) {
+  const host = document.getElementById('gncEnvironmentSettings');
+  host.hidden = !enabled;
+  const schema = gncStackCatalog?.environment_settings_schema || [];
+  if (!host.children.length && schema.length) {
+    const groups = new Map();
+    for (const field of schema) {
+      if (!groups.has(field.group)) {
+        const section = document.createElement('fieldset');
+        const legend = document.createElement('legend'); legend.textContent = field.group;
+        section.append(legend); host.append(section); groups.set(field.group, section);
+      }
+      const label = document.createElement('label');
+      const text = document.createElement('span'); text.textContent = `${field.label}${field.unit ? ` (${field.unit})` : ''}`;
+      const input = document.createElement(field.type === 'select' ? 'select' : 'input');
+      input.dataset.environmentKey = field.key; input.setAttribute('aria-label', text.textContent);
+      if (field.type === 'select') {
+        for (const value of field.options) {
+          const option = document.createElement('option'); option.value = value; option.textContent = ({ pm: 'Pierson–Moskowitz', jonswap: 'JONSWAP', tma: 'TMA',
+            hazy_clear: '晴 / 薄雾', cumulonimbus: '积雨云', thunderstorm: '雷暴', high: '高', low: '低' })[value] || value;
+          input.append(option);
+        }
+      } else {
+        input.type = field.type === 'boolean' ? 'checkbox' : 'number';
+        if (field.type === 'number') { input.min = field.min; input.max = field.max; input.step = 'any'; input.required = true; }
+      }
+      const update = () => {
+        if (!input.checkValidity()) { input.reportValidity(); return; }
+        const current = assembly.snapshot();
+        if (current.readOnly || current.creating) return;
+        const settings = Object.fromEntries(schema.map(f => [f.key, current.draft.environment_settings?.[f.key] ?? f.default]));
+        settings[field.key] = field.type === 'boolean' ? input.checked : field.type === 'number' ? Number(input.value) : input.value;
+        if (field.presets) Object.assign(settings, field.presets[input.value] || {});
+        edit('environment_settings', settings);
+      };
+      input.addEventListener('input', update);
+      input.addEventListener('change', update);
+      label.append(text, input); groups.get(field.group).append(label);
+    }
+  }
+  for (const field of schema) {
+    const input = host.querySelector(`[data-environment-key="${field.key}"]`);
+    if (!input) continue;
+    input.disabled = locked;
+    const value = snapshot.draft?.environment_settings?.[field.key] ?? field.default;
+    if (field.type === 'boolean') input.checked = value;
+    else if (document.activeElement !== input) input.value = value;
+  }
+}
+
 function renderGncStackPanel(snapshot) {
   const catalog = gncStackCatalog;
   const ready = Array.isArray(catalog?.product_presets) && catalog.product_presets.length > 0;
@@ -890,17 +940,19 @@ function renderGncStackPanel(snapshot) {
   toggle.checked = binding?.environment === 'on';
   toggle.disabled = locked || !binding?.preset.variants.on;
   document.getElementById('gncEnvironmentState').textContent = toggle.checked ? 'ON' : 'OFF';
-  const environmentDescription = binding?.preset.environment_description || catalog?.environment_description;
+  let environmentDescription = binding?.preset.environment_description || catalog?.environment_description;
+  const env = snapshot.draft?.environment_settings;
+  if (env) environmentDescription = `Wind U10 ${env.wind_speed_mps} m/s from ${env.wind_from_deg}° · current ${env.current_speed_mps} m/s from ${env.current_from_deg}° · Hs ${env.wave_hs_m} m / period ${env.wave_period_s} s from ${env.wave_from_deg}°`;
   document.getElementById('gncEnvironmentHelp').textContent = !binding
     ? 'Existing scenario/custom binding retained. Select a preset to use its environment switch.'
     : !binding.preset.variants.on
       ? 'Legacy keeps the original execution chain; unified wind / wave / current loads are unavailable.'
-      : toggle.checked ? environmentDescription : 'Calm water · no wind, wave or current loads.';
+      : toggle.checked ? '风浪流作用于航行动力学；天气与光照同步数字孪生。周期在 Original GNC 使用 Tz，FCB 使用 Tp。' : 'Calm water · no wind, wave or current loads.';
+  renderEnvironmentSettings(snapshot, toggle.checked, locked);
   const custom = document.getElementById('gncCustomBinding');
   custom.hidden = Boolean(binding) || !ready;
   custom.textContent = 'Current scenario/custom binding is preserved. Choose an available preset to replace it.';
   const roles = ['Plant', 'Guidance', 'Controller', 'Actuation'];
-  const entry = gncStackById(boundId);
   const fields = binding?.preset.fields;
   renderGncTable('gncFieldRows', [
     ...roles.map((role) => [role, fields?.[role] || 'Existing scenario/custom configuration']),
@@ -910,44 +962,10 @@ function renderGncStackPanel(snapshot) {
     preset.display_name, ...roles.map((role) => preset.fields[role]),
     preset.variants.on ? 'OFF / ON' : 'OFF',
   ]));
-  document.getElementById('gncPresetNote').textContent = binding?.preset.note || (binding?.preset.variants.on
-    ? '4DOF: surge, sway, roll, yaw; roll is uncontrolled. Design / engineering parameters, no vessel validation. Closed-loop acceptance depends on algorithm and scenario.'
-    : 'Legacy preserves the scenario model, guidance and controller. Selecting this preset disables scenario wind / wave / current disturbances.');
-  renderGncStackDetail(entry);
-  document.getElementById('gncStackParameters').textContent = entry
-    ? JSON.stringify(entry.config, null, 2) : 'No modular parameters.';
-}
+  document.getElementById('gncPresetNote').textContent = binding?.preset.variants.on
+    ? '4-DOF 航行动力学：纵荡、横荡、横摇、艏摇。DT 升沉/纵摇、波谱外观与降水为视觉反馈。环境工况随新会话保存。'
+    : 'Legacy preserves the scenario model, guidance and controller; wind / waves / current are disabled.';
 
-function renderGncStackDetail(entry) {
-  if (!entry) {
-    replaceDefinitionRows(
-      document.getElementById('gncStackModules'),
-      [['Binding', 'Legacy (scenario default) · no modular stack']],
-    );
-    for (const id of ['gncStackFidelity', 'gncStackAssetTrust', 'gncStackAcceptance']) {
-      replaceDefinitionRows(document.getElementById(id), [['Binding', 'Legacy (scenario default)']]);
-    }
-    return;
-  }
-  const moduleRows = [];
-  const acceptanceRows = [];
-  for (const module of entry.modules) {
-    moduleRows.push([module.role, module.identity], [`${module.role} maturity`, module.interface_version]);
-    acceptanceRows.push([`${module.role} evidence`, module.acceptance_evidence]);
-  }
-  acceptanceRows.push(['Stack acceptance level', entry.acceptance_level]);
-  replaceDefinitionRows(document.getElementById('gncStackModules'), moduleRows);
-  replaceDefinitionRows(document.getElementById('gncStackFidelity'), [
-    ['Fidelity profile', entry.fidelity_profile],
-    ['Supported tasks', (entry.supported_tasks || []).join(', ')],
-    ['Config hash', entry.config_hash],
-  ]);
-  const trustRows = (entry.asset_trust || []).map((asset) => [asset.asset_id, asset.trust_level]);
-  replaceDefinitionRows(
-    document.getElementById('gncStackAssetTrust'),
-    trustRows.length > 0 ? trustRows : [['Bound assets', 'None (ideal actuator)']],
-  );
-  replaceDefinitionRows(document.getElementById('gncStackAcceptance'), acceptanceRows);
 }
 
 function createStatusText(snapshot) {

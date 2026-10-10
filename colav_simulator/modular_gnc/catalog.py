@@ -19,6 +19,7 @@ from functools import lru_cache
 from types import MappingProxyType
 from typing import Any
 
+from colav_simulator.environment_settings import settings_schema
 from colav_simulator.modular_gnc.allocator import KNOWN_ACTUATOR_LAYOUT_ASSETS
 from colav_simulator.modular_gnc.configuration import (
     KNOWN_ACTUATOR_LAYOUT_ASSET_IDS,
@@ -1044,6 +1045,7 @@ def list_stack_catalog() -> dict[str, Any]:
     from colav_simulator.authoritative_mpc.catalog import mpc_catalog  # noqa: PLC0415
 
     mpc_stacks, mpc_preset = mpc_catalog()
+
     return {
         "schema_version": STACK_CATALOG_SCHEMA_VERSION,
         "acceptance_ceiling": {
@@ -1059,6 +1061,7 @@ def list_stack_catalog() -> dict[str, Any]:
         "recommended_stack_ids_by_plant": _recommended_stack_ids_by_plant(stacks),
         "product_presets": [*_product_presets(stacks), original_preset, mpc_preset],
         "environment_description": "Wind NE (6, 2) m/s · current NE (0.4, −0.2) m/s · Hs 1 m · Tp 7 s; reproducible seed.",
+        "environment_settings_schema": settings_schema(),
         "module_axes": _module_axes(),
         "stacks": stacks,
         "original_gnc_stacks": [*original_stacks, *mpc_stacks],

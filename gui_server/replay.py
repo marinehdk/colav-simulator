@@ -35,6 +35,7 @@ from fastapi.responses import FileResponse, Response
 
 from colav_simulator.decision_replay.bundle import TRACE_SCHEMA, TraceBundle
 from colav_simulator.decision_replay.chart import CHART_PROFILE, CHART_TRACE_SCHEMA
+from colav_simulator.environment_settings import normalize_settings
 
 if TYPE_CHECKING:  # annotation-only: keeps the sealed read path import-clean
     from colav_simulator.decision_replay.sink import TraceSinkPolicy
@@ -641,6 +642,14 @@ class RunReplayStore:
         run_dir = self.run_dir(run_id)
         manifest = self._read_json(run_dir / "manifest.json") or {}
         spec = manifest.get("spec") or {}
+        environment = None
+        if isinstance(spec.get("environment_settings"), dict):
+            environment = normalize_settings(spec["environment_settings"])
+            episode_config = (self._read_json(run_dir / "episode.json") or {}).get("config", {})
+            own = next(iter(episode_config.get("ship_list") or []), {})
+            original = own.get("original_gnc") or own.get("authoritative_mpc") or {}
+            modules = (own.get("ship_modules") or {}).get("modules", {})
+            environment["enabled"] = bool(original.get("environment") or "environment" in modules)
         enc_image = run_dir / "enc.png"
         image_url = f"/api/runs/{run_dir.name}/replay/enc.png" if enc_image.is_file() else None
         persisted = self._read_json(run_dir / STATIC_CONTEXT_FILENAME)
@@ -661,6 +670,7 @@ class RunReplayStore:
                 "enc_navigation_area": persisted.get("enc_navigation_area"),
                 "navigation_profile_available": bool(self._navigation_profile(run_dir, TraceBundle(run_dir))),
                 "ships": persisted.get("ships"),
+                "environment": environment,
             }
         # Legacy Runs: degrade to episode-derived static facts; anything the
         # episode does not record stays null rather than being inferred.
@@ -688,6 +698,7 @@ class RunReplayStore:
             "enc_navigation_area": None,
             "navigation_profile_available": bool(self._navigation_profile(run_dir, TraceBundle(run_dir))),
             "ships": ships,
+            "environment": environment,
         }
 
     def enc_image(self, run_id: str) -> Path:

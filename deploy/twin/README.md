@@ -5,8 +5,32 @@ Deployment 选 T 后视口无画面的根因：URS 信令（:8080）与 sango tw
 两个进程装成用户域 LaunchAgent 统一管理。
 
 **运行策略（2026-10-06 起）：默认不自启。** plist 为 `RunAtLoad=false` + `KeepAlive=false`
-——开机/登录不拉起、杀进程不复活；仅在人工需要（`deploy/twin/twinctl start`）或 WEB 准备
-孪生仿真（Deployment 选 T，健康卡会提示该命令）时启动。
+——开机/登录不拉起、杀进程不复活。人工可用 `deploy/twin/twinctl start`；
+Deployment 选 **DT** 时，WEB 通过当前会话的 `/api/sessions/{session_id}/twin/start`
+启动信令与 player，再连接 live 数据流。暂停保留连接；FINISHED/FAILED、Reset/会话替换
+和后端正常退出会异步停掉本会话启动的双服务，停止命令不会阻塞仿真线程。
+切回海图仅断开该视口，后台保留到会话结束；再次选 DT 可重新连接。
+此自动启停限当前 macOS 本地 runtime；Evaluation 的封存回放仍走既有连接流程。
+
+## A4000 远程渲染
+
+当前已选择仅迁移 Unity 渲染/编码。仿真后端与 WEB 留本机；浏览器通过 SSH 转发的
+信令连接 A4000，媒体走 WebRTC。启用 `remote-runtime.json` 后，`twinctl` 自动使用远端
+控制器；`remote-runtime.example.json` 是当前部署的端点模板。
+
+- 隔离路径：`/home/marine.huang/.local/share/colav-twin-renderer`，不使用或覆盖 MASS-L3 checkout。
+- 本机 `127.0.0.1:8080` → A4000 信令；A4000 `127.0.0.1:18010` → 本机后端 `127.0.0.1:8010`。
+- Linux/Vulkan 使用 GPU 0、NVENC H.264；虚拟显示 `:93` 不在本机显示 Unity 窗口。
+- `LD_PRELOAD` 仅对播放器设置系统 `libstdc++`，修复已实测的 Unity/WebRTC NVENC 初始化符号冲突。
+- 完成/失败/Reset：仅停止本服务记录的 player、signaling、Xvfb 进程组并关闭自有 SSH 通道。
+- 本机默认禁止自动启动本地 Unity；仍可移走机器配置恢复本地模式。
+
+**WEB 画质与隐藏窗口运行**：player 以 `--sango-web-only -force-metal` 启动，正常 GPU
+渲染循环保留；播放器在启动阶段禁止窗口激活并隐藏自身窗口。流相机启用 HDRP TAA，
+编码器发送目标 30 fps，渲染上限 60 fps；默认 1920×1080@30，Deployment 根据
+实际视口像素协商 2560×1440@30。连续 5 个实测样本低于 26 fps 或解码丢帧超过 3%
+时降至 1080p，视口改变后重新选择档位。HUD 显示接收分辨率、解码 fps 和接收码率，
+不再将 Unity Update 帧率和 live 固定零延迟作为视频质量指标。
 
 ## 组件
 

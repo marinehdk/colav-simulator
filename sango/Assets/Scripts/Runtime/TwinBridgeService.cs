@@ -935,6 +935,7 @@ namespace Sango
             if (driver != null)
             {
                 state.frame_seq = driver.LastSeq;
+                state.presentation_buffering = driver.LiveBuffering;
                 state.geo_fit = driver.GeoFit; // P3-12（契约 §8 演进只加字段）：geo_fit = M6 覆盖度判定回显
                 double sim = driver.RenderSimTime;
                 if (!double.IsNaN(sim))
@@ -974,6 +975,19 @@ namespace Sango
                     pitch_deg = -Mathf.DeltaAngle(0f, camera.transform.eulerAngles.x),
                     fov_deg = camera.fieldOfView,
                 };
+            }
+            var buoyancy = driver?.OwnShipObject?.GetComponent<VesselBuoyancy>();
+            if (buoyancy != null)
+            {
+                var attitude = buoyancy.SmoothedAttitude;
+                var contact = driver.OwnShipObject.GetComponentInChildren<BoatWaterDecals>();
+                state.motion = new TwinBridgeMotion { visual_heave_m = attitude.x, visual_pitch_deg = attitude.z,
+                    roll_deg = -attitude.y,
+                    propwash_foam = contact != null ? contact.PropwashFoam01 : 0,
+                    wave_contact_foam = contact != null ? contact.ContactFoam01 : 0,
+                    bow_entry_mps = contact != null ? contact.ContactEntryMps : 0,
+                    native_foam_peak = contact != null ? contact.BufferFoamMax : 0,
+                    roll_source = buoyancy.twinRollDeg?.Invoke().HasValue == true ? "backend_4dof" : "surface_visual" };
             }
             Send(state);
         }

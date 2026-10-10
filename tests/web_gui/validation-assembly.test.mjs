@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { createValidationAssembly } from '../../web_gui/modules/validation-assembly.js?v=20260914-gnc-replay-v3';
+import { createValidationAssembly } from '../../web_gui/modules/validation-assembly.js?v=20261009-dt-environment-v1';
 
 const qualifiedProductDomainProfile = {
   profile_id: 'colav.mid-mpc-validation-domain.v1',
@@ -277,6 +277,7 @@ test('bootstrap without an active session uses complete catalog defaults', () =>
     domain_profile: null,
     scenario_override: null,
     gnc_stack_id: 'legacy_without_modules',
+    environment_settings: null,
   });
   assert.equal(assembly.snapshot().dirty, false);
   assert.equal(assembly.snapshot().classification, 'verified');

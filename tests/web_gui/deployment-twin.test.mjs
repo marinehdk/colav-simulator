@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-import { createDeploymentTwinViewport, projectTwinLandscape } from '../../web_gui/modules/deployment-twin.js?v=20261009-dt-camera-v3';
+import { createDeploymentTwinViewport, projectTwinLandscape } from '../../web_gui/modules/deployment-twin.js?v=20261010-dt-landscape-v1';
 
 const html = await readFile(new URL('../../web_gui/index.html', import.meta.url), 'utf8');
 const styles = await readFile(new URL('../../web_gui/style.css', import.meta.url), 'utf8');

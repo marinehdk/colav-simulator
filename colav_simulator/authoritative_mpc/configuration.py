@@ -7,7 +7,6 @@ colleague MPC package ``gnc/mpc_control`` in external-reference mode.
 
 from __future__ import annotations
 
-import copy
 import csv
 import hashlib
 import json
@@ -17,6 +16,7 @@ from pathlib import Path
 
 import yaml
 
+from colav_simulator.environment_settings import original_parameters
 from colav_simulator.original_gnc.native import OriginalGncError
 
 # SOURCE_MANIFEST.csv of GNC worktree lane feat/mpc-control-lane (commit d917ed9):
@@ -34,11 +34,12 @@ class AuthoritativeMpcConfig:
     source_root: Path
     build_directory: Path
     environment: bool = False
+    environment_settings: dict | None = None
 
     @classmethod
     def from_dict(cls, value: dict) -> AuthoritativeMpcConfig:
         """Resolve only documented independent-backend options."""
-        unknown = set(value) - {"source_root", "build_directory", "environment"}
+        unknown = set(value) - {"source_root", "build_directory", "environment", "environment_settings"}
         if unknown:
             raise ValueError(f"Unknown Authoritative MPC configuration: {sorted(unknown)}")
         if not isinstance(value.get("environment", False), bool):
@@ -54,7 +55,10 @@ class AuthoritativeMpcConfig:
             or os.environ.get("COLAV_AUTHORITATIVE_MPC_BUILD")
             or root / "build/original_mpc-current"
         )
-        return cls(Path(source).expanduser().resolve(), Path(build).expanduser().resolve(), value.get("environment", False))
+        return cls(
+            Path(source).expanduser().resolve(), Path(build).expanduser().resolve(),
+            value.get("environment", False), value.get("environment_settings"),
+        )
 
     def to_dict(self) -> dict:
         """Persist explicit locations so task working directories cannot change them."""
@@ -62,6 +66,7 @@ class AuthoritativeMpcConfig:
             "source_root": str(self.source_root),
             "build_directory": str(self.build_directory),
             "environment": self.environment,
+            **({"environment_settings": self.environment_settings} if self.environment_settings is not None else {}),
         }
 
     @property
@@ -111,7 +116,9 @@ class AuthoritativeMpcConfig:
 
     def parameters(self) -> dict:
         """Copy the MPC lane parameter set; caller changes initialization only."""
-        return copy.deepcopy(json.loads(BASELINE.read_text())["parameters"])
+        return original_parameters(
+            json.loads(BASELINE.read_text())["parameters"], self.environment_settings if self.environment else None,
+        )
 
     def response_approximation(self, input_kind: str = "route_plan") -> dict:
         """Return borrowed provisional constants; qualification is computed, not claimed."""

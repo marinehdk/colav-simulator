@@ -45,5 +45,24 @@
 
 ## 备注
 
+2026-10-09 Norwegian DT additions:
+
+| Asset | Location | Source / licence | Scope |
+|---|---|---|---|
+| Kartverket NHM DTM, 18 km overview and 6 km ENC detail | `Assets/TerrainNorway/`; reproducible bake `tools/terrain/build_norway_data.py` | [Official WCS](https://hoydedata.no/arcgis/services/NHM_DTM_25833/ImageServer/WCSServer); source credits in `Assets/StreamingAssets/Norway-Terrain-Credits.txt` | EPSG:25833 actual landscape; source requests 10 m / 2 m; shared vertex grid resampling does not add source detail. Underwater floor is visual approximation. |
+| Kartverket N50 land cover, Alesund/Sula/Giske | Same derived terrain; original GML archives retained outside Player | [N50 metadata](https://kartkatalog.geonorge.no/metadata/uuid/ea192681-d039-42ec-b1bc-f3ce04c189ac), CC BY 4.0 | Coast/forest/urban classification, 1:50,000 cartographic accuracy; no invented Singapore port geometry. |
+| Rocky Terrain 02 / Amal Kumar | `Assets/Art/NorwayTerrain/` | [Poly Haven](https://polyhaven.com/a/rocky_terrain_02), CC0 1.0 | 4K PBR surface appearance, 90 m physical tile; not Norwegian orthophotography. |
+
+2026-10-09 在线显示接入（未提交）：
+
+| 组件 / 服务 | 本地边界 | 来源 / 许可 | 署名与用途 |
+|---|---|---|---|
+| Cesium for Unity 1.26.0 | UPM 包；Linux 原生库由构建器原样随 Player 分发 | [官方版本](https://github.com/CesiumGS/cesium-unity/releases/tag/v1.26.0)、[Apache-2.0](https://github.com/CesiumGS/cesium-unity/blob/v1.26.0/LICENSE) | Player `StreamingAssets/Cesium/` 保留 LICENSE 与 ThirdParty.json。 |
+| Unity Splines 2.9.1 | UPM 包，供官方在线裁剪接口使用 | [Unity 6000.3 package](https://docs.unity.com/en-us/engine/6000.3/manual/packages-list/packages-all/pack-safe/com-unity-splines)，Unity Companion License，许可随包 | 不适用；保留包许可证。 |
+| Cesium ion / Google Photorealistic 3D Tiles | 仅通过官方 SDK 在线显示；Google 网格和影像未写入 `Assets`、离线场景或分发物。离线地形来自上表 Kartverket。 | [内容使用与署名](https://cesium.com/learn/ion/content-usage-and-attribution-guide/)、[Google 附件](https://cesium.com/legal/terms-for-google/)、[Map Tiles policies](https://developers.google.com/maps/documentation/tile/policies) | SDK 动态署名和 Google Maps 标志进入串流相机。此次用于纯视觉预览；不得据此宣称离线资产、感知训练数据或实际航行用途获得授权。请求缓存仍受服务 Cache-Control 约束。 |
+
+当前显示的船体、海面、尾迹来自本工程；Google 提供在线背景地景，Kartverket 提供独立岸线与离线高程。
+这次接入不撤销上文对 Google 数据提取、离线烘焙及导航/感知用途的限制。
+
 - **NetMQ 许可口径**：询价指令原文写 "LGPL-3.0/MPL-2.0"；实际根 `THIRD_PARTY_NOTICES.md` 记载为 **NetMQ 本体 = LGPL-3.0**，MPL-2.0 属于随附的 AsyncIO 0.1.69 与 NaCl.Net 0.1.13。本表按"以 THIRD_PARTY_NOTICES 实际记载为准"逐 dll 拆分登记（故首批 5 条而非 3 条）。
 - 后续采购到位的资产（配角包、CGTrader 45M、MicroSplat、Amplify Impostors 等）见 `docs/research/2026-09-24-scene-ship-fidelity/procurement-checklist.md` 表A，到货后逐条转入本表。

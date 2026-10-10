@@ -27,6 +27,8 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
+
+from colav_simulator.environment_settings import normalize_settings
 import orjson
 import yaml
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
@@ -81,6 +83,7 @@ from colav_simulator.core.tracking.trackers import sensor_channel_id
 from gui_server import canonical_threat as _canonical_threat
 from gui_server.gnc_balance import balance_telemetry
 from gui_server.radar_transport import LIVE_CHECKPOINTS, project_scans
+from gui_server.twin_runtime import TwinRuntime, TwinRuntimeError
 from gui_server.historical_api import router as historical_api_router
 from gui_server.replay import (
     RunReplayStore,
@@ -362,6 +365,7 @@ class SessionCreateRequest(BaseModel):
     # channel, 00-PLAN R3).
     tracker_id: str = "vimmjipda"
     gnc_stack_id: str | None = None
+    environment_settings: dict[str, Any] | None = None
     seed: int = Field(default=0, ge=0)
     episode_index: int = Field(default=0, ge=0)
     dt: float | None = Field(default=None, gt=0)
@@ -605,6 +609,7 @@ class WebSessionManager:
     """Single active research session with background execution."""
     def __init__(self) -> None:
         self.runner = ExperimentRunner(BASE_DIR)
+        self.twin_runtime = TwinRuntime(BASE_DIR)
         self.historical_spec_cache: dict[str, RunSpec] = {}
         self.prepared: PreparedRun | None = None
         self.result: RunResult | None = None
@@ -672,6 +677,7 @@ class WebSessionManager:
         previous = self.prepared
         previous_capture: TraceSink | None = None
         if previous is not None:
+            self.twin_runtime.stop(previous.manifest.run_id)
             previous.artifact_sink.close(timeout_s=2.0)
             previous_capture = self._trace_captures.pop(previous.manifest.run_id, None)
             self._capture_finalize_errors.pop(previous.manifest.run_id, None)
@@ -1062,6 +1068,19 @@ class WebSessionManager:
             else:
                 self._ais_report_ages[index] = clock.advance(t, sog)
 
+    def start_twin(self, session_id: str) -> dict[str, Any]:
+        with self.lock:
+            prepared = self._require(session_id)
+            if prepared.session.state in {SessionState.FINISHED, SessionState.FAILED}:
+                raise RuntimeError("The active session has ended")
+            startup = self.twin_runtime.start(session_id)
+        result = startup.result()
+        with self.lock:
+            prepared = self._require(session_id)
+            if prepared.session.state in {SessionState.FINISHED, SessionState.FAILED}:
+                raise RuntimeError("The active session has ended")
+        return result
+
     def start(self, session_id: str) -> dict[str, Any]:
         with self.lock:
             prepared = self._require(session_id)
@@ -1088,6 +1107,7 @@ class WebSessionManager:
                 self._append_trace_capture(snapshot)
                 self._publish_telemetry(snapshot)
                 if prepared.session.state == SessionState.FINISHED:
+                    self.twin_runtime.stop(prepared.manifest.run_id)
                     self._result_executor.submit(self._finalize, prepared, self.replay_expected)
                 return self.latest
             except Exception as exc:
@@ -1121,6 +1141,7 @@ class WebSessionManager:
                 if finished or self._telemetry_refresh_due(snapshot, now=time.monotonic()):
                     self._publish_telemetry(snapshot)
                 if finished:
+                    self.twin_runtime.stop(self.prepared.manifest.run_id)
                     self._result_executor.submit(self._finalize, self.prepared, self.replay_expected)
                 return float(self.prepared.session.simulator.t)
             except Exception as exc:
@@ -1172,6 +1193,7 @@ class WebSessionManager:
         """Publish failure state immediately; archive frozen evidence off the control path."""
         prepared.session.state = SessionState.FAILED
         prepared.session.failure_reason = str(exc)
+        self.twin_runtime.stop(prepared.manifest.run_id)
         self._result_executor.submit(self._write_failure_evidence, prepared, exc)
 
     def _write_failure_evidence(self, prepared: PreparedRun, exc: Exception) -> None:
@@ -1536,6 +1558,22 @@ class WebSessionManager:
                     "age_s": age_s,
                     "state": ais_target_state(float(ships[-1]["sog"]), age_s),
                 }
+        balance_snapshot = balance_telemetry(session, frame=frame)
+        if ships and balance_snapshot is not None and balance_snapshot.get("roll_deg") is not None:
+            ships[0]["has_roll"] = True
+            ships[0]["roll_rad"] = math.radians(balance_snapshot["roll_deg"])
+        twin_environment = normalize_settings(self.prepared.spec.environment_settings)
+        observed_environment = (balance_snapshot or {}).get("environment", {})
+        twin_environment["enabled"] = observed_environment.get("status") in {"AVAILABLE", "WAITING"}
+        # Render the executing field, including effective current/depth correction.
+        for key in ["wind_speed_mps", "wind_from_deg", "current_speed_mps", "wave_hs_m"]:
+            if observed_environment.get(key) is not None:
+                twin_environment[key] = observed_environment[key]
+        if observed_environment.get("current_to_deg") is not None:
+            twin_environment["current_from_deg"] = (observed_environment["current_to_deg"] + 180) % 360
+        if observed_environment.get("wave_to_deg") is not None:
+            twin_environment["wave_from_deg"] = (observed_environment["wave_to_deg"] + 180) % 360
+        twin_environment["wave_period_s"] = observed_environment.get("wave_tz_s") or observed_environment.get("wave_tp_s") or twin_environment["wave_period_s"]
         own = ships[0] if ships else {"x": 0.0, "y": 0.0, "psi": 0.0, "u": 0.0, "v": 0.0, "r": 0.0, "trajectory": []}
         if ships:
             latitude, longitude = mapf.local2latlon(own["east"], own["north"], session.enc.utm_zone)
@@ -1859,7 +1897,8 @@ class WebSessionManager:
             "selected_scenario": self.prepared.spec.scenario_id,
             "modular_gnc": _modular_gnc_telemetry_metadata(session),
             "original_gnc": _original_gnc_telemetry_metadata(session),
-            "gnc_balance": balance_telemetry(session, frame=frame),
+            "gnc_balance": balance_snapshot,
+            "environment": twin_environment,
             "step_time_ms": step_ms,
             "playback": self._playback_status(),
             "failure_reason": session.failure_reason,
@@ -2005,6 +2044,7 @@ async def lifespan(_: FastAPI):
         task.cancel()
         with suppress(asyncio.CancelledError):
             await task
+        manager.twin_runtime.stop()
 
 
 manager = WebSessionManager()
@@ -2260,6 +2300,18 @@ def api_session_confirmed_tracks(
         raise HTTPException(status_code=404, detail="SESSION_NOT_FOUND") from exc
     except ValueError as exc:
         raise HTTPException(status_code=422, detail="VALIDATION_ERROR") from exc
+
+
+@app.post("/api/sessions/{session_id}/twin/start")
+def api_session_twin_start(session_id: str) -> dict[str, Any]:
+    try:
+        return manager.start_twin(session_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="Session not found") from exc
+    except TwinRuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
 @app.post("/api/sessions/{session_id}/start")

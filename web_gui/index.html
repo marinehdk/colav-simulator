@@ -213,6 +213,7 @@
                   <strong id="gncEnvironmentState">OFF</strong>
                   <span id="gncEnvironmentHelp"></span>
                 </div>
+                <div id="gncEnvironmentSettings" class="gnc-environment-settings" hidden aria-label="环境设置"></div>
                 <div id="gncCustomBinding" class="gnc-stack-unavailable" hidden></div>
                 <div id="gncStackUnavailable" class="gnc-stack-unavailable" hidden>GNC preset catalog unavailable · backend authority unreachable.</div>
                 <div class="gnc-table-scroll"><table class="gnc-preset-table" aria-label="Selected stack fields"><thead><tr><th>Field</th><th>Selected configuration</th></tr></thead><tbody id="gncFieldRows"></tbody></table></div>
@@ -220,16 +221,6 @@
                 <details class="gnc-preset-comparison" open>
                   <summary>Compare stack presets</summary>
                   <div class="gnc-table-scroll"><table class="gnc-preset-table" aria-label="Preset stacks"><thead><tr><th>GNC Stack</th><th>Plant</th><th>Guidance</th><th>Controller</th><th>Actuation</th><th>Environment</th></tr></thead><tbody id="gncPresetRows"></tbody></table></div>
-                </details>
-                <details class="gnc-technical-details">
-                  <summary>Technical details · modules, parameters and evidence</summary>
-                  <div class="gnc-stack-detail-grid">
-                    <section class="gnc-stack-evidence-section"><h3>Modules</h3><dl id="gncStackModules"></dl></section>
-                    <section class="gnc-stack-evidence-section"><h3>Fidelity</h3><dl id="gncStackFidelity"></dl></section>
-                    <section class="gnc-stack-evidence-section"><h3>Asset trust</h3><dl id="gncStackAssetTrust"></dl></section>
-                    <section class="gnc-stack-evidence-section"><h3>Acceptance</h3><dl id="gncStackAcceptance"></dl></section>
-                  </div>
-                  <pre id="gncStackParameters" class="gnc-parameters"></pre>
                 </details>
               </div>
             </section>
@@ -1164,7 +1155,7 @@
   </div>
 
   <script type="module" src="/static/app.js?v=20261010-dt-camera-v40"></script>
-  <script type="module" src="/static/modules/config-shell.js?v=20260921-poi-v2"></script>
+  <script type="module" src="/static/modules/config-shell.js?v=20261009-dt-environment-v2"></script>
   <script type="module" src="/static/modules/historical-ais-workbench.js?v=20260923-vo-primitive-v1"></script>
   <script type="module" src="/static/modules/replay-runs.js?v=20260916-replay-layout-v4"></script>
   <script type="module" src="/static/modules/evaluation-replay.js?v=20261008-sensor-ppi-v1"></script>

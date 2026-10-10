@@ -1,0 +1,8 @@
+Rocky Terrain 02 by Amal Kumar / Poly Haven
+https://polyhaven.com/a/rocky_terrain_02
+License: CC0 1.0, https://polyhaven.com/license
+Downloaded: 2026-10-09
+Maps: 4K diffuse, OpenGL normal and roughness, from the asset page's download links.
+Photogrammetry footprint: 90 m (source asset metadata).
+These textures are visual surface materials. They are not photographs of Norway
+and do not claim to reproduce the appearance of any particular Norwegian parcel.

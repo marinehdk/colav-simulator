@@ -12,6 +12,8 @@
 	<array>
 		<string>/Users/marine/Code/Colav-Simulator/sango/Builds/sango-twin.app/Contents/MacOS/sango</string>
 		<string>--sango-twin-bridge</string>
+		<string>--sango-web-only</string>
+		<string>-force-metal</string>
 	</array>
 	<key>RunAtLoad</key>
 	<false/>

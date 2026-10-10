@@ -23,6 +23,9 @@ namespace Sango
     {
         [Tooltip("要查询的 HDRP Water Surface（场景构建器注入，也可 Inspector 拖拽）。")]
         public WaterSurface waterSurface;
+        public System.Func<float?> twinRollDeg;
+        public float bowYawDeg;
+        float? m_SourceRoll;
 
         [Tooltip("临界阻尼平滑频率（Hz）：越大跟浪越紧，越小越沉稳。0.8 ≈ 1.5 s 整定，货轮量级观感。")]
         public float smoothingFrequencyHz = 0.8f;
@@ -59,7 +62,7 @@ namespace Sango
         /// <summary>本帧求解目标姿态（heave 米 / roll 度 / pitch 度，钉死约定见求解器）。</summary>
         public Vector3 TargetAttitude => new Vector3(m_TargetHeave, m_TargetRoll, m_TargetPitch);
         /// <summary>当前平滑后姿态（同上）。</summary>
-        public Vector3 SmoothedAttitude => new Vector3(m_Heave.Value, m_Roll.Value, m_Pitch.Value);
+        public Vector3 SmoothedAttitude => new Vector3(m_Heave.Value, m_SourceRoll ?? m_Roll.Value, m_Pitch.Value);
         /// <summary>设计吃水基线（挂载时根 y，= 编目 waterlineOffsetY）。</summary>
         public float DraftBaselineY => m_BaselineY;
 
@@ -167,10 +170,20 @@ namespace Sango
             m_SearchParams.outputNormal = false;
         }
 
+        void ApplyKnownRoll()
+        {
+            if (!m_SourceRoll.HasValue) return;
+            float yaw = transform.eulerAngles.y - bowYawDeg;
+            transform.rotation = Quaternion.Euler(m_Pitch.Value, yaw, m_SourceRoll.Value) * Quaternion.Euler(0, bowYawDeg, 0);
+        }
+
         void LateUpdate()
         {
+            m_SourceRoll = twinRollDeg?.Invoke();
+            if (m_SourceRoll.HasValue) m_SourceRoll = -m_SourceRoll.Value;
             if (waterSurface == null || m_RootLocalCentroids == null || m_RootLocalCentroids.Length == 0)
             {
+                ApplyKnownRoll();
                 return;
             }
 
@@ -184,7 +197,8 @@ namespace Sango
 
             // 姿态写入只经 y/欧拉 X/Z；x/z/yaw 原样读取，永不回写。
             var rootPos = transform.position;
-            float yawDeg = transform.eulerAngles.y;
+            float yawDeg = transform.eulerAngles.y - bowYawDeg;
+            // NED positive roll lowers starboard; Unity +z rotation raises +x.
             Quaternion yawInverse = Quaternion.Inverse(Quaternion.Euler(0f, yawDeg, 0f));
 
             var p = BuoyancyParams.Default;
@@ -234,7 +248,7 @@ namespace Sango
             }
 
             // 本帧查询全废（数据未就绪等）：保持上帧姿态，不用残缺数据解算。
-            if (validSamples == 0) return;
+            if (validSamples == 0) { ApplyKnownRoll(); return; }
 
             // count 重载：只消费前 validSamples 个有效样点，缓冲尾部残留被忽略，无需切割分配。
             var attitude = BuoyancyAttitudeSolver.Solve(hullSamples, validSamples, p);
@@ -250,7 +264,7 @@ namespace Sango
             // 施加：heave 只改根 y（基线 + 偏移）；roll/pitch 叠在脚本拥有的 yaw 上。
             rootPos.y = m_BaselineY + m_Heave.Value;
             transform.position = rootPos;
-            transform.rotation = Quaternion.Euler(m_Pitch.Value, yawDeg, m_Roll.Value);
+            transform.rotation = Quaternion.Euler(m_Pitch.Value, yawDeg, m_SourceRoll ?? m_Roll.Value) * Quaternion.Euler(0, bowYawDeg, 0);
         }
 
         Vector3 SampleAtDesignPose(Vector3 centroid)

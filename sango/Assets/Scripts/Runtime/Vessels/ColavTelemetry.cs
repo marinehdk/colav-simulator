@@ -38,6 +38,7 @@ namespace Sango
 
         /// <summary>回放状态（effective_multiplier 偏离 = 后端 realtime_limited，PLAN §8.3）。</summary>
         public Playback playback;
+        public TwinEnvironment environment;
 
         [Serializable]
         public class Transport
@@ -60,11 +61,13 @@ namespace Sango
             public float width;
 
             /// <summary>本地平面坐标：东向/北向（米，ENC origin 系；main.py:1221-1222 north/east）。</summary>
-            public float east;
-            public float north;
+            public double east;
+            public double north;
 
             /// <summary>艏向 psi（rad，北偏东顺时针为正；main.py:1223）。</summary>
             public float psi;
+            public bool has_roll;
+            public float roll_rad;
 
             /// <summary>纵荡/横荡速度（m/s）。</summary>
             public float u;

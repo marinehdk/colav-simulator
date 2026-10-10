@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { chooseTwinStreamProfile, sampleTwinVideoStats } from '../../web_gui/modules/twin-stream-quality.js?v=20261008-dt-quality-v1';
-import { createTwinBridgeClient } from '../../web_gui/modules/twin-view.js?v=20261010-dt-situation-v1';
+import { chooseTwinStreamProfile, sampleTwinVideoStats } from '../../web_gui/modules/twin-stream-quality.js?v=20261009-dt-quality-v3';
+import { createTwinBridgeClient } from '../../web_gui/modules/twin-view.js?v=20261010-dt-camera-v4';
 
 test('viewport selects 1080p or 1440p using contained physical video pixels', () => {
   assert.equal(chooseTwinStreamProfile(1800, 1000, 1), '1440p');

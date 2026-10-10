@@ -64,8 +64,8 @@ namespace Sango.Tests
             Assert.That(own.id, Is.EqualTo(0));
             Assert.That(own.mmsi, Is.EqualTo(100));
             // state = [north, east, psi, u, v, r]（NE 序；帧 21 录制事实）。
-            Assert.That(own.north, Is.EqualTo(6957549.216f).Within(0.01f));
-            Assert.That(own.east, Is.EqualTo(39548.201f).Within(0.01f));
+            Assert.That(own.north, Is.EqualTo(6957549.216).Within(0.01f));
+            Assert.That(own.east, Is.EqualTo(39548.201).Within(0.01f));
             Assert.That(own.psi, Is.EqualTo(0.7781188f).Within(1e-5f), "psi rad 北偏东");
             Assert.That(own.u, Is.EqualTo(6.8834353f).Within(1e-4f));
             Assert.That(own.v, Is.EqualTo(-0.08693168f).Within(1e-4f));

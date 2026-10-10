@@ -8,6 +8,9 @@
 set -u
 
 REPO="$(cd "$(dirname "$0")/../.." && pwd)"
+if [ -f "$REPO/deploy/twin/remote-runtime.json" ]; then
+  exec "$REPO/.venv/bin/python" "$REPO/deploy/twin/remote_control.py" "$@"
+fi
 GUI="gui/$(id -u)"
 SIGN=com.marine.colav-simulator.twin-signaling
 PLAY=com.marine.colav-simulator.twin-player
@@ -62,8 +65,11 @@ do_status() {
 }
 
 case "${1:-}" in
-  start)   start_one "$SIGN"; start_one "$PLAY" ;;
-  stop)    stop_one "$PLAY";  stop_one "$SIGN" ;;
+  start)   start_one "$SIGN" && start_one "$PLAY" ;;
+  stop)    result=0
+           stop_one "$PLAY" || result=1
+           stop_one "$SIGN" || result=1
+           exit "$result" ;;
   restart) stop_one "$PLAY";  stop_one "$SIGN"; sleep 1; start_one "$SIGN"; start_one "$PLAY" ;;
   status)  do_status ;;
   *) echo "用法: $0 start|stop|restart|status"; exit 2 ;;

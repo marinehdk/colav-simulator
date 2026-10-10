@@ -1,0 +1,24 @@
+Norwegian ENC landscape - source credits and limitations
+
+Elevation and land cover: Contains modified data from Kartverket.
+Retrieved 2026-10-09. Elevation: NHM DTM WCS, EPSG:25833, 10 m overview and
+2 m requested sampling over the current ENC. Source acquisition dates vary.
+https://hoydedata.no/arcgis/services/NHM_DTM_25833/ImageServer/WCSServer
+https://nedlasting.geonorge.no/geonorge/ATOM/hoydedata/datasett/DTM1.atom
+The DTM feed records NLOD 2.0; service catalogue also records CC BY 4.0.
+https://data.norge.no/en/data-services/df1adc4b-7575-351a-b9d4-4891decc8b16/dtm1-atom-feed-tjeneste
+
+N50 Kartdata: Alesund, Sula and Giske municipality distributions, EPSG:25833.
+License: Creative Commons Attribution 4.0. Cartographic source scale 1:50,000.
+https://kartkatalog.geonorge.no/metadata/uuid/ea192681-d039-42ec-b1bc-f3ce04c189ac
+https://creativecommons.org/licenses/by/4.0/
+
+Changes: clipped to E33000..51000 / N6950450..6968450, resampled to a shared
+terrain vertex grid, normalized to uint16. Land cover drives approximate PBR
+appearance. Surface textures are not Norwegian orthophotography. The underwater
+floor is a synthetic visual taper to -80 m; it is not measured bathymetry and
+does not replace backend ENC soundings or navigation authority.
+
+Surface material: Rocky Terrain 02 by Amal Kumar / Poly Haven, CC0 1.0.
+https://polyhaven.com/a/rocky_terrain_02
+https://polyhaven.com/license

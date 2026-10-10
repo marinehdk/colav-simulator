@@ -53,6 +53,7 @@ namespace Sango
 
         [Tooltip("水引用（VesselBuoyancy 用；空 = 船位 y 只按水线偏移）")]
         public UnityEngine.Rendering.HighDefinition.WaterSurface water;
+        public NorwayTerrain geography;
 
         /// <summary>队列积压上限：主线程长期不取用时丢最旧（DetectionResultConsumer 同款）。</summary>
         const int QueueCap = 64;
@@ -65,7 +66,10 @@ namespace Sango
             public GameObject Ship;
             public VesselCatalog.Entry Entry;
             public float LengthMeters;
+            public float BeamMeters;
             public float SogMps;
+            public float WaterSpeedMps;
+            public float? RollDeg;
         }
 
         readonly Dictionary<int, TwinSlot> m_Slots = new Dictionary<int, TwinSlot>();
@@ -75,10 +79,17 @@ namespace Sango
         volatile bool m_Running;
 
         TwinClock m_Clock = new TwinClock();
+        readonly TwinLivePresentation m_LivePresentation = new TwinLivePresentation();
         TwinAnchor? m_Anchor;
         ColavTelemetry m_Prev, m_Latest;
         bool m_CanInterpolate;
+        double m_LastPresentedSim = double.NaN;
+        GameObject m_FoamRegionRoot;
+        Transform m_PreviousFoamAnchor;
         int m_LastSeq = -1;
+        public TwinEnvironment LiveEnvironment { get; private set; }
+        WeatherController m_Weather;
+        string m_WeatherSignature;
         CameraRig m_CameraRig; // 槽位视觉接线用（TopDown 矢量隐藏语义）；查找一次缓存
 
         // P3-12 地理配准观测面：接受帧船位的场景坐标包络（±x/±z 极值，锚点变换后）
@@ -118,11 +129,12 @@ namespace Sango
         /// <summary>当前船槽数（bridge attached.ships 用）。</summary>
         public int SlotCount => m_Slots.Count;
 
-        /// <summary>首帧锚定原点（bridge attached.anchor 用；未锚定 null）。</summary>
         public float OwnShipLengthM => m_Latest?.truth != null && m_Latest.truth.Length > 0 ? m_Latest.truth[0].length : 45f;
+
         public GameObject ShipObject(int id) =>
             m_Slots.TryGetValue(id, out var slot) && slot.Ship != null ? slot.Ship : null;
 
+        /// <summary>首帧锚定原点（bridge attached.anchor 用；未锚定 null）。</summary>
         public TwinAnchor? Anchor => m_Anchor;
 
         /// <summary>
@@ -146,7 +158,10 @@ namespace Sango
                 : null;
 
         /// <summary>渲染插值 sim_time（未同步 NaN；bridge state 消息 sim_time 用）。</summary>
-        public double RenderSimTime => m_Clock.Sample(Time.realtimeSinceStartupAsDouble);
+        public double RenderSimTime => SamplePoseTime(Time.realtimeSinceStartupAsDouble);
+        public bool LiveBuffering => runtimeEnabled && m_LivePresentation.Buffering;
+
+        double SamplePoseTime(double now) => runtimeEnabled ? m_LivePresentation.Sample(now) : m_Clock.Sample(now);
 
         /// <summary>
         /// replay 暂停门控（P2-S3；twin-bridge-v1 §2 "PAUSED 时钟权威在 web"）：渲染钟直接锚到
@@ -164,7 +179,7 @@ namespace Sango
         {
             get
             {
-                double renderSim = m_Clock.Sample(Time.realtimeSinceStartupAsDouble);
+                double renderSim = SamplePoseTime(Time.realtimeSinceStartupAsDouble);
                 string own = "";
                 if (m_Latest != null && m_Latest.truth != null && m_Latest.truth.Length > 0 && m_Anchor.HasValue)
                 {
@@ -216,6 +231,7 @@ namespace Sango
             m_Prev = m_Latest = null;
             m_Anchor = null;
             m_Clock.Reset();
+            m_LivePresentation.Reset();
             m_LastSeq = -1;
             m_CanInterpolate = false;
             ResetGeoFit();
@@ -254,7 +270,7 @@ namespace Sango
             {
                 if (ship == null) return "";
                 var position = TwinPose.ScenePosition(ship, m_Anchor.Value);
-                float elevation = M6TwinGeo.ElevationAt(position);
+                float elevation = geography != null ? geography.ElevationAt(position) : M6TwinGeo.ElevationAt(position);
                 string elevSegment = float.IsNaN(elevation) ? "" : $",e{elevation:0.0}m";
                 return $"id{ship.id}=({position.x:0.0},{position.z:0.0}m,ψ{TwinPose.YawDegrees(ship.psi):0}°{elevSegment})";
             }));
@@ -289,14 +305,14 @@ namespace Sango
         void ClassifyGeoFit()
         {
             if (!m_HasExtent) return;
-            m_FitReport = M6TwinGeo.ClassifyFit(m_SceneMin, m_SceneMax);
+            m_FitReport = geography != null ? geography.ClassifyFit(m_SceneMin, m_SceneMax) : M6TwinGeo.ClassifyFit(m_SceneMin, m_SceneMax);
             string previous = m_GeoFit;
             m_GeoFit = m_FitReport.Fit;
             bool fractionsMoved = Mathf.Abs(m_FitReport.WaterFraction - m_LastLoggedWaterFrac) > 0.01f;
             if (m_GeoFit != previous || fractionsMoved)
             {
                 m_LastLoggedWaterFrac = m_FitReport.WaterFraction;
-                var landing = M6TwinGeo.LandingM;
+                var landing = m_Anchor?.LandingM ?? Vector2.zero;
                 Debug.Log($"[Sango.Twin] geo anchor=({m_Anchor?.EastM ?? 0:0.#},{m_Anchor?.NorthM ?? 0:0.#}) " +
                           $"landing=({landing.x:0},{landing.y:0}) fit={m_GeoFit} " +
                           $"water={m_FitReport.WaterFraction:0.000} terrain={m_FitReport.TerrainFraction:0.000} " +
@@ -391,8 +407,24 @@ namespace Sango
         {
             while (m_Inbox.TryDequeue(out var frame))
             {
+                if (frame.environment != null)
+                {
+                    LiveEnvironment = frame.environment;
+                    string signature = JsonUtility.ToJson(frame.environment);
+                    if (signature != m_WeatherSignature)
+                    {
+                        if (m_Weather == null) m_Weather = FindFirstObjectByType<WeatherController>();
+                        TwinEnvironmentVisuals.Apply(m_Weather, frame.environment);
+                        m_WeatherSignature = signature;
+                    }
+                }
                 TwinFrameDecision decision = TwinFrameGate.Classify(frame.seq, m_LastSeq);
-                if (decision == TwinFrameDecision.Duplicate) { m_DuplicateCount++; continue; }
+                if (decision == TwinFrameDecision.Duplicate)
+                {
+                    // Heartbeats can carry rate/pause changes at the same seq.
+                    if (runtimeEnabled) m_LivePresentation.ObservePlayback(frame, now);
+                    m_DuplicateCount++; continue;
+                }
                 if (decision == TwinFrameDecision.Rebuild)
                 {
                     // seq 倒退 = 会话重建（spec #89）：清船、清锚点、时钟重置，重 attach 语义。
@@ -402,19 +434,21 @@ namespace Sango
                     m_Prev = m_Latest = null;
                     m_Anchor = null;
                     m_Clock.Reset();
+                    m_LivePresentation.Reset();
                     m_LastSeq = -1;
                     m_CanInterpolate = false;
                     ResetGeoFit();
                     Debug.LogWarning($"[Sango.Twin] seq regression {regressedFrom} -> {frame.seq}; session rebuilt");
                 }
                 ColavTelemetry previous = m_Latest;
+                if (runtimeEnabled) m_LivePresentation.Offer(frame, now);
                 var sync = m_Clock.OnFrame(frame.sim_time, now,
-                    frame.playback != null ? frame.playback.effective_multiplier : 1.0);
-                m_CanInterpolate = sync == TwinFrameSync.Smooth && previous != null; // Resync/First 跨跳不插值
+                    frame.playback != null ? frame.playback.effective_multiplier : m_LivePresentation.Rate);
+                m_CanInterpolate = sync == TwinFrameSync.Smooth && previous != null;
                 m_Prev = m_CanInterpolate ? previous : null;
                 m_Latest = frame;
                 m_LastSeq = frame.seq;
-                if (!m_Anchor.HasValue) m_Anchor = TwinAnchor.FromShip(frame.truth[0]);
+                if (!m_Anchor.HasValue) m_Anchor = geography != null ? geography.Anchor : TwinAnchor.FromShip(frame.truth[0]);
                 AccumulateExtent(frame);
                 m_AcceptedCount++;
             }
@@ -423,20 +457,26 @@ namespace Sango
         void ApplyPoses(double now)
         {
             if (m_Latest == null || m_Latest.truth == null || !m_Anchor.HasValue) return;
-            double renderSim = m_Clock.Sample(now);
+            double renderSim = SamplePoseTime(now);
+            ColavTelemetry previousFrame = m_CanInterpolate ? m_Prev : null;
+            ColavTelemetry renderFrame = m_Latest;
+            if (runtimeEnabled && !m_LivePresentation.Bracket(now, out previousFrame, out renderFrame, out renderSim)) return;
             if (double.IsNaN(renderSim)) return;
-            foreach (var ship in m_Latest.truth)
+            bool advancing = TwinWaterMotion.IsAdvancing(m_LastPresentedSim, renderSim,
+                runtimeEnabled ? m_Latest.state : null);
+            m_LastPresentedSim = renderSim;
+            foreach (var ship in renderFrame.truth)
             {
                 if (ship == null) continue;
                 TwinSlot slot = EnsureSlot(ship);
                 if (slot == null) continue;
                 var entry = ship;
-                if (m_CanInterpolate && m_Prev != null && m_Prev.truth != null)
+                if (previousFrame != null && previousFrame.truth != null)
                 {
-                    var previous = FindById(m_Prev.truth, ship.id);
+                    var previous = FindById(previousFrame.truth, ship.id);
                     if (previous != null)
                     {
-                        float alpha = TwinPose.InterpolationAlpha(renderSim, m_Prev.sim_time, m_Latest.sim_time);
+                        float alpha = TwinPose.InterpolationAlpha(renderSim, previousFrame.sim_time, renderFrame.sim_time);
                         entry = TwinPose.LerpEntries(previous, ship, alpha);
                     }
                 }
@@ -444,7 +484,15 @@ namespace Sango
                 slot.Ship.transform.SetPositionAndRotation(position,
                     Quaternion.Euler(0f, TwinPose.YawDegrees(entry.psi) + slot.Entry.bowYawDeg, 0f));
                 if (slot.Ship.activeSelf != entry.active) slot.Ship.SetActive(entry.active);
-                slot.SogMps = entry.sog; // 供矢量/尾迹强度消费（遗留：见类头注）
+                var forward = TwinPose.HeadingVector(TwinPose.YawDegrees(entry.psi));
+                var starboard = new Vector3(forward.z, 0, -forward.x);
+                var throughWater = forward * entry.u + starboard * entry.v - (LiveEnvironment?.CurrentVelocity ?? Vector3.zero);
+                slot.SogMps = entry.sog;
+                slot.WaterSpeedMps = advancing ? throughWater.magnitude : 0f;
+                if (m_FoamRegionRoot != null && slot.Ship == OwnShipObject &&
+                    TwinWaterMotion.RegionNeedsRecenter(m_FoamRegionRoot.transform.position, position, water.decalRegionSize))
+                    m_FoamRegionRoot.transform.position = new Vector3(position.x, 0, position.z);
+                slot.RollDeg = entry.has_roll ? entry.roll_rad * Mathf.Rad2Deg : (float?)null; // 供矢量/尾迹强度消费（遗留：见类头注）
             }
         }
 
@@ -468,16 +516,19 @@ namespace Sango
             var position = TwinPose.ScenePosition(ship, m_Anchor.Value) + Vector3.up * entry.waterlineOffsetY;
             var shipObject = Instantiate(entry.prefab, position,
                 Quaternion.Euler(0f, TwinPose.YawDegrees(ship.psi) + entry.bowYawDeg, 0f), transform);
+            shipObject.SetActive(false);
             shipObject.name = $"Twin vessel {ship.id} ({entry.vesselClass})";
             if (water != null)
             {
                 var buoyancy = shipObject.AddComponent<VesselBuoyancy>();
                 buoyancy.waterSurface = water;
+                buoyancy.bowYawDeg = entry.bowYawDeg;
                 buoyancy.maxSamplesPerHull = ship.id == 0 ? 64 : 16; // VisualSimulationSession.Apply 同分档
             }
-            var slot = new TwinSlot { Ship = shipObject, Entry = entry, LengthMeters = ship.length };
+            var slot = new TwinSlot { Ship = shipObject, Entry = entry, LengthMeters = ship.length, BeamMeters = ship.width };
             m_Slots[ship.id] = slot;
             WireTwinVisuals(slot, entry);
+            shipObject.SetActive(ship.active);
             return slot;
         }
 
@@ -495,10 +546,65 @@ namespace Sango
             arrows.twinSpeedMps = () => slot.SogMps;
             arrows.twinActive = () => runtimeEnabled && slot.Ship != null && slot.Ship.activeInHierarchy;
             arrows.twinBowYawOffsetDeg = entry.bowYawDeg;
+            var buoyancy = slot.Ship.GetComponent<VesselBuoyancy>();
+            if (buoyancy != null) buoyancy.twinRollDeg = () => slot.RollDeg;
+            if (m_Weather == null) m_Weather = FindFirstObjectByType<WeatherController>();
+            var lights = slot.Ship.GetComponent<NavigationLights>() ?? slot.Ship.AddComponent<NavigationLights>();
+            lights.weather = m_Weather;
+            lights.bowYawDeg = entry.bowYawDeg;
+            // Canonical +Z bow rig is independent of prefab authoring yaw/scale.
+            var surfaceRoot = new GameObject("Twin surface interaction");
+            surfaceRoot.transform.SetParent(slot.Ship.transform, false);
+            surfaceRoot.transform.localRotation = Quaternion.Euler(0, -entry.bowYawDeg, 0);
+            surfaceRoot.transform.localScale = Vector3.one / Mathf.Max(slot.Ship.transform.lossyScale.x, 1e-3f);
+            surfaceRoot.transform.localPosition = new Vector3(0, -slot.Entry.waterlineOffsetY / Mathf.Max(slot.Ship.transform.lossyScale.x, 1e-3f), 0);
+            var gate = surfaceRoot.AddComponent<BoatWaterDecals>();
+            gate.loaMeters = entry.loaMeters;
+            gate.bowAmplitudeM = WaterDecalSizing.ForLoa(entry.loaMeters).bowAmplitudeM;
+            gate.twinSpeedMps = () => slot.WaterSpeedMps;
+            gate.twinCurrentVelocity = () => LiveEnvironment?.CurrentVelocity ?? Vector3.zero;
+            var sizing = WaterDecalSizing.ForLoa(entry.loaMeters);
+            foreach (bool bow in new[] { true, false })
+            {
+                var go = new GameObject(bow ? "Twin bow wave" : "Twin wake foam");
+                go.transform.SetParent(surfaceRoot.transform, false);
+                var size = bow ? sizing.bowRegionSize : sizing.wakeRegionSize;
+                go.transform.localPosition = new Vector3(0, 0, (bow ? entry.loaMeters * 0.5f : 0) - size.y * 0.4f);
+                go.transform.localRotation = Quaternion.Euler(0, 180, 0);
+                var decal = go.AddComponent<UnityEngine.Rendering.HighDefinition.WaterDecal>();
+                decal.material = Resources.Load<Material>(bow ? "TwinBowWave" : "TwinWakeFoam");
+                decal.scaleMode = UnityEngine.Rendering.HighDefinition.DecalScaleMode.ScaleInvariant;
+                decal.regionSize = size;
+                decal.surfaceFoamDimmer = bow ? 0.25f : 0;
+                if (bow) gate.bowDecal = decal; else gate.wakeDecal = decal;
+            }
+            gate.ConfigureTwinWater(water, slot.BeamMeters, slot.Ship == OwnShipObject);
+            if (water != null && slot.Ship == OwnShipObject)
+            {
+                water.deformation = water.foam = true;
+                // HDRP 17.3's reprojection branch does not rebind the graphics foam target.
+                // Keep the region stable during ordinary motion; reproject only near its edge.
+                m_PreviousFoamAnchor = water.decalRegionAnchor;
+                m_FoamRegionRoot = new GameObject("Twin foam region");
+                m_FoamRegionRoot.transform.position = surfaceRoot.transform.position;
+                water.decalRegionAnchor = m_FoamRegionRoot.transform;
+                float wakeRegion = Mathf.Clamp(entry.loaMeters * 12f, 256f, 768f);
+                water.decalRegionSize = new Vector2(wakeRegion, wakeRegion);
+                water.deformationRes = UnityEngine.Rendering.HighDefinition.WaterSurface.WaterDecalRegionResolution.Resolution512;
+                water.foamResolution = UnityEngine.Rendering.HighDefinition.WaterSurface.WaterDecalRegionResolution.Resolution1024;
+                water.foamPersistenceMultiplier = 0.75f;
+                water.foamCurrentInfluence = 1f;
+                water.foamTextureTiling = 0.5f;
+            }
             var wake = slot.Ship.AddComponent<WakeFoamRig>();
+            wake.decals = gate;
+            wake.twinSurfaceWake = true;
+            wake.twinContactEntryMps = () => gate.ContactEntryMps;
             wake.water = water;
             wake.loaMeters = entry.loaMeters;
-            wake.twinSpeedMps = () => slot.SogMps;
+            wake.twinSpeedMps = () => slot.WaterSpeedMps;
+            wake.twinWaveHsM = () => LiveEnvironment?.enabled == true ? LiveEnvironment.wave_hs_m : 0f;
+            wake.twinCurrentVelocity = () => LiveEnvironment?.CurrentVelocity ?? Vector3.zero;
             // P3-S2 (spec #90): 槽位船进热目标分级注册表——sensor_mode=ir 时
             // ThermalTagApplier 按材质名温度档改写，EO 恢复；随槽位销毁自动失效。
             Vessels.Mast.ThermalTagApplier.Register(slot.Ship);
@@ -506,6 +612,15 @@ namespace Sango
 
         void ClearSlots()
         {
+            m_LastPresentedSim = double.NaN;
+            if (m_FoamRegionRoot != null)
+            {
+                if (water != null && water.decalRegionAnchor == m_FoamRegionRoot.transform)
+                    water.decalRegionAnchor = m_PreviousFoamAnchor;
+                if (Application.isPlaying) Destroy(m_FoamRegionRoot); else DestroyImmediate(m_FoamRegionRoot);
+                m_FoamRegionRoot = null;
+                m_PreviousFoamAnchor = null;
+            }
             foreach (var pair in m_Slots)
                 if (pair.Value.Ship != null) Destroy(pair.Value.Ship);
             m_Slots.Clear();

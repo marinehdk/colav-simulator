@@ -210,9 +210,14 @@ namespace Sango
         public string TierName() => TierNames[(int)spectrumTier];
 
         /// <summary>把全部状态刷到 HDRP 对象。空引用安全（可只接部分场景对象分步验证）。</summary>
+        // DT session overrides; -1 keeps standalone weather controls unchanged.
+        public float windSpeedOverrideMs = -1f;
+        public float waveHsOverrideM = -1f;
+        public float wavePeriodOverrideS = 6f;
+
         public void Apply()
         {
-            float windMs = BeaufortToWindSpeedMs(beaufort);
+            float windMs = windSpeedOverrideMs >= 0 ? windSpeedOverrideMs : BeaufortToWindSpeedMs(beaufort);
             LastWindSpeedMs = windMs;
             ApplyWater(windMs);
             ApplySun();
@@ -242,6 +247,8 @@ namespace Sango
             if (waterSurface == null) return;
             if (!AtmosphereTransitioning) m_SpectrumCurrent = (float)spectrumTier;
             float t = float.IsNaN(m_SpectrumCurrent) ? (float)spectrumTier : m_SpectrumCurrent;
+            // Hs selects a wave-energy proxy only; native U10 remains the physical wind.
+            if (waveHsOverrideM >= 0) windMs = Mathf.Max(windMs, Mathf.Sqrt(waveHsOverrideM * 9.81f / 0.21f));
             float windKmh = windMs * 3.6f; // largeWindSpeed/ripplesWindSpeed 单位 km/h（见上注）
 
             waterSurface.largeWindSpeed = Mathf.Clamp(windKmh * TierValue(TierSwellWindFactor, t), 0f, 250f);
@@ -264,6 +271,14 @@ namespace Sango
             }
             if (waveDirectionDeg >= 0f)
             { waterSurface.largeOrientationValue = waveDirectionDeg; waterSurface.ripplesOrientationValue = waveDirectionDeg; }
+            if (waveHsOverrideM >= 0)
+            {
+                float scale = Mathf.Clamp01(waveHsOverrideM / 0.5f);
+                waterSurface.largeBand0Multiplier *= scale;
+                waterSurface.largeBand1Multiplier *= scale;
+                waterSurface.repetitionSize = Mathf.Clamp(9.81f * wavePeriodOverrideS * wavePeriodOverrideS / (2 * Mathf.PI) * 4f, 250f, 5000f);
+                if (waveHsOverrideM == 0) { waterSurface.ripples = false; waterSurface.ripplesWindSpeed = 0; }
+            }
             waterSurface.foam = true;
             waterSurface.simulationFoamAmount = Mathf.Clamp01(TierValue(TierFoamAmount, t));
             // 白沫起风阈值曲线留组件默认（preset 曲线：归一化风速 <0.2 无沫、>0.3 全沫，
@@ -312,12 +327,35 @@ namespace Sango
             // setter 赋值触发 ApplyCurrentCloudPreset 重写 density/erosion/altitude（VolumetricClouds.cs:502）。
             if (profile.TryGet<VolumetricClouds>(out var clouds))
             {
-                clouds.enable.value = true;
+                clouds.active = true;
+                clouds.SetAllOverridesTo(true);
+                clouds.enable.Override(cloudCover > 0.01f);
                 var preset = cloudCover < 0.25f ? VolumetricClouds.CloudPresets.Sparse
                            : cloudCover < 0.50f ? VolumetricClouds.CloudPresets.Cloudy
                            : cloudCover < 0.75f ? VolumetricClouds.CloudPresets.Overcast
                            : VolumetricClouds.CloudPresets.Stormy;
-                if (clouds.cloudPreset != preset) clouds.cloudPreset = preset; // 仅变化时赋值，避免每帧重刷预设
+                if (windSpeedOverrideMs < 0 && clouds.cloudPreset != preset) clouds.cloudPreset = preset;
+                if (windSpeedOverrideMs >= 0)
+                {
+                    // Session cloud cover is continuous; the four stock presets alone
+                    // create a uniformly repeated field of small, hard-edged puffs.
+                    if (clouds.cloudPreset != VolumetricClouds.CloudPresets.Custom)
+                    {
+                        clouds.cloudPreset = preset;
+                        clouds.cloudPreset = VolumetricClouds.CloudPresets.Custom;
+                    }
+                    clouds.shapeScale.Override(3.5f);
+                    clouds.cloudSimpleMode.Override(VolumetricClouds.CloudSimpleMode.Quality);
+                    clouds.microErosion.Override(true);
+                    clouds.microErosionFactor.Override(0.6f);
+                    clouds.shapeFactor.Override(Mathf.Lerp(0.93f, 0.65f, cloudCover));
+                    clouds.densityMultiplier.Override(Mathf.Lerp(0.32f, 0.5f, cloudCover));
+                    clouds.erosionScale.Override(75f);
+                    clouds.erosionFactor.Override(0.86f);
+                    clouds.bottomAltitude.Override(Mathf.Lerp(1800f, 650f, cloudCover));
+                    clouds.altitudeRange.Override(Mathf.Lerp(3000f, 5000f, cloudCover));
+                    clouds.powderEffectIntensity.Override(0.15f);
+                }
             }
 
             // 雾：用现行 Fog override（旧 VolumetricFog 组件已 [Obsolete("#from(2021.2)")]，

@@ -50,6 +50,7 @@ namespace Sango
                     scheduler_lag_ms = 0.0,
                 },
                 truth = Empty(),
+                environment = context?.environment,
             };
             var slots = frame.Slots();
             var truth = new ColavTelemetry.ShipEntry[slots.Length];
@@ -57,7 +58,12 @@ namespace Sango
             foreach (var slot in slots)
             {
                 var entry = ToEntry(slot, context);
-                if (entry != null) truth[count++] = entry;
+                if (entry != null)
+                {
+                    if (entry.id == 0 && frame.gnc_balance != null)
+                    { entry.has_roll = true; entry.roll_rad = frame.gnc_balance.roll_deg * Mathf.Deg2Rad; }
+                    truth[count++] = entry;
+                }
             }
             Array.Resize(ref truth, count);
             telemetry.truth = truth;
@@ -81,8 +87,8 @@ namespace Sango
                 mmsi = slot.mmsi,
                 length = length,
                 width = width,
-                east = (float)slot.state[1],
-                north = (float)slot.state[0],
+                east = slot.state[1],
+                north = slot.state[0],
                 psi = (float)slot.state[2],
                 u = slot.state.Length > 3 ? (float)slot.state[3] : 0f,
                 v = slot.state.Length > 4 ? (float)slot.state[4] : 0f,
@@ -90,6 +96,8 @@ namespace Sango
                 sog = (float)sog,
                 cog = (float)cog,
                 active = slot.active,
+                has_roll = slot.original_gnc?.state_8d?.Length == 8,
+                roll_rad = slot.original_gnc?.state_8d?.Length == 8 ? (float)slot.original_gnc.state_8d[2] : 0f,
             };
         }
 
@@ -113,6 +121,7 @@ namespace Sango
         public double sim_time;
         public string state;
         public ReplayShipPayload payload;
+        public ReplayRecordedBalance gnc_balance;
 
         /// <summary>非空槽位按 ShipN 序返回（replay-source.js localShips 同序约定）。</summary>
         public ReplayShipSlot[] Slots()
@@ -165,6 +174,7 @@ namespace Sango
     [Serializable]
     public class ReplayShipSlot
     {
+        public ReplayOriginalState original_gnc;
         public int id;
         public int mmsi;
         public double[] state;
@@ -172,6 +182,9 @@ namespace Sango
         public float turn_rate;
         public bool active;
     }
+
+    [Serializable] public class ReplayOriginalState { public double[] state_8d; }
+    [Serializable] public class ReplayRecordedBalance { public float roll_deg; }
 
     /// <summary>replay context 响应（schema "colav.run-replay.context@1"）twin 消费子集。</summary>
     [Serializable]
@@ -181,6 +194,7 @@ namespace Sango
         public string run_id;
         public ReplayEncBounds enc;
         public ReplayStaticShip[] ships;
+        public TwinEnvironment environment;
     }
 
     /// <summary>ENC 图幅原点/尺寸（全域 UTM 米）——TwinAnchor.FromOrigin 的 sealed 侧来源。</summary>

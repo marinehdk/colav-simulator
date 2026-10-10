@@ -9,7 +9,9 @@ namespace Sango
     /// <summary>
     /// Stage-one visual wake: world-space propeller wash plus diverging Kelvin-envelope arms,
     /// small bow spray and a water-conforming hull foam ring. It is not a CFD/resistance model.
-    /// High uses scene-lit transparent foam; Low retains the existing WaterDecal speed gate.
+    /// Demo High uses scene-lit transparent foam; Low retains the existing WaterDecal speed gate.
+    /// Twin disables ribbon/ring drawing and their water queries, retaining only contact-driven spray;
+    /// BoatWaterDecals owns native water foam/deformation in both quality tiers.
     /// Budget: 128×6 ribbon vertices / 762 triangles, 48 ring vertices / 48 triangles,
     /// <=144 spray particles. Moving High performs at most 817 water queries per update;
     /// stopped/Low performs none. LastWaterQueries exposes the real budget for acceptance.
@@ -43,6 +45,10 @@ namespace Sango
         // TwinSessionDriver.WireTwinVisuals 注入；空 = Demo 路径逐位不变（follower.SpeedMps 原样）。
         [Tooltip("Twin 速度源（本槽位最新 sog，m/s）；非空时代替 follower.SpeedMps。")]
         public System.Func<float> twinSpeedMps;
+        public System.Func<float> twinWaveHsM;
+        public System.Func<Vector3> twinCurrentVelocity;
+        public bool twinSurfaceWake;
+        public System.Func<float> twinContactEntryMps;
 
         // ── 预算常量（头注"预算"节的代码锚；粒子总量 = 2 × PerSide）──────────────────
         public const int MaxSprayParticlesPerSide = 72; // ≥ 55/s × 1.1 s 寿命，满发不饿死
@@ -164,14 +170,31 @@ namespace Sango
             m_LastWakeIntensity = wake;
             m_LastRingAlpha = wake;
 
+            if (twinSurfaceWake)
+            {
+                // Spray responds to water entering the bow, including an idle vessel in waves.
+                float entry = twinContactEntryMps?.Invoke() ?? 0f;
+                sprayRate = Mathf.Min(MaxSprayRatePerSide, sprayRate * 0.65f + entry * 24f);
+                if (decals != null)
+                    for (int side = 0; side < 2; side++)
+                    {
+                        var emitter = m_RigRoot.Find(side == 0 ? "BowSpray.Port" : "BowSpray.Starboard");
+                        emitter.SetPositionAndRotation(decals.BowContactPoint(side),
+                            decals.transform.rotation * Quaternion.Euler(-28f, side == 0 ? -105f : 105f, 0));
+                    }
+            }
+            else if (twinWaveHsM != null) sprayRate *= 1f + Mathf.Clamp(twinWaveHsM(), 0f, 4f) * 0.35f;
+            sprayRate = Mathf.Min(sprayRate, MaxSprayRatePerSide);
+            m_LastSprayRate = sprayRate;
             m_SprayEmission[0].rateOverTime = sprayRate;
             m_SprayEmission[1].rateOverTime = sprayRate;
 
             // 泡沫带/环：速度爬坡 × 面板乘子 → additive alpha（rgb 亮度恒定，只动强度）。
             SetFoamAlpha(m_RibbonMaterial, wake, k_RibbonBaseAlpha);
             SetFoamAlpha(m_RingMaterial, wake, k_RingBaseAlpha);
-            m_RibbonRenderer.enabled = wake > 0.001f; // 零强度不提交 draw（静止/锢泊零开销）
-            m_RingRenderer.enabled = wake > 0.001f;
+            m_RibbonRenderer.enabled = !twinSurfaceWake && wake > 0.001f; // 零强度不提交 draw（静止/锢泊零开销）
+            m_RingRenderer.enabled = !twinSurfaceWake && wake > 0.001f;
+            if (twinSurfaceWake) { m_HavePush = false; return; }
 
             if (wake <= 0.001f) { m_HavePush = false; return; }
 
@@ -186,9 +209,9 @@ namespace Sango
         /// </summary>
         public void ApplyDecalSuppression()
         {
-            if (decals == null) return;
+            if (decals == null || twinSurfaceWake) return;
             if (!WakeFoamCore.DecalsSuppressed(M8Quality.CurrentTier)) return;
-            if (decals.bowDecal != null) decals.bowDecal.enabled = false;
+            if (decals.bowDecal != null && !twinSurfaceWake) decals.bowDecal.enabled = false;
             if (decals.wakeDecal != null) decals.wakeDecal.enabled = false;
         }
 
@@ -308,6 +331,15 @@ namespace Sango
             main.startLifetime = 1.1f;
             main.startSpeed = Mathf.Clamp(loaMeters * 0.22f, 2f, 9f);  // 抛出初速随船级
             main.startSize = Mathf.Clamp(loaMeters * 0.035f, 0.25f, 1.2f);
+            if (twinSurfaceWake)
+            {
+                main.startSize = new ParticleSystem.MinMaxCurve(0.12f, 0.5f);
+                main.startSpeed = new ParticleSystem.MinMaxCurve(2f, 5f);
+                var inherit = ps.inheritVelocity;
+                inherit.enabled = true;
+                inherit.mode = ParticleSystemInheritVelocityMode.Initial;
+                inherit.curveMultiplier = 0.6f;
+            }
             main.startColor = new Color(1f, 1f, 1f, 0.6f);
             main.maxParticles = MaxSprayParticlesPerSide;              // 预算锚（头注）
             main.gravityModifier = 0.5f;                               // 小幅艏浪抛起后落水
@@ -372,7 +404,13 @@ namespace Sango
             m_RibbonMesh.vertices = verts; // 拓扑与 UV 一次定型；位置每帧 SetVertices（缓存 list）
             m_RibbonMesh.uv = uvs;
             for (int i = 0; i < tris.Length; i += 3) (tris[i + 1], tris[i + 2]) = (tris[i + 2], tris[i + 1]);
-            m_RibbonMesh.triangles = tris;
+            if (twinSurfaceWake)
+            {
+                var centre = new int[(n - 1) * 6];
+                for (int i = 0; i < n - 1; i++) System.Array.Copy(tris, i * 18, centre, i * 6, 6);
+                m_RibbonMesh.triangles = centre;
+            }
+            else m_RibbonMesh.triangles = tris;
             m_VertexCache.AddRange(verts); // 容量一次到位（后续只覆写，零分配）
 
             var filter = go.AddComponent<MeshFilter>();
@@ -449,6 +487,11 @@ namespace Sango
         /// </summary>
         void UpdateRibbon()
         {
+            if (m_HavePush && twinCurrentVelocity != null)
+            {
+                var drift = twinCurrentVelocity() * Time.deltaTime;
+                for (int i = 1; i < m_History.Length; i++) m_History[i] += drift;
+            }
             var sternWorld = transform.TransformPoint(new Vector3(m_HullCenterX, m_WaterLocalY, m_HullMinZ));
             TryQueryWaterY(ref sternWorld); // 失败保持船体高度估计（无水面/查询退化路径）
 
@@ -513,6 +556,7 @@ namespace Sango
             // Each edge must follow the current water too; a single height per broad strip produces clipped dashed plates.
             for (int vertex = 0; vertex < m_VertexCache.Count; vertex++)
             {
+                if (twinSurfaceWake && vertex % 6 >= 2) continue;
                 var point = m_VertexCache[vertex];
                 if (TryQueryWaterY(ref point)) point.y += 0.075f;
                 m_VertexCache[vertex] = point;

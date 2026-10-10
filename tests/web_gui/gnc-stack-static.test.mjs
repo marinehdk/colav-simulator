@@ -41,10 +41,12 @@ test('GNC page offers complete presets and accessible environment switch with tw
   assert.match(shell, /toggle\.disabled = locked/);
 });
 
-test('evidence stays separate and draft uses backend identities without parsing', () => {
+test('technical evidence panels are removed; draft still uses backend identities without parsing', () => {
   for (const id of ['gncStackModules', 'gncStackFidelity', 'gncStackAssetTrust', 'gncStackAcceptance']) {
-    assert.ok(html.includes(`id="${id}"`));
+    assert.ok(!html.includes(`id="${id}"`));
   }
+  assert.ok(!html.includes('id="gncStackParameters"'));
+  assert.ok(!html.includes('Technical details · modules, parameters and evidence'));
   assert.match(shell, /edit\('gnc_stack_id'/);
   assert.doesNotMatch(shell, /stack_id\.(split|replace|match|startsWith|includes)/);
   assert.doesNotMatch(shell, /marine_pid|integral_line_of_sight|data_driven_allocator|resolved_actuator_dynamics/);

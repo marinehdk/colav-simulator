@@ -15,6 +15,7 @@ const CREATE_FIELDS = [
   'domain_profile',
   'scenario_override',
   'gnc_stack_id',
+  'environment_settings',
 ];
 const TUPLE_FIELDS = [
   'validation_rule_id',
@@ -30,6 +31,7 @@ const EDITABLE_FIELDS = [
   't_end',
   'solve_period_s',
   'gnc_stack_id',
+  'environment_settings',
 ];
 
 const PRODUCT_POLICY_MISSING = 'product-capability-policy-missing';
@@ -201,6 +203,7 @@ function defaultSpec(catalog) {
     domain_profile: null,
     scenario_override: null,
     gnc_stack_id: 'legacy_without_modules',
+    environment_settings: null,
   };
 }
 
@@ -222,6 +225,7 @@ function normalizeSpec(spec, catalog) {
     domain_profile: null,
     scenario_override: null,
     gnc_stack_id: null,
+    environment_settings: null,
   };
   normalized.gnc_stack_id = null;
   if (Object.hasOwn(spec || {}, 'ownship_gnc_stack_id')) {

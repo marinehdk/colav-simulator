@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { decodeFrameMarker, containedVideoRect, matchedSituationFrame, buildTwinPresentation, layoutTwinLabels } from '../../web_gui/modules/twin-situation.js';
-import { createTwinBridgeClient } from '../../web_gui/modules/twin-view.js';
+import { decodeFrameMarker, containedVideoRect, matchedSituationFrame, buildTwinPresentation, layoutTwinLabels } from '../../web_gui/modules/twin-situation.js?v=20261010-dt-landscape-v1';
+import { createTwinBridgeClient } from '../../web_gui/modules/twin-view.js?v=20261010-dt-camera-v4';
 
 function marker(frame) {
   const value = frame & 65535, check = ((value >>> 8) ^ value ^ 0x5a) & 255;

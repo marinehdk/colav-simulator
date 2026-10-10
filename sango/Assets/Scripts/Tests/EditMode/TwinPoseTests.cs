@@ -132,6 +132,23 @@ namespace Sango.Tests
         }
 
         [Test]
+        public void GlobalNorthing_PreservesSubmetreMotionAcrossRenderFrames()
+        {
+            var a = ColavTelemetry.FromJson("{\"truth\":[{\"north\":6957500.01,\"east\":39500.01}]} ").truth[0];
+            var b = ColavTelemetry.FromJson("{\"truth\":[{\"north\":6957500.51,\"east\":39500.51}]} ").truth[0];
+            var anchor = TwinAnchor.FromShip(a);
+            float prior = TwinPose.ScenePosition(a, anchor).z;
+            int moving = 0;
+            for (int i = 1; i <= 30; i++)
+            {
+                float z = TwinPose.ScenePosition(TwinPose.LerpEntries(a, b, i / 30f), anchor).z;
+                if (z > prior) moving++;
+                prior = z;
+            }
+            Assert.That(moving, Is.EqualTo(30), "UTM northing must not quantize motion to half-metre jumps");
+        }
+
+        [Test]
         public void LerpEntries_PsiShortestPathWrap()
         {
             // 对遇 ψ=-3π/4 → +3π/4：短弧经 ±π（180°），LerpAngle 度制防回绕跳变。

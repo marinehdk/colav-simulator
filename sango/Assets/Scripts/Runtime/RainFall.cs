@@ -25,6 +25,14 @@ namespace Sango
         ParticleSystem m_Ps;
         Material m_DropMat;
 
+        public void SetWindVelocity(Vector3 velocity)
+        {
+            if (m_Ps == null) return;
+            var flow = m_Ps.velocityOverLifetime;
+            flow.x = velocity.x * 0.35f;
+            flow.z = velocity.z * 0.35f;
+        }
+
         void Awake()
         {
             BuildRain();
