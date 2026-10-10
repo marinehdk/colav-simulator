@@ -110,6 +110,8 @@ namespace Sango
         float m_FpsSmoothed = -1f;
         bool m_WasLiveConnected;
         bool m_BridgeUp;
+        TwinStreamQuality m_StreamQuality;
+        TwinSituationDisplay m_Situation;
 
         /// <summary>clock.playhead_s 非有限值拒绝计数（F10 诊断；DataChannel 回调主线程独占写）。</summary>
         int m_MalformedClockCount;
@@ -139,7 +141,11 @@ namespace Sango
             }
             channel.onJson += HandleJson;
             channel.onOpened += HandleChannelOpened;
+            var sender = GetComponent<Unity.RenderStreaming.VideoStreamSender>();
+            if (sender != null) m_StreamQuality = new TwinStreamQuality(sender);
             m_BridgeUp = true;
+            if (m_Situation == null) m_Situation = gameObject.AddComponent<TwinSituationDisplay>();
+            m_Situation.bridge = this;
             Debug.Log("[Sango.TwinBridge] service started");
         }
 
@@ -166,6 +172,7 @@ namespace Sango
         {
             if (channel == null) channel = GetComponent<TwinBridgeChannel>();
             if (cameraRig == null) cameraRig = FindFirstObjectByType<CameraRig>();
+            if (m_Landscape == null) m_Landscape = FindFirstObjectByType<TwinCesiumLandscape>();
             if (weather == null) weather = FindFirstObjectByType<WeatherController>();
             if (driver == null)
             {
@@ -269,19 +276,30 @@ namespace Sango
         /// 流画面永远看不到 twin 会话的船。首挂前记住原跟随目标，detach 恢复（demo
         /// 零残留）；DetachDataPlane 单点恢复。
         /// </summary>
+        string m_TrackedTargetKey;
+
+        TwinCesiumLandscape m_Landscape;
+        public TwinSituationMessage Presentation => m_Situation?.CurrentPresentation;
+        public TwinBridgeLandscapeState Landscape => m_Landscape?.Describe();
+
         void AttachMastRigWhenOwnShipReady()
         {
-            if (mastRig == null || driver == null) return;
-            if (!mastRig.Attached)
+            if (driver == null) return;
+            var ownShip = driver.OwnShipObject;
+            if (ownShip == null) return;
+            RetargetCameraFollow(ownShip.transform, ownShip.name);
+            if (cameraRig != null) cameraRig.twinOverviewLengthM = driver.OwnShipLengthM;
+            if (m_TrackedTargetKey != null &&
+                (m_Situation?.ResolveTarget(m_TrackedTargetKey) == null || !cameraRig.TargetTrackingActive))
+            { m_TrackedTargetKey = null; m_CurrentPreset = "chase"; cameraRig.SetView(CameraView.Chase); }
+            if (mastRig == null) mastRig = new GameObject("Mast sensor rig").AddComponent<Vessels.Mast.MastSensorRig>();
+            if (!mastRig.Attached || mastRig.vesselRoot != ownShip.transform)
             {
-                var ownShip = driver.OwnShipObject;
-                if (ownShip == null) return;
                 if (!mastRig.Attach(ownShip.transform))
                 {
                     Debug.LogWarning("[Sango.TwinBridge] mast rig attach failed (own ship present but feed mount missing)");
                     return;
                 }
-                RetargetCameraFollow(ownShip.transform, ownShip.name);
                 Debug.Log($"[Sango.TwinBridge] mast rig attached to {ownShip.name} mounts={mastRig.BuiltMountCount} feed={mastRig.feedMountId}");
             }
             if (m_FeedPublisher == null) m_FeedPublisher = FindFirstObjectByType<FramePublisher>();
@@ -314,6 +332,7 @@ namespace Sango
             if (cameraRig.followShip != ownShip)
             {
                 cameraRig.followShip = ownShip;
+                cameraRig.ClearFreePose(); // old scene coordinates do not survive a new Twin anchor
                 cameraRig.bridgeMount = null;
                 cameraRig.bowMount = null;
                 cameraRig.bridgeShipRelative = true;
@@ -361,15 +380,26 @@ namespace Sango
 
             switch (cmd.type)
             {
+                case "presentation":
+                    if (cmd.presentation?.run_id == m_RunId) m_Situation?.Offer(cmd.presentation);
+                    break;
+                case "pick":
+                    if (cmd.run_id == m_RunId) m_Situation?.Pick(cmd.frame_id, cmd.x, cmd.y);
+                    break;
                 case "hello": HandleHello(cmd); break;
                 case "attach": HandleAttach(cmd); break;
                 case "detach": DetachDataPlane(); break;
                 case "clock": HandleClock(cmd); break;
+                case "camera_target": HandleCameraTarget(cmd); break;
                 case "camera": HandleCamera(cmd); break;
                 case "camera_free": HandleCameraFree(cmd); break;
                 case "theme": HandleTheme(cmd); break;
                 case "detection": HandleDetection(cmd); break;
                 case "sensor_mode": HandleSensorMode(cmd); break; // P3-S2（契约 §2/§8 演进，spec #90）
+                case "stream_profile":
+                    if (m_StreamQuality == null || !m_StreamQuality.TryApply(cmd.value))
+                        SendError(TwinBridge.ErrorBadMessage, "unsupported stream profile");
+                    break;
                 default:
                     SendError(TwinBridge.ErrorBadMessage, $"unknown type '{cmd.type}'");
                     break;
@@ -387,6 +417,7 @@ namespace Sango
             Send(new TwinBridgeReady
             {
                 build = Application.version,
+                video_profiles = m_StreamQuality != null ? TwinStreamQuality.Profiles : Array.Empty<string>(),
                 scene = gameObject.scene.IsValid() ? gameObject.scene.name : Application.productName,
             });
             Debug.Log($"[Sango.TwinBridge] hello (page={cmd.page}) -> ready");
@@ -450,7 +481,13 @@ namespace Sango
         /// attach 同通道必须幂等可用，web 换 run 不重发 hello）。</summary>
         void DetachDataPlane()
         {
+            m_TrackedTargetKey = null;
+            if (cameraRig != null) { cameraRig.twinOverviewLengthM = 0; cameraRig.SetView(CameraView.Bridge); }
+            m_Landscape?.ResetWarmup();
+            m_Situation?.Clear();
             StopReplayFetch();
+            // Preserve the rig before StopTwin destroys its current parent vessel.
+            if (mastRig != null) mastRig.Detach();
             if (driver != null) driver.StopTwin();
             // P3-11：视口跟随还原（attach 期重挂过才还原；demo 语义零残留）
             if (m_FollowRetargeted && cameraRig != null)
@@ -500,6 +537,18 @@ namespace Sango
             m_PlayState = state;
         }
 
+        void HandleCameraTarget(TwinBridgeCommand cmd)
+        {
+            if (cmd.run_id != m_RunId || string.IsNullOrEmpty(cmd.target_key) || cameraRig == null || driver == null) return;
+            var target = m_Situation?.ResolveTarget(cmd.target_key);
+            var ship = target != null && int.TryParse(target.id, out int id) ? driver.ShipObject(id) : null;
+            if (ship == null || !ship.activeInHierarchy)
+            { SendError(TwinBridge.ErrorBadMessage, "target camera requires a current rendered vessel"); return; }
+            m_TrackedTargetKey = target.key;
+            m_CurrentPreset = "target";
+            cameraRig.TrackTarget(ship.transform, target.length);
+        }
+
         void HandleCamera(TwinBridgeCommand cmd)
         {
             if (!TwinBridge.IsValidPreset(cmd.preset))
@@ -507,6 +556,7 @@ namespace Sango
                 SendError(TwinBridge.ErrorBadMessage, $"unknown preset '{cmd.preset}'");
                 return;
             }
+            m_TrackedTargetKey = null;
             m_CurrentPreset = cmd.preset;
             if (cameraRig != null && TryMapPreset(cmd.preset, out CameraView view))
             {
@@ -543,11 +593,11 @@ namespace Sango
                 local.x,
                 Mathf.Clamp((float)cmd.pos.height_m, -50f, 5000f),
                 local.y);
+            m_TrackedTargetKey = null;
             m_CurrentPreset = TwinBridge.CameraFreePreset; // state.camera 回显 free（契约 §3 注）
             cameraRig.SetFreePose(position, (float)cmd.yaw_deg, (float)cmd.pitch_deg,
                 Mathf.Clamp((float)cmd.fov_deg, 10f, 120f));
-            Debug.Log($"[Sango.TwinBridge] camera_free east={cmd.pos.east:0.#} north={cmd.pos.north:0.#} " +
-                      $"h={cmd.pos.height_m:0.#} yaw={cmd.yaw_deg:0.#} pitch={cmd.pitch_deg:0.#} fov={cmd.fov_deg:0.#}");
+
         }
 
         void HandleTheme(TwinBridgeCommand cmd)
@@ -881,7 +931,7 @@ namespace Sango
             if (nowUnixS - m_LastStateSentUnixS < StateIntervalS) return;
             m_LastStateSentUnixS = nowUnixS;
 
-            var state = new TwinBridgeState { fps = Math.Round(m_FpsSmoothed * 10.0) / 10.0, camera = m_CurrentPreset, sensor_mode = m_SensorMode };
+            var state = new TwinBridgeState { landscape = Landscape, video = m_StreamQuality?.Describe(), fps = Math.Round(m_FpsSmoothed * 10.0) / 10.0, camera = m_CurrentPreset, sensor_mode = m_SensorMode };
             if (driver != null)
             {
                 state.frame_seq = driver.LastSeq;
@@ -911,6 +961,20 @@ namespace Sango
                 enabled = m_DetectionEnabled, // F7：死字段接线（契约 §8 演进只加字段）——心跳回显 web 既有开关态
                 live = overlay != null && overlay.HasFreshLiveResult,
             };
+            if (driver != null && driver.Anchor.HasValue && cameraRig?.controlledCamera != null)
+            {
+                var camera = cameraRig.controlledCamera;
+                var pos = camera.transform.position;
+                var anchor = driver.Anchor.Value;
+                state.camera_pose = new TwinBridgeCameraPose {
+                    east = anchor.EastM + pos.x - anchor.LandingM.x,
+                    north = anchor.NorthM + pos.z - anchor.LandingM.y,
+                    height_m = pos.y,
+                    yaw_deg = camera.transform.eulerAngles.y,
+                    pitch_deg = -Mathf.DeltaAngle(0f, camera.transform.eulerAngles.x),
+                    fov_deg = camera.fieldOfView,
+                };
+            }
             Send(state);
         }
 

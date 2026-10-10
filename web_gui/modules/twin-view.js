@@ -207,6 +207,9 @@ export function createTwinStreamClient({
   return {
     ensureStream,
     close,
+    async getStats() {
+      try { return await stream?.renderstreaming?.getStats(); } catch { return null; }
+    },
     get client() { return client; },
     get connectionState() { return connectionState; },
     get stream() { return stream; },
@@ -225,6 +228,10 @@ export function createTwinBridgeClient({ channel = null, now = () => Date.now(),
   let ready = false;
   let attached = null; // last attached message
   let lastState = null; // last state message
+  let videoProfiles = [];
+  let situationSync = null;
+  const situationFrames = new Map();
+  let lastPick = null;
   let lastError = null;
   let errorCount = 0;
   let lastClockSentMs = null;
@@ -245,6 +252,10 @@ export function createTwinBridgeClient({ channel = null, now = () => Date.now(),
     get ready() { return ready; },
     get attached() { return attached; },
     get lastState() { return lastState; },
+    get videoProfiles() { return videoProfiles; },
+    get situationSync() { return situationSync; },
+    get lastPick() { return lastPick; },
+    situationFrame(id) { return situationFrames.get(id) ?? null; },
     get lastError() { return lastError; },
     get errorCount() { return errorCount; },
     get samples() { return samples; },
@@ -268,7 +279,17 @@ export function createTwinBridgeClient({ channel = null, now = () => Date.now(),
     },
 
     sendDetach() {
+      situationFrames.clear();
       return send({ type: 'detach' });
+    },
+
+    sendPresentation(presentation) {
+      if (situationSync !== 'frame-marker@1') return null;
+      return send({ type: 'presentation', presentation });
+    },
+
+    sendPick(runId, frameId, x, y) {
+      return send({ type: 'pick', run_id: runId, frame_id: frameId, x, y });
     },
 
     /**
@@ -287,6 +308,10 @@ export function createTwinBridgeClient({ channel = null, now = () => Date.now(),
       lastClockSentMs = at;
       lastClockState = state;
       return send({ type: 'clock', playhead_s: playhead, rate, state });
+    },
+
+    sendCameraTarget(runId, targetKey) {
+      return send({ type: 'camera_target', run_id: runId, target_key: targetKey });
     },
 
     sendCamera(preset) {
@@ -317,6 +342,12 @@ export function createTwinBridgeClient({ channel = null, now = () => Date.now(),
       return send({ type: 'sensor_mode', value });
     },
 
+    sendStreamProfile(value) {
+      if (!['1080p', '1440p'].includes(value)) throw new Error('Unsupported stream profile');
+      if (!videoProfiles.includes(value)) return null;
+      return send({ type: 'stream_profile', value });
+    },
+
     /** Inbound Unity→web frame. Returns the parsed message; unknown/malformed tolerated. */
     onMessage(data) {
       received += 1;
@@ -329,9 +360,23 @@ export function createTwinBridgeClient({ channel = null, now = () => Date.now(),
       switch (message?.type) {
         case 'ready':
           ready = true;
+          videoProfiles = Array.isArray(message.video_profiles) ? message.video_profiles : [];
+          situationSync = message.situation_sync ?? null;
+          situationFrames.clear();
           break;
         case 'attached':
           attached = message;
+          situationFrames.clear();
+          lastPick = null;
+          break;
+        case 'situation_frame':
+          if (message.run_id !== attached?.run_id || !Number.isInteger(message.frame_id)) break;
+          message._receivedAt = now();
+          situationFrames.set(message.frame_id, message);
+          if (situationFrames.size > 240) situationFrames.delete(situationFrames.keys().next().value);
+          break;
+        case 'situation_pick':
+          if (message.run_id === attached?.run_id) lastPick = message;
           break;
         case 'state':
           message._receivedAt = now(); // HUD staleness (projectTwinHud)

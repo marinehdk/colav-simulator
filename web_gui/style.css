@@ -3936,6 +3936,21 @@ canvas#simCanvas.route-pick-mode { cursor: crosshair; }
 .scene3d-waypoints { position: absolute; inset: 0; pointer-events: none; z-index: 2; }
 .scene3d-waypoint { position: absolute; width: 0; height: 0; }
 .scene3d-waypoint[hidden] { display: none; }
+.twin-situation-overlay { position: absolute; pointer-events: none; overflow: hidden; z-index: 4; }
+.twin-situation-overlay[hidden] { display: none; }
+.twin-situation-overlay .scene3d-pois, .twin-situation-overlay .scene3d-waypoints { inset: 0; }
+.twin-situation-overlay .scene3d-card { pointer-events: auto; top: 150px; max-height: calc(100% - 170px); overflow-y: auto; }
+.twin-situation-overlay .scene3d-card[data-risk="unchecked"] .scene3d-target-status { color: var(--element-active-color, #263746); }
+.twin-situation-overlay .scene3d-compass { top: 22px; }
+.twin-situation-overlay.twin-low-horizon .scene3d-compass { top: auto; bottom: 64px; }
+.twin-situation-overlay .scene3d-toolbar { pointer-events: auto; bottom: 34px; }
+.twin-time-marker .scene3d-waypoint-icon { border-color: #e99819; background: #fff2dc; }
+.twin-time-marker .scene3d-waypoint-icon::after { border-color: #e99819; }
+.twin-frame-cover { position: absolute; top: 0; left: 0; background: #f2f5f7; color: #344b5e; font: 600 10px/18px monospace; padding-left: 6px; box-sizing: border-box; z-index: 12; pointer-events: none; }
+.twin-frame-cover[hidden] { display: none; }
+.twin-ais-markers { position: absolute; inset: 0; pointer-events: none; }
+.twin-ais-marker { position: absolute; transform: translate(-50%, -50%); padding: 0; border: 0; background: transparent; pointer-events: auto; cursor: pointer; }
+.twin-ais-marker img { display: block; height: auto; }
 .scene3d-waypoint-leader { position: absolute; bottom: 0; left: -1px; width: 2px; height: calc(var(--waypoint-lift) - 18px); background: #e9eef0cc; box-shadow: 1px 0 0 #26374780; }
 .scene3d-waypoint-head { position: absolute; left: -17px; bottom: calc(var(--waypoint-lift) - 17px); width: 34px; height: 34px; }
 .scene3d-waypoint-icon { display: grid; place-items: center; width: 32px; height: 32px; border: 1px solid #b9d9f6; border-radius: 50%; background: #f6f9fc; box-shadow: 0 1px 3px #17345140; }

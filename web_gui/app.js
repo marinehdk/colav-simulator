@@ -135,7 +135,7 @@ const situationDisplay = createSituationDisplay({
   },
   onLayerStateChange: syncLayerControls,
   onSelectionChange: (target, context = {}) => {
-    if (deploymentView?.state().mode === '3d') return;
+    if (['3d', 'twin'].includes(deploymentView?.state().mode)) return;
     // P3-S4 (spec #90): clicks on AIS *symbols* (canvas hit or DOM AIS marker)
     // open the AIS target card; vessel-marker clicks keep the vessel placard.
     if (context.viaAis) {
@@ -190,7 +190,7 @@ deploymentView = createDeploymentView({
   // P2-S4 A：第三态 twin —— 中心视口换 live 像素流（复用 twin-view 的 URS/bridge 客户端），
   // attach mode=live 活动会话；无 ReplayClock（时钟权威=后端，契约 §2）；sidebar 不动。
   createTwin: async options => {
-    const { createDeploymentTwinViewport } = await import('./modules/deployment-twin.js?v=20261003-twin-health-v1');
+    const { createDeploymentTwinViewport } = await import('./modules/deployment-twin.js?v=20261010-dt-landscape-v1');
     const viewport = createDeploymentTwinViewport({
       ...options,
       host: document.getElementById('deploymentTwinHost'),
@@ -205,6 +205,10 @@ deploymentView = createDeploymentView({
       sensorModeEl: document.getElementById('deploymentTwinSensorMode'),
       sessionId: () => currentRunId(),
       info: options.info,
+      chart: situationDisplay,
+      onSelect: id => situationDisplay.selectTarget(id),
+      getPlannerSurface: currentPlannerSurface,
+      requestVODecisionSpace: () => ensureVODecisionSpace(currentDiagnosticPlanner()),
       // P2-S4 C：联动 spike（默认关）——开 = 分屏从视口（Cesium 主）+ camera.changed 折算发 camera_free。
       createLinkScene: async ({ host, signal, onFailure, onCameraMoved }) => {
         const { createScene3D } = await import('./modules/scene-3d.js?v=20261004-token-cleanup-v1');
@@ -1966,7 +1970,7 @@ function ensureVODecisionSpace(planner) {
   const card = document.getElementById('cardPlanner');
   const solveId = Number(planner.solve_id);
   if ((card?.classList.contains('collapsed') && !situationDisplay.isPlannerSurfaceAttached()
-    && deploymentView?.state().mode !== '3d')
+    && !['3d', 'twin'].includes(deploymentView?.state().mode))
     || !Number.isInteger(solveId) || solveId < 1) return;
   const requestKey = `${sessionId}:${solveId}`;
   if (voDecisionSpaceKey === requestKey || voDecisionSpaceAttemptedKey === requestKey) return;
@@ -2025,7 +2029,7 @@ function requestPendingVODecisionSpace() {
     lastVORenderKey = null;
     drawPlannerSurface(pending.planner);
     if (situationDisplay.isPlannerSurfaceAttached()) situationDisplay.rerender();
-    if (deploymentView?.state().mode === '3d') deploymentView.layers();
+    if (['3d', 'twin'].includes(deploymentView?.state().mode)) deploymentView.layers();
   }).catch(error => {
     if (error.name !== 'AbortError') {
       setText('val-surface-explanation', '决策空间暂不可用');

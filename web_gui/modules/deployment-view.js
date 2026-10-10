@@ -103,7 +103,7 @@ export function createDeploymentView({ chart, createScene, createTwin = null, on
     recenter() { if (mode === 'twin') twinViewer?.recenter?.(); else if (mode === '3d') scene.recenter(); else chart.recenterOwnship(); },
     zoom(direction) { if (mode === 'twin') twinViewer?.zoom?.(direction); else if (mode === '3d') scene.zoom(direction); else chart[direction > 0 ? 'zoomIn' : 'zoomOut'](); },
     select(id) { chart.selectTarget(id); scene?.select(id); },
-    layers() { scene?.render(projection); },
+    layers() { scene?.render(projection); twinViewer?.render(projection); },
     destroy() { exit(); destroyed = true; projection = null; },
   };
 }

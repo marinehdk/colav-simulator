@@ -3,6 +3,7 @@
     "rootNamespace": "Sango.Tests",
     "references": [
         "Sango.Vessels",
+        "Unity.RenderStreaming",
         "UnityEngine.TestRunner",
         "UnityEditor.TestRunner",
         "Unity.RenderPipelines.Core.Runtime",

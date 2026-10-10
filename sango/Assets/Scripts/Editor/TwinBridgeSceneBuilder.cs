@@ -65,17 +65,17 @@ namespace Sango.Editor.TwinBridge
             handlers.GetArrayElementAtIndex(1).objectReferenceValue = single;
             so.ApplyModifiedPropertiesWithoutUndo();
 
-            // VideoStreamSender：Camera 捕获主相机，720p30，24bit depth，2-8 Mbps（spike 实证档位）
+            // WEB capture starts at 1080p30; runtime negotiates 1440p on larger viewports.
             var soV = new SerializedObject(videoSender);
             soV.FindProperty("m_Source").enumValueIndex = (int)VideoStreamSource.Camera;
             soV.FindProperty("m_Camera").objectReferenceValue = camera;
-            soV.FindProperty("m_TextureSize").vector2IntValue = new Vector2Int(1280, 720);
+            soV.FindProperty("m_TextureSize").vector2IntValue = new Vector2Int(1920, 1080);
             soV.FindProperty("m_FrameRate").floatValue = 30f;
             soV.FindProperty("m_Depth").intValue = 24;
             soV.FindProperty("m_AntiAliasing").intValue = 1;
             var bitrate = soV.FindProperty("m_Bitrate");
-            bitrate.FindPropertyRelative("min").uintValue = 2000;
-            bitrate.FindPropertyRelative("max").uintValue = 8000;
+            bitrate.FindPropertyRelative("min").uintValue = 6000;
+            bitrate.FindPropertyRelative("max").uintValue = 14000;
             soV.ApplyModifiedPropertiesWithoutUndo();
 
             // Broadcast.streams = 视频发送 + twin-bridge 通道（无输入回传：S3 相机经 bridge 命令）
@@ -154,16 +154,66 @@ namespace Sango.Editor.TwinBridge
         {
             if (!File.Exists(k_TwinScene))
                 throw new System.InvalidOperationException("[Sango.TwinBridge] twin scene missing — run BuildTwinScene first");
+            // Include HDRP alpha-test variants in the player. Enabling the keyword only
+            // when a streamed tile appears is too late if that variant was stripped.
+            const string clippingPath = "Assets/Resources/TwinCesiumLandscapeMaterial.mat";
+            Directory.CreateDirectory("Assets/Resources");
+            var clippingMaterial = AssetDatabase.LoadAssetAtPath<Material>(clippingPath);
+            if (clippingMaterial == null)
+            {
+                clippingMaterial = new Material(Resources.Load<Material>("CesiumUnlitTilesetMaterial"));
+                AssetDatabase.CreateAsset(clippingMaterial,clippingPath);
+            }
+            clippingMaterial.SetFloat("_AlphaCutoffEnable",1);
+            UnityEngine.Rendering.HighDefinition.HDMaterial.ValidateMaterial(clippingMaterial);
+            clippingMaterial.EnableKeyword("_ALPHATEST_ON");
+            EditorUtility.SetDirty(clippingMaterial); AssetDatabase.SaveAssets();
             PlayerSettings.SetScriptingBackend(NamedBuildTarget.Standalone, ScriptingImplementation.Mono2x);
             PlayerSettings.SetApplicationIdentifier(NamedBuildTarget.Standalone, "com.colav.sango.twin");
             PlayerSettings.runInBackground = true;
+            // Stage a new player without replacing the binary currently streaming.
+            var args = System.Environment.GetCommandLineArgs();
+            int outputIndex = System.Array.IndexOf(args, "--twin-build-output");
+            string output = outputIndex >= 0 && outputIndex + 1 < args.Length
+                ? args[outputIndex + 1] : "Builds/sango-twin.app";
+            int platformIndex = System.Array.IndexOf(args, "--twin-platform");
+            bool linux = platformIndex >= 0 && platformIndex + 1 < args.Length && args[platformIndex + 1] == "linux";
+            var target = linux ? BuildTarget.StandaloneLinux64 : BuildTarget.StandaloneOSX;
+            if (linux)
+                PlayerSettings.SetGraphicsAPIs(target, new[] { UnityEngine.Rendering.GraphicsDeviceType.Vulkan });
             var report = BuildPipeline.BuildPlayer(
                 new[] { k_TwinScene },
-                "Builds/sango-twin.app",
-                BuildTarget.StandaloneOSX,
+                output,
+                target,
                 BuildOptions.None);
             Debug.Log($"[Sango.TwinBridge] player build: {report.summary.result} " +
                       $"size={report.summary.totalSize / (1024 * 1024)}MB out={report.summary.outputPath}");
+            if (report.summary.result != UnityEditor.Build.Reporting.BuildResult.Succeeded)
+                throw new System.InvalidOperationException("Twin player build failed");
+            if (linux) StageCesiumLinuxNative();
+        }
+
+        public static void StageCesiumLinuxNative()
+        {
+            var args = System.Environment.GetCommandLineArgs();
+            int index = System.Array.IndexOf(args, "--twin-build-output");
+            if (index < 0 || index + 1 >= args.Length) throw new System.ArgumentException("Missing --twin-build-output");
+            string output = Path.GetFullPath(args[index+1]);
+            var package = System.Array.Find(UnityEditor.PackageManager.PackageInfo.GetAllRegisteredPackages(), p => p.name == "com.cesium.unity");
+            if (package == null) throw new System.InvalidOperationException("Cesium package not registered");
+            string source = Path.Combine(package.resolvedPath,"Plugins/Standalone/libCesiumForUnityNative.so");
+            if (!File.Exists(source)) throw new FileNotFoundException("Cesium Linux native library missing",source);
+            string data = Path.Combine(Path.GetDirectoryName(output),Path.GetFileNameWithoutExtension(output)+"_Data");
+            string plugins = Path.Combine(data,"Plugins/x86_64");
+            Directory.CreateDirectory(plugins);
+            // Unity 6000.3 on macOS omitted the SDK's Linux plugin despite its Linux64
+            // importer flag. Copy the pinned, unmodified library into the generated Player.
+            File.Copy(source,Path.Combine(plugins,Path.GetFileName(source)),true);
+            string credits = Path.Combine(data,"StreamingAssets/Cesium");
+            Directory.CreateDirectory(credits);
+            foreach (string name in new[] { "LICENSE", "ThirdParty.json" })
+                File.Copy(Path.Combine(package.resolvedPath,name),Path.Combine(credits,name),true);
+            Debug.Log($"[Sango.TwinBridge] Linux Cesium native staged: {new FileInfo(source).Length} bytes");
         }
     }
 }

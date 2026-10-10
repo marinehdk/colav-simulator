@@ -12,7 +12,7 @@ import {
   projectTwinHud,
   themeValue,
   twinReplayRange,
-} from '../../web_gui/modules/twin-view.js?v=20261003-twin-health-v1';
+} from '../../web_gui/modules/twin-view.js?v=20261010-dt-camera-v4';
 
 const html = await readFile(new URL('../../web_gui/index.html', import.meta.url), 'utf8');
 const styles = await readFile(new URL('../../web_gui/style.css', import.meta.url), 'utf8');
@@ -329,7 +329,7 @@ test('themeValue maps the OpenBridge theme attribute onto the contract vocabular
 
 /* ── P2-S4：camera_free（契约 §8 演进记录）+ cameraFreePose 折算 + 流客户端抽取 ── */
 
-import { cameraFreePose, createTwinStreamClient, TWIN_LINK_CHANGE_PERCENT } from '../../web_gui/modules/twin-view.js?v=20261003-twin-health-v1';
+import { cameraFreePose, createTwinStreamClient, TWIN_LINK_CHANGE_PERCENT } from '../../web_gui/modules/twin-view.js?v=20261010-dt-camera-v4';
 
 test('camera_free message matches the frozen contract §8 literal (只加字段演进)', () => {
   const channel = recordingChannel();
@@ -417,7 +417,7 @@ test('twin runs table paginates with the same footer controls and page sizes as 
 
 test('sensorModeItems projects the frozen vocabulary; S3 un-pends lidar (pure)', async () => {
   const { sensorModeItems, TWIN_SENSOR_MODE_DEFAULT, projectSensorMode } = await import(
-    '../../web_gui/modules/twin-view.js?v=20261003-twin-health-v1'
+    '../../web_gui/modules/twin-view.js?v=20261010-dt-camera-v4'
   );
   assert.deepEqual(TWIN_SENSOR_MODES, ['eo', 'ir', 'lidar']);
   assert.equal(TWIN_SENSOR_MODE_DEFAULT, 'eo');

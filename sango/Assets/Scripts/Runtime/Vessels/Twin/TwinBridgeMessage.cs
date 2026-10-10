@@ -122,6 +122,11 @@ namespace Sango
         public double yaw_deg;
         public double pitch_deg;
         public double fov_deg;
+        // DT read-only presentation and frame-specific picking.
+        public TwinSituationMessage presentation;
+        public string target_key;
+        public int frame_id;
+        public float x, y;
 
         /// <summary>契约 §6 attach 样例字面量（冻结；EditMode/web 测试对拍同源）。</summary>
         public const string ContractAttachSample =
@@ -161,6 +166,8 @@ namespace Sango
         public string build;
         public string scene;
         public string[] modes_supported = TwinBridge.ModesSupported;
+        public string[] video_profiles;
+        public string situation_sync = "frame-marker@1";
 
         public string ToJson() => JsonUtility.ToJson(this);
 
@@ -208,14 +215,49 @@ namespace Sango
         public bool live;
     }
 
+    [Serializable]
+    public class TwinBridgeCameraPose : TwinBridgeFreePose
+    {
+        public double yaw_deg;
+        public double pitch_deg;
+        public double fov_deg;
+    }
+
     /// <summary>Unity→web `state`（~1Hz 心跳；契约 §3/§6）。sensor_mode = P3-S0 演进只加字段
     /// （契约 §8 台账）：主视口传感器模式回显，默认 eo（JsonUtility 恒写全字段——旧 web 宽松消费零影响）。
     /// geo_fit = P3-12 演进只加字段（契约 §8 台账）：M6 场景覆盖度判定回显
     /// inside|partial|outside，空串 = 尚无数据面帧（旧 web 宽松消费零影响）。</summary>
     [Serializable]
+    public class TwinBridgeMotion
+    {
+        public float visual_heave_m, visual_pitch_deg, roll_deg;
+        public float propwash_foam, wave_contact_foam, bow_entry_mps, native_foam_peak;
+        public string roll_source;
+    }
+
+    [Serializable]
+    public class TwinBridgeVideoState
+    {
+        public int render_width, render_height, capture_width, capture_height;
+        public string profile, antialiasing, graphics_api, gpu, codec, encoder;
+        public bool dynamic_resolution;
+        public float render_scale, taa_sharpen;
+    }
+
+    [Serializable] public class TwinBridgeLandscapeState
+    {
+        public bool ready;
+        public string state;
+        public float progress, terrain_load;
+        public long cache_bytes;
+        public int meshes_created, preload_views;
+    }
+
+    [Serializable]
     public class TwinBridgeState
     {
         public string type = "state";
+        public TwinBridgeVideoState video;
         public double fps;
         public int frame_seq = -1;
         public double sim_time;
@@ -225,6 +267,10 @@ namespace Sango
         public string camera = "bridge";
         public string sensor_mode = TwinBridge.DefaultSensorMode;
         public string geo_fit = "";
+        public TwinBridgeCameraPose camera_pose;
+        public TwinBridgeLandscapeState landscape;
+        public bool presentation_buffering;
+        public TwinBridgeMotion motion;
 
         public string ToJson() => JsonUtility.ToJson(this);
 

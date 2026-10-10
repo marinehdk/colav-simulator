@@ -20,6 +20,10 @@ namespace Sango
         public Transform bridgeMount;
         public Transform bowMount;
         public float tacticalHeightM;
+        public float twinOverviewLengthM;
+        Transform m_TrackedShip;
+        float m_TrackedLengthM;
+        public bool TargetTrackingActive => m_TrackedShip != null;
         public Transform observationTarget;
         public float observationTargetHeightM = 2f;
 
@@ -74,7 +78,11 @@ namespace Sango
                 }
                 return;
             }
-            var target = CameraViews.Resolve(CurrentView, FollowPos(), FollowYawDeg(), bridgeShipRelative);
+            var target = m_TrackedShip != null
+                ? CameraViews.TargetCloseup(m_TrackedShip.position, m_TrackedShip.eulerAngles.y, m_TrackedLengthM)
+                : CurrentView == CameraView.Chase && twinOverviewLengthM > 0
+                    ? CameraViews.Overview(FollowPos(), FollowYawDeg(), twinOverviewLengthM)
+                    : CameraViews.Resolve(CurrentView, FollowPos(), FollowYawDeg(), bridgeShipRelative);
             // pitch 取负进 Unity（根因注释见 ApplyPose）：目标旋转在此单点构造。
             var targetRot = Quaternion.Euler(-target.PitchDeg, target.YawDeg, 0f);
             if (FreePoseActive)
@@ -200,13 +208,14 @@ namespace Sango
         /// </summary>
         public void SetFreePose(Vector3 position, float yawDeg, float pitchDeg, float fovDeg)
         {
+            m_TrackedShip = null;
             m_FreePos = position;
             m_FreeRot = Quaternion.Euler(-pitchDeg, yawDeg, 0f);
             m_FreeFov = fovDeg;
             m_Blend = 1f; // 直贴：自由位姿是离散跟随事件，过渡插值会放大联动延迟
             if (controlledCamera == null) controlledCamera = GetComponent<Camera>();
             if (controlledCamera != null) ApplyPose(position, m_FreeRot, fovDeg);
-            Debug.Log($"[Sango.M2E2] camera free pose -> pos={position.ToString("F1")} yaw={yawDeg:0.#}° pitch={pitchDeg:0.#}° fov={fovDeg:0.#}°");
+
         }
 
         /// <summary>清除自由位姿（预设接管；SetView 单点调用）。</summary>
@@ -215,6 +224,7 @@ namespace Sango
         /// <summary>切视图：捕获当前位姿/FOV → 过渡计时归零（全透视，无投影切换）。</summary>
         public void SetView(CameraView view)
         {
+            m_TrackedShip = null;
             ClearFreePose(); // 预设消息收回控制权（camera_free 联动 spike 单向语义的退出缝）
             if (view == CurrentView || controlledCamera == null) return;
             m_FromPos = controlledCamera.transform.position;
@@ -223,6 +233,13 @@ namespace Sango
             m_Blend = 0f;
             CurrentView = view;
             Debug.Log($"[Sango.M2E2] camera view -> {view} (transition {transitionSeconds:0.0}s)");
+        }
+
+        public void TrackTarget(Transform target, float length)
+        {
+            SetView(CameraView.Chase);
+            m_TrackedShip = target;
+            m_TrackedLengthM = length;
         }
 
         void SnapNow()

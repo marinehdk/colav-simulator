@@ -119,6 +119,10 @@ namespace Sango
         public int SlotCount => m_Slots.Count;
 
         /// <summary>首帧锚定原点（bridge attached.anchor 用；未锚定 null）。</summary>
+        public float OwnShipLengthM => m_Latest?.truth != null && m_Latest.truth.Length > 0 ? m_Latest.truth[0].length : 45f;
+        public GameObject ShipObject(int id) =>
+            m_Slots.TryGetValue(id, out var slot) && slot.Ship != null ? slot.Ship : null;
+
         public TwinAnchor? Anchor => m_Anchor;
 
         /// <summary>

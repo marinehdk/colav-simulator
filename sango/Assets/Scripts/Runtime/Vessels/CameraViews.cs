@@ -152,6 +152,24 @@ namespace Sango
             }
         }
 
+        // DT overview keeps ownship small and the horizon visible; demo presets stay unchanged.
+        public static CameraPose Overview(Vector3 position, float heading, float length)
+        {
+            float distance = Mathf.Max(140f, length * 4.5f);
+            var forward = new Vector3(Mathf.Sin(heading * Mathf.Deg2Rad), 0, Mathf.Cos(heading * Mathf.Deg2Rad));
+            return new CameraPose { Position = position - forward * distance + Vector3.up * (distance * .22f),
+                YawDeg = heading, PitchDeg = -8f, FieldOfView = BaseFovDeg, FollowsShip = true };
+        }
+
+        public static CameraPose TargetCloseup(Vector3 position, float heading, float length)
+        {
+            float distance = Mathf.Max(20f, length * 1.8f);
+            float yaw = Mathf.Repeat(heading - 35f, 360f);
+            var forward = new Vector3(Mathf.Sin(yaw * Mathf.Deg2Rad), 0, Mathf.Cos(yaw * Mathf.Deg2Rad));
+            return new CameraPose { Position = position - forward * distance + Vector3.up * (distance * .45f),
+                YawDeg = yaw, PitchDeg = -24f, FieldOfView = 50f, FollowsShip = true };
+        }
+
         /// <summary>C 键循环顺序：Bridge → Bow → Chase → TopDown → Overlook → Bridge。</summary>
         public static CameraView Next(CameraView view)
         {
