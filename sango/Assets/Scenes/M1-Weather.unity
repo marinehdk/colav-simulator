@@ -674,9 +674,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Sango.VesselBuoyancy
   waterSurface: {fileID: 1506293325}
-  smoothingFrequencyHz: 0.8
-  maxRollDeg: 10
-  maxPitchDeg: 6
+  smoothingFrequencyHz: 1.2
+  maxRollDeg: 12
+  maxPitchDeg: 8
   maxSamplesPerHull: 64
 --- !u!1001 &514957092
 PrefabInstance:
@@ -761,9 +761,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Sango.VesselBuoyancy
   waterSurface: {fileID: 1506293325}
-  smoothingFrequencyHz: 0.8
-  maxRollDeg: 10
-  maxPitchDeg: 6
+  smoothingFrequencyHz: 1.2
+  maxRollDeg: 12
+  maxPitchDeg: 8
   maxSamplesPerHull: 64
 --- !u!1 &567658418
 GameObject:
@@ -1742,9 +1742,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Sango.VesselBuoyancy
   waterSurface: {fileID: 1506293325}
-  smoothingFrequencyHz: 0.8
-  maxRollDeg: 10
-  maxPitchDeg: 6
+  smoothingFrequencyHz: 1.2
+  maxRollDeg: 12
+  maxPitchDeg: 8
   maxSamplesPerHull: 64
 --- !u!1 &1042682259
 GameObject:
@@ -1881,9 +1881,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Sango.VesselBuoyancy
   waterSurface: {fileID: 1506293325}
-  smoothingFrequencyHz: 0.8
-  maxRollDeg: 10
-  maxPitchDeg: 6
+  smoothingFrequencyHz: 1.2
+  maxRollDeg: 12
+  maxPitchDeg: 8
   maxSamplesPerHull: 64
 --- !u!1 &1060170363
 GameObject:
@@ -2563,9 +2563,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Sango.VesselBuoyancy
   waterSurface: {fileID: 1506293325}
-  smoothingFrequencyHz: 0.8
-  maxRollDeg: 10
-  maxPitchDeg: 6
+  smoothingFrequencyHz: 1.2
+  maxRollDeg: 12
+  maxPitchDeg: 8
   maxSamplesPerHull: 64
 --- !u!43 &1466065001
 Mesh:
@@ -3401,9 +3401,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Sango.VesselBuoyancy
   waterSurface: {fileID: 1506293325}
-  smoothingFrequencyHz: 0.8
-  maxRollDeg: 10
-  maxPitchDeg: 6
+  smoothingFrequencyHz: 1.2
+  maxRollDeg: 12
+  maxPitchDeg: 8
   maxSamplesPerHull: 64
 --- !u!1001 &1787274934
 PrefabInstance:
@@ -3615,9 +3615,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Sango.VesselBuoyancy
   waterSurface: {fileID: 1506293325}
-  smoothingFrequencyHz: 0.8
-  maxRollDeg: 10
-  maxPitchDeg: 6
+  smoothingFrequencyHz: 1.2
+  maxRollDeg: 12
+  maxPitchDeg: 8
   maxSamplesPerHull: 64
 --- !u!1 &1903772132
 GameObject:
@@ -4015,9 +4015,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Sango.VesselBuoyancy
   waterSurface: {fileID: 1506293325}
-  smoothingFrequencyHz: 0.8
-  maxRollDeg: 10
-  maxPitchDeg: 6
+  smoothingFrequencyHz: 1.2
+  maxRollDeg: 12
+  maxPitchDeg: 8
   maxSamplesPerHull: 64
 --- !u!1660057539 &9223372036854775807
 SceneRoots:

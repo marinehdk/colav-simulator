@@ -36,8 +36,8 @@ namespace Sango
         float[] m_Times = { 2, 24, 36, 44, 49, 76, 106, 140 };
         string[] m_Names = { "idle", "straight-wake", "turn-wake", "bow-wave", "stopped-residual", "stopped-decayed", "coast-medium", "coast-near" };
         readonly TwinEnvironment m_Environment = new TwinEnvironment {
-            enabled = true, wind_speed_mps = 8, wave_hs_m = 1.5f, wave_period_s = 6,
-            time_of_day_hours = 12, cloud_cover = 0.1f, fog_distance_m = 8000,
+            enabled = true, wind_speed_mps = 11, wave_hs_m = 2.5f, wave_period_s = 5.5f,
+            time_of_day_hours = 17.5f, cloud_cover = 0.1f, fog_distance_m = 8000,
             wave_development = 0.5f, wave_alignment = 0.7f, quality = "high",
             spectrum_style = "jonswap", atmosphere = "hazy_clear"
         };

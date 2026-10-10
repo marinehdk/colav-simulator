@@ -13,7 +13,7 @@ namespace Sango
     /// Twin disables ribbon/ring drawing and their water queries, retaining only contact-driven spray;
     /// BoatWaterDecals owns native water foam/deformation in both quality tiers.
     /// Budget: 128×6 ribbon vertices / 762 triangles, 48 ring vertices / 48 triangles,
-    /// <=144 spray particles. Moving High performs at most 817 water queries per update;
+    /// <=288 spray particles. Moving High performs at most 817 water queries per update;
     /// stopped/Low performs none. LastWaterQueries exposes the real budget for acceptance.
     /// Vertex buffers and sampling history are reused; owned Mesh/Material objects are released.
     /// </summary>
@@ -51,8 +51,8 @@ namespace Sango
         public System.Func<float> twinContactEntryMps;
 
         // ── 预算常量（头注"预算"节的代码锚；粒子总量 = 2 × PerSide）──────────────────
-        public const int MaxSprayParticlesPerSide = 72; // ≥ 55/s × 1.1 s 寿命，满发不饿死
-        public const float MaxSprayRatePerSide = 55f;   // 粒子/秒·侧（巡航满发活粒子 ~60/侧）
+        public const int MaxSprayParticlesPerSide = 144; // ≥ 96/s × 1.4 s 寿命，满发不饿死
+        public const float MaxSprayRatePerSide = 96f;   // 粒子/秒·侧（巡航满发活粒子 ~134/侧）
 
         const string k_RigName = "WakeFoamRig";             // 船子树（喷口 + 水线环）
         const string k_WorldRootName = "WakeFoam.World";    // 场景根子树（世界系 ribbon）
@@ -174,7 +174,7 @@ namespace Sango
             {
                 // Spray responds to water entering the bow, including an idle vessel in waves.
                 float entry = twinContactEntryMps?.Invoke() ?? 0f;
-                sprayRate = Mathf.Min(MaxSprayRatePerSide, sprayRate * 0.65f + entry * 24f);
+                sprayRate = Mathf.Min(MaxSprayRatePerSide, sprayRate * 0.5f + entry * 32f);
                 if (decals != null)
                     for (int side = 0; side < 2; side++)
                     {
@@ -328,19 +328,19 @@ namespace Sango
             var ps = go.AddComponent<ParticleSystem>();
             var main = ps.main;
             main.simulationSpace = ParticleSystemSimulationSpace.World; // 喷出后留水面，不随船拖走
-            main.startLifetime = 1.1f;
+            main.startLifetime = 1.4f;
             main.startSpeed = Mathf.Clamp(loaMeters * 0.22f, 2f, 9f);  // 抛出初速随船级
-            main.startSize = Mathf.Clamp(loaMeters * 0.035f, 0.25f, 1.2f);
+            main.startSize = Mathf.Clamp(loaMeters * 0.05f, 0.35f, 1.8f);
             if (twinSurfaceWake)
             {
-                main.startSize = new ParticleSystem.MinMaxCurve(0.12f, 0.5f);
-                main.startSpeed = new ParticleSystem.MinMaxCurve(2f, 5f);
+                main.startSize = new ParticleSystem.MinMaxCurve(0.35f, 1.4f);
+                main.startSpeed = new ParticleSystem.MinMaxCurve(2.5f, 6.5f);
                 var inherit = ps.inheritVelocity;
                 inherit.enabled = true;
                 inherit.mode = ParticleSystemInheritVelocityMode.Initial;
                 inherit.curveMultiplier = 0.6f;
             }
-            main.startColor = new Color(1f, 1f, 1f, 0.6f);
+            main.startColor = new Color(1f, 1f, 1f, 0.7f);
             main.maxParticles = MaxSprayParticlesPerSide;              // 预算锚（头注）
             main.gravityModifier = 0.5f;                               // 小幅艏浪抛起后落水
             main.loop = true;
@@ -354,11 +354,12 @@ namespace Sango
             var emission = ps.emission;
             emission.rateOverTime = 0f; // 默认零发射（ApplySpeed 每帧按速度/Froude 驱动）
 
-            // 粒子先扬后碎（renderer 侧缩放，与顶色通路无关）：末段缩近零 = "软消亡"，
+            // 粒子先胀后碎（renderer 侧缩放，与顶色通路无关）：前 1/4 胀满成片、末段缩近零 = "软消亡"，
             // 规避 HDRP/Unlit 不保证采样粒子顶色导致的消失 pop。
             var sol = ps.sizeOverLifetime;
             sol.enabled = true;
-            sol.size = new ParticleSystem.MinMaxCurve(1f, AnimationCurve.Linear(0f, 0.7f, 1f, 0.15f));
+            sol.size = new ParticleSystem.MinMaxCurve(1f, new AnimationCurve(
+                new Keyframe(0f, 0.55f), new Keyframe(0.25f, 1f), new Keyframe(1f, 0.2f)));
 
             var renderer = go.GetComponent<ParticleSystemRenderer>();
             renderer.sharedMaterial = m_SprayMaterial;

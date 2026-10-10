@@ -112,7 +112,7 @@ namespace Sango
             tileset.ionAssetID = id;
             tileset.ionAccessToken = token;
             tileset.maximumScreenSpaceError = 8;
-            tileset.maximumSimultaneousTileLoads = 24;
+            tileset.maximumSimultaneousTileLoads = 32;
             tileset.preloadAncestors = true;
             tileset.preloadSiblings = true;
             tileset.forbidHoles = true;
@@ -265,7 +265,7 @@ namespace Sango
                     var go = new GameObject("Landscape preload " + i);
                     go.transform.SetParent(transform, false);
                     var camera = go.AddComponent<Camera>(); camera.enabled = false;
-                    camera.fieldOfView = 90; camera.aspect = 1; camera.farClipPlane = 3000;
+                    camera.fieldOfView = 90; camera.aspect = 1; camera.farClipPlane = 5000;
                     camera.targetTexture = m_PreloadViewport;
                     m_PreloadCameras.Add(camera); m_Cameras.additionalCameras.Add(camera);
                 }
@@ -288,7 +288,9 @@ namespace Sango
             {
                 for (int i = 0; i < m_PreloadCameras.Count; i++)
                 {
-                    var focus = i == 0 ? position : TwinLandscapeWarmup.Ahead(position, route, i * 1000, heading);
+                    // 1.2 km hops give a ~15.5 kn vessel about five minutes of lead time
+                    // before it reaches each prefetched view of the Google photoreal tiles.
+                    var focus = i == 0 ? position : TwinLandscapeWarmup.Ahead(position, route, i * 1200, heading);
                     focus.y = 600;
                     m_PreloadCameras[i].transform.SetPositionAndRotation(focus, Quaternion.Euler(90,0,0));
                 }

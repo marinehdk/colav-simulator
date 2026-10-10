@@ -162,11 +162,11 @@ namespace Sango
 
         // 谱档→band 组合近似（起调值，全部 TBD-实机调值；量级指引见 sango/Docs/beaufort-water-mapping.md 调值指引节）
         static readonly float[] TierSwellWindFactor = { 0.35f, 1.00f, 0.90f, 1.10f }; // B3 uses the displayed wind, rather than suppressing it to 2.7 m/s.
-        static readonly float[] TierBand0Mult       = { 0.15f, 0.70f, 0.75f, 0.90f };
-        static readonly float[] TierBand1Mult       = { 0.10f, 0.45f, 0.65f, 0.85f };
+        static readonly float[] TierBand0Mult       = { 0.15f, 0.70f, 0.85f, 1.00f };
+        static readonly float[] TierBand1Mult       = { 0.10f, 0.50f, 0.80f, 0.95f };
         static readonly float[] TierRippleWindFactor = { 0.5f, 0.8f, 1.0f, 1.3f };    // ×风速 km/h → ripplesWindSpeed（钳 0..15）
         static readonly float[] TierRippleChaos     = { 0.60f, 0.70f, 0.80f, 0.90f };
-        static readonly float[] TierFoamAmount      = { 0.00f, 0.10f, 0.25f, 0.45f }; // 白沫量
+        static readonly float[] TierFoamAmount      = { 0.00f, 0.18f, 0.42f, 0.70f }; // 白沫量
         static readonly string[] TierNames          = { "Calm", "Moderate", "Rough", "VeryRough" };
 
         void Update()
@@ -255,7 +255,7 @@ namespace Sango
             waterSurface.largeBand0Multiplier = Mathf.Clamp01(TierValue(TierBand0Mult, t));
             waterSurface.largeBand1Multiplier = Mathf.Clamp01(TierValue(TierBand1Mult, t));
             waterSurface.largeOrientationValue = windDirectionDeg;
-            waterSurface.largeChaos = Mathf.Lerp(0.9f, 0.5f, t / 3f); // 低风更单向，高风更散（起调值 TBD-实机）
+            waterSurface.largeChaos = Mathf.Lerp(0.85f, 0.42f, t / 3f); // 低风更单向，高风更散（起调值 TBD-实机）
             waterSurface.ripples = true;
             waterSurface.ripplesWindSpeed = Mathf.Clamp(windKmh * TierValue(TierRippleWindFactor, t), 0f, 15f);
             waterSurface.ripplesChaos = Mathf.Clamp01(TierValue(TierRippleChaos, t));
@@ -281,8 +281,13 @@ namespace Sango
             }
             waterSurface.foam = true;
             waterSurface.simulationFoamAmount = Mathf.Clamp01(TierValue(TierFoamAmount, t));
-            // 白沫起风阈值曲线留组件默认（preset 曲线：归一化风速 <0.2 无沫、>0.3 全沫，
-            // WaterSurface.Presets.cs:100；Foam.cs:80 simulationFoamWindCurve），实机后随档位再调。
+            // 白沫起风阈值曲线：preset 默认（<0.2 无沫、0.3 全沫，WaterSurface.Presets.cs:100）在中风速
+            // （11 m/s≈0.3-0.4 归一化）就把白冠量卡在爬坡段——2026-10-10 dt-sea-realism 二轮实机后改为
+            // 前移曲线（0.08 截止、0.18 全开），白冠量交还 TierFoamAmount 档位控制；泡沫留存 0.5→0.7
+            // 让白冠带更连贯（Aeolus FoamDuration 同思路，OceanWavesGPU.cs:193）。
+            waterSurface.simulationFoamWindCurve = new AnimationCurve(
+                new Keyframe(0f, 0f), new Keyframe(0.08f, 0f), new Keyframe(0.18f, 1f), new Keyframe(1f, 1f));
+            waterSurface.foamPersistenceMultiplier = 0.7f;
         }
 
         // ── 时刻 → 太阳 ────────────────────────────────────────────────────────────────
@@ -300,6 +305,12 @@ namespace Sango
             float dayFactor = Mathf.Clamp01(Mathf.Sin(elevationDeg * Mathf.Deg2Rad));
             // M7-B：sunDimFactor=1（晴档/默认）时与旧契约逐位一致；积雨云/雷暴档压直射
             sunLight.intensity = Mathf.Lerp(0.1f, 100000f, dayFactor * dayFactor) * sunDimFactor;
+            // dt-sea-realism 2026-10-10：低仰角暖色直射（黄昏眩光/水面太阳光路）。运行时写
+            // Light 色温（非序列化新增字段）：仰角 >20° 固定 6500K（中性白，与旧契约一致），
+            // 20°→2° 线性降至 2400K；<2° 钳 2400K。HDRP PhysicallyBasedSky/水镜面自动消费
+            // 方向光色温。夜间不受影响（直射已 0.1 lux + NightGradeCore 补偿轨道管理）。
+            sunLight.useColorTemperature = true;
+            sunLight.colorTemperature = Mathf.Lerp(6500f, 2400f, Mathf.InverseLerp(20f, 2f, elevationDeg));
             // M9-2 夜间曝光地板：仰角 < 0 起 6° 暮光带线性渐入固定负补偿（曲线 NightGradeCore.
             // NightCompensationEv，ApplyAtmosphereExtras 消费）。根因：自动曝光（M6 profile
             // limitMax=14）把 0.1 lux 夜景 normalize 回中灰 = 评审"夜空不暗"；直射压暗会被

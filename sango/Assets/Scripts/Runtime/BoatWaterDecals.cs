@@ -181,9 +181,9 @@ namespace Sango
                     ? Mathf.Max(0, (immersion - m_PreviousImmersion[index]) / Time.deltaTime) : 0;
                 m_PreviousImmersion[index] = immersion;
                 float wet = Mathf.Clamp01((immersion + 0.35f) / 0.7f);
-                float intensity = ok ? Mathf.Clamp01(speedContact * wet * 0.75f + Mathf.Max(0, immersion) * 0.35f + entering * 0.2f) : 0;
-                decal.surfaceFoamDimmer = intensity * 0.8f;
-                decal.deepFoamDimmer = intensity * 0.08f;
+                float intensity = ok ? Mathf.Clamp01(speedContact * wet * 0.75f + Mathf.Max(0, immersion) * 0.35f + entering * 0.3f) : 0;
+                decal.surfaceFoamDimmer = intensity * 1f;
+                decal.deepFoamDimmer = intensity * 0.16f;
                 if (index < 2) m_BowContact[index] = ok ? (Vector3)result.projectedPositionWS : point;
                 entry = Mathf.Max(entry, entering);
                 contact = Mathf.Max(contact, intensity);

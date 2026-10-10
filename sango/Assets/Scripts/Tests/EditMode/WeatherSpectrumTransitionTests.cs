@@ -27,11 +27,11 @@ namespace Sango.Tests
                 Assert.That(water.simulationFoamAmount, Is.EqualTo(initialFoam).Within(1e-6f));
                 type.GetMethod("AdvanceAtmosphereTransition").Invoke(controller, new object[] { 1.25f });
                 type.GetMethod("Apply").Invoke(controller, null);
-                Assert.That(water.largeBand0Multiplier, Is.InRange(initialBand + 0.001f, 0.749f));
+                Assert.That(water.largeBand0Multiplier, Is.InRange(initialBand + 0.001f, 0.849f));
                 type.GetMethod("AdvanceAtmosphereTransition").Invoke(controller, new object[] { 1.25f });
                 type.GetMethod("Apply").Invoke(controller, null);
-                Assert.That(water.largeBand0Multiplier, Is.EqualTo(0.75f).Within(1e-6f));
-                Assert.That(water.simulationFoamAmount, Is.EqualTo(0.25f).Within(1e-6f));
+                Assert.That(water.largeBand0Multiplier, Is.EqualTo(0.85f).Within(1e-6f));
+                Assert.That(water.simulationFoamAmount, Is.EqualTo(0.42f).Within(1e-6f));
             }
             finally { Object.DestroyImmediate(go); Object.DestroyImmediate(waterGo); }
         }

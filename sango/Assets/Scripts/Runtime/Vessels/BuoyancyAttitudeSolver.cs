@@ -47,10 +47,10 @@ namespace Sango
         public static BuoyancyParams Default => new BuoyancyParams
         {
             HeaveGain = 1f,
-            RollGain = 0.5f,
-            PitchGain = 0.5f,
-            MaxRollDeg = 10f,
-            MaxPitchDeg = 6f,
+            RollGain = 0.75f,
+            PitchGain = 0.75f,
+            MaxRollDeg = 12f,
+            MaxPitchDeg = 8f,
         };
     }
 

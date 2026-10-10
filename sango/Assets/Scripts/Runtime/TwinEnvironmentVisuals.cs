@@ -20,7 +20,7 @@ namespace Sango
             weather.waveDevelopment = e.wave_development;
             weather.waveAlignment = e.wave_alignment;
             weather.visualSpectrumStyle = e.spectrum_style == "pm" ? 0 : e.spectrum_style == "tma" ? 2 : 1;
-            weather.spectrumTier = e.wave_hs_m < 0.1f ? JsPmTier.Calm : e.wave_hs_m < 1f ? JsPmTier.Moderate : e.wave_hs_m < 3f ? JsPmTier.Rough : JsPmTier.VeryRough;
+            weather.spectrumTier = e.wave_hs_m < 0.1f ? JsPmTier.Calm : e.wave_hs_m < 1f ? JsPmTier.Moderate : e.wave_hs_m < 2.5f ? JsPmTier.Rough : JsPmTier.VeryRough;
             weather.atmosphereTier = e.atmosphere == "thunderstorm" ? M7BMath.AtmosphereTier.Thunderstorm
                 : e.atmosphere == "cumulonimbus" ? M7BMath.AtmosphereTier.Cumulonimbus : M7BMath.AtmosphereTier.HazyClear;
             var atmosphere = M7BMath.AtmospherePresetFor(weather.atmosphereTier);

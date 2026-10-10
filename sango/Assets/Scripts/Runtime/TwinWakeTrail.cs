@@ -17,7 +17,7 @@ namespace Sango
             public bool active;
         }
 
-        const float Lifetime = 28f;
+        const float Lifetime = 32f;
         Sample[] m_Samples;
         Material[] m_Materials;
         GameObject m_World;
@@ -98,7 +98,7 @@ namespace Sango
                 // Outward travel widens the envelope; old samples retain their own
                 // direction through a turn instead of rotating with the current hull.
                 float width = m_Beam * 1.1f + age * sample.speed;
-                float fade = 0.42f * Mathf.Exp(-age / 20f)
+                float fade = 0.50f * Mathf.Exp(-age / 20f)
                     * (1 - Mathf.SmoothStep(0, 1, Mathf.InverseLerp(16f, Lifetime, age)));
                 float energy = Mathf.Clamp01(sample.speed * sample.speed / (9.81f * m_Loa) * 6);
                 sample.decal.enabled = true;

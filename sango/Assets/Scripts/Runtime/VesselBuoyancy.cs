@@ -27,8 +27,8 @@ namespace Sango
         public float bowYawDeg;
         float? m_SourceRoll;
 
-        [Tooltip("临界阻尼平滑频率（Hz）：越大跟浪越紧，越小越沉稳。0.8 ≈ 1.5 s 整定，货轮量级观感。")]
-        public float smoothingFrequencyHz = 0.8f;
+        [Tooltip("临界阻尼平滑频率（Hz）：越大跟浪越紧，越小越沉稳。1.2 ≈ 亚秒整定，5-7 s 波周期下贴波不共振。")]
+        public float smoothingFrequencyHz = 1.2f;
 
         [Tooltip("横摇钳制上限（度，对称）：涌浪再大也不许倾覆观感。")]
         public float maxRollDeg = BuoyancyParams.Default.MaxRollDeg;
@@ -262,6 +262,9 @@ namespace Sango
             m_Pitch = BuoyancyAttitudeSolver.Damp(m_Pitch, m_TargetPitch, smoothingFrequencyHz, dt);
 
             // 施加：heave 只改根 y（基线 + 偏移）；roll/pitch 叠在脚本拥有的 yaw 上。
+            // 边界（dt-sea-realism 2026-10-10）：后端 has_roll=true 时视觉横摇被 twinRollDeg 全量
+            // 替换（LateUpdate 首行 m_SourceRoll），RollGain 调参只在 has_roll 缺失的会话可见；
+            // heave/pitch 恒走求解器。slot.RollDeg 注入链是权威契约，不可改（TwinEnvironmentTests 钉死）。
             rootPos.y = m_BaselineY + m_Heave.Value;
             transform.position = rootPos;
             transform.rotation = Quaternion.Euler(m_Pitch.Value, yawDeg, m_SourceRoll ?? m_Roll.Value) * Quaternion.Euler(0, bowYawDeg, 0);

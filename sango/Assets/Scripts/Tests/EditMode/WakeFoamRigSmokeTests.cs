@@ -8,7 +8,7 @@ namespace Sango.Tests
     /// <summary>
     /// M9-1 WakeFoamRig 适配器 rig 构建 smoke EditMode 测试（先例 M4BAdapterTests /
     /// NavigationLights rig 测试）：立方船壳（根局部包围盒 x±1, y 0..1, z±2，模型单位=米）——
-    /// ① rig 三件套构建（艏浪粒子×2 预算 72/侧、艉迹 ribbon 56 顶点拓扑、水线环 48 顶点）；
+    /// ① rig 三件套构建（艏浪粒子×2 预算 144/侧、艉迹 ribbon 56 顶点拓扑、水线环 48 顶点）；
     /// ② High/Low 档驱动（发射率/强度观测口 + 整树开关）；③ High 档 decal 压制、Low 档
     /// 不碰 decal。适配器在 Assembly-CSharp，经反射驱动（TestReflection 先例；预算常量同经
     /// 反射读取——asmdef 不可见预定义程序集）；档位经 M8Quality.SetTier 静态记账
@@ -82,7 +82,7 @@ namespace Sango.Tests
             foreach (var ps in sprays)
             {
                 Assert.That(ps.main.maxParticles, Is.EqualTo(SprayBudget()),
-                    "粒子预算 72/侧（头注 ≤144 总量锚）");
+                    "粒子预算 144/侧（头注 ≤288 总量锚）");
                 Assert.That(ps.main.simulationSpace, Is.EqualTo(ParticleSystemSimulationSpace.World),
                     "世界系模拟：喷出后留水面不随船");
             }
@@ -122,7 +122,7 @@ namespace Sango.Tests
 
             Invoke(rig, "ApplySpeed", 5f); // 12 m 船巡航 5 m/s：双因子饱和
             Assert.That(ReadProp<float>(rig, "LastSprayRatePerSide"), Is.EqualTo(SprayMaxRate()).Within(1e-4f),
-                "全强发射率 = 预算上限 55/s·侧");
+                "全强发射率 = 预算上限 96/s·侧");
             Assert.That(ReadProp<float>(rig, "LastWakeIntensity01"), Is.EqualTo(1f), "全强泡沫强度 1");
             Assert.That(ReadProp<float>(rig, "LastRingAlpha01"), Is.EqualTo(1f), "环 alpha 随速度爬坡");
 
