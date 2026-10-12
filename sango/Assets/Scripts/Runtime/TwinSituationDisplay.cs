@@ -78,7 +78,7 @@ namespace Sango
                 GameObject ship = int.TryParse(target.id, out int id) ? driver.ShipObject(id) : null;
                 if (target.truth && ship != null) world = ship.transform.position + Vector3.up * 3;
                 var screen = Project(camera, world);
-                screen.id = target.id; screen.key = target.key;
+                screen.id = target.id; screen.key = target.key; screen.existence = target.existence;
                 screen.visible &= data.ships_visible && (ship == null || ship.activeInHierarchy);
                 if (ship != null && target.truth)
                 {
@@ -96,6 +96,11 @@ namespace Sango
                 }
                 targets.Add(screen);
             }
+            // Detections are screen-domain DOM overlays (web layer gates visibility); they never
+            // enter the 3D geometry cache or the Pick hit set.
+            var detections = new List<TwinScreenDetection>();
+            foreach (var detection in data.detections ?? Array.Empty<TwinDisplayDetection>())
+                detections.Add(ProjectDetection(camera, detection, driver.Anchor.Value));
             var frame = new TwinSituationFrame {
                 run_id = data.run_id, frame_id = m_FrameId, source_seq = data.seq, telemetry_seq = driver.LastSeq,
                 sim_time = sim, width = camera.pixelWidth, height = camera.pixelHeight,
@@ -109,6 +114,7 @@ namespace Sango
                 },
                 targets = targets.ToArray(), waypoints = ProjectPoints(camera, data.waypoints, driver.Anchor.Value, data.waypoints_visible),
                 time_markers = ProjectPoints(camera, data.time_markers, driver.Anchor.Value, true),
+                detections = detections.ToArray(),
             };
             m_Frames[m_FrameId] = frame; m_FrameOrder.Enqueue(m_FrameId);
             while (m_FrameOrder.Count > 120) m_Frames.Remove(m_FrameOrder.Dequeue());
@@ -142,6 +148,20 @@ namespace Sango
                 left=Mathf.Min(left,p.x); right=Mathf.Max(right,p.x); top=Mathf.Min(top,1-p.y); bottom=Mathf.Max(bottom,1-p.y);
             }
             point.left=left; point.top=top; point.width=Mathf.Max(0,right-left); point.height=Mathf.Max(0,bottom-top);
+        }
+        // Detection projection mirrors the non-truth target branch: 3 m anchor height, min-clamped
+        // bounds box, no ships_visible gating (visible is geometric only; layer gating is web-side).
+        static TwinScreenDetection ProjectDetection(Camera camera, TwinDisplayDetection detection, TwinAnchor anchor)
+        {
+            Vector3 world = Local(detection, anchor, 3);
+            var point = Project(camera, world);
+            var screen = new TwinScreenDetection {
+                x = point.x, y = point.y, depth = point.depth, visible = point.visible,
+                confidence = detection.confidence, class_name = detection.class_name,
+                sensor_id = detection.sensor_id, key = detection.key, track_key = detection.track_key };
+            var bounds = new Bounds(world, new Vector3(Mathf.Max(8f, detection.width), 5f, Mathf.Max(12f, detection.length)));
+            ProjectBounds(camera, bounds, screen);
+            return screen;
         }
         static TwinScreenPoint[] ProjectPoints(Camera camera, TwinDisplayPoint[] points, TwinAnchor anchor, bool visible)
         {

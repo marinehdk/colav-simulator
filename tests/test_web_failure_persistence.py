@@ -14,7 +14,7 @@ def test_slow_failure_writer_does_not_block_session_control(monkeypatch) -> None
     prepared = SimpleNamespace(
         session=SimpleNamespace(state=SessionState.RUNNING, failure_reason=None, frame_view=[], events=[], ship_list=[]),
         artifact_sink=SimpleNamespace(close=lambda **kwargs: None),
-        manifest=object(),
+        manifest=SimpleNamespace(run_id="active"),
         writer=object(),
     )
 

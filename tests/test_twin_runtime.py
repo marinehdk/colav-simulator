@@ -1,8 +1,11 @@
-"""Deployment DT runtime belongs to its active session, independently of the browser."""
+"""Deployment attachments are session-scoped; the renderer outlives them."""
 
+import asyncio
 import json
 import os
+import shutil
 import subprocess
+import sys
 import threading
 from concurrent.futures import Future
 from pathlib import Path
@@ -21,6 +24,7 @@ class FakeRuntime:
     def __init__(self):
         self.started = []
         self.stopped = []
+        self.released = []
 
     def start(self, session_id: str) -> Future[dict[str, Any]]:
         self.started.append(session_id)
@@ -30,6 +34,9 @@ class FakeRuntime:
 
     def stop(self, session_id=None):
         self.stopped.append(session_id)
+
+    def release(self, session_id):
+        self.released.append(session_id)
 
 
 @pytest.fixture
@@ -69,7 +76,7 @@ def test_dt_start_is_bound_to_the_current_nonterminal_session(manager):
 
 
 @pytest.mark.parametrize("method", ["step", "tick"])
-def test_completion_stops_twin_without_waiting_for_evaluation(manager, method):
+def test_completion_releases_attachment_and_keeps_renderer_without_waiting_for_evaluation(manager, method):
     def advance() -> SimpleNamespace:
         manager.prepared.session.state = SessionState.FINISHED
         return SimpleNamespace(payload={})
@@ -82,10 +89,11 @@ def test_completion_stops_twin_without_waiting_for_evaluation(manager, method):
         manager.step("active")
     else:
         manager.tick()
-    assert manager.twin_runtime.stopped == ["active"]
+    assert manager.twin_runtime.released == ["active"]
+    assert manager.twin_runtime.stopped == []
 
 
-def test_failure_stops_twin_and_preserves_the_session_failure(manager):
+def test_failure_releases_attachment_and_preserves_renderer_and_session_failure(manager):
     def fail():
         raise RuntimeError("solver failed")
 
@@ -94,10 +102,11 @@ def test_failure_stops_twin_and_preserves_the_session_failure(manager):
         manager.step("active")
     assert manager.prepared.session.state == SessionState.FAILED
     assert manager.prepared.session.failure_reason == "solver failed"
-    assert manager.twin_runtime.stopped == ["active"]
+    assert manager.twin_runtime.released == ["active"]
+    assert manager.twin_runtime.stopped == []
 
 
-def test_session_replacement_stops_the_old_twin(manager, monkeypatch, tmp_path):
+def test_session_replacement_releases_old_attachment_and_keeps_renderer(manager, monkeypatch, tmp_path):
     monkeypatch.setattr(gui_main, "render_enc", lambda *args: None)
     monkeypatch.setattr(manager, "_enc_navigation_area", lambda: {})
     monkeypatch.setattr(manager, "describe", lambda: {})
@@ -107,7 +116,80 @@ def test_session_replacement_stops_the_old_twin(manager, monkeypatch, tmp_path):
         run_dir=Path(tmp_path),
     )
     manager._activate(replacement)
-    assert manager.twin_runtime.stopped == ["active"]
+    assert manager.twin_runtime.released == ["active"]
+    assert manager.twin_runtime.stopped == []
+
+
+def test_released_renderer_is_reused_by_another_session_and_shutdown_stops_it(tmp_path):
+    runtime = TwinRuntime(tmp_path)
+    commands = []
+    runtime._invoke = commands.append
+    try:
+        runtime.start("old").result(timeout=5)
+        runtime.release("old")
+        assert runtime.describe() == {"session_id": None, "state": "RUNNING", "error": None}
+        assert commands == ["start"]
+        runtime.start("new").result(timeout=5)
+        runtime.release("old")
+        assert runtime.describe()["session_id"] == "new", "stale release cannot detach the new session"
+        runtime.release("new")
+        runtime.stop().result(timeout=5)
+        assert commands == ["start", "start", "stop"]
+        assert runtime.describe()["state"] == "STOPPED"
+    finally:
+        runtime._executor.shutdown(wait=True)
+
+
+def test_shutdown_releases_inflight_start_even_after_session_attachment_was_released(tmp_path):
+    runtime = TwinRuntime(tmp_path)
+    entered, complete = threading.Event(), threading.Event()
+    commands = []
+
+    def invoke(action):
+        commands.append(action)
+        if action == "start":
+            entered.set()
+            assert complete.wait(5)
+
+    runtime._invoke = invoke
+    try:
+        started = runtime.start("old")
+        assert entered.wait(5)
+        runtime.release("old")
+        stopped = runtime.stop()
+        assert stopped is not None and not stopped.done()
+        complete.set()
+        started.result(timeout=5)
+        stopped.result(timeout=5)
+        assert commands == ["start", "stop"]
+        assert runtime.describe()["state"] == "STOPPED"
+    finally:
+        complete.set()
+        runtime._executor.shutdown(wait=True)
+
+
+def test_backend_shutdown_waits_for_renderer_cleanup(manager, monkeypatch):
+    async def idle_loop():
+        await asyncio.Future()
+
+    completion = Future()
+    cleanup = threading.Timer(0.05, lambda: completion.set_result({"state": "STOPPED"}))
+
+    def stop() -> Future[dict[str, Any]]:
+        manager.twin_runtime.stopped.append(None)
+        cleanup.start()
+        return completion
+
+    monkeypatch.delenv("COLAV_HAIS_PREWARM_ON_STARTUP", raising=False)
+    monkeypatch.setattr(gui_main, "_simulation_loop", idle_loop)
+    monkeypatch.setattr(manager.twin_runtime, "stop", stop)
+    try:
+        with TestClient(gui_main.app):
+            pass
+        assert completion.done(), "backend lifetime must include asynchronous renderer cleanup"
+        assert manager.twin_runtime.stopped == [None]
+    finally:
+        cleanup.join(timeout=1)
 
 
 def test_inflight_start_and_stop_are_serialized_and_old_completion_cannot_stop_new_session(tmp_path):
@@ -223,3 +305,42 @@ def test_remote_runtime_exposes_renderer_endpoint_without_changing_session_owner
         runtime.stop("same-session").result(timeout=5)
     finally:
         runtime._executor.shutdown(wait=True)
+
+
+@pytest.mark.skipif(sys.platform != "darwin" or shutil.which("cc") is None, reason="macOS native fork regression")
+def test_control_exec_avoids_native_fork_cleanup_and_closes_backend_descriptors(tmp_path):
+    library = tmp_path / "fork-guard.dylib"
+    source = tmp_path / "fork-guard.c"
+    source.write_text(
+        "#include <pthread.h>\n#include <signal.h>\n"
+        "static void child(void) { raise(SIGSEGV); }\n"
+        "void install(void) { pthread_atfork(0,0,child); }\n"
+    )
+    subprocess.run([shutil.which("cc"), "-dynamiclib", str(source), "-o", str(library)], check=True, close_fds=False)
+    control = tmp_path / "deploy/twin/twinctl"
+    control.parent.mkdir(parents=True)
+    marker = tmp_path / "reached"
+    control.write_text(
+        f"#!{sys.executable}\nimport os,errno,pathlib\n"
+        "try:\n os.fstat(200)\n raise AssertionError('backend descriptor leaked')\n"
+        "except OSError as e:\n assert e.errno == errno.EBADF\n"
+        f"pathlib.Path({str(marker)!r}).write_text('reached')\n"
+    )
+    control.chmod(0o755)
+    script = tmp_path / "parent.py"
+    script.write_text(
+        "import ctypes,os,fcntl,pathlib\nfrom gui_server.twin_runtime import TwinRuntime\n"
+        f"handle=os.open({str(marker)!r},os.O_CREAT|os.O_RDWR,0o600)\n"
+        "fd=fcntl.fcntl(handle,fcntl.F_DUPFD,200)\nassert fd==200\nos.set_inheritable(fd,True)\n"
+        f"ctypes.CDLL({str(library)!r}).install()\n"
+        f"runtime=TwinRuntime(pathlib.Path({str(tmp_path)!r}))\n"
+        "try:\n"
+        " for action in ['start','stop']:\n  runtime._executor.submit(runtime._invoke,action).result(timeout=5)\n"
+        "finally:\n runtime._executor.shutdown(wait=True)\n"
+    )
+    env = dict(os.environ, PYTHONPATH=str(Path(__file__).resolve().parents[1]))
+    result = subprocess.run(
+        [sys.executable, str(script)], capture_output=True, text=True, env=env, timeout=10, close_fds=False, check=False
+    )
+    assert result.returncode == 0, result.stderr
+    assert marker.read_text() == "reached"

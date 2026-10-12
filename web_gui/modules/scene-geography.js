@@ -1,5 +1,5 @@
 import proj4 from '../vendor/proj4/proj4.mjs';
-import { TARGET_RISK_STYLES, RADAR_DETECTION_RANGE_M } from './situation-display.js?v=20261004-token-cleanup-v1';
+import { TARGET_RISK_STYLES, RADAR_DETECTION_RANGE_M } from './situation-display.js?v=20261011-dt-sensor-overlay-v1';
 
 export const NM = 1852;
 const finite = Number.isFinite;

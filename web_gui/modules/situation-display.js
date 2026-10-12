@@ -124,6 +124,9 @@ const DEFAULT_LAYERS = {
   tracks: false,
   covariance: false,
   aisTargets: true,
+  // DT 像素流 YOLO 检测叠加层（dt-sensor-overlay 契约 §6.5）：默认关，
+  // 有 georef 检测下发时经 updateLayerAvailability 置可用。
+  detections: false,
 };
 
 const PALETTE_DEFAULTS = {
@@ -278,6 +281,7 @@ export function targetsForDisplay(data) {
         cog: Number.isFinite(course) ? course : truth.cog,
         sog: Number.isFinite(speed) ? speed : truth.sog,
         source: 'tracker',
+        existence: trackSet.existence_prob?.[index] ?? null,
       };
     }).filter(target => Number.isFinite(target.x) && Number.isFinite(target.y));
   }
@@ -2058,6 +2062,9 @@ export function createSituationDisplay(options) {
     // P3-S4 (spec #90): the AIS layer is available when the transport
     // carries at least one backend AIS target object this frame.
     layerAvailability.aisTargets = targetsForAisLayer(data).length > 0;
+    // dt-sensor-overlay 契约 §6.5：YOLO 检测层在 transport 携带至少一条
+    // georef 检测（A 段 observations）时可用，对齐 aisTargets 的可用性模式。
+    layerAvailability.detections = Array.isArray(data?.observations) && data.observations.length > 0;
     emitLayerState();
   }
 

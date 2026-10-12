@@ -1,5 +1,10 @@
 using NUnit.Framework;
 using UnityEngine;
+using System;
+using System.Linq;
+using System.Reflection;
+using System.Threading;
+using System.Collections.Concurrent;
 namespace Sango.Tests
 {
     public class TwinLandscapeWarmupTests
@@ -29,6 +34,26 @@ namespace Sango.Tests
             for (int i = 7; i <= 15; i++) gate.Observe(i*40,60+i,true,false);
             Assert.That(gate.State,Is.EqualTo("failed"),"The absolute startup wait still has a bound.");
         }
+        [Test] public void TimedOutDownloadsRecoverOnlyAfterStableLoadedViews()
+        {
+            var gate = new TwinLandscapeWarmup(); gate.Begin("slow",0);
+            gate.Observe(10,25.5f,true,false); gate.Observe(101,25.5f,true,false);
+            Assert.That(gate.State,Is.EqualTo("failed"));
+            gate.Observe(700,100,true,false); gate.Observe(703,100,true,false);
+            Assert.That(gate.Ready,Is.False);
+            gate.Observe(704,100,true,false);
+            Assert.That(gate.Ready,Is.True,"Completed downloads must recover within the same session.");
+        }
+        [Test] public void ProviderFailureAndIncompleteViewsStillBlockRecovery()
+        {
+            var gate = new TwinLandscapeWarmup(); gate.Begin("retry",0);
+            gate.Observe(1,100,true,true); gate.Observe(10,100,true,true);
+            Assert.That(gate.Ready,Is.False);
+            gate.Observe(11,100,true,false); gate.Observe(14,98,true,false);
+            gate.Observe(15,100,true,false); gate.Observe(18,100,true,false);
+            Assert.That(gate.Ready,Is.False);
+            gate.Observe(19,100,true,false); Assert.That(gate.Ready,Is.True);
+        }
         [Test] public void PreloadFollowsRouteBendRatherThanExtrapolatingStraightIntoLand()
         {
             var route = new[] { Vector3.zero, new Vector3(0,0,1000), new Vector3(2000,0,1000) };
@@ -36,6 +61,103 @@ namespace Sango.Tests
             Assert.That(ahead, Is.EqualTo(new Vector3(500,0,1000)));
             Assert.That(TwinLandscapeWarmup.Ahead(new Vector3(0,0,500), route, 10000, 0), Is.EqualTo(route[2]));
             Assert.That(TwinLandscapeWarmup.Ahead(Vector3.zero, null, 1000, 90).x, Is.EqualTo(1000).Within(.01));
+        }
+        [Test] public void DetachSuspendsSelectionAndReattachPreservesTheTileset()
+        {
+            var root = new GameObject("retained-landscape"); root.SetActive(false);
+            var type = TestReflection.FindAssemblyCSharpType("Sango.TwinCesiumLandscape");
+            var landscape = root.AddComponent(type);
+            var tilesetType = AppDomain.CurrentDomain.GetAssemblies().Select(a => a.GetType("CesiumForUnity.Cesium3DTileset"))
+                .First(t => t != null);
+            var tileset = root.AddComponent(tilesetType);
+            var flags = BindingFlags.Instance | BindingFlags.NonPublic;
+            type.GetField("m_Terrain",flags).SetValue(landscape,tileset);
+            try
+            {
+                type.GetMethod("ResetWarmup").Invoke(landscape,null);
+                Assert.That(tilesetType.GetProperty("suspendUpdate").GetValue(tileset),Is.True,
+                    "An idle retained renderer must not refine the restored demo or old route views.");
+                type.GetMethod("PrepareViews").Invoke(landscape,new object[] {"new",Vector3.zero,0f,Array.Empty<Vector3>()});
+                Assert.That(tilesetType.GetProperty("suspendUpdate").GetValue(tileset),Is.False);
+                Assert.That(type.GetField("m_Terrain",flags).GetValue(landscape),Is.SameAs(tileset),
+                    "Reattachment must keep the native tileset/cache owner.");
+            }
+            finally { UnityEngine.Object.DestroyImmediate(root); }
+        }
+        [Test] public void DistantSessionSwitchShrinksTheCacheThenRestoresIt()
+        {
+            var root = new GameObject("region-switch"); root.SetActive(false);
+            var type = TestReflection.FindAssemblyCSharpType("Sango.TwinCesiumLandscape");
+            var landscape = root.AddComponent(type);
+            var tilesetType = AppDomain.CurrentDomain.GetAssemblies().Select(a => a.GetType("CesiumForUnity.Cesium3DTileset"))
+                .First(t => t != null);
+            var tileset = root.AddComponent(tilesetType);
+            var flags = BindingFlags.Instance | BindingFlags.NonPublic;
+            type.GetField("m_Terrain",flags).SetValue(landscape,tileset);
+            tilesetType.GetProperty("maximumCachedBytes").SetValue(tileset,4L*1024*1024*1024);
+            type.GetField("m_RegionAnchored",flags).SetValue(landscape,true);
+            type.GetField("m_PreloadAnchor",flags).SetValue(landscape,Vector3.zero);
+            try
+            {
+                type.GetMethod("PrepareViews").Invoke(landscape,
+                    new object[] {"far",new Vector3(9000,0,0),0f,Array.Empty<Vector3>()});
+                Assert.That((long)tilesetType.GetProperty("maximumCachedBytes").GetValue(tileset),
+                    Is.EqualTo(256L*1024*1024),
+                    "A distant session must hand the cache over instead of churning against the old region.");
+                type.GetField("m_ShrinkRounds",flags).SetValue(landscape,1); // expire the window
+                type.GetMethod("PrepareViews").Invoke(landscape,
+                    new object[] {"far",new Vector3(9100,0,0),0f,Array.Empty<Vector3>()});
+                Assert.That((long)tilesetType.GetProperty("maximumCachedBytes").GetValue(tileset),
+                    Is.EqualTo(4L*1024*1024*1024),
+                    "After the handover window the full ceiling returns for the new session.");
+            }
+            finally { UnityEngine.Object.DestroyImmediate(root); }
+        }
+        [Test] public void NearbySessionSwitchKeepsTheCacheCeiling()
+        {
+            var root = new GameObject("same-region"); root.SetActive(false);
+            var type = TestReflection.FindAssemblyCSharpType("Sango.TwinCesiumLandscape");
+            var landscape = root.AddComponent(type);
+            var tilesetType = AppDomain.CurrentDomain.GetAssemblies().Select(a => a.GetType("CesiumForUnity.Cesium3DTileset"))
+                .First(t => t != null);
+            var tileset = root.AddComponent(tilesetType);
+            var flags = BindingFlags.Instance | BindingFlags.NonPublic;
+            type.GetField("m_Terrain",flags).SetValue(landscape,tileset);
+            tilesetType.GetProperty("maximumCachedBytes").SetValue(tileset,4L*1024*1024*1024);
+            type.GetField("m_RegionAnchored",flags).SetValue(landscape,true);
+            type.GetField("m_PreloadAnchor",flags).SetValue(landscape,Vector3.zero);
+            try
+            {
+                type.GetMethod("PrepareViews").Invoke(landscape,
+                    new object[] {"near",new Vector3(100,0,0),0f,Array.Empty<Vector3>()});
+                Assert.That((long)tilesetType.GetProperty("maximumCachedBytes").GetValue(tileset),
+                    Is.EqualTo(4L*1024*1024*1024),
+                    "Re-testing in the same neighbourhood is the reuse case; the cache stays.");
+            }
+            finally { UnityEngine.Object.DestroyImmediate(root); }
+        }
+        [Test] public void StaleReceiveThreadCannotTurnOffTheNewAttachment()
+        {
+            var root = new GameObject("rebound-driver");
+            var type = TestReflection.FindAssemblyCSharpType("Sango.TwinSessionDriver");
+            var driver = root.AddComponent(type);
+            var flags = BindingFlags.Instance | BindingFlags.NonPublic;
+            var cancel = new CancellationTokenSource();
+            type.GetField("m_Cancel",flags).SetValue(driver,cancel);
+            type.GetField("m_Inbox",flags).SetValue(driver,new ConcurrentQueue<ColavTelemetry>());
+            type.GetField("m_Thread",flags).SetValue(driver,new Thread(() => {}));
+            type.GetField("m_Running",flags).SetValue(driver,true);
+            type.GetField("runtimeEnabled").SetValue(driver,true);
+            type.GetField("sessionId").SetValue(driver,"new-session");
+            type.GetField("backendBase").SetValue(driver,"http://127.0.0.1:1");
+            try
+            {
+                var stale = new Thread(() => type.GetMethod("ReceiveLoop",flags).Invoke(driver,null));
+                stale.Start(); Assert.That(stale.Join(2000),Is.True);
+                Assert.That(type.GetField("runtimeEnabled").GetValue(driver),Is.True,
+                    "A superseded receiver cannot mutate the new attachment's running flags.");
+            }
+            finally { UnityEngine.Object.DestroyImmediate(root); cancel.Dispose(); }
         }
     }
 }

@@ -14,6 +14,7 @@ Covers (contract sango/Docs/contracts/observations-v1.md, frozen):
 
 from __future__ import annotations
 
+import collections
 import math
 import threading
 from types import SimpleNamespace
@@ -61,6 +62,10 @@ def fake_manager(state: SessionState = SessionState.CREATED) -> SimpleNamespace:
     manager.observation_sensor = None
     manager._observation_seq_gate = {}
     manager._observation_totals = {}
+    # dt-sensor-overlay (2026-10-11 contract §2.1): display ring cache attrs the
+    # ingest path touches (this fake bypasses __init__).
+    manager._observation_display_cache = collections.deque(maxlen=512)
+    manager._observation_display_lock = threading.Lock()
     session = SimpleNamespace(
         state=state,
         ship_list=[SimpleNamespace(state=np.array([6955000.0, 37000.0, math.pi / 2, 0.0, 0.0, 0.0]))],

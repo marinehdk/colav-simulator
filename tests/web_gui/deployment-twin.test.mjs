@@ -426,7 +426,9 @@ test('viewport changes select capture profiles, and sustained decode pressure st
   h.scheduler.run();
   await new Promise(resolve => setImmediate(resolve));
   assert.equal(h.client.sent.filter(m => m.type === 'stream_profile').at(-1).value, '1440p');
-  for (let i = 0; i < 5; i += 1) {
+  // Sustained decode pressure still downgrades, but only after the startup
+  // settling window (15 samples) stops shielding the ramp-up phase.
+  for (let i = 0; i < 20; i += 1) {
     at += 1000; frame += 20;
     h.scheduler.run();
     await new Promise(resolve => setImmediate(resolve));

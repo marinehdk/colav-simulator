@@ -105,5 +105,42 @@ namespace Sango.Tests
             Assert.That(demoMemory, Is.EqualTo(_demoShip), "re-retarget must not overwrite the recorded demo target");
             Assert.That(FollowShip, Is.EqualTo(_ownShip));
         }
+        [Test]
+        public void ADelayedOldChannelCloseDoesNotDetachTheCurrentConnection()
+        {
+            var channel = _go.AddComponent(TestReflection.FindAssemblyCSharpType("Sango.TwinBridgeChannel"));
+            typeof(Unity.RenderStreaming.DataChannelBase).GetProperty("ConnectionId").SetValue(channel,"new");
+            int closed = 0;
+            channel.GetType().GetEvent("onClosed").AddEventHandler(channel,new System.Action(() => closed++));
+            var close = channel.GetType().GetMethod("OnClose",Instance);
+            close.Invoke(channel,new object[] {"old"}); Assert.That(closed,Is.Zero);
+            close.Invoke(channel,new object[] {"new"}); Assert.That(closed,Is.EqualTo(1));
+        }
+        [Test]
+        public void ADelayedOldPeerMessageCannotControlTheCurrentAttachment()
+        {
+            var channel = _go.AddComponent(TestReflection.FindAssemblyCSharpType("Sango.TwinBridgeChannel"));
+            typeof(Unity.RenderStreaming.DataChannelBase).GetProperty("ConnectionId").SetValue(channel,"new");
+            int received = 0;
+            channel.GetType().GetEvent("onJson").AddEventHandler(channel,new System.Action<string>(_ => received++));
+            var dispatch = channel.GetType().GetMethod("DispatchMessage",Instance);
+            Assert.That(dispatch,Is.Not.Null,"Each callback must retain its owning peer identity.");
+            var bytes = System.Text.Encoding.UTF8.GetBytes("{\"type\":\"detach\"}");
+            dispatch.Invoke(channel,new object[] {"old",null,bytes}); Assert.That(received,Is.Zero);
+            dispatch.Invoke(channel,new object[] {"new",null,bytes}); Assert.That(received,Is.EqualTo(1));
+        }
+        [Test]
+        public void RemovingAnOldPeerCannotClearTheNewChannel()
+        {
+            var channel = _go.AddComponent(TestReflection.FindAssemblyCSharpType("Sango.TwinBridgeChannel"));
+            var transport = (Unity.RenderStreaming.DataChannelBase)channel;
+            var setChannel = System.Array.Find(channel.GetType().GetMethods(),m => m.Name == "SetChannel" && m.GetParameters().Length == 2);
+            typeof(Unity.RenderStreaming.DataChannelBase).GetProperty("ConnectionId").SetValue(channel,"new");
+            int closed = 0;
+            channel.GetType().GetEvent("onClosed").AddEventHandler(channel,new System.Action(() => closed++));
+            setChannel.Invoke(channel,new object[] {"old",null});
+            Assert.That(transport.ConnectionId,Is.EqualTo("new")); Assert.That(closed,Is.Zero);
+            setChannel.Invoke(channel,new object[] {"new",null}); Assert.That(closed,Is.EqualTo(1));
+        }
     }
 }

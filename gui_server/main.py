@@ -652,6 +652,12 @@ class WebSessionManager:
         self.observation_sensor: ExternalCameraSensor | None = None
         self._observation_seq_gate: dict[tuple[int, str], int] = {}
         self._observation_totals: dict[tuple[int, str], dict[str, int]] = {}
+        # dt-sensor-overlay (2026-10-11 contract §2.1): display-only ring cache of
+        # georeferenced detections in absolute scene NE. Independent of the sensor
+        # inbox (drained by the tracker measurement loop); leaf-locked so ingest
+        # (under self.lock) and the telemetry tick thread can share it safely.
+        self._observation_display_cache: deque[dict[str, Any]] = deque(maxlen=512)
+        self._observation_display_lock = threading.Lock()
         self.lock = threading.RLock()
 
     @property
@@ -677,7 +683,7 @@ class WebSessionManager:
         previous = self.prepared
         previous_capture: TraceSink | None = None
         if previous is not None:
-            self.twin_runtime.stop(previous.manifest.run_id)
+            self.twin_runtime.release(previous.manifest.run_id)
             previous.artifact_sink.close(timeout_s=2.0)
             previous_capture = self._trace_captures.pop(previous.manifest.run_id, None)
             self._capture_finalize_errors.pop(previous.manifest.run_id, None)
@@ -694,6 +700,8 @@ class WebSessionManager:
         self.observation_sensor = ExternalCameraSensor()
         self._observation_seq_gate = {}
         self._observation_totals = {}
+        with self._observation_display_lock:
+            self._observation_display_cache.clear()
         self.previous_prediction_horizon = []
         self.current_prediction_horizon = []
         self.last_solve_id = None
@@ -1107,7 +1115,7 @@ class WebSessionManager:
                 self._append_trace_capture(snapshot)
                 self._publish_telemetry(snapshot)
                 if prepared.session.state == SessionState.FINISHED:
-                    self.twin_runtime.stop(prepared.manifest.run_id)
+                    self.twin_runtime.release(prepared.manifest.run_id)
                     self._result_executor.submit(self._finalize, prepared, self.replay_expected)
                 return self.latest
             except Exception as exc:
@@ -1141,7 +1149,7 @@ class WebSessionManager:
                 if finished or self._telemetry_refresh_due(snapshot, now=time.monotonic()):
                     self._publish_telemetry(snapshot)
                 if finished:
-                    self.twin_runtime.stop(self.prepared.manifest.run_id)
+                    self.twin_runtime.release(self.prepared.manifest.run_id)
                     self._result_executor.submit(self._finalize, self.prepared, self.replay_expected)
                 return float(self.prepared.session.simulator.t)
             except Exception as exc:
@@ -1193,7 +1201,7 @@ class WebSessionManager:
         """Publish failure state immediately; archive frozen evidence off the control path."""
         prepared.session.state = SessionState.FAILED
         prepared.session.failure_reason = str(exc)
-        self.twin_runtime.stop(prepared.manifest.run_id)
+        self.twin_runtime.release(prepared.manifest.run_id)
         self._result_executor.submit(self._write_failure_evidence, prepared, exc)
 
     def _write_failure_evidence(self, prepared: PreparedRun, exc: Exception) -> None:
@@ -1349,7 +1357,8 @@ class WebSessionManager:
             mount = MAST_MOUNTS_BY_ID[frame.mount_id]
             sensor = self._camera_sensor_for(prepared)
             records = []
-            for detection in frame.detections:
+            display_records = []
+            for ordinal, detection in enumerate(frame.detections):
                 georef = georeference_box(
                     mount,
                     tuple(detection.box_xyxy),
@@ -1374,7 +1383,25 @@ class WebSessionManager:
                         "frame_time_s": float(frame.frame_time_s),
                     }
                 )
+                # dt-sensor-overlay contract §2.1: display copy in absolute scene NE
+                # (the sensor record above stays ownship-relative for the tracker);
+                # local-frame projection + display-only association happen in
+                # _display_observations on the telemetry side.
+                display_records.append(
+                    {
+                        "north_abs": float(georef.north_m),
+                        "east_abs": float(georef.east_m),
+                        "confidence": float(detection.confidence),
+                        "class_name": detection.class_name,
+                        "sensor_id": int(frame.sensor_id),
+                        "t_s": float(prepared.session.simulator.t),
+                        "frame_seq": int(frame.frame_seq),
+                        "det_id": f"{frame.sensor_id}:{frame.frame_seq}:{ordinal}",
+                    }
+                )
             sensor.submit(records, frame_seq=frame.frame_seq)
+            with self._observation_display_lock:
+                self._observation_display_cache.extend(display_records)
             self._observation_seq_gate[gate_key] = frame.frame_seq
             totals = self._observation_totals.setdefault(
                 gate_key, {"frames": 0, "detections": 0}
@@ -1909,6 +1936,11 @@ class WebSessionManager:
             # envelope key survives all transports (_compact_stream_payload only
             # strips truth[]-level keys); web consumes leniently.
             "radar_ppi": _radar_ppi_descriptor(self.prepared),
+            # dt-sensor-overlay (2026-10-11 contract §2): georeferenced camera
+            # detections for the DT overlay (local-frame NE + display-only track
+            # association). Key survives all stream transports; [] without camera
+            # observations, so consumers never have to guess.
+            "observations": self._display_observations(session, ships, origin_n, origin_e),
             "radar_scans": jsonable(own_raw.get("radar_scans", [])),
             "ais_reports": jsonable(own_raw.get("ais_reports", [])),
         }
@@ -1951,6 +1983,82 @@ class WebSessionManager:
                 "sources": sources or None,
             }
         )
+
+    def _display_observations(
+        self,
+        session: Any,
+        ships: list[dict[str, Any]],
+        origin_n: float,
+        origin_e: float,
+    ) -> list[dict[str, Any]]:
+        """dt-sensor-overlay (2026-10-11 contract §2): the ``observations`` array.
+
+        Display-only projection of recently georeferenced camera detections:
+        local-frame NE (same domain as tracks states / ownship x,y), nearest-track
+        association within the 50 m display gate (never written back to any sensor
+        or tracker), and truth/default box dimensions. Detections older than 5 s
+        are dropped; the key itself is always present at the caller.
+        """
+        with self._observation_display_lock:
+            cached = list(self._observation_display_cache)
+        if not cached:
+            return []
+        now = float(session.simulator.t)
+        tracks = (ships[0].get("tracks") if ships else {}) or {}
+        states = tracks.get("states") or []
+        labels = tracks.get("labels") or []
+        generations = tracks.get("generations") or []
+        dimensions = {
+            int(ship["id"]): (float(ship["length"]), float(ship["width"]))
+            for ship in ships[1:]
+        }
+        run_id = self.session_id or ""
+        observations: list[dict[str, Any]] = []
+        for record in cached:
+            age_s = now - float(record["t_s"])
+            if age_s > 5.0:
+                continue
+            north = float(record["north_abs"]) - origin_n
+            east = float(record["east_abs"]) - origin_e
+            best_index = -1
+            best_distance = float("inf")
+            for index, state in enumerate(states):
+                if len(state) < 2:
+                    continue
+                distance = math.hypot(float(state[0]) - north, float(state[1]) - east)
+                if distance < best_distance:
+                    best_distance = distance
+                    best_index = index
+            track_key = ""
+            size = None
+            if best_index >= 0 and best_distance <= 50.0:
+                label = labels[best_index] if best_index < len(labels) else best_index + 1
+                generation = generations[best_index] if best_index < len(generations) else None
+                # Contract §1: character-for-character with the frozen web
+                # targetKey `${runId}:${id}:${generation ?? 'none'}` — the §1
+                # Python snippet drops the label/generation colon (typo; it
+                # would emit "run:50" for label 5 gen 0 and never match the
+                # web-side key). "none" only for a missing entry, never for 0.
+                track_key = f"{run_id}:{label}:{'none' if generation is None else generation}"
+                size = dimensions.get(int(label))
+            # Contract §2.3: track label misses the truth table -> class default;
+            # boat and every unknown class share the same 12 x 5 fallback.
+            length, width = size if size is not None else (12.0, 5.0)
+            observations.append(
+                {
+                    "north": north,
+                    "east": east,
+                    "length_m": length,
+                    "width_m": width,
+                    "confidence": float(record["confidence"]),
+                    "class_name": str(record["class_name"]),
+                    "sensor_id": int(record["sensor_id"]),
+                    "age_s": max(0.0, age_s),
+                    "det_id": str(record["det_id"]),
+                    "track_key": track_key,
+                }
+            )
+        return observations
 
 
 def _bounded_playback_deadline(
@@ -2044,7 +2152,9 @@ async def lifespan(_: FastAPI):
         task.cancel()
         with suppress(asyncio.CancelledError):
             await task
-        manager.twin_runtime.stop()
+        cleanup = manager.twin_runtime.stop()
+        if cleanup is not None:
+            await asyncio.wrap_future(cleanup)
 
 
 manager = WebSessionManager()

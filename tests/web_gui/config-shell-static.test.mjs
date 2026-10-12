@@ -86,7 +86,7 @@ test('composition root wires the runtime into the projection singleton and expor
 });
 
 test('Config assets retain GNC tags and load the updated runtime shell', () => {
-  const tag = '20261010-dt-camera-v40';
+  const tag = '20261011-dt-sensor-overlay-v1';
   assert.match(html, new RegExp(`/static/style\\.css\\?v=${tag}`));
   assert.match(html, /\/static\/modules\/config-shell\.js\?v=20261009-dt-environment-v2/);
   assert.match(shell, /validation-assembly\.js\?v=20261009-dt-environment-v1/);

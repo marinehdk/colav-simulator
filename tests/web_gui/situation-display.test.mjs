@@ -589,6 +589,22 @@ test('targetsForDisplay prefers tracker states unless executed_tracker is god', 
   assert.equal(fromGod.x, 0);
 });
 
+test('targetsForDisplay carries IPDA existence_prob per track; god branch stays without it', async () => {
+  const { targetsForDisplay } = await import(new URL('../../web_gui/modules/situation-display.js', import.meta.url).href);
+  const data = {
+    executed_tracker: 'vimmjipda',
+    obstacles: [],
+    tracks: [{ states: [[10, 20, 3, 4], [30, 40, 0, 0]], labels: [7, 8], generations: [4, 0], existence_prob: [0.87, null] }],
+  };
+  const ships = targetsForDisplay(data);
+  assert.equal(ships[0].existence, 0.87);   // 逐 index 映射
+  assert.equal(ships[1].existence, null);   // 缺省回退 null
+  const missing = targetsForDisplay({ ...data, tracks: [{ states: [[10, 20, 3, 4]], labels: [7], generations: [4] }] });
+  assert.equal(missing[0].existence, null); // 旧链路无 existence_prob 数组
+  const [god] = targetsForDisplay({ ...data, executed_tracker: 'god', obstacles: [{ id: 1, x: 0, y: 0 }] });
+  assert.equal('existence' in god, false);  // god 分支不加该字段（契约 §6.1）
+});
+
 /* ── Fix-round regressions ──────────────────── */
 
 test('app.js never references the module-closure animation pipeline vars (P0 regression)', async () => {

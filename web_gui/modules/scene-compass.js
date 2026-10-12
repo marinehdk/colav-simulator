@@ -1,4 +1,4 @@
-import { targetsForDisplay, RADAR_DETECTION_RANGE_M } from './situation-display.js?v=20261004-token-cleanup-v1';
+import { targetsForDisplay, RADAR_DETECTION_RANGE_M } from './situation-display.js?v=20261011-dt-sensor-overlay-v1';
 import { targetAlert, targetKey } from './scene-geography.js?v=20261004-token-cleanup-v1';
 
 const DEG = 180 / Math.PI;

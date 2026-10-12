@@ -1,4 +1,4 @@
-import { targetsForDisplay, RADAR_DETECTION_RANGE_M, drawVODecisionDisc } from './situation-display.js?v=20261004-token-cleanup-v1';
+import { targetsForDisplay, RADAR_DETECTION_RANGE_M, drawVODecisionDisc, trackConfidenceColor } from './situation-display.js?v=20261011-dt-sensor-overlay-v1';
 import { routeRibbonQuads } from './route-3d.js?v=20260921-route-ar-v1';
 import { predictionMarkers, targetKey, offscreenDirection } from './scene-geography.js?v=20261004-token-cleanup-v1';
 import { targetPresentation, updateTargetPoi, applyTargetAppearance, renderTargetCard } from './scene-target.js?v=20260923-follow-v1';
@@ -33,6 +33,51 @@ export function matchedSituationFrame(client, frameId, runId, width, height) {
   return frame?.run_id === runId && frame.width === width && frame.height === height ? frame : null;
 }
 
+// dt-sensor-overlay 契约 §6.3：右键本地命中，逐句复刻 TwinSituationMath.Pick
+// （TwinSituationMessage.cs:102-116）——bounds + 12px pad（归一化域）内、
+// 多命中取 depth 最近；只遍历 targets，detections 不参与命中（§4）。
+export function pickTwinTarget(frame, x, y) {
+  if (!frame || !Array.isArray(frame.targets)) return null;
+  if (!Number.isFinite(x) || !Number.isFinite(y) || x < 0 || x > 1 || y < 0 || y > 1) return null;
+  const padX = 12 / Math.max(1, frame.width || 0), padY = 12 / Math.max(1, frame.height || 0);
+  let result = null;
+  for (const point of frame.targets) {
+    if (!point || !point.visible || !(point.depth > 0)) continue;
+    if (x < point.left - padX || x > point.left + point.width + padX ||
+      y < point.top - padY || y > point.top + point.height + padY) continue;
+    if (!result || point.depth < result.depth) result = point;
+  }
+  return result;
+}
+
+// per-target 检测显示模式循环：fused → yolo → fused（Set 存储右键切换集合）。
+export function toggleYoloKey(keys, key) {
+  if (!keys || !key) return keys;
+  if (keys.has(key)) keys.delete(key); else keys.add(key);
+  return keys;
+}
+
+// det_id = "{sensor_id}:{frame_seq}:{ordinal}"（A 段），frame_seq 单调 → 数值域
+// 最大即最新（§6.4：同一 track_key 多条检测取 det_id 最大者）。
+function detIdRank(id) {
+  const parts = String(id ?? '').split(':');
+  if (parts.length !== 3) return null;
+  const numbers = parts.map(Number);
+  return numbers.every(Number.isFinite) ? numbers : null;
+}
+
+export function latestDetectionForTrack(detections, trackKey) {
+  let best = null, bestRank = null;
+  for (const det of detections || []) {
+    if (!det || !det.track_key || det.track_key !== trackKey) continue;
+    const rank = detIdRank(det.key);
+    if (!rank) continue;
+    if (!bestRank || rank[0] > bestRank[0] || (rank[0] === bestRank[0]
+      && (rank[1] > bestRank[1] || (rank[1] === bestRank[1] && rank[2] > bestRank[2])))) { best = det; bestRank = rank; }
+  }
+  return best;
+}
+
 // OpenBridge's offset POI keeps its pointer at the vessel while moving its head.
 // Its auto-group layout assumes one shared horizon row and ignores buttonY.
 export function layoutTwinLabels(items, width, topInset = 20) {
@@ -62,11 +107,14 @@ export function layoutTwinLabels(items, width, topInset = 20) {
   return result;
 }
 
-export function buildTwinPresentation(projection, chart, info, vo = null, documentRef = null) {
+export function buildTwinPresentation(projection, chart, info, vo = null, documentRef = null, yoloKeys = null) {
   const raw = projection?.raw;
   if (!raw || !info || raw.run_id !== info.run_id) return null;
   const layers = chart.getLayerState();
   const visible = name => layers[name]?.visible !== false;
+  // 契约 §3 裁剪门槛：图层开（=== true）发全部窗口内检测；关则只发
+  // track_key ∈ yoloKeys 的条目（per-target 切换不依赖图层状态）。
+  const detectionsLayerOn = layers.detections?.visible === true;
   const point = (north, east, label = '') => ({ east: info.origin_e + east, north: info.origin_n + north, label });
   const route = chart.getMissionRoute();
   const targets = targetsForDisplay(raw).filter(ship => ship.active !== false);
@@ -90,13 +138,25 @@ export function buildTwinPresentation(projection, chart, info, vo = null, docume
       disc = { ...point(raw.os.x, raw.os.y), radius: raw.os.length * 3, png: canvas.toDataURL('image/png').split(',')[1] };
     }
   }
+  // B 段（契约 §3）：A 段 raw.observations → Unity 检测数组。length_m/width_m
+  // 改名 length/width（JsonUtility 按字段名逐字匹配）；key = det_id 原样；
+  // track_key 原样（"" = 无关联，JsonUtility 不可 round-trip null）。
+  const finite = (value, fallback) => Number.isFinite(value) ? value : fallback;
+  const detections = (Array.isArray(raw.observations) ? raw.observations : [])
+    .filter(o => o && Number.isFinite(o.north) && Number.isFinite(o.east))
+    .map(o => ({ ...point(o.north, o.east), length: finite(o.length_m, 12), width: finite(o.width_m, 5),
+      confidence: finite(o.confidence, 0), class_name: String(o.class_name ?? ''),
+      sensor_id: finite(o.sensor_id, 0), key: String(o.det_id ?? ''), track_key: String(o.track_key ?? '') }))
+    .filter(det => detectionsLayerOn || (det.track_key && yoloKeys?.has(det.track_key)));
   return { run_id: raw.run_id, seq: raw.seq, sim_time: raw.sim_time,
     ribbon: visible('route') ? routeRibbonQuads(route).flat().map(p => point(p.north, p.east)) : [],
     waypoints: route[0].map((north, i) => point(north, route[1][i], 'WPT' + (i + 1))),
     waypoints_visible: visible('waypoints'), ships_visible: visible('ships'), lines, vo: disc,
     time_markers: visible('prediction') ? predictionMarkers(raw).map(m => point(...m.point, '+' + m.elapsed.toFixed(0) + 's')) : [],
     targets: targets.map(ship => ({ ...point(ship.x, ship.y), id: String(ship.id), key: targetKey(raw.run_id, ship),
-      truth: raw.executed_tracker === 'god', length: ship.length || 12, width: ship.width || 5 })),
+      truth: raw.executed_tracker === 'god', length: ship.length || 12, width: ship.width || 5,
+      existence: Number.isFinite(ship.existence) ? ship.existence : -1 })),
+    detections,
   };
 }
 
@@ -109,6 +169,8 @@ export function createTwinSituationOverlay({ host, video, chart, info, client, o
   const waypoints = doc.createElement('div'); waypoints.className = 'scene3d-waypoints';
   const edges = doc.createElement('div'); edges.className = 'scene3d-edges';
   const aisLayer = doc.createElement('div'); aisLayer.className = 'twin-ais-markers';
+  const detectionsLayer = doc.createElement('div'); detectionsLayer.className = 'twin-detections';
+  const badges = doc.createElement('div'); badges.className = 'twin-existence-badges';
   const card = doc.createElement('obc-poi-card'); card.className = 'scene3d-card'; card.hidden = true; card.hasCloseButton = true;
   const cardBody = doc.createElement('div'); cardBody.className = 'scene3d-card-body'; card.append(cardBody);
   const cardIcon = doc.createElement('obi-vessel-generic-default-outlined'); cardIcon.slot = 'poi-icon'; card.append(cardIcon);
@@ -123,13 +185,14 @@ export function createTwinSituationOverlay({ host, video, chart, info, client, o
       if (preset === 'target') trackSelected(); else client()?.sendCamera?.(preset);
     }); toolbar.append(button);
   }
-  root.append(layer, waypoints, edges, aisLayer, card, toolbar); host.append(root, markerCover);
+  root.append(detectionsLayer, badges, layer, waypoints, edges, aisLayer, card, toolbar); host.append(root, markerCover);
   const compass = createSceneCompass({ host: root, onSelect: id => choose(id) });
   const sample = doc.createElement('canvas'); sample.width = 32; sample.height = 1;
   const sampleContext = sample.getContext('2d', { willReadFrequently: true }); sampleContext.imageSmoothingEnabled = false;
   const models = new Map(), pois = new Map(), waypointNodes = new Map(), aisNodes = new Map();
+  const detectionNodes = new Map(), badgeNodes = new Map(), yoloKeys = new Set();
   let latest = null, frame = null, frameId = null, selectedKey = null, disposed = false;
-  let lastSent = null, lastPick = null, lastVideoAt = 0, pointer = null;
+  let lastSent = null, lastPick = null, lastVideoAt = 0, pointer = null, yoloRunId = null;
   let presentationClient = null, presentationAttachment = null;
   let matched = 0, unmatched = 0;
   function choose(id, key = null) {
@@ -149,7 +212,11 @@ export function createTwinSituationOverlay({ host, video, chart, info, client, o
     if (selectedKey && projection) client()?.sendCameraTarget?.(projection.raw.run_id, selectedKey);
   }
   card.addEventListener('close-click', () => choose(null));
-  const down = event => { pointer = { x: event.clientX, y: event.clientY }; };
+  // 契约 §6.3：右键不再送 Unity pick（button !== 0 直接置空 pointer）。
+  const down = event => {
+    if (event.button !== 0) { pointer = null; return; }
+    pointer = { x: event.clientX, y: event.clientY };
+  };
   const up = event => {
     if (!pointer || Math.hypot(event.clientX - pointer.x, event.clientY - pointer.y) > 4) { pointer = null; return; }
     pointer = null;
@@ -157,7 +224,19 @@ export function createTwinSituationOverlay({ host, video, chart, info, client, o
     const rect = root.getBoundingClientRect(), x = (event.clientX - rect.left) / rect.width, y = (event.clientY - rect.top) / rect.height;
     if (x >= 0 && x <= 1 && y >= 0 && y <= 1) client()?.sendPick?.(frame.run_id, frame.frame_id, x, y);
   };
+  // 右键目标：per-key 检测模式循环（fused → yolo → fused）。未命中不拦截，
+  // 保留相机右键缩放拖拽原行为（契约 §6.3.2）。
+  const contextMenu = event => {
+    if (!frame || root.hidden) return;
+    const rect = root.getBoundingClientRect(), x = (event.clientX - rect.left) / rect.width, y = (event.clientY - rect.top) / rect.height;
+    if (x < 0 || x > 1 || y < 0 || y > 1) return;
+    const hit = pickTwinTarget(frame, x, y);
+    if (!hit) return;
+    event.preventDefault();
+    toggleYoloKey(yoloKeys, hit.key);
+  };
   video.addEventListener('pointerdown', down); video.addEventListener('pointerup', up);
+  video.addEventListener('contextmenu', contextMenu);
 
   function renderFrame() {
     const videoBox = video.getBoundingClientRect(), hostBox = host.getBoundingClientRect();
@@ -193,7 +272,20 @@ export function createTwinSituationOverlay({ host, video, chart, info, client, o
     const lowHorizon = visibleY.length > 0 && Math.min(...visibleY) < compassHeight + 80;
     root.classList.toggle('twin-low-horizon', lowHorizon);
     const topInset = lowHorizon ? 24 : Math.min(rect.height / 3, compassHeight + 12);
-    const wanted = new Set(), edgeRecords = [], aisWanted = new Set();
+    // 契约 §6.4：C 段帧回包检测投影（旧 Unity 无 detections → 空数组）。
+    const frameDetections = Array.isArray(frame.detections) ? frame.detections : [];
+    const visibleDetections = frameDetections.filter(det => det && det.visible
+      && [det.left, det.top, det.width, det.height].every(Number.isFinite));
+    // yoloKeys 内目标且当前帧存在可见关联检测 → POI 隐藏（保留节点/选择态），
+    // 画检测框；无关联检测 → 回退融合显示（契约 §6.4）。
+    const yoloByKey = new Map();
+    for (const p of frame.targets || []) {
+      if (yoloKeys.has(p.key)) {
+        const det = latestDetectionForTrack(visibleDetections, p.key);
+        if (det) yoloByKey.set(p.key, det);
+      }
+    }
+    const wanted = new Set(), edgeRecords = [], aisWanted = new Set(), badgeWanted = new Set();
     const contacts = (frame.targets || []).flatMap(p => {
       const ship = byKey.get(p.key); if (!ship) return [];
       const model = targetPresentation(projection, ship, info), x = p.x * rect.width, y = p.y * rect.height;
@@ -225,6 +317,22 @@ export function createTwinSituationOverlay({ host, video, chart, info, client, o
         record = { target, poi }; pois.set(p.key, record);
       }
       const { target, poi } = record;
+      const yoloDet = yoloByKey.get(p.key) || null;
+      // 契约 §6.4：yolo 模式且有关联检测 → POI 置 hidden（不删除，保留选择态）。
+      target.hidden = Boolean(yoloDet);
+      const existence = Number.isFinite(ship.existence) ? ship.existence
+        : Number.isFinite(p.existence) ? p.existence : null;   // 帧 echo 仅作回退（§6.1）
+      if (!yoloDet && Number.isFinite(existence) && existence > 0) {
+        badgeWanted.add(p.key);
+        let chip = badgeNodes.get(p.key);
+        if (!chip) {
+          chip = doc.createElement('span'); chip.className = 'twin-existence-badge';
+          badges.append(chip); badgeNodes.set(p.key, chip);
+        }
+        chip.textContent = 'IPDA ' + Math.round(existence * 100) + '%';
+        chip.style.color = trackConfidenceColor(existence);
+        chip.style.left = x + 'px'; chip.style.top = y + 'px';
+      }
       const placement = layout.get(p.key);
       updateTargetPoi(poi, { ...model, blocks: placement?.compact ? [] : blocks });
       applyTargetAppearance(target, model.alert);
@@ -257,6 +365,34 @@ export function createTwinSituationOverlay({ host, video, chart, info, client, o
     }
     for (const [key, record] of pois) if (!wanted.has(key)) { record.target.remove(); pois.delete(key); }
     for (const [key, node] of aisNodes) if (!aisWanted.has(key)) { node.remove(); aisNodes.delete(key); }
+    // 检测框渲染（契约 §6.2/§6.4）：图层开 → 全量半透明叠加；yolo 切换目标 →
+    // 青色识别框+置信度标签（同一检测同时服务两模式时 yolo 样式优先）。
+    const detectionsLayerOn = chart.getLayerState().detections?.visible === true;
+    const detectionWanted = new Set();
+    for (const det of visibleDetections) {
+      const asYolo = [...yoloByKey.values()].some(d => d.key === det.key);
+      if (!detectionsLayerOn && !asYolo) continue;
+      detectionWanted.add(det.key);
+      let node = detectionNodes.get(det.key);
+      if (!node) {
+        node = doc.createElement('div'); node.className = 'twin-detection';
+        for (const corner of ['tl', 'tr', 'bl', 'br']) {
+          const mark = doc.createElement('i'); mark.className = 'twin-detection-corner twin-detection-corner--' + corner;
+          node.append(mark);
+        }
+        const label = doc.createElement('span'); label.className = 'twin-detection-label';
+        node.append(label);
+        detectionNodes.set(det.key, node); detectionsLayer.append(node);
+      }
+      node.classList.toggle('twin-detection--yolo', asYolo);
+      node.classList.toggle('twin-detection--overlay', !asYolo);
+      node.style.left = det.left * rect.width + 'px'; node.style.top = det.top * rect.height + 'px';
+      node.style.width = det.width * rect.width + 'px'; node.style.height = det.height * rect.height + 'px';
+      node.querySelector('.twin-detection-label').textContent =
+        String(det.class_name ?? '') + ' : ' + Math.round((Number(det.confidence) || 0) * 100) + '%';
+    }
+    for (const [key, node] of detectionNodes) if (!detectionWanted.has(key)) { node.remove(); detectionNodes.delete(key); }
+    for (const [key, node] of badgeNodes) if (!badgeWanted.has(key)) { node.remove(); badgeNodes.delete(key); }
     edges.replaceChildren(...edgeRecords.map(({ p, model, edge, arrow }, index) => {
       const button = doc.createElement('button'); button.className = edge; button.textContent = arrow + ' TS' + p.id;
       button.style.setProperty('--edge-index', index); applyTargetAppearance(button, model.alert);
@@ -300,6 +436,8 @@ export function createTwinSituationOverlay({ host, video, chart, info, client, o
   return {
     render(projection) {
       if (!projection?.raw) return;
+      // 契约 §6.3.3：run_id 变化清空 per-target 切换集合（防跨 run key 碰撞）。
+      if (projection.raw.run_id !== yoloRunId) { yoloRunId = projection.raw.run_id; yoloKeys.clear(); }
       const bridge = client();
       if (bridge !== presentationClient || bridge?.attached !== presentationAttachment) {
         lastSent = null; presentationClient = bridge; presentationAttachment = bridge?.attached;
@@ -308,7 +446,7 @@ export function createTwinSituationOverlay({ host, video, chart, info, client, o
       if (models.size > 120) models.delete(models.keys().next().value);
       const surface = getPlannerSurface?.();
       if (surface?.type === 'vo') requestVODecisionSpace?.();
-      const presentation = buildTwinPresentation(projection, chart, info, surface?.type === 'vo' ? surface.vo : null, doc);
+      const presentation = buildTwinPresentation(projection, chart, info, surface?.type === 'vo' ? surface.vo : null, doc, yoloKeys);
       const signature = JSON.stringify(presentation);
       if (signature !== lastSent && bridge?.attached?.run_id === presentation?.run_id && bridge?.sendPresentation?.(presentation)) lastSent = signature;
     },
@@ -333,10 +471,15 @@ export function createTwinSituationOverlay({ host, video, chart, info, client, o
       if (pick && pick !== lastPick) { lastPick = pick; host.dataset.situationPick = JSON.stringify(pick); choose(pick.id, pick.key); }
       if (latest) this.render(latest);
     },
-    reset() { lastSent = null; frame = null; frameId = null; root.hidden = true; markerCover.hidden = true; models.clear(); },
+    reset() {
+      lastSent = null; frame = null; frameId = null; root.hidden = true; markerCover.hidden = true;
+      models.clear(); yoloKeys.clear(); yoloRunId = null;
+      for (const node of detectionNodes.values()) node.remove(); detectionNodes.clear();
+      for (const node of badgeNodes.values()) node.remove(); badgeNodes.clear();
+    },
     select(id) { choose(id); },
     get cameraPose() { return frame?.camera_pose; },
     get landscape() { return frame?.landscape; },
-    destroy() { disposed = true; video.style.visibility = ''; video.removeEventListener('pointerdown', down); video.removeEventListener('pointerup', up); compass.destroy(); root.remove(); markerCover.remove(); },
+    destroy() { disposed = true; video.style.visibility = ''; video.removeEventListener('pointerdown', down); video.removeEventListener('pointerup', up); video.removeEventListener('contextmenu', contextMenu); compass.destroy(); root.remove(); markerCover.remove(); },
   };
 }

@@ -211,9 +211,8 @@ namespace Sango
             runtimeEnabled = false;
             m_Running = false;
             if (m_Cancel != null) { try { m_Cancel.Cancel(); } catch (ObjectDisposedException) { } }
-            // F9 守卫（TwinBridgeService.StopReplayFetch 同款）：Join 超时窗口里线程可能仍阻塞在
-            // token WaitHandle 上，立即 Dispose 会向后台线程抛 ObjectDisposedException——延后到
-            // 确认线程退场再 Dispose（下次 Stop 收尾，最坏 GC 兜底）。
+            // A blocked receiver still owns its token WaitHandle. Dispose only
+            // after it settles here, or in that receiver's finally block.
             bool receiveThreadSettled = true;
             if (m_Thread != null)
             {
@@ -222,11 +221,14 @@ namespace Sango
                     Debug.LogWarning("[Sango.Twin] receive thread did not exit within 2s");
                     receiveThreadSettled = false;
                 }
-                if (receiveThreadSettled) m_Thread = null;
+                // A cancelled receiver owns its old inbox/token. A new attach can
+                // start without waiting for a blocked old request to finish.
+                m_Thread = null;
             }
             if (m_Cancel != null && receiveThreadSettled) { m_Cancel.Dispose(); m_Cancel = null; }
             m_Inbox = null;
             m_SocketUp = false;
+            m_ConnectedSessionId = null;
             ClearSlots();
             m_Prev = m_Latest = null;
             m_Anchor = null;
@@ -345,7 +347,10 @@ namespace Sango
 
         void ReceiveLoop()
         {
-            CancellationToken cancellation = m_Cancel.Token;
+            var receiver = Thread.CurrentThread;
+            var cancel = m_Cancel;
+            if (receiver != m_Thread || cancel == null) return;
+            CancellationToken cancellation = cancel.Token;
             var inbox = m_Inbox; // 线程持有本地引用（DetectionResultConsumer 同款，收尾竞态不炸）
             try
             {
@@ -355,22 +360,24 @@ namespace Sango
                     id = TwinRest.CreateSession(backendBase, validationRuleId, scenarioId, algorithmId, trackerId);
                     TwinRest.StartSession(backendBase, id);
                 }
+                if (receiver != m_Thread || cancellation.IsCancellationRequested) return;
                 m_ConnectedSessionId = id;
                 // P2-S3 留尾收口：autoReconnect=true 时断线按 1s/2s/5s 封顶退避重连（TwinReconnectPolicy，
                 // twin-bridge-v1.md §5）；默认 false = S1 行为零变化（断线关闸等人为重开）。
                 // P2-S4 B：attempt 状态机收进 TwinReconnectPolicy.ReconnectSequence（EditMode 模拟可测）。
                 var reconnect = new TwinReconnectPolicy.ReconnectSequence();
-                while (m_Running)
+                while (m_Running && receiver == m_Thread)
                 {
                     using (var socket = new ClientWebSocket())
                     {
                         socket.ConnectAsync(new Uri(TwinWs.CompactUrl(backendBase, id)), cancellation).GetAwaiter().GetResult();
+                        if (receiver != m_Thread || cancellation.IsCancellationRequested) return;
                         m_SocketUp = true;
                         int priorAttempts = reconnect.Attempt;
                         reconnect.OnConnected();
                         Debug.Log("[Sango.Twin] connected " + TwinWs.CompactUrl(backendBase, id) +
                                   (priorAttempts > 0 ? $" (reconnect #{priorAttempts})" : ""));
-                        while (m_Running)
+                        while (m_Running && receiver == m_Thread)
                         {
                             string json = TwinWs.ReceiveText(socket, cancellation);
                             if (json == null) break; // 服务端关闭 / 停止取消
@@ -381,6 +388,7 @@ namespace Sango
                             inbox.Enqueue(frame);
                         }
                     }
+                    if (receiver != m_Thread) return;
                     m_SocketUp = false;
                     var decision = reconnect.OnDisconnected(m_Running, autoReconnect);
                     if (!decision.Reconnect) break;
@@ -390,14 +398,18 @@ namespace Sango
             }
             catch (Exception error)
             {
-                if (m_Running)
+                if (m_Running && receiver == m_Thread)
                     Debug.LogError($"[Sango.Twin] receive loop exited: {error.GetType().Name} {error.Message}");
             }
             finally
             {
-                m_Running = false;
-                m_SocketUp = false;
-                runtimeEnabled = false; // Update 闸不再重试，直至人为重新开闸（FramePublisher 同款）
+                if (receiver == m_Thread)
+                {
+                    m_Running = false;
+                    m_SocketUp = false;
+                    runtimeEnabled = false; // Only the current receiver can close the update gate.
+                }
+                cancel.Dispose();
             }
         }
 

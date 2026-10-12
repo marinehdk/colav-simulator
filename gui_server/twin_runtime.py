@@ -1,4 +1,4 @@
-"""Session-bound ownership of the local Deployment twin services."""
+"""Backend-owned Deployment renderer with replaceable session attachments."""
 
 from __future__ import annotations
 
@@ -55,29 +55,43 @@ class TwinRuntime:
     def stop(self, session_id: str | None = None) -> Future[dict[str, Any]] | None:
         with self._lock:
             # Delayed completion/failure of an old session cannot stop a new one.
-            if self._session_id is None or (session_id is not None and session_id != self._session_id):
+            if session_id is not None and session_id != self._session_id:
+                return None
+            if self._session_id is None and self._state == "STOPPED" and not self._managed:
                 return None
             self._session_id = None
             self._revision += 1
             self._state = "STOPPING"
             return self._executor.submit(self._stop, self._revision)
 
+    def release(self, session_id: str) -> None:
+        """Forget a completed/replaced attachment while retaining geographic resources."""
+        with self._lock:
+            if session_id == self._session_id:
+                self._session_id = None
+
     def _invoke(self, action: str) -> None:
         if sys.platform != "darwin" or not self._control.is_file():
             raise TwinRuntimeError("Local DT services require the installed macOS twin runtime")
         try:
             result = subprocess.run(
-                [str(self._control), action],
+                [sys.executable, "-I", "-S", str(Path(__file__).with_name("_exec_control.py")), str(self._control), action],
                 capture_output=True,
                 text=True,
                 timeout=20,
                 check=False,
+                # Python 3.11/macOS uses posix_spawn only with close_fds=False.
+                # The isolated helper closes backend FDs before exec-ing control;
+                # no PROJ/SQLite fork-child cleanup runs in the GIS process.
+                close_fds=False,
             )
         except (OSError, subprocess.TimeoutExpired) as exc:
             raise TwinRuntimeError(f"Twin runtime {action} failed: {exc}") from exc
         if result.returncode:
             detail = (result.stderr or result.stdout).strip()
-            raise TwinRuntimeError(f"Twin runtime {action} failed: {detail}")
+            raise TwinRuntimeError(
+                f"Twin runtime {action} failed (exit {result.returncode}): {detail or 'no process output'}"
+            )
 
     def _start(self, revision: int) -> dict[str, Any]:
         with self._lock:

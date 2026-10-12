@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { decodeFrameMarker, containedVideoRect, matchedSituationFrame, buildTwinPresentation, layoutTwinLabels } from '../../web_gui/modules/twin-situation.js?v=20261010-dt-landscape-v1';
+import { decodeFrameMarker, containedVideoRect, matchedSituationFrame, buildTwinPresentation, layoutTwinLabels,
+  pickTwinTarget, toggleYoloKey, latestDetectionForTrack } from '../../web_gui/modules/twin-situation.js?v=20261011-dt-sensor-overlay-v1';
 import { createTwinBridgeClient } from '../../web_gui/modules/twin-view.js?v=20261010-dt-camera-v4';
 
 function marker(frame) {
@@ -81,6 +82,92 @@ test('tracked positions keep tracker provenance instead of moving labels to trut
   assert.equal(value.targets[0].north, info.origin_n + 123);
   assert.equal(value.targets[0].east, info.origin_e + 456);
   assert.equal(value.targets[0].truth, false); assert.equal(value.targets[0].key, 'a:1:8');
+});
+
+/* ── dt-sensor-overlay：右键本地命中 / 模式循环 / 检测映射 ── */
+
+const pickFrame = { run_id: 'a', width: 1920, height: 1080, targets: [
+  { key: 'a:1:4', visible: true, depth: 50, left: 0.3, top: 0.3, width: 0.1, height: 0.1 },
+  { key: 'a:2:4', visible: true, depth: 20, left: 0.32, top: 0.32, width: 0.1, height: 0.1 },
+  { key: 'a:3:none', visible: false, depth: 10, left: 0.05, top: 0.05, width: 0.1, height: 0.1 },
+  { key: 'a:4:none', visible: true, depth: 0, left: 0.8, top: 0.8, width: 0.1, height: 0.1 },
+] };
+test('local right-click pick replicates TwinSituationMath.Pick bounds+pad+depth', () => {
+  // 双命中取 depth 最近；不可见与 depth<=0 的点不参与。
+  assert.equal(pickTwinTarget(pickFrame, 0.35, 0.35).key, 'a:2:4');
+  assert.equal(pickTwinTarget(pickFrame, 0.31, 0.31).key, 'a:1:4');   // 只落在 1 的盒内
+  assert.equal(pickTwinTarget(pickFrame, 0.06, 0.06), null);          // invisible 候选被排除
+  assert.equal(pickTwinTarget(pickFrame, 0.85, 0.85), null);          // depth 0 在镜头后
+  assert.equal(pickTwinTarget(pickFrame, 0.9, 0.9), null);            // 空白处未命中
+});
+test('pick honors the exact 12px pad boundary in normalized coordinates', () => {
+  const padX = 12 / 1920, padY = 12 / 1080;
+  assert.equal(pickTwinTarget(pickFrame, 0.3 - padX, 0.3).key, 'a:1:4');      // pad 内沿命中
+  assert.equal(pickTwinTarget(pickFrame, 0.3 - padX - 1e-6, 0.3), null);      // pad 外一像素未命中
+  assert.equal(pickTwinTarget(pickFrame, 0.3, 0.3 - padY).key, 'a:1:4');
+  assert.equal(pickTwinTarget(pickFrame, 0.3, 0.3 - padY - 1e-6), null);
+  assert.equal(pickTwinTarget(pickFrame, 0.4 + padX, 0.305).key, 'a:1:4');    // 右沿含 pad（y 避开 a:2:4 盒）
+  assert.equal(pickTwinTarget(pickFrame, 0.4 + padX + 1e-6, 0.305), null);
+});
+test('pick rejects out-of-domain coordinates and missing target arrays', () => {
+  for (const [x, y] of [[-0.1, 0.5], [1.1, 0.5], [0.5, -0.1], [0.5, 1.1], [NaN, 0.5], [0.5, Infinity]]) {
+    assert.equal(pickTwinTarget(pickFrame, x, y), null);
+  }
+  assert.equal(pickTwinTarget({ run_id: 'a', width: 1920, height: 1080 }, 0.5, 0.5), null);
+  assert.equal(pickTwinTarget(null, 0.5, 0.5), null);
+});
+test('per-target mode cycles fused → yolo → fused through the key set', () => {
+  const keys = new Set();
+  toggleYoloKey(keys, 'a:1:4');
+  assert.equal(keys.has('a:1:4'), true);
+  toggleYoloKey(keys, 'a:1:4');
+  assert.equal(keys.has('a:1:4'), false);
+  toggleYoloKey(keys, '');   // 空 key 不动作（防御 JsonUtility "" 关联键）
+  assert.equal(keys.size, 0);
+});
+test('latest associated detection wins by numeric det_id, not lexicographic order', () => {
+  const detections = [
+    { key: '2:9:0', track_key: 'a:1:4', confidence: 0.9 },
+    { key: '2:10:0', track_key: 'a:1:4', confidence: 0.7 },   // 字典序 '2:10:0' < '2:9:0'，数值域 10 > 9
+    { key: '3:99:0', track_key: '', confidence: 0.99 },       // 无关联（""）不参与
+    { key: '2:11:0', track_key: 'a:9:9', confidence: 0.5 },   // 别的 track
+  ];
+  assert.equal(latestDetectionForTrack(detections, 'a:1:4').key, '2:10:0');
+  assert.equal(latestDetectionForTrack(detections, 'a:9:9').key, '2:11:0');
+  assert.equal(latestDetectionForTrack(detections, 'a:8:8'), null);
+  assert.equal(latestDetectionForTrack(null, 'a:1:4'), null);
+});
+test('presentation maps existence and observations per contract sections A→B', () => {
+  const tracked = { raw: { ...projection.raw, executed_tracker: 'vimmjipda', tracks: [{
+    labels: [1], generations: [8], states: [[123, 456, 0, 0]], existence_prob: [0.87],
+  }],
+  observations: [
+    { north: 120, east: 60, length_m: 12, width_m: 5, confidence: 0.87, class_name: 'boat', sensor_id: 2, age_s: 1.2, det_id: '2:41:0', track_key: 'a:1:8' },
+    { north: 800, east: -30, length_m: 9, width_m: 4, confidence: 0.42, class_name: 'boat', sensor_id: 3, age_s: 2.0, det_id: '3:41:1', track_key: '' },
+    { north: 'x', east: 5, det_id: '2:42:0', track_key: '' },   // 非有限坐标 → 弃
+  ] } };
+  const layered = { ...chart, getLayerState: () => ({ detections: { visible: true } }) };
+  const value = buildTwinPresentation(tracked, layered, info);
+  assert.equal(value.targets[0].existence, 0.87);
+  assert.equal(value.detections.length, 2);
+  assert.deepEqual(value.detections[0], { east: info.origin_e + 60, north: info.origin_n + 120, label: '',
+    length: 12, width: 5, confidence: 0.87, class_name: 'boat', sensor_id: 2, key: '2:41:0', track_key: 'a:1:8' });
+  assert.equal(value.detections[1].track_key, '');   // 无关联空串（JsonUtility 不可 round-trip null）
+  // 图层关：仅 track_key ∈ yoloKeys 的条目；无切换 → 空数组仍发送。
+  const off = buildTwinPresentation(tracked, chart, info);
+  assert.deepEqual(off.detections, []);
+  const yoloOnly = buildTwinPresentation(tracked, chart, info, null, null, new Set(['a:1:8']));
+  assert.equal(yoloOnly.detections.length, 1);
+  assert.equal(yoloOnly.detections[0].key, '2:41:0');
+  // god 无 existence → -1；旧会话无 observations → 空数组（宽容）。
+  const god = buildTwinPresentation(projection, layered, info);
+  assert.equal(god.targets[0].existence, -1);
+  assert.deepEqual(god.detections, []);
+  // 存在概率缺失（旧链路）→ -1，不炸。
+  const legacy = buildTwinPresentation({ raw: { ...tracked.raw, observations: undefined,
+    tracks: [{ labels: [1], generations: [8], states: [[123, 456, 0, 0]] }] } }, layered, info);
+  assert.equal(legacy.targets[0].existence, -1);
+  assert.deepEqual(legacy.detections, []);
 });
 
 test('dense ten-ship labels retain every anchor and separate all heads', () => {

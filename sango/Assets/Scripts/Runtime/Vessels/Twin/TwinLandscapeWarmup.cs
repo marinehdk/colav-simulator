@@ -18,15 +18,22 @@ namespace Sango
         }
         public void Observe(float now, float progress, bool online, bool failed)
         {
-            if (RunId == null || Ready || State == "failed") return;
+            if (RunId == null || Ready) return;
             if (!online) { State = "offline-terrain"; Progress = 100; return; }
             Progress = float.IsNaN(progress) || float.IsInfinity(progress) ? 0 : Mathf.Clamp(progress, 0, 100);
             if (Mathf.Abs(Progress - m_ActivityProgress) > .1f)
             { m_LastActivity = now; m_ActivityProgress = Progress; }
             // High-resolution views can take longer than the coarse preview. Fail a
             // stalled request promptly, but allow healthy downloads to keep progressing.
-            if (failed || now - m_LastActivity >= 90 || now - m_Start >= 600) { State = "failed"; return; }
-            if (Progress < 99) { m_Settled = -1; return; }
+            if (failed) { State = "failed"; m_Settled = -1; return; }
+            if (Progress < 99)
+            {
+                m_Settled = -1;
+                if (now - m_LastActivity >= 90 || now - m_Start >= 600) State = "failed";
+                return;
+            }
+            // A timeout reports unavailable views, not a permanent provider failure.
+            // Keep observing late downloads and require the same stable loaded views.
             if (m_Settled < 0) m_Settled = now;
             if (now - m_Settled >= 4) State = "ready";
         }

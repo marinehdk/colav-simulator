@@ -30,12 +30,18 @@ namespace Sango
             if (camera != null)
             {
                 var hd = camera.GetComponent<HDAdditionalCameraData>() ?? camera.gameObject.AddComponent<HDAdditionalCameraData>();
-                hd.antialiasing = HDAdditionalCameraData.AntialiasingMode.TemporalAntialiasing;
+                // Avoid history trails as water normals and the follow camera move.
+                hd.antialiasing = HDAdditionalCameraData.AntialiasingMode.SubpixelMorphologicalAntiAliasing;
             }
             if (Application.isPlaying)
             {
                 Application.runInBackground = true;
                 QualitySettings.vSyncCount = 0;
+                // Render above the 30 fps capture clock: the sender's 30 fps
+                // ticker then always samples a fresh, evenly spaced frame and
+                // absorbs render-side jitter. Capping render at 30 made the
+                // stream breathe at 27.8-29.5 fps, which reads as visible
+                // stutter on the water surface (uneven 2:1 pacing on 60 Hz).
                 Application.targetFrameRate = 60;
             }
             TryApply("1080p");
@@ -46,10 +52,15 @@ namespace Sango
             if (!TrySize(profile, out var size)) return false;
             if (Profile == profile) return true;
             m_Sender.SetTextureSize(size);
+            // 30 fps capture measured the smooth ceiling: the sender's capture
+            // pass renders the whole HDRP scene a second time (~34 ms/frame at
+            // 1080p, ~40 ms at 1440p), so a 60 fps clock only starved the
+            // stream (27-29 fps at 1080p, ~25 at 1440p with visible stutter)
+            // while the 30 fps clock delivers a rock-steady 29.8.
             m_Sender.SetFrameRate(30f);
-            m_Sender.SetBitrate(profile == "1440p" ? 10000u : 6000u, profile == "1440p" ? 24000u : 14000u);
+            m_Sender.SetBitrate(profile == "1440p" ? 12000u : 8000u, profile == "1440p" ? 30000u : 16000u);
             Profile = profile;
-            Debug.Log($"[Sango.TwinVideo] profile={profile} capture={size.x}x{size.y} target_fps=30 bitrate_kbps={m_Sender.minBitrate}-{m_Sender.maxBitrate} aa=TAA batch={Application.isBatchMode} gpu={SystemInfo.graphicsDeviceType}");
+            Debug.Log($"[Sango.TwinVideo] profile={profile} capture={size.x}x{size.y} target_fps=30 bitrate_kbps={m_Sender.minBitrate}-{m_Sender.maxBitrate} aa=SMAA batch={Application.isBatchMode} gpu={SystemInfo.graphicsDeviceType}");
             return true;
         }
 

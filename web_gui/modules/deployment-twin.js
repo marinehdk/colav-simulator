@@ -35,7 +35,7 @@ import { createGeography } from './scene-geography.js?v=20261004-token-cleanup-v
 import { chooseTwinStreamProfile, sampleTwinVideoStats } from './twin-stream-quality.js?v=20261009-dt-quality-v3';
 
 import { createTwinCameraControls } from './twin-camera-controls.js?v=20261010-dt-camera-v6';
-import { createTwinSituationOverlay } from './twin-situation.js?v=20261010-dt-landscape-v1';
+import { createTwinSituationOverlay } from './twin-situation.js?v=20261011-dt-sensor-overlay-v1';
 
 // HUD refresh cadence (Unity state echo is ~1Hz; same as the Evaluation twin).
 const HUD_INTERVAL_MS = 250;
@@ -96,7 +96,9 @@ export function createDeploymentTwinViewport({
   let statsPending = false;
   let lastStatsAt = -Infinity;
   let slowSamples = 0;
+  let goodSamples = 0;
   let downgraded = false;
+  let settleSamples = 0;
   let viewportSizeKey = null;
   let resizeObserver = null;
   let videoFrameCallback = null;
@@ -345,6 +347,8 @@ export function createDeploymentTwinViewport({
     viewportSizeKey = key;
     downgraded = false;
     slowSamples = 0;
+    goodSamples = 0;
+    settleSamples = 0;
     requestedProfile = chooseTwinStreamProfile(rect.width, rect.height, dpr);
     sendStreamProfile();
   }
@@ -357,13 +361,30 @@ export function createDeploymentTwinViewport({
     void ctl.getStats().then(report => {
       if (destroyed || ctl !== streamCtl) return;
       measuredVideo = sampleTwinVideoStats(report, measuredVideo);
-      const bad = measuredVideo?.fps !== null && measuredVideo?.fps < 26
-        || measuredVideo?.dropRatio > 0.03;
+      // The stream's first seconds ramp the encoder/bitrate up; judging there
+      // downgraded a healthy 1440p stream to 1080p on startup and never came
+      // back. Settle for ~15 one-second samples before evaluating, then allow
+      // recovery once the stream sustains full-rate frames again.
+      const settled = ++settleSamples > 15;
+      const bad = settled && (measuredVideo?.fps !== null && measuredVideo?.fps < 26
+        || measuredVideo?.dropRatio > 0.03);
       slowSamples = bad ? slowSamples + 1 : 0;
       if (!downgraded && requestedProfile === '1440p' && slowSamples >= 5) {
         requestedProfile = '1080p';
         downgraded = true;
+        goodSamples = 0;
         sendStreamProfile();
+      } else if (downgraded && settled && measuredVideo?.fps !== null && measuredVideo.fps >= 50
+                 && measuredVideo.dropRatio !== null && measuredVideo.dropRatio <= 0.03) {
+        if (++goodSamples >= 20 && viewportSizeKey !== null) {
+          const [vpWidth, vpHeight, vpDpr] = viewportSizeKey.split(':').map(Number);
+          requestedProfile = chooseTwinStreamProfile(vpWidth, vpHeight, vpDpr);
+          downgraded = false;
+          goodSamples = 0;
+          sendStreamProfile();
+        }
+      } else {
+        goodSamples = 0;
       }
       publishDebug();
     }).catch(() => {}).finally(() => { statsPending = false; });

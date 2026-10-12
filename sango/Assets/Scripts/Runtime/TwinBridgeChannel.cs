@@ -2,6 +2,7 @@ using System;
 using System.Text;
 using Unity.RenderStreaming;
 using UnityEngine;
+using Unity.WebRTC;
 
 namespace Sango
 {
@@ -43,6 +44,23 @@ namespace Sango
             Send(json);
         }
 
+        public override void SetChannel(string connectionId, RTCDataChannel channel)
+        {
+            if (channel != null && ConnectionId == connectionId && ReferenceEquals(Channel,channel)) return;
+            if (channel == null && !string.IsNullOrEmpty(ConnectionId) && ConnectionId != connectionId) return;
+            base.SetChannel(connectionId,channel);
+            if (channel == null) { onClosed?.Invoke(); return; }
+            // Broadcast can overlap peers on this component. Retain callback
+            // ownership so queued messages from an older peer cannot rebind it.
+            channel.OnMessage -= OnMessage;
+            channel.OnMessage += bytes => DispatchMessage(connectionId,channel,bytes);
+        }
+
+        void DispatchMessage(string connectionId, RTCDataChannel sender, byte[] bytes)
+        {
+            if (ConnectionId == connectionId && ReferenceEquals(Channel,sender)) OnMessage(bytes);
+        }
+
         protected override void OnMessage(byte[] bytes)
         {
             ReceivedCount++;
@@ -59,6 +77,7 @@ namespace Sango
 
         protected override void OnOpen(string connectionId)
         {
+            if (ConnectionId != connectionId) return;
             base.OnOpen(connectionId);
             Debug.Log($"[Sango.TwinBridge] channel OPEN conn={connectionId} label={label}");
             onOpened?.Invoke();
@@ -66,7 +85,9 @@ namespace Sango
 
         protected override void OnClose(string connectionId)
         {
+            bool current = string.IsNullOrEmpty(ConnectionId) || ConnectionId == connectionId;
             base.OnClose(connectionId);
+            if (!current) return;
             Debug.Log($"[Sango.TwinBridge] channel CLOSE conn={connectionId}");
             onClosed?.Invoke();
         }

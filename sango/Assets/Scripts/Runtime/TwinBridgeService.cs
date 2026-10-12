@@ -141,6 +141,7 @@ namespace Sango
             }
             channel.onJson += HandleJson;
             channel.onOpened += HandleChannelOpened;
+            channel.onClosed += DetachDataPlane;
             var sender = GetComponent<Unity.RenderStreaming.VideoStreamSender>();
             if (sender != null) m_StreamQuality = new TwinStreamQuality(sender);
             m_BridgeUp = true;
@@ -159,6 +160,7 @@ namespace Sango
             {
                 channel.onJson -= HandleJson;
                 channel.onOpened -= HandleChannelOpened;
+                channel.onClosed -= DetachDataPlane;
             }
             DetachDataPlane();
             // P3-S2: 停桥回默认 eo 渲染态（IR pass 关 + 温度 tag 恢复，Demo 零残留）。

@@ -15,6 +15,8 @@ namespace Sango
         public TwinDisplayPoint[] time_markers;
         public TwinDisplayDisc vo;
         public bool ships_visible, waypoints_visible;
+        // dt-sensor-overlay 契约：YOLO 检测（web 侧已按图层/per-target 门控裁剪；图层开关不发 Unity）。
+        public TwinDisplayDetection[] detections;
     }
     [Serializable] public class TwinDisplayPoint
     {
@@ -26,6 +28,18 @@ namespace Sango
         public string id, key;
         public bool truth;
         public float length, width;
+        // IPDA 存在概率；-1 = 未知/god（web 侧哨兵），旧消息缺字段 → 0f（仅帧 echo，无渲染后果）。
+        public float existence;
+    }
+    // Georef 检测（dt-sensor-overlay 契约 B 段；字段名 JsonUtility 逐字匹配，故用 length/width 而非 length_m）。
+    [Serializable] public class TwinDisplayDetection : TwinDisplayPoint
+    {
+        public float length, width;
+        public float confidence;
+        public string class_name;
+        public int sensor_id;
+        public string key;
+        public string track_key;   // "" = 无关联（JsonUtility 无法 round-trip null string）
     }
     [Serializable] public class TwinDisplayLine
     {
@@ -45,6 +59,16 @@ namespace Sango
         public string id, key, label;
         public float x, y, depth, left, top, width, height;
         public bool visible;
+        // targets 帧 echo IPDA existence（-1=未知/god）；waypoints/time_markers 恒 0，消费端不得读。
+        public float existence;
+    }
+    // C 段帧回包检测投影（TwinScreenDetection 继承屏幕点字段；id/label 恒空，key = det_id）。
+    [Serializable] public class TwinScreenDetection : TwinScreenPoint
+    {
+        public float confidence;
+        public string class_name;
+        public int sensor_id;
+        public string track_key;
     }
     [Serializable] public class TwinSituationFrame
     {
@@ -55,6 +79,7 @@ namespace Sango
         public TwinBridgeCameraPose camera_pose;
         public TwinBridgeLandscapeState landscape;
         public TwinScreenPoint[] targets, waypoints, time_markers;
+        public TwinScreenDetection[] detections;
         public string ToJson() => JsonUtility.ToJson(this);
     }
     [Serializable] public class TwinSituationPick

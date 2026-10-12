@@ -33,16 +33,17 @@ namespace Sango.Tests
                 Assert.That(sender.height, Is.EqualTo(1080));
                 Assert.That(sender.frameRate, Is.EqualTo(30));
                 Assert.That(camera.GetComponent<HDAdditionalCameraData>().antialiasing,
-                    Is.EqualTo(HDAdditionalCameraData.AntialiasingMode.TemporalAntialiasing));
+                    Is.EqualTo(HDAdditionalCameraData.AntialiasingMode.SubpixelMorphologicalAntiAliasing));
                 Assert.That(type.GetMethod("TryApply").Invoke(quality, new object[] { "1440p" }), Is.True);
                 Assert.That(sender.width, Is.EqualTo(2560));
                 Assert.That(sender.height, Is.EqualTo(1440));
-                Assert.That(sender.minBitrate, Is.EqualTo(10000));
-                Assert.That(sender.maxBitrate, Is.EqualTo(24000));
+                Assert.That(sender.minBitrate, Is.EqualTo(12000));
+                Assert.That(sender.maxBitrate, Is.EqualTo(30000));
                 Assert.That(type.GetMethod("TryApply").Invoke(quality, new object[] { "4k" }), Is.False);
                 Assert.That(sender.width, Is.EqualTo(2560));
                 Assert.That(type.GetMethod("TryApply").Invoke(quality, new object[] { "1080p" }), Is.True);
-                Assert.That(sender.maxBitrate, Is.EqualTo(14000));
+                Assert.That(sender.minBitrate, Is.EqualTo(8000));
+                Assert.That(sender.maxBitrate, Is.EqualTo(16000));
             }
             finally { Object.DestroyImmediate(go); }
         }

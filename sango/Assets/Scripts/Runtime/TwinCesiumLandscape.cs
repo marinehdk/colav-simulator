@@ -38,16 +38,41 @@ namespace Sango
         RenderTexture m_CreditTexture;
         PanelSettings m_CreditPanel;
         float m_NextUpdate;
+        int m_ShrinkRounds;
+        bool m_RegionAnchored;
         bool m_ProjectionFailed;
         bool m_OnlineReady;
         bool m_Photoreal;
         float m_ProbeDistance = float.PositiveInfinity;
         int m_TerrainMeshes, m_BuildingMeshes;
+        // Tile creation is queued and reprojected a few per frame: the SDK
+        // delivers created tiles in bursts on the main thread, and one burst of
+        // full-vertex reprojections was the recurring 40-70 ms sailing spike.
+        readonly Queue<KeyValuePair<GameObject,bool>> m_ProjectionQueue = new();
         public string Status { get; private set; } = "offline-terrain";
         public int TerrainMeshes => m_TerrainMeshes;
         public int BuildingMeshes => m_BuildingMeshes;
         public float TerrainLoad => m_Terrain != null ? m_Terrain.ComputeLoadProgress() : 0;
         public float BuildingLoad => m_Buildings != null ? m_Buildings.ComputeLoadProgress() : 0;
+
+        // Region-handover cache policy. The full ceiling bounds the resident set
+        // during a session; a distant session switch shrinks it for a short
+        // round-count window (PrepareViews runs once per frame, so 30 rounds is
+        // about one second of updates) so those updates evict the previous
+        // region instead of churning load+evict against it for the whole session.
+        // 4 GiB covers the OT/HO/CS/three-ship family combined (~9k tiles,
+        // ~3.5 GiB CPU plus a similar GPU copy). The multiship route family
+        // alone needs ~20k tiles (GPU copy exhausted the RTX A4000's 16 GiB
+        // VRAM at a 53k-tile resident set: Vulkan "low memory" spam, stream
+        // stalled); with multiship excluded this size keeps every listed
+        // scenario resident with VRAM headroom.
+        const long k_FullCacheBytes = 4L * 1024 * 1024 * 1024;
+        const long k_ShrunkCacheBytes = 256L * 1024 * 1024;
+        // 5 km covers the scenario-family origin spread (E 35-39 km) plus
+        // route extents, so switching among the family never hands the cache
+        // over; only a genuinely different waterway does.
+        const float k_RegionSwitchM = 5000f;
+        const int k_ShrinkRounds = 30;
 
         void Start()
         {
@@ -82,7 +107,7 @@ namespace Sango
             }
             m_Photoreal = Array.IndexOf(Environment.GetCommandLineArgs(), "--twin-cesium-world-terrain") < 0;
             m_Terrain = CreateTileset(m_Photoreal ? "Google Photorealistic 3D Tiles" : "Cesium World Terrain",
-                m_Photoreal ? 2275207 : 1,token,6L*1024*1024*1024);
+                m_Photoreal ? 2275207 : 1,token,k_FullCacheBytes);
             if (!m_Photoreal)
             {
                 var imagery = m_Terrain.gameObject.AddComponent<CesiumIonRasterOverlay>();
@@ -90,11 +115,13 @@ namespace Sango
                 imagery.ionAccessToken = token;
                 imagery.showCreditsOnScreen = true;
                 imagery.maximumScreenSpaceError = 1.5f;
-                m_Buildings = CreateTileset("Cesium OSM Buildings",96188,token,512L*1024*1024);
-                m_Buildings.OnTileGameObjectCreated += go => ProjectTile(go, true);
+            m_Buildings = CreateTileset("Cesium OSM Buildings",96188,token,512L*1024*1024);
+            m_Buildings.OnTileGameObjectCreated += go => m_ProjectionQueue.Enqueue(new KeyValuePair<GameObject,bool>(go, true));
             }
-            m_Terrain.OnTileGameObjectCreated += go => ProjectTile(go, false);
+            m_Terrain.OnTileGameObjectCreated += go => m_ProjectionQueue.Enqueue(new KeyValuePair<GameObject,bool>(go, false));
             Cesium3DTileset.OnCesium3DTilesetLoadFailure += LoadFailed;
+            m_Terrain.suspendUpdate = true;
+            if (m_Buildings != null) m_Buildings.suspendUpdate = true;
             m_Root.SetActive(true);
             ClipToNorwegianLand(); // Polygon OnEnable must precede the overlay's native creation.
             m_Credits = CesiumCreditSystem.GetDefaultCreditSystem();
@@ -112,7 +139,10 @@ namespace Sango
             tileset.ionAssetID = id;
             tileset.ionAccessToken = token;
             tileset.maximumScreenSpaceError = 8;
-            tileset.maximumSimultaneousTileLoads = 32;
+            // 16 concurrent loads halve the per-frame arrival rate of created
+            // tiles, halving the main-thread vertex reprojection spikes; network
+            // latency still keeps ~16 requests saturated.
+            tileset.maximumSimultaneousTileLoads = 16;
             tileset.preloadAncestors = true;
             tileset.preloadSiblings = true;
             tileset.forbidHoles = true;
@@ -235,6 +265,10 @@ namespace Sango
         public void ResetWarmup()
         {
             m_Warmup.Reset(); m_PreloadPositioned = false;
+            // Keep resident tiles while idle; the restored demo camera must not
+            // refine unrelated views and evict the previous session's geography.
+            if (m_Terrain != null) m_Terrain.suspendUpdate = true;
+            if (m_Buildings != null) m_Buildings.suspendUpdate = true;
         }
 
         void UpdateWarmup()
@@ -254,7 +288,22 @@ namespace Sango
         public void PrepareViews(string runId, Vector3 position, float heading, Vector3[] route)
         {
             bool changed = m_Warmup.RunId != runId;
+            if (changed && m_Terrain != null)
+            {
+                if (m_RegionAnchored && Vector3.Distance(position, m_PreloadAnchor) > k_RegionSwitchM)
+                {
+                    m_Terrain.maximumCachedBytes = k_ShrunkCacheBytes;
+                    m_ShrinkRounds = k_ShrinkRounds;
+                }
+            }
+            else if (m_ShrinkRounds > 0 && --m_ShrinkRounds == 0 && m_Terrain != null
+                     && m_Terrain.maximumCachedBytes < k_FullCacheBytes)
+            {
+                m_Terrain.maximumCachedBytes = k_FullCacheBytes;
+            }
             m_Warmup.Begin(runId, Time.unscaledTime);
+            if (m_Terrain != null) m_Terrain.suspendUpdate = false;
+            if (m_Buildings != null) m_Buildings.suspendUpdate = false;
             if (m_Cameras != null && m_PreloadCameras.Count == 0)
             {
                 // Disabled cameras participate in Cesium selection but never render.
@@ -270,7 +319,7 @@ namespace Sango
                     m_PreloadCameras.Add(camera); m_Cameras.additionalCameras.Add(camera);
                 }
             }
-            if (m_Cameras != null && (changed || !m_PreloadPositioned || (m_Warmup.Ready && Vector3.Distance(position,m_PreloadAnchor) > 200)) && m_ViewCamera != null)
+            if (m_Cameras != null && (changed || !m_PreloadPositioned || (m_Warmup.Ready && Vector3.Distance(position,m_PreloadAnchor) > 600)) && m_ViewCamera != null)
             {
                 if (m_StartupView == null)
                 {
@@ -284,7 +333,11 @@ namespace Sango
                 if (!m_Warmup.Ready) m_Cameras.additionalCameras.Remove(m_ViewCamera);
                 if (!m_Cameras.additionalCameras.Contains(m_StartupView)) m_Cameras.additionalCameras.Add(m_StartupView);
             }
-            if (changed || !m_PreloadPositioned || (m_Warmup.Ready && Vector3.Distance(position,m_PreloadAnchor) > 200))
+            // 600 m hops instead of 200: each hop re-runs selection for three
+            // prefetch views at once, and on the large post-reuse resident set
+            // those waves were the sailing-frame spikes. 1.2 km lookahead keeps
+            // ~75 s of lead for a 15.5 kn vessel either way.
+            if (changed || !m_PreloadPositioned || (m_Warmup.Ready && Vector3.Distance(position,m_PreloadAnchor) > 600))
             {
                 for (int i = 0; i < m_PreloadCameras.Count; i++)
                 {
@@ -294,21 +347,34 @@ namespace Sango
                     focus.y = 600;
                     m_PreloadCameras[i].transform.SetPositionAndRotation(focus, Quaternion.Euler(90,0,0));
                 }
-                m_PreloadPositioned = true; m_PreloadAnchor = position;
+                m_PreloadPositioned = true; m_PreloadAnchor = position; m_RegionAnchored = true;
             }
             float progress = m_Buildings == null ? TerrainLoad : Mathf.Min(TerrainLoad,BuildingLoad);
             m_Warmup.Observe(Time.unscaledTime, progress, m_Terrain != null,
                 m_ProjectionFailed || Status == "imagery-load-failed");
             if (m_Warmup.Ready && m_Cameras != null && m_ViewCamera != null)
             {
-                // Keep the startup view hot while the ship remains in this neighbourhood.
-                // Camera orbit alone must not evict its already refined shoreline.
+                // Keep the startup view hot only while the ship remains in this
+                // neighbourhood. Camera orbit alone must not evict its already
+                // refined shoreline.
                 if (!m_Cameras.additionalCameras.Contains(m_ViewCamera)) m_Cameras.additionalCameras.Add(m_ViewCamera);
+                // Once the main camera is back in the selection list, the startup
+                // view duplicates its frustum and only adds per-frame selection
+                // cost. It returns for one frame whenever a relocation re-aims it.
+                m_Cameras.additionalCameras.Remove(m_StartupView);
             }
         }
 
         void Update()
         {
+            // Budgeted reprojection: 2 tiles per frame (~60/s at 30 fps) absorbs
+            // creation bursts without a main-thread spike; a tile spends at most
+            // a few frames at its uncorrected elevation before being projected.
+            for (int i = 0; i < 2 && m_ProjectionQueue.Count > 0; i++)
+            {
+                var pair = m_ProjectionQueue.Dequeue();
+                if (pair.Key != null) ProjectTile(pair.Key, pair.Value);
+            }
             UpdateWarmup();
             if (m_Root == null || Time.unscaledTime < m_NextUpdate) return;
             m_NextUpdate = Time.unscaledTime + 2;

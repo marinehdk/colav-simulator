@@ -3974,6 +3974,26 @@ canvas#simCanvas.route-pick-mode { cursor: crosshair; }
 .twin-ais-markers { position: absolute; inset: 0; pointer-events: none; }
 .twin-ais-marker { position: absolute; transform: translate(-50%, -50%); padding: 0; border: 0; background: transparent; pointer-events: auto; cursor: pointer; }
 .twin-ais-marker img { display: block; height: auto; }
+/* dt-sensor-overlay：DT 像素流 YOLO 检测框 + IPDA 存在概率徽标（契约 §6.2 样式 token） */
+.twin-detections { position: absolute; inset: 0; pointer-events: none; z-index: 2; }
+.twin-detection { position: absolute; box-sizing: border-box; pointer-events: none; }
+.twin-situation-overlay obc-poi[hidden] { display: none; }
+.twin-detection--overlay { border: 1px solid rgba(34, 211, 238, 0.6); background: rgba(34, 211, 238, 0.18); }
+.twin-detection--yolo { border: 2px solid #22d3ee; }
+.twin-detection-corner { position: absolute; width: 9px; height: 9px; border: 0 solid #22d3ee; }
+.twin-detection-corner--tl { left: -2px; top: -2px; border-left-width: 3px; border-top-width: 3px; }
+.twin-detection-corner--tr { right: -2px; top: -2px; border-right-width: 3px; border-top-width: 3px; }
+.twin-detection-corner--bl { left: -2px; bottom: -2px; border-left-width: 3px; border-bottom-width: 3px; }
+.twin-detection-corner--br { right: -2px; bottom: -2px; border-right-width: 3px; border-bottom-width: 3px; }
+.twin-detection--overlay .twin-detection-corner { display: none; }
+.twin-detection-label { position: absolute; left: -2px; bottom: calc(100% + 4px); white-space: nowrap; color: #22d3ee;
+  background: rgba(7, 18, 27, 0.78); border: 1px solid rgba(34, 211, 238, 0.45); padding: 1px 6px;
+  font: 500 12px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+.twin-detection--overlay .twin-detection-label { display: none; }
+.twin-existence-badges { position: absolute; inset: 0; pointer-events: none; z-index: 3; }
+.twin-existence-badge { position: absolute; transform: translate(14px, 10px); white-space: nowrap;
+  background: rgba(7, 18, 27, 0.72); border: 1px solid rgba(255, 255, 255, 0.18); border-radius: 2px; padding: 1px 5px;
+  font: 600 11px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
 .scene3d-waypoint-leader { position: absolute; bottom: 0; left: -1px; width: 2px; height: calc(var(--waypoint-lift) - 18px); background: #e9eef0cc; box-shadow: 1px 0 0 #26374780; }
 .scene3d-waypoint-head { position: absolute; left: -17px; bottom: calc(var(--waypoint-lift) - 17px); width: 34px; height: 34px; }
 .scene3d-waypoint-icon { display: grid; place-items: center; width: 32px; height: 32px; border: 1px solid #b9d9f6; border-radius: 50%; background: #f6f9fc; box-shadow: 0 1px 3px #17345140; }

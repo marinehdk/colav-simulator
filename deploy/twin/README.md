@@ -8,8 +8,14 @@ Deployment 选 T 后视口无画面的根因：URS 信令（:8080）与 sango tw
 ——开机/登录不拉起、杀进程不复活。人工可用 `deploy/twin/twinctl start`；
 Deployment 选 **DT** 时，WEB 通过当前会话的 `/api/sessions/{session_id}/twin/start`
 启动信令与 player，再连接 live 数据流。暂停保留连接；FINISHED/FAILED、Reset/会话替换
-和后端正常退出会异步停掉本会话启动的双服务，停止命令不会阻塞仿真线程。
-切回海图仅断开该视口，后台保留到会话结束；再次选 DT 可重新连接。
+仅释放旧会话绑定，renderer 保留到后端正常退出，供后续 Session 复用地理资源。
+后端退出仍异步停止双服务，停止命令不会阻塞仿真线程。
+切回海图仅断开该视口；再次选 DT 可重新连接。同一进程保留已加载 tile/mesh，
+新绑定仍重新校验地形预热；缓存命中不保证任意新视角立即完成。
+未绑定时暂停 Cesium LOD/culling 更新，保留 tileset 而不继续细化旧相机视图。
+换绑会清除旧船、帧队列和时钟；仅当前 WebRTC peer 的消息能控制新绑定。
+macOS/Python 3.11 的启动与停止命令经 `posix_spawn` 进入隔离 exec helper，
+先关闭继承的后端文件描述符再执行控制脚本，避开 GIS/PROJ 的 fork-child SQLite 清理回调。
 此自动启停限当前 macOS 本地 runtime；Evaluation 的封存回放仍走既有连接流程。
 
 ## A4000 远程渲染
@@ -22,7 +28,8 @@ Deployment 选 **DT** 时，WEB 通过当前会话的 `/api/sessions/{session_id
 - 本机 `127.0.0.1:8080` → A4000 信令；A4000 `127.0.0.1:18010` → 本机后端 `127.0.0.1:8010`。
 - Linux/Vulkan 使用 GPU 0、NVENC H.264；虚拟显示 `:93` 不在本机显示 Unity 窗口。
 - `LD_PRELOAD` 仅对播放器设置系统 `libstdc++`，修复已实测的 Unity/WebRTC NVENC 初始化符号冲突。
-- 完成/失败/Reset：仅停止本服务记录的 player、signaling、Xvfb 进程组并关闭自有 SSH 通道。
+- 完成/失败/Reset：保留 player、signaling、Xvfb 与自有 SSH 通道，清除旧会话呈现。
+- 后端正常退出或人工 `twinctl stop`：停止自有进程组并关闭自有 SSH 通道。
 - 本机默认禁止自动启动本地 Unity；仍可移走机器配置恢复本地模式。
 
 **WEB 画质与隐藏窗口运行**：player 以 `--sango-web-only -force-metal` 启动，正常 GPU

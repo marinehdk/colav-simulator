@@ -48,6 +48,18 @@ _Avoid_: WebSocket status, connection state
 The delivery status of the live snapshot stream for an Active Session. Losing it does not by itself invalidate Session Authority or change the Session state.
 _Avoid_: Session failure, no session
 
+**DT Renderer**:
+The visual runtime that presents a validation session and retains reusable Geographic Landscape independently of that session's lifetime. It is not Session Authority.
+_Avoid_: Active Session, simulation runtime
+
+**Geographic Landscape**:
+The reusable geographic appearance of the digital twin, distinct from session-owned vessels, telemetry, and authoritative ENC navigation facts.
+_Avoid_: Session state, navigational clearance, simulation result
+
+**Twin Attachment**:
+The session-scoped association between a DT Renderer and the run it presents. Releasing or replacing it clears that run's presentation without ending the DT Renderer lifetime.
+_Avoid_: Renderer process, Session Replacement
+
 **Session Replacement**:
 An atomic change from one Active Session identity to another after Create, Reset, or Replay.
 _Avoid_: Reset state transition, in-place replay
