@@ -124,7 +124,16 @@ def _stop_gst_group() -> None:
 
 
 def _spawn_player() -> int:
-    env = dict(os.environ, DISPLAY=":93", LD_PRELOAD="/lib/x86_64-linux-gnu/libstdc++.so.6")
+    # 证书 env(2026-10-11 热修回归项):Unity 内置 CA 不认 Cesium 新根(Starfield G2),
+    # 不指系统 bundle 时 ion 请求挂 → terrain=0 且不自愈;跨 session 缓存会掩盖该失败。
+    env = dict(
+        os.environ,
+        DISPLAY=":93",
+        LD_PRELOAD="/lib/x86_64-linux-gnu/libstdc++.so.6",
+        SSL_CERT_FILE="/etc/ssl/certs/ca-certificates.crt",
+        CURL_CA_BUNDLE="/etc/ssl/certs/ca-certificates.crt",
+        REQUESTS_CA_BUNDLE="/etc/ssl/certs/ca-certificates.crt",
+    )
     w, h = _player_window()
     return spawn(
         "player",
