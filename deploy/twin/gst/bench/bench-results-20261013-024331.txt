@@ -1,0 +1,15 @@
+# bench 20261013-024331  container=gst-base
+# ENC_ARGS=preset=low-latency-hq rate-control=cbr b-frames=0 zero-reorder-delay=true rc-lookahead=0 gop-size=60 repeat-sequence-header=true qos=true
+
+b1 fullspeed-sysmem 1440p: 139.6 fps (1800 frames / 12890904920 ns)  target>=200  FAIL
+b2 fullspeed-cuda 1440p:   140.9 fps  (info)
+== GPU snapshot @+12s of b3 ==
+0, 15 %, 4831 MiB
+1, 10 %, 288 MiB
+1497814, /home/marine.huang/.local/share/colav-twin-renderer/player/sango.x86_64, 4733 MiB
+2241741, gst-launch-1.0, 274 MiB
+b3 live 1440p60 60s: wall=60.29s (nominal 60) alerts=0  target wall<=61.5 & no WARNING/ERROR  PASS
+b4 cbr30 1440p: 20.88 Mbps (157305844 bytes / 60269647898 ns, preset=low-latency-hq)  target∈[15,25]  PASS
+b5 cbr30 1440p hp: 21.26 Mbps (80383523 bytes / 30249648701 ns, preset=low-latency-hp)  (info)
+
+OVERALL: PASS

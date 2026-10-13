@@ -1,0 +1,13 @@
+v=0
+o=- 2537163751014995098 2 IN IP4 0.0.0.0
+s=-
+t=0 0
+a=group:BUNDLE 0
+m=application 9 UDP/DTLS/SCTP webrtc-datachannel
+c=IN IP4 0.0.0.0
+a=ice-ufrag:LZQXJwz8bLw61jwWh3jLwx2rJeOmwjiK
+a=ice-pwd:HdsS25lLtRAM8A2cMeqvcXjj9qYVxTlk
+a=mid:0
+a=setup:active
+a=sctp-port:5000
+a=fingerprint:sha-256 03:C9:5D:54:6A:AF:B4:E1:4F:EE:B1:D3:BF:25:12:7D:C9:E2:8D:E9:7B:C4:A0:35:36:F3:7E:09:7E:3F:23:DE

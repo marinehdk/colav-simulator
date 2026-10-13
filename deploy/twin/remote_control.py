@@ -11,6 +11,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 CFG = json.loads((ROOT / "deploy/twin/remote-runtime.json").read_text())
+ROUTE = CFG.get("video_route", "legacy-urs")  # M3 gst 模式门控(DESIGN §5.3);默认 legacy 零行为差
 SOCKET = ROOT / "deploy/twin/logs/renderer-ssh.sock"
 SOCKET.parent.mkdir(exist_ok=True)
 HOST = CFG["host"]
@@ -25,13 +26,23 @@ def call(args: list[str], *, required: bool = True) -> subprocess.CompletedProce
 
 
 def remote(action: str) -> subprocess.CompletedProcess[str]:
-    command = shlex.join(["python3", CFG["remote_root"] + "/renderer_control.py", action])
+    cmd = ["python3", CFG["remote_root"] + "/renderer_control.py", action]
+    if ROUTE != "legacy-urs":
+        cmd = [f"TWIN_VIDEO_ROUTE={ROUTE}"] + cmd  # env 前缀经 ssh 远端 shell 生效
+    command = shlex.join(cmd)
     return call([*BASE, "-S", str(SOCKET), HOST, command])
 
 
 def start():
     check = call([*BASE, "-S", str(SOCKET), "-O", "check", HOST], required=False)
     if check.returncode:
+        forwards = [
+            "-R", "127.0.0.1:18010:127.0.0.1:8010",
+            "-L", "127.0.0.1:8080:127.0.0.1:8080",
+        ]
+        if ROUTE == "gst-xvfb":
+            # M3 gst 模式:加 8081 转发(spike 信令室;生产 8080 映射不动,DESIGN §5.3)
+            forwards += ["-L", "127.0.0.1:8081:127.0.0.1:8081"]
         call(
             [
                 *BASE,
@@ -45,10 +56,7 @@ def start():
                 "ServerAliveInterval=15",
                 "-o",
                 "ServerAliveCountMax=3",
-                "-R",
-                "127.0.0.1:18010:127.0.0.1:8010",
-                "-L",
-                "127.0.0.1:8080:127.0.0.1:8080",
+                *forwards,
                 HOST,
             ]
         )
