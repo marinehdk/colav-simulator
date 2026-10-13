@@ -28,6 +28,21 @@ namespace Sango
         [Tooltip("twin-bridge 通道（场景预接线；URS Broadcast.streams 需含本组件）")]
         public TwinBridgeChannel channel;
 
+        [Tooltip("M5 gst 路由本地桥通道（变体 B；--sango-twin-bridge-local 自举时缺省自动创建）")]
+        public TwinBridgeLocalChannel localChannel;
+
+        /// <summary>
+        /// M5 变体 B（gst-xvfb 路由）：消息面走本地回环通道（GStreamer sender 转发 twin-bridge
+        /// DataChannel），URS DataChannel 闲置。由 TwinBridgeLocalCliFlag 自举置位。
+        /// </summary>
+        public bool useLocalChannel;
+
+        /// <summary>当前生效的消息通道（useLocalChannel 时为本地回环通道，否则 URS DataChannel）。</summary>
+        ITwinBridgeChannel ActiveChannel => useLocalChannel ? localChannel : channel;
+
+        /// <summary>发送口公开面（TwinSituationDisplay 等场景组件；M5 路由同源）。</summary>
+        public ITwinBridgeChannel ActiveBridgeChannel => ActiveChannel;
+
         [Tooltip("数据面驱动（场景预接线；缺省自举创建并接 catalog/water）")]
         public TwinSessionDriver driver;
 
@@ -133,21 +148,24 @@ namespace Sango
             runtimeEnabled = true;
             if (m_BridgeUp) return;
             EnsureWiring();
-            if (channel == null)
+            if (useLocalChannel && localChannel == null)
+                localChannel = gameObject.AddComponent<TwinBridgeLocalChannel>();
+            var active = ActiveChannel;
+            if (active == null)
             {
-                Debug.LogError("[Sango.TwinBridge] no TwinBridgeChannel wired — build the SangoTwin scene (TwinBridgeSceneBuilder)");
+                Debug.LogError("[Sango.TwinBridge] no twin-bridge channel wired (TwinBridgeChannel/TwinBridgeLocalChannel) — build the SangoTwin scene (TwinBridgeSceneBuilder)");
                 runtimeEnabled = false;
                 return;
             }
-            channel.onJson += HandleJson;
-            channel.onOpened += HandleChannelOpened;
-            channel.onClosed += DetachDataPlane;
+            active.onJson += HandleJson;
+            active.onOpened += HandleChannelOpened;
+            active.onClosed += DetachDataPlane;
             var sender = GetComponent<Unity.RenderStreaming.VideoStreamSender>();
             if (sender != null) m_StreamQuality = new TwinStreamQuality(sender);
             m_BridgeUp = true;
             if (m_Situation == null) m_Situation = gameObject.AddComponent<TwinSituationDisplay>();
             m_Situation.bridge = this;
-            Debug.Log("[Sango.TwinBridge] service started");
+            Debug.Log($"[Sango.TwinBridge] service started (local={useLocalChannel})");
         }
 
         /// <summary>停桥：退 detach 语义（数据面停、船清空）+ 退订。</summary>
@@ -156,11 +174,12 @@ namespace Sango
             runtimeEnabled = false;
             if (!m_BridgeUp) return;
             m_BridgeUp = false;
-            if (channel != null)
+            var active = ActiveChannel;
+            if (active != null)
             {
-                channel.onJson -= HandleJson;
-                channel.onOpened -= HandleChannelOpened;
-                channel.onClosed -= DetachDataPlane;
+                active.onJson -= HandleJson;
+                active.onOpened -= HandleChannelOpened;
+                active.onClosed -= DetachDataPlane;
             }
             DetachDataPlane();
             // P3-S2: 停桥回默认 eo 渲染态（IR pass 关 + 温度 tag 恢复，Demo 零残留）。
@@ -399,6 +418,7 @@ namespace Sango
                 case "detection": HandleDetection(cmd); break;
                 case "sensor_mode": HandleSensorMode(cmd); break; // P3-S2（契约 §2/§8 演进，spec #90）
                 case "stream_profile":
+                    if (useLocalChannel) break; // M5：gst 路由下 sender 拦截并映射编码档，Unity 不再消费
                     if (m_StreamQuality == null || !m_StreamQuality.TryApply(cmd.value))
                         SendError(TwinBridge.ErrorBadMessage, "unsupported stream profile");
                     break;
@@ -928,7 +948,8 @@ namespace Sango
 
         void SendStateHeartbeat()
         {
-            if (channel == null || !channel.IsConnected || string.IsNullOrEmpty(m_Mode)) return;
+            var active = ActiveChannel;
+            if (active == null || !active.IsConnected || string.IsNullOrEmpty(m_Mode)) return;
             double nowUnixS = (DateTime.UtcNow - new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc)).TotalSeconds;
             if (nowUnixS - m_LastStateSentUnixS < StateIntervalS) return;
             m_LastStateSentUnixS = nowUnixS;
@@ -1007,8 +1028,9 @@ namespace Sango
 
         void SendJson(string json)
         {
-            if (channel == null || !channel.IsConnected) return;
-            channel.SendJson(json);
+            var active = ActiveChannel;
+            if (active == null || !active.IsConnected) return;
+            active.SendJson(json);
         }
 
         // ── 词汇映射（契约 §2/§3） ──────────────────────────────────────────────
@@ -1089,22 +1111,34 @@ namespace Sango
             public bool seekable;
         }
 
-        // ── CLI 自举：--sango-twin-bridge = bridge 总闸（场景预接线；默认关闸零变化） ──
+        // ── CLI 自举：--sango-twin-bridge = bridge 总闸（场景预接线；默认关闸零变化）；
+        // --sango-twin-bridge-local（M5 gst 路由）蕴含总闸 + 本地回环通道 + URS sender 禁用 ──
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         static void Bootstrap()
         {
-            if (Array.IndexOf(Environment.GetCommandLineArgs(), SangoSeamConfig.TwinBridgeCliFlag) < 0) return;
+            var args = Environment.GetCommandLineArgs();
+            bool bridge = Array.IndexOf(args, SangoSeamConfig.TwinBridgeCliFlag) >= 0;
+            bool local = Array.IndexOf(args, SangoSeamConfig.TwinBridgeLocalCliFlag) >= 0;
+            if (!bridge && !local) return;
             var service = FindFirstObjectByType<TwinBridgeService>();
             if (service == null)
             {
-                Debug.LogError("[Sango.TwinBridge] " + SangoSeamConfig.TwinBridgeCliFlag +
-                               " set but no TwinBridgeService in scene — build the SangoTwin scene first");
+                Debug.LogError("[Sango.TwinBridge] twin-bridge cli flag set but no TwinBridgeService in scene — build the SangoTwin scene first");
                 return;
             }
             service.EnsureWiring();
+            service.useLocalChannel = local;
+            if (local)
+            {
+                // 相机上屏保障（M5④）：gst 路由下 URS sender 禁用——永不 CreateTrack，相机持续
+                // 上屏（Xvfb 采集前提）。TwinStreamQuality 仍在 StartBridge 构造：60fps 渲染钟/
+                // SMAA 副作用与 ready.video_profiles 上报（web 降档逻辑依赖）都系在它身上。
+                var sender = service.GetComponent<Unity.RenderStreaming.VideoStreamSender>();
+                if (sender != null) sender.enabled = false;
+            }
             service.runtimeEnabled = true;
-            Debug.Log("[Sango.TwinBridge] enabled via " + SangoSeamConfig.TwinBridgeCliFlag);
+            Debug.Log($"[Sango.TwinBridge] enabled via cli (local={local})");
         }
     }
 }

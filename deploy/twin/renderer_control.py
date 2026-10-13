@@ -68,6 +68,7 @@ def _port_open(port: int) -> bool:
 GST_CONTAINER = os.environ.get("TWIN_GST_CONTAINER", "gst-base")  # M1 常驻底座容器
 GST_SENDER = "/gst/sender/sender.py"  # run.sh volume:~/gst-spike/gst → /gst(ro)
 GST_BITRATE = os.environ.get("TWIN_GST_BITRATE", "20000")  # kbps;M3 1440p 达标档(1080p 手动实验 16000)
+GST_BRIDGE_PORT = os.environ.get("TWIN_BRIDGE_PORT", "18020")  # M5:Unity 本地桥回环端口(两侧同源)
 GST_WARMUP = (
     "gst-launch-1.0 -e videotestsrc num-buffers=300 "
     "! video/x-raw,width=640,height=360,format=NV12,framerate=30/1 "
@@ -105,8 +106,9 @@ def _start_gst_group() -> str:
         "exec", "-d", GST_CONTAINER, "sh", "-c",
         f"mkdir -p /out/spike && exec python3 {GST_SENDER} --label {label} --source x11 "
         f"--width {w} --height {h} --fps 30 --bitrate {GST_BITRATE} --gop-size 30 "
+        f"--bridge-port {GST_BRIDGE_PORT} "
         f"> /out/spike/sender-{label}.log 2>&1",
-    )  # M3 达标参数:gop=30(丢包突发恢复上界 1s,笔记 03 §2)
+    )  # M3 达标参数:gop=30(丢包突发恢复上界 1s,笔记 03 §2);M5:--bridge-port 桥转发
     time.sleep(2)
     if not _gst_sender_up():
         raise RuntimeError(f"sender died on startup; see ~/gst-spike/bench/spike/sender-{label}.log")
@@ -135,25 +137,27 @@ def _spawn_player() -> int:
         REQUESTS_CA_BUNDLE="/etc/ssl/certs/ca-certificates.crt",
     )
     w, h = _player_window()
-    return spawn(
-        "player",
-        [
-            str(ROOT / "player/sango.x86_64"),
-            "--sango-twin-bridge",
-            "-force-vulkan",
-            "-force-device-index",
-            "0",
-            "-screen-fullscreen",
-            "0",
-            "-screen-width",
-            w,
-            "-screen-height",
-            h,
-            "-logFile",
-            str(LOG / "unity-player.log"),
-        ],
-        env=env,
-    )
+    args = [
+        str(ROOT / "player/sango.x86_64"),
+        "--sango-twin-bridge",
+        "-force-vulkan",
+        "-force-device-index",
+        "0",
+        "-screen-fullscreen",
+        "0",
+        "-screen-width",
+        w,
+        "-screen-height",
+        h,
+        "-logFile",
+        str(LOG / "unity-player.log"),
+    ]
+    if _route() == "gst-xvfb":
+        # M5(DESIGN §2 M5):本地回环桥(变体 B,sender 转发 twin-bridge)+ 出片模式
+        # (HUD 全隐,Xvfb 屏幕采集前提)。UDS 设计落地为回环 TCP(容器 --network host,
+        # 免宿主 socket 卷;端口默认 18020,TWIN_BRIDGE_PORT env 可覆盖)。
+        args[1:1] = ["--sango-twin-bridge-local", "--sango-twin-hud-hide"]
+    return spawn("player", args, env=env)
 
 
 def restart_player() -> dict[str, int]:

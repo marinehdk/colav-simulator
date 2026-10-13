@@ -27,8 +27,13 @@ def call(args: list[str], *, required: bool = True) -> subprocess.CompletedProce
 
 def remote(action: str) -> subprocess.CompletedProcess[str]:
     cmd = ["python3", CFG["remote_root"] + "/renderer_control.py", action]
+    env_prefix = []
     if ROUTE != "legacy-urs":
-        cmd = [f"TWIN_VIDEO_ROUTE={ROUTE}"] + cmd  # env 前缀经 ssh 远端 shell 生效
+        env_prefix.append(f"TWIN_VIDEO_ROUTE={ROUTE}")  # env 前缀经 ssh 远端 shell 生效
+        if CFG.get("player_window"):
+            # M5:gst 档窗口固化(免每次 env 直连)。legacy 不透传——保 640×360 逐字节等价。
+            env_prefix.append(f"TWIN_PLAYER_WINDOW={CFG['player_window']}")
+    cmd = env_prefix + cmd
     command = shlex.join(cmd)
     return call([*BASE, "-S", str(SOCKET), HOST, command])
 
@@ -36,13 +41,20 @@ def remote(action: str) -> subprocess.CompletedProcess[str]:
 def start():
     check = call([*BASE, "-S", str(SOCKET), "-O", "check", HOST], required=False)
     if check.returncode:
-        forwards = [
-            "-R", "127.0.0.1:18010:127.0.0.1:8010",
-            "-L", "127.0.0.1:8080:127.0.0.1:8080",
-        ]
         if ROUTE == "gst-xvfb":
-            # M3 gst 模式:加 8081 转发(spike 信令室;生产 8080 映射不动,DESIGN §5.3)
-            forwards += ["-L", "127.0.0.1:8081:127.0.0.1:8081"]
+            # M5 变体 B 重映射(DESIGN §5.3):浏览器信令 URL 不变(本地 8080,healthMonitor
+            # 探测与视口构造期固化均指向它),但落点改投 gst 信令室 8081——Unity 仍挂远程
+            # 8080 闲置,永不与 sender 同室。8081 直连保留作 spike/诊断入口。
+            forwards = [
+                "-R", "127.0.0.1:18010:127.0.0.1:8010",
+                "-L", "127.0.0.1:8080:127.0.0.1:8081",
+                "-L", "127.0.0.1:8081:127.0.0.1:8081",
+            ]
+        else:
+            forwards = [
+                "-R", "127.0.0.1:18010:127.0.0.1:8010",
+                "-L", "127.0.0.1:8080:127.0.0.1:8080",
+            ]
         call(
             [
                 *BASE,

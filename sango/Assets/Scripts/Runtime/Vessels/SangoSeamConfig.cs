@@ -45,6 +45,25 @@ namespace Sango
         /// </summary>
         public const string TwinBridgeCliFlag = "--sango-twin-bridge";
 
+        /// <summary>
+        /// M5 gst 路由本地桥旗标（DESIGN 2026-10-12-dt-frame-delivery-2k §2 M5）：播放器命令行
+        /// 带此参数时 TwinBridgeService 走本地回环通道（TwinBridgeLocalChannel，GStreamer sender
+        /// 转发）并禁用 URS VideoStreamSender（相机持续上屏，Xvfb 采集前提）。蕴含 TwinBridgeCliFlag。
+        /// </summary>
+        public const string TwinBridgeLocalCliFlag = "--sango-twin-bridge-local";
+
+        /// <summary>
+        /// M5 出片模式旗标：启动即 HudVisibility.Hide() + 周期补隐晚建 Overlay canvas
+        /// （Xvfb 屏幕采集下 Screen-Space HUD 会入画；legacy RT 采集无此问题）。
+        /// </summary>
+        public const string TwinHudHideCliFlag = "--sango-twin-hud-hide";
+
+        /// <summary>
+        /// M5 本地桥回环端口（Unity 侧服务端 / GStreamer sender 侧 --bridge-port；TWIN_BRIDGE_PORT
+        /// env 可覆盖）。选取避开 8010/8080/8081/18010 既有占用。
+        /// </summary>
+        public const int TwinBridgeLocalPort = 18020;
+
         /// <summary>Twin 数据面后端基址（gui_server 本机常驻，00-REPORT.md §2.2）。</summary>
         public const string TwinBackendBase = "http://127.0.0.1:8010";
     }

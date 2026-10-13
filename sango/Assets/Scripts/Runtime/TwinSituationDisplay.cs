@@ -50,7 +50,7 @@ namespace Sango
             var driver = bridge?.driver;
             var camera = bridge?.cameraRig?.controlledCamera;
             if (bridge == null || !bridge.runtimeEnabled || driver?.Anchor == null ||
-                camera == null || bridge.channel == null || !bridge.channel.IsConnected)
+                camera == null || bridge.ActiveBridgeChannel == null || !bridge.ActiveBridgeChannel.IsConnected)
             { if (m_MarkerRoot != null) m_MarkerRoot.SetActive(false); return; }
             double sim = driver.RenderSimTime;
             if (!TwinSituationMath.Finite(sim)) return;
@@ -118,7 +118,7 @@ namespace Sango
             };
             m_Frames[m_FrameId] = frame; m_FrameOrder.Enqueue(m_FrameId);
             while (m_FrameOrder.Count > 120) m_Frames.Remove(m_FrameOrder.Dequeue());
-            bridge.channel.SendJson(frame.ToJson());
+            bridge.ActiveBridgeChannel.SendJson(frame.ToJson());
         }
 
         public void Pick(int frameId, float x, float y)
@@ -127,7 +127,7 @@ namespace Sango
             var point = TwinSituationMath.Pick(frame, x, y);
             // Reject a retired target generation even when its old video frame is still buffered.
             if (point != null && !Array.Exists(m_Shown?.targets ?? Array.Empty<TwinDisplayTarget>(), target => target.key == point.key)) return;
-            bridge.channel.SendJson(new TwinSituationPick { run_id = frame.run_id, frame_id = frameId,
+            bridge.ActiveBridgeChannel.SendJson(new TwinSituationPick { run_id = frame.run_id, frame_id = frameId,
                 id = point?.id, key = point?.key }.ToJson());
         }
 

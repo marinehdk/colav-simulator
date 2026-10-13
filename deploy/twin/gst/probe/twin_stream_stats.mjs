@@ -24,11 +24,13 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 const chrome = spawn('/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', [
   '--headless=new', `--remote-debugging-port=${CDP_PORT}`, '--autoplay-policy=no-user-gesture-required',
+  // 后台页节流三连(M5 实测:重页面下视频渲染路径被 macOS 后台节流打点头,轻量 receiver 页无此象)
+  '--disable-background-timer-throttling', '--disable-backgrounding-occluded-windows', '--disable-renderer-backgrounding',
   '--no-first-run', `--user-data-dir=${join(tmpdir(), `twin-stats-${Date.now()}`)}`,
   `--window-size=${WIN}`, 'about:blank',
 ], { stdio: 'ignore' });
-process.on('exit', () => { try { chrome.kill(); } catch {} });
-await sleep(2500);
+process.on('exit', () => { try { chrome.kill('SIGKILL'); } catch {} });  // SIGTERM 实测杀不死 headless Chrome(游魂 peer 复发 offer 的根因)
+await sleep(6000);  // 冷启缓冲(实测忙机 2.5s 不够,9226 ECONNREFUSED)
 
 const tab = await (await fetch(`http://127.0.0.1:${CDP_PORT}/json/new?${encodeURIComponent('http://127.0.0.1:8010/')}`, { method: 'PUT' })).json();
 const ws = new WebSocket(tab.webSocketDebuggerUrl);
@@ -70,8 +72,29 @@ const collect = () => evaluate(`(() => {
   const d = window.__deploymentTwin;
   const v = document.getElementById('deploymentTwinVideo');
   if (!d) return null;
+  // dataset 兜底(M5 实测):renderHud 每 250ms 写 dataset.receivedFps/bitrateMbps/dropRatio 等
+  // (与 videoStats 同一次采样);facade 的 videoStats 快照在通道重开竞态下停更时,dataset 仍是活数。
+  const ds = v && v.dataset ? v.dataset : {};
+  const datasetStats = {
+    fps: ds.receivedFps != null && ds.receivedFps !== '' ? Number(ds.receivedFps) : null,
+    bitrateMbps: ds.bitrateMbps != null && ds.bitrateMbps !== '' ? Number(ds.bitrateMbps) : null,
+    dropRatio: ds.dropRatio != null && ds.dropRatio !== '' ? Number(ds.dropRatio) : null,
+    lossRatio: ds.lossRatio != null && ds.lossRatio !== '' ? Number(ds.lossRatio) : null,
+    decodeMs: ds.decodeMs != null && ds.decodeMs !== '' ? Number(ds.decodeMs) : null,
+    jitterBufferMs: ds.jitterBufferMs != null && ds.jitterBufferMs !== '' ? Number(ds.jitterBufferMs) : null,
+    jitterMs: ds.jitterMs != null && ds.jitterMs !== '' ? Number(ds.jitterMs) : null,
+    rttMs: ds.rttMs != null && ds.rttMs !== '' ? Number(ds.rttMs) : null,
+    freezeCount: ds.freezeCount != null && ds.freezeCount !== '' ? Number(ds.freezeCount) : null,
+    width: d.videoStats?.width ?? null, height: d.videoStats?.height ?? null,
+    codec: d.videoStats?.codec ?? null,
+    framesDecoded: d.videoStats?.framesDecoded ?? null, framesDropped: d.videoStats?.framesDropped ?? null,
+    source: 'hud-dataset',
+  };
+  // 不改写 facade(写回会自冻结;const 重赋值会抛 TypeError):facade fps 活则用 facade,否则当 tick 现读 dataset
+  const videoStats = (!d.videoStats || !Number.isFinite(d.videoStats.fps)) && datasetStats.fps != null
+    ? datasetStats : d.videoStats;
   const c = d.client, ls = c?.lastState ?? null;
-  return { videoStats: d.videoStats, connection: d.connectionState,
+  return { videoStats, connection: d.connectionState,
     sim: d.simTime, videoReady: v ? v.readyState : null,
     videoSize: v && v.videoWidth ? v.videoWidth + 'x' + v.videoHeight : null,
     bridge: { statusLine: document.getElementById('twinStatusLine')?.textContent ?? null,
@@ -84,8 +107,13 @@ const collect = () => evaluate(`(() => {
       stateStream: ls?.stream?.state ?? null, sent: c?.sent ?? null, received: c?.received ?? null } };
 })()`);
 
-const first = await collect();
-if (!first || !first.videoStats) { console.log('no videoStats yet (is twin viewport on?):', JSON.stringify(first)); process.exit(1); }
+let first = null;
+for (let i = 0; i < 20; i++) {  // 首采重试环:通道重开瞬间 onChannel 会把 measuredVideo 置 null(DOM 文本滞后一 tick),~1-2s 内恢复
+  first = await collect();
+  if (first?.videoStats) break;
+  await sleep(1000);
+}
+if (!first?.videoStats) { console.log('no videoStats yet (is twin viewport on?):', JSON.stringify(first)); process.exit(1); }
 console.log('first:', JSON.stringify(first));
 let freezes = first.videoStats.freezeCount ?? 0;
 const samples = [];
