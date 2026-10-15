@@ -9,6 +9,12 @@ namespace Sango
         public string State { get; private set; } = "waiting-session";
         public float Progress { get; private set; }
         public bool Ready => State == "ready" || State == "offline-terrain";
+        // The startup view exists to refine geography the visible camera has not
+        // reached yet. Once warmup settles, or definitively fails, the main camera
+        // must return to selection — a region that never reaches 100% would
+        // otherwise pin the degraded extra-frustum selection set (frame cost
+        // ~34 ms, render locked ~28 fps) for the rest of the session.
+        public bool StartupViewNeeded => !Ready && State != "failed";
         float m_Start, m_Settled = -1, m_LastActivity, m_ActivityProgress;
         public void Reset() { RunId = null; State = "waiting-session"; Progress = 0; m_Settled = -1; }
         public void Begin(string runId, float now)

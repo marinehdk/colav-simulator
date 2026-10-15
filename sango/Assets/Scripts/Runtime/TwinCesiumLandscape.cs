@@ -39,6 +39,8 @@ namespace Sango
         PanelSettings m_CreditPanel;
         float m_NextUpdate;
         int m_ShrinkRounds;
+        bool m_SuspendedForPause;
+        float m_NextPreloadRefreshS;
         bool m_RegionAnchored;
         bool m_ProjectionFailed;
         bool m_OnlineReady;
@@ -68,6 +70,12 @@ namespace Sango
         // scenario resident with VRAM headroom.
         const long k_FullCacheBytes = 4L * 1024 * 1024 * 1024;
         const long k_ShrunkCacheBytes = 256L * 1024 * 1024;
+        // Steady-state frame-budget guards (2026-10-13 render-collapse fix): the
+        // reprojection time cap bounds per-frame tile projection during load
+        // bursts, and the preload refresh interval bounds how often the three
+        // disabled prefetch frusta re-enter Cesium selection.
+        const float k_ProjectionBudgetMs = 1.5f;
+        const float k_PreloadRefreshIntervalS = 5f;
         // 5 km covers the scenario-family origin spread (E 35-39 km) plus
         // route extents, so switching among the family never hands the cache
         // over; only a genuinely different waterway does.
@@ -141,7 +149,10 @@ namespace Sango
             tileset.maximumScreenSpaceError = 8;
             // 16 concurrent loads halve the per-frame arrival rate of created
             // tiles, halving the main-thread vertex reprojection spikes; network
-            // latency still keeps ~16 requests saturated.
+            // latency still keeps ~16 requests saturated. (A 2026-10-13 attempt
+            // at 8 was reverted: it doubled the cold-attach load window — users
+            // read the slower ramp as "terrain stuck at 0%" — while the feed
+            // camera fix already removed the burst-stutter consumer.)
             tileset.maximumSimultaneousTileLoads = 16;
             tileset.preloadAncestors = true;
             tileset.preloadSiblings = true;
@@ -277,6 +288,24 @@ namespace Sango
             var presentation = m_Bridge?.Presentation;
             if (own == null || presentation == null || m_Driver?.Anchor == null ||
                 presentation.run_id != m_Bridge.AttachedRunId) return;
+            // A ready paused picture needs zero geography work: per-frame selection across
+            // the extra frusta plus tile updates burned the frame budget while nothing
+            // on screen moved (render 60 -> ~28 fps). Suspend exactly like the idle
+            // path; the first running PrepareViews frame restores suspendUpdate=false.
+            // Reattachment resets readiness even when the session is paused. Let
+            // that warmup finish before suspending, or it stays waiting-session forever.
+            if (m_Warmup.Ready && (m_Driver.PresentationPaused || m_Bridge.ReplayPaused))
+            {
+                if (!m_SuspendedForPause)
+                {
+                    m_SuspendedForPause = true;
+                    if (m_Terrain != null) m_Terrain.suspendUpdate = true;
+                    if (m_Buildings != null) m_Buildings.suspendUpdate = true;
+                    Debug.Log("[Sango.Cesium] presentation paused — landscape selection suspended");
+                }
+                return;
+            }
+            m_SuspendedForPause = false;
             var route = Array.ConvertAll(presentation.waypoints ?? Array.Empty<TwinDisplayPoint>(), p => {
                 var local = m_Driver.Anchor.Value.ToLocal(p.east,p.north);
                 return new Vector3(local.x,0,local.y);
@@ -319,7 +348,9 @@ namespace Sango
                     m_PreloadCameras.Add(camera); m_Cameras.additionalCameras.Add(camera);
                 }
             }
-            if (m_Cameras != null && (changed || !m_PreloadPositioned || (m_Warmup.Ready && Vector3.Distance(position,m_PreloadAnchor) > 600)) && m_ViewCamera != null)
+            bool reposition = changed || !m_PreloadPositioned
+                || (m_Warmup.Ready && Vector3.Distance(position, m_PreloadAnchor) > 600);
+            if (m_Cameras != null && reposition && m_ViewCamera != null)
             {
                 if (m_StartupView == null)
                 {
@@ -330,14 +361,31 @@ namespace Sango
                 // request detail the actual image cannot show and prolong startup.
                 m_StartupView.CopyFrom(m_ViewCamera); m_StartupView.enabled = false;
                 m_StartupView.transform.SetPositionAndRotation(m_ViewCamera.transform.position,m_ViewCamera.transform.rotation);
-                if (!m_Warmup.Ready) m_Cameras.additionalCameras.Remove(m_ViewCamera);
+                if (m_Warmup.StartupViewNeeded) m_Cameras.additionalCameras.Remove(m_ViewCamera);
                 if (!m_Cameras.additionalCameras.Contains(m_StartupView)) m_Cameras.additionalCameras.Add(m_StartupView);
+            }
+            // The three disabled preload frusta only need selection when their aim
+            // moves, or every refresh interval to keep their lookahead tiles loading.
+            // Left in permanently they cost three full selections every frame while
+            // rendering nothing.
+            if (m_Cameras != null && m_PreloadCameras.Count > 0)
+            {
+                if (reposition || Time.unscaledTime >= m_NextPreloadRefreshS)
+                {
+                    foreach (var camera in m_PreloadCameras)
+                        if (!m_Cameras.additionalCameras.Contains(camera)) m_Cameras.additionalCameras.Add(camera);
+                    m_NextPreloadRefreshS = Time.unscaledTime + k_PreloadRefreshIntervalS;
+                }
+                else
+                {
+                    foreach (var camera in m_PreloadCameras) m_Cameras.additionalCameras.Remove(camera);
+                }
             }
             // 600 m hops instead of 200: each hop re-runs selection for three
             // prefetch views at once, and on the large post-reuse resident set
             // those waves were the sailing-frame spikes. 1.2 km lookahead keeps
             // ~75 s of lead for a 15.5 kn vessel either way.
-            if (changed || !m_PreloadPositioned || (m_Warmup.Ready && Vector3.Distance(position,m_PreloadAnchor) > 600))
+            if (reposition)
             {
                 for (int i = 0; i < m_PreloadCameras.Count; i++)
                 {
@@ -352,7 +400,7 @@ namespace Sango
             float progress = m_Buildings == null ? TerrainLoad : Mathf.Min(TerrainLoad,BuildingLoad);
             m_Warmup.Observe(Time.unscaledTime, progress, m_Terrain != null,
                 m_ProjectionFailed || Status == "imagery-load-failed");
-            if (m_Warmup.Ready && m_Cameras != null && m_ViewCamera != null)
+            if (!m_Warmup.StartupViewNeeded && m_Cameras != null && m_ViewCamera != null)
             {
                 // Keep the startup view hot only while the ship remains in this
                 // neighbourhood. Camera orbit alone must not evict its already
@@ -367,13 +415,18 @@ namespace Sango
 
         void Update()
         {
-            // Budgeted reprojection: 2 tiles per frame (~60/s at 30 fps) absorbs
-            // creation bursts without a main-thread spike; a tile spends at most
-            // a few frames at its uncorrected elevation before being projected.
-            for (int i = 0; i < 2 && m_ProjectionQueue.Count > 0; i++)
+            // Budgeted reprojection by time rather than count: one large photoreal
+            // tile can cost several small ones, and a fixed two-per-frame budget
+            // still ate the frame during load bursts. ~1.5 ms keeps the queue
+            // draining while bounding the worst-case main-thread hit (and the
+            // burst stutter it fed downstream into the video pipeline).
+            long budget = (long)(k_ProjectionBudgetMs * System.Diagnostics.Stopwatch.Frequency / 1000.0);
+            long started = System.Diagnostics.Stopwatch.GetTimestamp();
+            for (int i = 0; i < 8 && m_ProjectionQueue.Count > 0; i++)
             {
                 var pair = m_ProjectionQueue.Dequeue();
                 if (pair.Key != null) ProjectTile(pair.Key, pair.Value);
+                if (System.Diagnostics.Stopwatch.GetTimestamp() - started >= budget) break;
             }
             UpdateWarmup();
             if (m_Root == null || Time.unscaledTime < m_NextUpdate) return;

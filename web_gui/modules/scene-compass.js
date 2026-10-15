@@ -46,10 +46,17 @@ export function createSceneCompass({ host, onSelect }) {
   const targets = document.createElement('div'); targets.className = 'scene3d-compass-targets';
   root.append(heading, range, axis, own, targets); host.append(root);
   const records = new Map();
+  let lastProjection, lastCamera, lastShipsVisible, lastWidth;
   return {
     render(projection, camera, shipsVisible = true) {
+      // DT paints several video frames from one immutable telemetry projection.
+      // Compass content changes with that projection, display mode or width.
+      if (projection === lastProjection && camera === lastCamera && shipsVisible === lastShipsVisible
+        && root.clientWidth === lastWidth) return;
       const model = buildSceneCompass(projection);
       root.hidden = camera === 'top' || !model;
+      lastProjection = projection; lastCamera = camera; lastShipsVisible = shipsVisible;
+      lastWidth = root.clientWidth;
       if (!model) { records.forEach(r => r.button.remove()); records.clear(); return; }
       heading.textContent = model.label;
       const start = Math.ceil((model.heading - 180) / 5) * 5;
@@ -61,7 +68,7 @@ export function createSceneCompass({ host, onSelect }) {
         tick.textContent = value % 30 === 0 && Math.abs(delta) > 12
           ? (value % 90 === 0 ? DIRECTIONS[value / 45] : String(value).padStart(3, '0')) : '';
       });
-      const wanted = new Set(), lanes = [], width = Math.max(1, root.clientWidth - 48);
+      const wanted = new Set(), lanes = [], width = Math.max(1, lastWidth - 48);
       for (const target of shipsVisible ? model.targets : []) {
         wanted.add(target.key);
         let record = records.get(target.key);

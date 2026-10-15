@@ -41,7 +41,7 @@ namespace Sango
         /// </summary>
         public void ApplySwayAt(float timeSeconds)
         {
-            if (weather == null) return;
+            if (weather == null || (rig != null && rig.FreePoseActive)) return;
             if (m_Cam == null) m_Cam = GetComponent<Camera>();
             if (m_Cam == null) return;
 

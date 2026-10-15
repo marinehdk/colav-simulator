@@ -178,7 +178,7 @@ test('build PPI model without ownship stays empty and safe', () => {
   assert.deepEqual(model.rangeScalesNmFallback !== undefined ? {} : {}, {});
 });
 
-test('PPI factory draws panels, toggles visibility and switches range scales', () => {
+test('PPI factory draws panels, toggles visibility and switches range scales', async () => {
   const calls = [];
   const context = {
     setTransform() {},
@@ -220,6 +220,29 @@ test('PPI factory draws panels, toggles visibility and switches range scales', (
   ppi.setVisible(true);
   assert.ok(calls.length > drawCallsBefore, 'visibility draws the buffered model');
   assert.equal(states.at(-1).visible, true);
+
+  // SENSOR remains logically enabled while its sidebar page is display:none.
+  // Telemetry and late radar decode callbacks must not rasterize that canvas.
+  canvas.checkVisibility = () => false;
+  const hiddenCalls = calls.length;
+  ppi.render(model);
+  ppi.configure({ gain: 1 });
+  ppi.setRangeScale(1.5);
+  ppi.setVisible(true);
+  assert.equal(calls.length, hiddenCalls, 'a hidden SENSOR page consumes no canvas frames');
+  const originalFetch = globalThis.fetch;
+  let checkpointRequests = 0;
+  try {
+    globalThis.fetch = async () => { checkpointRequests++; return { ok: false }; };
+    ppi.render({ ...model, scan: { ...model.scan, shadow_video: {
+      checkpoint: { url: '/api/radar/checkpoints/' + 'a'.repeat(64) }, chunk: { sha256: 'hidden' },
+    } } });
+    await ppi.settled();
+    assert.equal(checkpointRequests, 0, 'hidden radar must not fetch/decode its checkpoint either');
+  } finally { globalThis.fetch = originalFetch; }
+  canvas.checkVisibility = () => true;
+  ppi.render(model);
+  assert.ok(calls.length > hiddenCalls, 'showing SENSOR resumes the current buffered data');
 
   ppi.setRangeScale(1.5);
   assert.equal(states.at(-1).rangeScaleNm, 1.5);

@@ -79,6 +79,34 @@ namespace Sango.Tests
         }
 
         [Test]
+        public void FreePose_RemainsFixedAfterWeatherSwayAndPresetRestoresSway()
+        {
+            var rig = AddRig();
+            var weather = _go.AddComponent(TestReflection.FindAssemblyCSharpType("Sango.WeatherController"));
+            weather.GetType().GetField("beaufort").SetValue(weather, 6f);
+            var sway = _go.AddComponent(TestReflection.FindAssemblyCSharpType("Sango.BridgeSway"));
+            sway.GetType().GetField("weather").SetValue(sway, weather);
+            sway.GetType().GetField("rig").SetValue(sway, rig);
+            var position = new Vector3(10f, 12f, 30f);
+            Invoke(rig, "SetFreePose", position, 45f, -10f, 60f);
+            var rotation = _go.transform.rotation;
+
+            foreach (float time in new[] { 0.7f, 2.5f, 4.2f })
+            {
+                InvokePrivate(rig, "LateUpdate");
+                Invoke(sway, "ApplySwayAt", time); // Real order: rig 0, weather sway 150.
+                Assert.That(_go.transform.position, Is.EqualTo(position));
+                Assert.That(Quaternion.Angle(_go.transform.rotation, rotation), Is.LessThan(0.001f));
+            }
+
+            Invoke(rig, "SetView", CameraView.Bridge);
+            InvokePrivate(rig, "LateUpdate");
+            var presetRotation = _go.transform.rotation;
+            Invoke(sway, "ApplySwayAt", 2.5f);
+            Assert.That(Quaternion.Angle(_go.transform.rotation, presetRotation), Is.GreaterThan(0.1f));
+        }
+
+        [Test]
         public void SetView_PresetMessage_TakesControlBack()
         {
             var rig = AddRig();

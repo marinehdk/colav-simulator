@@ -281,6 +281,10 @@ export function createRadarPpi({ canvas, onState = () => {} } = {}) {
   }
 
   function draw() {
+    // The SENSOR page can be hidden by its parent even while PPI is enabled.
+    // Avoid its CPU raster pass during DT playback; keep the recorded buffer
+    // current so showing the radar again needs no fabricated or stale scan.
+    if (!visible || canvas.checkVisibility?.() === false) return;
     const { width, height } = prepareCanvas();
     const colors = palette();
     const size = Math.min(width, height);
@@ -457,6 +461,14 @@ export function createRadarPpi({ canvas, onState = () => {} } = {}) {
       if (streamKey !== lastModel.streamKey) {
         streamKey = lastModel.streamKey; videoGeneration++; videoBuffer = new RadarVideoBuffer(); lastVideoKey = null; motionCenter = null;
         videoQueue = Promise.resolve();
+      }
+      if (!visible || canvas.checkVisibility?.() === false) {
+        // Keep only the latest model while hidden. Its checkpoint and history
+        // reconstruct the recorded scan on show; decoding every hidden update
+        // blocked the DT compositor even after raster drawing was suppressed.
+        videoGeneration++; lastVideoKey = null; videoQueue = Promise.resolve();
+        onState({ visible, rangeScaleNm: lastModel.rangeScaleNm, blips: lastModel.blips.length, clutter: lastModel.clutter.length });
+        return;
       }
       const video = lastModel.scan?.shadow_video;
       const key = `${streamKey}:${lastModel.scan?.sample_seq}:${video?.chunk?.sha256}`;

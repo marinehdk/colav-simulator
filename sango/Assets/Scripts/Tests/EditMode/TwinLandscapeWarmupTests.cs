@@ -26,6 +26,18 @@ namespace Sango.Tests
             gate.Begin("b", 2); gate.Observe(3, 95, true, false); gate.Observe(182, 95, true, false);
             Assert.That(gate.State, Is.EqualTo("failed")); Assert.That(gate.Ready, Is.False);
         }
+        [Test] public void FailedWarmupReleasesTheStartupViewBeforeItRecovers()
+        {
+            var gate = new TwinLandscapeWarmup(); gate.Begin("stuck", 0);
+            Assert.That(gate.StartupViewNeeded, Is.True, "Warming views still refine through the startup camera.");
+            gate.Observe(10, 40, true, false); gate.Observe(101, 40, true, false);
+            Assert.That(gate.State, Is.EqualTo("failed"));
+            Assert.That(gate.StartupViewNeeded, Is.False,
+                "A failed region must not pin the degraded extra-frustum selection set.");
+            gate.Observe(700, 100, true, false); gate.Observe(704, 100, true, false);
+            Assert.That(gate.Ready, Is.True);
+            Assert.That(gate.StartupViewNeeded, Is.False);
+        }
         [Test] public void HealthyLargeViewCanKeepLoadingButWaitIsBounded()
         {
             var gate = new TwinLandscapeWarmup(); gate.Begin("large",0);
@@ -112,6 +124,52 @@ namespace Sango.Tests
                     "After the handover window the full ceiling returns for the new session.");
             }
             finally { UnityEngine.Object.DestroyImmediate(root); }
+        }
+        [Test] public void PausedAttachmentWarmsBeforeSuspendingGeography()
+        {
+            var root = new GameObject("paused-warmup"); root.SetActive(false);
+            var own = new GameObject("paused-ownship");
+            var flags = BindingFlags.Instance | BindingFlags.NonPublic;
+            var landscapeType = TestReflection.FindAssemblyCSharpType("Sango.TwinCesiumLandscape");
+            var driverType = TestReflection.FindAssemblyCSharpType("Sango.TwinSessionDriver");
+            var bridgeType = TestReflection.FindAssemblyCSharpType("Sango.TwinBridgeService");
+            var situationType = TestReflection.FindAssemblyCSharpType("Sango.TwinSituationDisplay");
+            var tilesetType = AppDomain.CurrentDomain.GetAssemblies().Select(a => a.GetType("CesiumForUnity.Cesium3DTileset")).First(t => t != null);
+            var landscape = root.AddComponent(landscapeType);
+            var driver = root.AddComponent(driverType);
+            var bridge = root.AddComponent(bridgeType);
+            var situation = root.AddComponent(situationType);
+            var tileset = root.AddComponent(tilesetType);
+            var gate = (TwinLandscapeWarmup)landscapeType.GetField("m_Warmup",flags).GetValue(landscape);
+            try
+            {
+                var slotType = driverType.GetNestedType("TwinSlot",BindingFlags.NonPublic);
+                var slot = Activator.CreateInstance(slotType);
+                slotType.GetField("Ship").SetValue(slot,own);
+                var slots = (System.Collections.IDictionary)driverType.GetField("m_Slots",flags).GetValue(driver);
+                slots.Add(0,slot);
+                driverType.GetField("m_Latest",flags).SetValue(driver,new ColavTelemetry {
+                    truth = new[] { new ColavTelemetry.ShipEntry { id = 0 } }
+                });
+                driverType.GetField("m_Anchor",flags).SetValue(driver,TwinAnchor.FromOrigin(0,0));
+                bridgeType.GetField("m_RunId",flags).SetValue(bridge,"paused");
+                bridgeType.GetField("m_Mode",flags).SetValue(bridge,"replay");
+                bridgeType.GetField("m_PlayState",flags).SetValue(bridge,"PAUSED");
+                bridgeType.GetField("m_Situation",flags).SetValue(bridge,situation);
+                situationType.GetField("m_Shown",flags).SetValue(situation,new TwinSituationMessage { run_id = "paused" });
+                landscapeType.GetField("m_Driver",flags).SetValue(landscape,driver);
+                landscapeType.GetField("m_Bridge",flags).SetValue(landscape,bridge);
+                landscapeType.GetField("m_Terrain",flags).SetValue(landscape,tileset);
+                landscapeType.GetMethod("ResetWarmup").Invoke(landscape,null);
+                landscapeType.GetMethod("UpdateWarmup",flags).Invoke(landscape,null);
+                Assert.That(gate.RunId,Is.EqualTo("paused"),"Paused attach must leave waiting-session.");
+                Assert.That(tilesetType.GetProperty("suspendUpdate").GetValue(tileset),Is.False);
+                gate.Observe(10,100,true,false); gate.Observe(14,100,true,false);
+                landscapeType.GetMethod("UpdateWarmup",flags).Invoke(landscape,null);
+                Assert.That(tilesetType.GetProperty("suspendUpdate").GetValue(tileset),Is.True,
+                    "Retain the steady-state pause optimization once geography is ready.");
+            }
+            finally { UnityEngine.Object.DestroyImmediate(root); UnityEngine.Object.DestroyImmediate(own); }
         }
         [Test] public void NearbySessionSwitchKeepsTheCacheCeiling()
         {

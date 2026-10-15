@@ -24,6 +24,7 @@ namespace Sango.Vessels.Mast
 
         private readonly Dictionary<string, Camera> _cameras = new Dictionary<string, Camera>();
         private RenderTexture _feedTarget;
+        private bool _feedRenderingEnabled;
 
         /// <summary>Feed-mount camera (null until <see cref="Attach"/> succeeds).</summary>
         public Camera FeedCamera { get; private set; }
@@ -148,8 +149,24 @@ namespace Sango.Vessels.Mast
             };
             _feedTarget.Create();
             FeedCamera.targetTexture = _feedTarget;
-            FeedCamera.enabled = true; // renders into the target each frame; CameraCaptureBridge captures it
+            SetFeedRenderingEnabled(false); // consumers opt in via the root-assembly probe
             return true;
+        }
+
+        /// <summary>
+        /// Feed rendering is pure sensor cost: the feed camera re-renders the whole
+        /// scene at 640×480 every frame, and with no YOLO host and no publisher
+        /// running nothing reads the target — that idle render alone held the
+        /// attached steady state at 46-51 fps. Called from the root assembly's
+        /// 0.5 Hz consumer probe (asmdef boundary: this assembly cannot see
+        /// FramePublisher/DetectionResultConsumer to probe them itself).
+        /// </summary>
+        public void SetFeedRenderingEnabled(bool enabled)
+        {
+            if (FeedCamera == null || _feedRenderingEnabled == enabled) return;
+            _feedRenderingEnabled = enabled;
+            FeedCamera.enabled = enabled;
+            Debug.Log($"[Sango.MastRig] feed rendering {(enabled ? "enabled (consumer present)" : "idle-suspended (no consumer)")}");
         }
 
         private void OnDestroy() => Detach();

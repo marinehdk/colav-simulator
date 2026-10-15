@@ -15,6 +15,8 @@ namespace Sango
         bool m_Started, m_Paused;
         public double Rate { get; private set; } = 1.0;
         public bool Buffering => m_Frames.Count > 0 && !m_Started && !m_Paused;
+        /// <summary>呈现暂停(心跳帧 state=PAUSED/FINISHED/FAILED 维护;缺帧保持最后已知)。</summary>
+        public bool Paused => m_Paused;
 
         public void Reset()
         {

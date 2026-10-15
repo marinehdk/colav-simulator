@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildSceneCompass } from '../../web_gui/modules/scene-compass.js?v=20260923-follow-v1';
+import { buildSceneCompass, createSceneCompass } from '../../web_gui/modules/scene-compass.js?v=20260923-follow-v1';
 
 const rad = value => value * Math.PI / 180;
 function projection(heading = 180, targets = []) {
@@ -9,6 +9,37 @@ function projection(heading = 180, targets = []) {
 function target(id, bearing, heading, range = 1000) {
   return { id, generation: 1, x: range * Math.cos(rad(bearing)), y: range * Math.sin(rad(bearing)), psi: rad(heading) };
 }
+
+test('repeated video frames reuse compass content, while resize and display changes refresh it', () => {
+  const previousDocument = globalThis.document;
+  let writes = 0;
+  const element = () => ({
+    children: [], clientWidth: 1200, dataset: {},
+    style: new Proxy({}, { set(object, key, value) { writes++; object[key] = value; return true; } }),
+    append(...nodes) { this.children.push(...nodes); },
+    setAttribute() {}, addEventListener() {}, remove() {},
+  });
+  globalThis.document = { createElement: element, createElementNS: element };
+  try {
+    const host = element(), compass = createSceneCompass({ host, onSelect() {} });
+    const value = projection(0, [target(1, 45, 90)]);
+    compass.render(value, 'chase');
+    const first = writes;
+    for (let i = 0; i < 60; i++) compass.render(value, 'chase');
+    assert.equal(writes, first, 'same telemetry must not rewrite 73 compass ticks on every video frame');
+    host.children[0].clientWidth = 800;
+    compass.render(value, 'chase');
+    assert.ok(writes > first, 'resize refreshes target lane layout');
+    compass.render(value, 'top');
+    assert.equal(host.children[0].hidden, true);
+    compass.render(value, 'chase', false);
+    assert.equal(host.children[0].hidden, false);
+    const changed = projection(90, [target(1, 45, 90)]);
+    compass.render(changed, 'chase');
+    assert.equal(host.children[0].children[0].textContent, 'E 090°');
+    compass.destroy();
+  } finally { globalThis.document = previousDocument; }
+});
 
 test('ownship heading readout wraps north and matches cardinal directions', () => {
   for (const [angle, label] of [[0, 'N 000°'], [90, 'E 090°'], [180, 'S 180°'], [270, 'W 270°'], [360, 'N 000°'], [-90, 'W 270°'], [359.9, 'N 000°']]) {

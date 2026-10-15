@@ -2,7 +2,7 @@ import { targetsForDisplay, RADAR_DETECTION_RANGE_M, drawVODecisionDisc, trackCo
 import { routeRibbonQuads } from './route-3d.js?v=20260921-route-ar-v1';
 import { predictionMarkers, targetKey, offscreenDirection } from './scene-geography.js?v=20261004-token-cleanup-v1';
 import { targetPresentation, updateTargetPoi, applyTargetAppearance, renderTargetCard } from './scene-target.js?v=20260923-follow-v1';
-import { createSceneCompass } from './scene-compass.js?v=20260923-follow-v1';
+import { createSceneCompass } from './scene-compass.js?v=20261013-dt-frame-cost-v1';
 import { AIS_SYMBOL_ASSETS, AIS_SYMBOL_SIZES, aisSymbolState } from './ais-display.js';
 
 export const FRAME_MARKER = Object.freeze({ width: 256, height: 16 });
@@ -190,11 +190,36 @@ export function createTwinSituationOverlay({ host, video, chart, info, client, o
   const sample = doc.createElement('canvas'); sample.width = 32; sample.height = 1;
   const sampleContext = sample.getContext('2d', { willReadFrequently: true }); sampleContext.imageSmoothingEnabled = false;
   const models = new Map(), pois = new Map(), waypointNodes = new Map(), aisNodes = new Map();
+  // 20261014:航点引线/标签在可见性边界(p.visible 翻转/屏幕边缘裁剪)附近逐帧增删
+  // = 静态视角下白线"时隐时现"。连续缺席 3 个 situation 帧才移除节点(迟滞)。
+  const waypointAbsent = new Map();
   const detectionNodes = new Map(), badgeNodes = new Map(), yoloKeys = new Set();
   let latest = null, frame = null, frameId = null, selectedKey = null, disposed = false;
   let lastSent = null, lastPick = null, lastVideoAt = 0, pointer = null, yoloRunId = null;
   let presentationClient = null, presentationAttachment = null;
   let matched = 0, unmatched = 0;
+  const frameCosts = { count: 0, rtpMatched: 0, pixelReads: 0, markerMs: 0, overlayMs: 0, markerMaxMs: 0, overlayMaxMs: 0 };
+  let wasVisible = false, hiddenSince = null, hiddenEvents = 0, hiddenTotalMs = 0, hiddenMaxMs = 0;
+  let diagnostics = null, lastHidden = null;
+  function observeVisibility(timestamp) {
+    const reason = !root.hidden ? null : timestamp - lastVideoAt >= 500 ? 'video-stale'
+      : frameId === null ? 'marker-invalid' : !frame ? 'frame-missing'
+        : frame.landscape?.ready === false ? 'landscape' : 'projection-missing';
+    if (root.hidden && wasVisible && hiddenSince === null) {
+      hiddenSince = timestamp; hiddenEvents++;
+      lastHidden = { at: Date.now(), reason, decoded: frameId, sourceSeq: frame?.source_seq ?? null,
+        available: client()?.situationFrameRange ?? null,
+        receivedFrame: client()?.situationFrame?.(frameId) ? { width: client().situationFrame(frameId).width,
+          height: client().situationFrame(frameId).height, run: client().situationFrame(frameId).run_id } : null };
+    }
+    const hiddenMs = hiddenSince === null ? 0 : Math.max(0, timestamp - hiddenSince);
+    hiddenMaxMs = Math.max(hiddenMaxMs, hiddenMs);
+    if (!root.hidden) { wasVisible = true; hiddenTotalMs += hiddenMs; hiddenSince = null; }
+    diagnostics = { decoded: frameId, matched, unmatched, sourceSeq: frame?.source_seq ?? null,
+      projectionSeq: latest?.raw?.seq ?? null, sync: root.hidden ? 'waiting' : 'matched',
+      reason, lastHidden,
+      hiddenEvents, hiddenTotalMs: hiddenTotalMs + (root.hidden ? hiddenMs : 0), hiddenMaxMs };
+  }
   function choose(id, key = null) {
     const projection = models.get(frame?.source_seq) || latest;
     const ship = targetsForDisplay(projection?.raw || {}).find(ship => String(ship.id) === String(id));
@@ -334,10 +359,10 @@ export function createTwinSituationOverlay({ host, video, chart, info, client, o
         chip.style.left = x + 'px'; chip.style.top = y + 'px';
       }
       const placement = layout.get(p.key);
-      updateTargetPoi(poi, { ...model, blocks: placement?.compact ? [] : blocks });
+      if (updateTargetPoi(poi, { ...model, blocks: placement?.compact ? [] : blocks }))
+        target.data = placement?.compact ? [] : blocks;
       applyTargetAppearance(target, model.alert);
       target.state = model.alert.poiState; target.value = model.alert.state === 'unchecked' ? 'unchecked' : 'checked';
-      target.data = placement?.compact ? [] : blocks;
       if (model.alert.state === 'unchecked') {
         target.style.setProperty('--element-active-color', 'inherit');
         poi.style.setProperty('--element-active-color', 'inherit');
@@ -417,7 +442,12 @@ export function createTwinSituationOverlay({ host, video, chart, info, client, o
       lift = Math.min(lift, y - topInset); placed.push({ x, y: y - lift });
       node.style.left = x + 'px'; node.style.top = y + 'px'; node.style.setProperty('--waypoint-lift', lift + 'px');
     }
-    for (const [key, node] of waypointNodes) if (!waypointWanted.has(key)) { node.remove(); waypointNodes.delete(key); }
+    for (const [key, node] of waypointNodes) {
+      if (waypointWanted.has(key)) { waypointAbsent.delete(key); continue; }
+      const streak = (waypointAbsent.get(key) ?? 0) + 1;
+      if (streak >= 3) { node.remove(); waypointNodes.delete(key); waypointAbsent.delete(key); }
+      else waypointAbsent.set(key, streak);
+    }
     const ship = ships.find(ship => String(ship.id) === String(chart.getSelectedTargetId()));
     card.hidden = !ship;
     if (ship) {
@@ -450,23 +480,36 @@ export function createTwinSituationOverlay({ host, video, chart, info, client, o
       const signature = JSON.stringify(presentation);
       if (signature !== lastSent && bridge?.attached?.run_id === presentation?.run_id && bridge?.sendPresentation?.(presentation)) lastSent = signature;
     },
-    videoFrame(timestamp) {
+    videoFrame(timestamp, metadata = {}) {
       if (disposed || video.videoWidth < FRAME_MARKER.width || video.videoHeight < FRAME_MARKER.height) return;
-      try {
-        sampleContext.drawImage(video, 0, 8, FRAME_MARKER.width, 1, 0, 0, 32, 1);
-        frameId = decodeFrameMarker(sampleContext.getImageData(0, 0, 32, 1).data);
-      } catch { frameId = null; }
+      const started = performance.now();
+      frameId = client()?.videoFrameId?.(metadata.rtpTimestamp) ?? null;
+      if (frameId !== null) frameCosts.rtpMatched++;
+      else {
+        // Legacy URS senders do not provide RTP mappings. Keep their exact
+        // marker contract; never place overlays using an unrelated newer frame.
+        frameCosts.pixelReads++;
+        try {
+          sampleContext.drawImage(video, 0, 8, FRAME_MARKER.width, 1, 0, 0, 32, 1);
+          frameId = decodeFrameMarker(sampleContext.getImageData(0, 0, 32, 1).data);
+        } catch { frameId = null; }
+      }
+      const markerDone = performance.now();
       frame = matchedSituationFrame(client(), frameId, info.run_id, video.videoWidth, video.videoHeight);
       lastVideoAt = timestamp; renderFrame();
+      const finished = performance.now();
+      frameCosts.count++; frameCosts.markerMs += markerDone - started; frameCosts.overlayMs += finished - markerDone;
+      frameCosts.markerMaxMs = Math.max(frameCosts.markerMaxMs, markerDone - started);
+      frameCosts.overlayMaxMs = Math.max(frameCosts.overlayMaxMs, finished - markerDone);
       if (!root.hidden) matched++; else unmatched++;
-      host.dataset.situationFrames = JSON.stringify({ decoded: frameId, matched, unmatched, sourceSeq: frame?.source_seq ?? null,
-        projectionSeq: latest?.raw?.seq ?? null, sync: root.hidden ? 'waiting' : 'matched' });
+      observeVisibility(timestamp);
     },
     tick(timestamp) {
       // DataChannel and video can arrive in either order.
       if (frameId !== null && timestamp - lastVideoAt < 500) {
         frame = matchedSituationFrame(client(), frameId, info.run_id, video.videoWidth, video.videoHeight); renderFrame();
       } else root.hidden = true;
+      observeVisibility(timestamp);
       const pick = client()?.lastPick;
       if (pick && pick !== lastPick) { lastPick = pick; host.dataset.situationPick = JSON.stringify(pick); choose(pick.id, pick.key); }
       if (latest) this.render(latest);
@@ -480,6 +523,8 @@ export function createTwinSituationOverlay({ host, video, chart, info, client, o
     select(id) { choose(id); },
     get cameraPose() { return frame?.camera_pose; },
     get landscape() { return frame?.landscape; },
+    get diagnostics() { return diagnostics; },
+    get frameCosts() { return frameCosts; },
     destroy() { disposed = true; video.style.visibility = ''; video.removeEventListener('pointerdown', down); video.removeEventListener('pointerup', up); video.removeEventListener('contextmenu', contextMenu); compass.destroy(); root.remove(); markerCover.remove(); },
   };
 }
