@@ -97,5 +97,49 @@ namespace Sango.Tests
                 UnityEngine.Object.DestroyImmediate(volumeGo); UnityEngine.Object.DestroyImmediate(profile);
             }
         }
+
+        [Test]
+        public void SpectrumParamDeadband_AbsorbsEnvJitter_BeyondThresholdWrites()
+        {
+            // 20261015 DT 水面跳变根因:env 执行场风速/周期逐消息漂移 + HDRP 谱参数精确 float
+            // 比较 = 每条消息整场频谱重建。死区(仅 twin override 激活时)应吸收阈值内漂移。
+            var type = TestReflection.FindAssemblyCSharpType("Sango.WeatherController");
+            Assert.That(type, Is.Not.Null, "WeatherController 在 Assembly-CSharp");
+            var waterGo = new GameObject("deadband water", typeof(WaterSurface));
+            var go = new GameObject("deadband weather");
+            var controller = go.AddComponent(type);
+            var water = waterGo.GetComponent<WaterSurface>();
+            try
+            {
+                type.GetField("waterSurface").SetValue(controller, water);
+                type.GetField("windSpeedOverrideMs").SetValue(controller, 6f);
+                type.GetField("waveHsOverrideM").SetValue(controller, 0.5f);
+                type.GetField("wavePeriodOverrideS").SetValue(controller, 7f);
+                type.GetMethod("Apply").Invoke(controller, null);
+                float wind0 = water.largeWindSpeed;
+                float rep0 = water.repetitionSize;
+                Assert.That(wind0, Is.GreaterThan(0f));
+
+                type.GetField("windSpeedOverrideMs").SetValue(controller, 6.05f); // +0.18 km/h,死区(1.5)内
+                type.GetField("wavePeriodOverrideS").SetValue(controller, 7.02f); // rep 漂移 ~5m,死区(250)内
+                type.GetMethod("Apply").Invoke(controller, null);
+                Assert.That(water.largeWindSpeed, Is.EqualTo(wind0), "死区吸收风速漂移,零重建");
+                Assert.That(water.repetitionSize, Is.EqualTo(rep0), "死区吸收周期漂移,零重排");
+
+                type.GetField("windSpeedOverrideMs").SetValue(controller, 7f); // +1 m/s = 3.6 km/h,越死区
+                type.GetMethod("Apply").Invoke(controller, null);
+                Assert.That(water.largeWindSpeed, Is.Not.EqualTo(wind0), "越死区写新值(真实海况切换)");
+
+                // GUI 独立路径(-1)不缓存:小变化即时生效
+                type.GetField("windSpeedOverrideMs").SetValue(controller, -1f);
+                type.GetField("beaufort").SetValue(controller, 3.5f);
+                type.GetMethod("Apply").Invoke(controller, null);
+                Assert.That(water.largeWindSpeed, Is.Not.EqualTo(0f));
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(go); UnityEngine.Object.DestroyImmediate(waterGo);
+            }
+        }
     }
 }

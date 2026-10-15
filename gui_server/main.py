@@ -1592,15 +1592,13 @@ class WebSessionManager:
         twin_environment = normalize_settings(self.prepared.spec.environment_settings)
         observed_environment = (balance_snapshot or {}).get("environment", {})
         twin_environment["enabled"] = observed_environment.get("status") in {"AVAILABLE", "WAITING"}
-        # Render the executing field, including effective current/depth correction.
-        for key in ["wind_speed_mps", "wind_from_deg", "current_speed_mps", "wave_hs_m"]:
-            if observed_environment.get(key) is not None:
-                twin_environment[key] = observed_environment[key]
-        if observed_environment.get("current_to_deg") is not None:
-            twin_environment["current_from_deg"] = (observed_environment["current_to_deg"] + 180) % 360
-        if observed_environment.get("wave_to_deg") is not None:
-            twin_environment["wave_from_deg"] = (observed_environment["wave_to_deg"] + 180) % 360
-        twin_environment["wave_period_s"] = observed_environment.get("wave_tz_s") or observed_environment.get("wave_tp_s") or twin_environment["wave_period_s"]
+        # 20261015 用户裁决:视觉水面按会话配置定档,不再用执行场观测值逐帧覆写——
+        # 风浪流的真实演化由后端水动力权威计算,Unity 展示不了风/流;而观测值逐消息
+        # 漂移会让 HDRP 谱参数任何 ULP 变化都触发整场频谱重建(=水面拉扯根因)。
+        # 浪按配置 Hs/周期/浪向拟合一次,风/流仅作视觉常量;方向键注册表为 from 约定,
+        # 原观测侧 to→from 换算一并取消。enabled 状态位保留(执行场可用性)。
+        if not twin_environment.get("wave_from_deg"):
+            twin_environment["wave_from_deg"] = twin_environment["wind_from_deg"]
         own = ships[0] if ships else {"x": 0.0, "y": 0.0, "psi": 0.0, "u": 0.0, "v": 0.0, "r": 0.0, "trajectory": []}
         if ships:
             latitude, longitude = mapf.local2latlon(own["east"], own["north"], session.enc.utm_zone)

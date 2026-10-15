@@ -242,6 +242,25 @@ namespace Sango
         //     :55   simulationFoamAmount  [0..1]         白沫量（白帽覆盖强度）
         // 运行时改字段即生效：CheckResources 每帧重算 spectrum 参数，与旧值不同则失效重建
         // （WaterSurface.Simulation.cs:221-231），无需额外刷新 API。
+        // ── 谱参数写入死区(20261015 DT 水面 ~2Hz 整幅跳变根因修复)──
+        // HDRP CheckResources 对谱参数做精确 float 比较(WaterSurface.Simulation.cs:221-231),
+        // 任何漂移都触发整场 Phillips 重建、同帧替换、无过渡;而后端 env 执行场的风速/风向/
+        // 周期逐消息波动(~2Hz 签名放行)→ 每条消息一次"整洋换浪"。死区吸收漂移,重建只发生在
+        // 海况真实切换;波能(Hs)仍走 band 幅值(渲染路径,零重建平滑)。仅 twin 会话
+        // (windSpeedOverrideMs>=0)生效,独立场景 GUI 直调路径保持原语义。
+        float? m_DbwWindKmh, m_DbwRippleWindKmh, m_DbwLargeOrient, m_DbwRipplesOrient, m_DbwChaos, m_DbwRipplesChaos, m_DbwRepSize;
+
+        static float DeadbandWrite(ref float? last, float target, float deadband)
+        {
+            if (last.HasValue && Mathf.Abs(target - last.Value) <= deadband) return last.Value;
+            last = target;
+            return target;
+        }
+
+        // 曲线内容恒定,静态实例复用(原每 Apply new AnimationCurve 的托管分配移除)。
+        static readonly AnimationCurve k_FoamWindCurve = new AnimationCurve(
+            new Keyframe(0f, 0f), new Keyframe(0.08f, 0f), new Keyframe(0.18f, 1f), new Keyframe(1f, 1f));
+
         void ApplyWater(float windMs)
         {
             if (waterSurface == null) return;
@@ -250,16 +269,13 @@ namespace Sango
             // Hs selects a wave-energy proxy only; native U10 remains the physical wind.
             if (waveHsOverrideM >= 0) windMs = Mathf.Max(windMs, Mathf.Sqrt(waveHsOverrideM * 9.81f / 0.21f));
             float windKmh = windMs * 3.6f; // largeWindSpeed/ripplesWindSpeed 单位 km/h（见上注）
+            bool twin = windSpeedOverrideMs >= 0f; // 死区仅 twin 会话
 
-            waterSurface.largeWindSpeed = Mathf.Clamp(windKmh * TierValue(TierSwellWindFactor, t), 0f, 250f);
             waterSurface.largeBand0Multiplier = Mathf.Clamp01(TierValue(TierBand0Mult, t));
             waterSurface.largeBand1Multiplier = Mathf.Clamp01(TierValue(TierBand1Mult, t));
-            waterSurface.largeOrientationValue = windDirectionDeg;
-            waterSurface.largeChaos = Mathf.Lerp(0.85f, 0.42f, t / 3f); // 低风更单向，高风更散（起调值 TBD-实机）
+            float ripplesChaosTarget = Mathf.Clamp01(TierValue(TierRippleChaos, t));
+            waterSurface.ripplesChaos = twin ? DeadbandWrite(ref m_DbwRipplesChaos, ripplesChaosTarget, 0.02f) : ripplesChaosTarget;
             waterSurface.ripples = true;
-            waterSurface.ripplesWindSpeed = Mathf.Clamp(windKmh * TierValue(TierRippleWindFactor, t), 0f, 15f);
-            waterSurface.ripplesChaos = Mathf.Clamp01(TierValue(TierRippleChaos, t));
-            waterSurface.ripplesOrientationValue = windDirectionDeg;
             if (visualSpectrumStyle >= 0)
             {
                 float development = Mathf.Lerp(0.7f, 1.15f, waveDevelopment);
@@ -267,16 +283,28 @@ namespace Sango
                 float shortFactor = visualSpectrumStyle == 0 ? 0.65f : visualSpectrumStyle == 2 ? 0.85f : 1f;
                 waterSurface.largeBand0Multiplier = Mathf.Clamp01(TierValue(TierBand0Mult, t) * longFactor * development);
                 waterSurface.largeBand1Multiplier = Mathf.Clamp01(TierValue(TierBand1Mult, t) * shortFactor * development);
-                waterSurface.largeChaos = Mathf.Lerp(0.95f, 0.05f, waveAlignment);
             }
-            if (waveDirectionDeg >= 0f)
-            { waterSurface.largeOrientationValue = waveDirectionDeg; waterSurface.ripplesOrientationValue = waveDirectionDeg; }
+            // 方向终值:会话波向优先,否则涟漪沿用风向(原 :257/:262/:272-273 同语义)
+            float orient = waveDirectionDeg >= 0f ? waveDirectionDeg : windDirectionDeg;
+            waterSurface.largeOrientationValue = twin ? DeadbandWrite(ref m_DbwLargeOrient, orient, 3f) : orient;
+            waterSurface.ripplesOrientationValue = twin ? DeadbandWrite(ref m_DbwRipplesOrient, orient, 3f) : orient;
+            // chaos 终值:style 覆写优先,否则 tier 插值(原 :258/:270 同语义)
+            float chaos = visualSpectrumStyle >= 0
+                ? Mathf.Lerp(0.95f, 0.05f, waveAlignment)
+                : Mathf.Lerp(0.85f, 0.42f, t / 3f); // 低风更单向，高风更散（起调值 TBD-实机）
+            waterSurface.largeChaos = twin ? DeadbandWrite(ref m_DbwChaos, chaos, 0.02f) : chaos;
+            float windTarget = Mathf.Clamp(windKmh * TierValue(TierSwellWindFactor, t), 0f, 250f);
+            waterSurface.largeWindSpeed = twin ? DeadbandWrite(ref m_DbwWindKmh, windTarget, 1.5f) : windTarget;
+            float rippleWindTarget = Mathf.Clamp(windKmh * TierValue(TierRippleWindFactor, t), 0f, 15f);
+            waterSurface.ripplesWindSpeed = twin ? DeadbandWrite(ref m_DbwRippleWindKmh, rippleWindTarget, 1.5f) : rippleWindTarget;
             if (waveHsOverrideM >= 0)
             {
                 float scale = Mathf.Clamp01(waveHsOverrideM / 0.5f);
                 waterSurface.largeBand0Multiplier *= scale;
                 waterSurface.largeBand1Multiplier *= scale;
-                waterSurface.repetitionSize = Mathf.Clamp(9.81f * wavePeriodOverrideS * wavePeriodOverrideS / (2 * Mathf.PI) * 4f, 250f, 5000f);
+                // patch 尺寸变化=整场波长重映射(最重跳变分量),死区 250m 吸收 Tz 逐消息漂移
+                float repTarget = Mathf.Clamp(9.81f * wavePeriodOverrideS * wavePeriodOverrideS / (2 * Mathf.PI) * 4f, 250f, 5000f);
+                waterSurface.repetitionSize = twin ? DeadbandWrite(ref m_DbwRepSize, repTarget, 250f) : repTarget;
                 if (waveHsOverrideM == 0) { waterSurface.ripples = false; waterSurface.ripplesWindSpeed = 0; }
             }
             waterSurface.foam = true;
@@ -285,8 +313,7 @@ namespace Sango
             // （11 m/s≈0.3-0.4 归一化）就把白冠量卡在爬坡段——2026-10-10 dt-sea-realism 二轮实机后改为
             // 前移曲线（0.08 截止、0.18 全开），白冠量交还 TierFoamAmount 档位控制；泡沫留存 0.5→0.7
             // 让白冠带更连贯（Aeolus FoamDuration 同思路，OceanWavesGPU.cs:193）。
-            waterSurface.simulationFoamWindCurve = new AnimationCurve(
-                new Keyframe(0f, 0f), new Keyframe(0.08f, 0f), new Keyframe(0.18f, 1f), new Keyframe(1f, 1f));
+            waterSurface.simulationFoamWindCurve = k_FoamWindCurve;
             waterSurface.foamPersistenceMultiplier = 0.7f;
         }
 
