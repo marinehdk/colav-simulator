@@ -93,6 +93,10 @@ def main():
         start()
     elif action == "status":
         print(remote("status").stdout)
+    elif action == "restart-player":
+        # 远端 renderer_control 支持(仅重启 player,display/signaling 不动);20261015 曾因
+        # 本文件缺此分支被迫手工拼 env 直连(TWIN_VIDEO_ROUTE+TWIN_PLAYER_WINDOW 必带,否则落 legacy 窗口)。
+        print(remote("restart-player").stdout)
     else:
         raise ValueError("unknown renderer action")
 

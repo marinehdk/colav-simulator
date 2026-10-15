@@ -19,6 +19,36 @@ namespace Sango.Tests
         }
 
         [Test]
+        public void StreamCameraDisablesUnstableWaterReflectionsAndPreservesOtherOverrides()
+        {
+            var go = new GameObject("water reflection test");
+            try
+            {
+                var camera = go.AddComponent<Camera>();
+                var hd = go.AddComponent<HDAdditionalCameraData>();
+                var settings = hd.renderingPathCustomFrameSettings;
+                settings.SetEnabled(FrameSettingsField.TransparentSSR, true);
+                settings.SetEnabled(FrameSettingsField.WaterDecals, true);
+                hd.renderingPathCustomFrameSettings = settings;
+                var mask = hd.renderingPathCustomFrameSettingsOverrideMask;
+                mask.mask[(uint)FrameSettingsField.WaterDecals] = true;
+                hd.renderingPathCustomFrameSettingsOverrideMask = mask;
+                var sender = go.AddComponent<VideoStreamSender>();
+                sender.sourceCamera = camera;
+
+                var type = TestReflection.FindAssemblyCSharpType("Sango.TwinStreamQuality");
+                System.Activator.CreateInstance(type, new object[] { sender });
+
+                Assert.That(hd.customRenderingSettings, Is.True);
+                Assert.That(hd.renderingPathCustomFrameSettingsOverrideMask.mask[(uint)FrameSettingsField.TransparentSSR], Is.True);
+                Assert.That(hd.renderingPathCustomFrameSettings.IsEnabled(FrameSettingsField.TransparentSSR), Is.False);
+                Assert.That(hd.renderingPathCustomFrameSettingsOverrideMask.mask[(uint)FrameSettingsField.WaterDecals], Is.True);
+                Assert.That(hd.renderingPathCustomFrameSettings.IsEnabled(FrameSettingsField.WaterDecals), Is.True);
+            }
+            finally { Object.DestroyImmediate(go); }
+        }
+
+        [Test]
         public void ProfilesSetRealCaptureAndEncoderParametersAndRejectUnknownRequests()
         {
             var go = new GameObject("quality test");

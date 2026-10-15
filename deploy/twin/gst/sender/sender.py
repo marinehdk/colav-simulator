@@ -24,6 +24,7 @@ echo 退役;stream_profile 在此拦截并映射编码档(1080p=16000/1440p=2000
 """
 import argparse
 import asyncio
+import hashlib
 import json
 import os
 import queue
@@ -51,6 +52,76 @@ def monotonic() -> float:
 # M5③(DESIGN §2):stream_profile → 编码码率档映射(kbps)。窗口尺寸随 player 窗口定死,
 # 档位语义在 gst 路由下=码率;1440p 档沿用 M3 达标值 20000。
 STREAM_PROFILE_BITRATE_KBPS = {"1080p": 16000, "1440p": 20000}
+
+
+class StableGate:
+    """x11 内容稳定门控 — 根治采集时钟竞态交付的 顿/跳/拉扯(20261013 fb_pacer 实证)。
+
+    背景:Unity(vSync=0, targetFrameRate=60)自由时钟 present 进 Xvfb,present 写帧
+    存在 ~0.9ms 非原子瞬态;ximagesrc 按独立 Gst 时钟旁路采样 → 捕获时刻与写帧
+    完成时刻竞态 → 交付内容序列含 重复帧(顿 1.4%)/跳帧(跳 1.5%)/写帧瞬态
+    (拉扯 ~7%)。包节拍与 FPS 指标全绿,仅内容差分可见 — 即用户"水面一顿一顿"。
+
+    机制:以 --sample-rate(默认 240Hz,≥2×渲染率)采样,仅当内容在连续两个采样中
+    不变(≈已存活 ≥4.2ms,排除写帧瞬态)才确认为"稳定帧";按 --decim 每 N 个新
+    稳定帧推送 1 个(确定性 2:1 抽取,杜绝竞态跳步);静态画面 250ms 心跳保活。
+    代价:确认延迟 ≤1 采样周期(≤4.2ms@240Hz),由浏览器 jitterBuffer 吸收。
+    """
+
+    KEEPALIVE_NS = 250 * Gst.SECOND // 1000
+
+    def __init__(self, owner, decim=1):
+        self.owner = owner
+        self.decim = max(1, int(decim))
+        self.prev = None        # 上一采样内容 hash(未确认)
+        self.confirmed = False  # prev 是否已获二次采样确认
+        self.pushed = None      # 最后推送内容 hash
+        self.last_push_ns = 0
+        self.stable_seq = 0     # 新稳定帧序号(decim 抽取基准)
+        self.stride = 32 * 4    # BGRx 4B/px,步长 32px(与 fb_pacer 探针同口径)
+        self.n_in = self.n_push = self.n_transient = self.n_static_keep = 0
+        self._stat_base = 0
+
+    def probe(self, _pad, info):
+        buf = info.get_buffer()
+        ok, m = buf.map(Gst.MapFlags.READ)
+        if not ok:
+            return Gst.PadProbeReturn.OK
+        raw = m.data
+        if not isinstance(raw, bytes):
+            raw = raw.tobytes()
+        h = hashlib.md5(raw[1::self.stride]).hexdigest()[:10]
+        buf.unmap(m)
+        self.n_in += 1
+        if self.n_in - self._stat_base >= 2400:  # ~10s@240Hz 状态行
+            self._stat_base = self.n_in
+            self.owner.log(
+                f"gate: in={self.n_in} push={self.n_push} "
+                f"(rate={self.n_push / max(monotonic() - (self.owner.t0), 1e-6):.1f}/s 累计) "
+                f"transient_drop={self.n_transient} keepalive={self.n_static_keep}"
+            )
+        if h != self.prev:
+            self.prev = h
+            self.confirmed = False
+            self.n_transient += 1  # 首见(可能为写帧瞬态):丢弃等确认
+            return Gst.PadProbeReturn.DROP
+        if not self.confirmed:
+            self.confirmed = True
+            self.stable_seq += 1
+            if self.stable_seq % self.decim == 0:
+                self.pushed = h
+                self.last_push_ns = buf.pts
+                self.n_push += 1
+                return Gst.PadProbeReturn.OK
+            return Gst.PadProbeReturn.DROP  # decim 抽取:确定性跳过
+        if h != self.pushed:
+            return Gst.PadProbeReturn.DROP  # 稳定但未被 decim 选中
+        if buf.pts - self.last_push_ns > self.KEEPALIVE_NS:
+            self.last_push_ns = buf.pts
+            self.n_push += 1
+            self.n_static_keep += 1
+            return Gst.PadProbeReturn.OK  # 静态保活(编码器/接收侧不断流)
+        return Gst.PadProbeReturn.DROP
 
 
 class Sender:
@@ -96,6 +167,11 @@ class Sender:
         self._bridge_lock = threading.Lock()
         self._bridge_queue = queue.Queue()
         self._bridge_stop = threading.Event()
+        self._bridge_threads = []
+        self._marker_lock = threading.Lock()
+        self._capture_markers = {}
+        self._mapped_rtp_timestamp = None
+        self.mapped_frames = 0
         self.profile_applied = None
 
     def log(self, msg):
@@ -184,6 +260,7 @@ class Sender:
     def process_offer(self, sdp):
         if self.pipeline is None:
             self.build_pipeline()
+        self.start_bridge()  # 新 epoch:teardown 已断桥,重连 Unity 本地通道
         self._pending_offer_text = sdp
         res, msg = GstSdp.SDPMessage.new_from_text(sdp)
         assert res == GstSdp.SDPResult.OK, f"SDP parse failed: {res}"
@@ -335,8 +412,12 @@ class Sender:
             vsrc.set_property("pattern", a.pattern)
         vconv = Gst.ElementFactory.make("videoconvert", "vconv")
         cf_raw = Gst.ElementFactory.make("capsfilter", "cf_raw")
+        # 门控开启时 caps 钉采样钟(默认 240Hz);内容稳定门控 probe 决定实际推送节拍,
+        # 输出流帧率≈渲染率/decim。--no-gate 回到旧行为(caps=输出帧率,时钟采样)。
+        gate_on = a.source == "x11" and not a.no_gate
+        cap_rate = a.sample_rate if gate_on else a.fps
         cf_raw.set_property("caps", Gst.Caps.from_string(
-            f"video/x-raw,width={a.width},height={a.height},framerate={a.fps}/1"))
+            f"video/x-raw,width={a.width},height={a.height},framerate={cap_rate}/1"))
         cf_nv12 = Gst.ElementFactory.make("capsfilter", "cf_nv12")
         cf_nv12.set_property("caps", Gst.Caps.from_string("video/x-raw,format=NV12"))
         enc = Gst.ElementFactory.make("nvautogpuh264enc", "enc")
@@ -371,7 +452,23 @@ class Sender:
         enc.get_static_pad("sink").add_probe(Gst.PadProbeType.EVENT_UPSTREAM, self._fku_probe)
         enc.get_static_pad("src").add_probe(Gst.PadProbeType.BUFFER, self._keyframe_probe)
         parse.get_static_pad("src").add_probe(Gst.PadProbeType.BUFFER, self._sps_probe)
+        if gate_on:
+            gate = StableGate(self, decim=a.decim)
+            cf_raw.get_static_pad("sink").add_probe(Gst.PadProbeType.BUFFER, gate.probe)
+            self.log(
+                f"gate ON: sample_rate={a.sample_rate} decim={a.decim} "
+                f"(输出≈{60 // max(a.decim, 1)}fps 于 60fps 渲染)"
+            )
         self.pay = pay
+        if a.source == "x11":
+            # X11 pixels already live in CPU memory. Read only the marker row
+            # here, then bind it to the payloader's RTP timestamp. This avoids a
+            # synchronous GPU video readback in every browser animation frame.
+            stop = self._bridge_stop
+            cf_raw.get_static_pad("src").add_probe(
+                Gst.PadProbeType.BUFFER, self._capture_frame_marker, stop)
+            pay.get_static_pad("src").add_probe(
+                Gst.PadProbeType.BUFFER | Gst.PadProbeType.BUFFER_LIST, self._map_video_frame, stop)
         # 可选丢包窗(PLI→FKU→IDR 直证):--drop-window <start_s>:<dur_s> 在窗口内丢弃
         # 发出的 RTP 包,浏览器解码器丢包 → PLI → webrtcbin GstForceKeyUnit → 编码器 IDR。
         if self.args.drop_window:
@@ -381,6 +478,67 @@ class Sender:
             cf_rtp.get_static_pad("src").add_probe(Gst.PadProbeType.BUFFER, self._loss_probe)
             self.log(f"drop window armed: [{self._drop_at}s, {self._drop_until}s) of wallclock")
         return cf_rtp
+
+    @staticmethod
+    def _running_time(pad, buffer):
+        event = pad.get_sticky_event(Gst.EventType.SEGMENT, 0)
+        if event is None or buffer.pts == Gst.CLOCK_TIME_NONE:
+            return None
+        value = event.parse_segment().to_running_time(Gst.Format.TIME, buffer.pts)
+        return None if value == Gst.CLOCK_TIME_NONE else value
+
+    def _capture_frame_marker(self, pad, info, stop):
+        if stop is not self._bridge_stop or stop.is_set():
+            return Gst.PadProbeReturn.OK
+        buffer = info.get_buffer()
+        caps = pad.get_current_caps()
+        if buffer is None or caps is None:
+            return Gst.PadProbeReturn.OK
+        shape = caps.get_structure(0)
+        width, height = shape.get_value("width"), shape.get_value("height")
+        if shape.get_value("format") not in ("BGRx", "RGBx", "BGRA", "RGBA") or width < 256 or height < 16:
+            return Gst.PadProbeReturn.OK
+        row = buffer.extract_dup(width * 4 * 8, 256 * 4)
+        bits = 0
+        for index in range(32):
+            offset = (index * 8 + 4) * 4
+            level = sum(row[offset:offset + 3]) / 3
+            if 80 < level < 175:
+                return Gst.PadProbeReturn.OK
+            bits = (bits << 1) | int(level >= 175)
+        frame_id = (bits >> 8) & 65535
+        if bits >> 24 != 0xd3 or bits & 255 != ((frame_id >> 8) ^ frame_id ^ 0x5a) & 255:
+            return Gst.PadProbeReturn.OK
+        running = self._running_time(pad, buffer)
+        if running is not None:
+            with self._marker_lock:
+                self._capture_markers[running] = frame_id
+                if len(self._capture_markers) > 240:
+                    self._capture_markers.pop(next(iter(self._capture_markers)))
+        return Gst.PadProbeReturn.OK
+
+    def _map_video_frame(self, pad, info, stop):
+        if stop is not self._bridge_stop or stop.is_set():
+            return Gst.PadProbeReturn.OK
+        if info.type & Gst.PadProbeType.BUFFER_LIST:
+            buffers = info.get_buffer_list()
+            buffer = buffers.get(0) if buffers and buffers.length() else None
+        else:
+            buffer = info.get_buffer()
+        if buffer is None or buffer.get_size() < 12:
+            return Gst.PadProbeReturn.OK
+        timestamp = int.from_bytes(buffer.extract_dup(4, 4), "big")
+        if timestamp == self._mapped_rtp_timestamp:
+            return Gst.PadProbeReturn.OK
+        running = self._running_time(pad, buffer)
+        with self._marker_lock:
+            frame_id = self._capture_markers.pop(running, None)
+        if frame_id is not None:
+            self._mapped_rtp_timestamp = timestamp
+            self.mapped_frames += 1
+            message = json.dumps({"type": "video_frame", "rtp_timestamp": timestamp, "frame_id": frame_id}).encode()
+            GLib.idle_add(self._on_bridge_line, message, stop)
+        return Gst.PadProbeReturn.OK
 
     def _loss_probe(self, pad, info):
         now = monotonic() - self.t0
@@ -519,6 +677,9 @@ class Sender:
         try:
             trans = sinkpad.get_property("transceiver")
             trans.set_property("direction", GstWebRTC.WebRTCRTPTransceiverDirection.SENDONLY)
+            # Negotiate generic NACK + RTX before offer#2. Without retransmission,
+            # a lost H.264 packet freezes playback until the next periodic IDR.
+            trans.set_property("do-nack", True)
             self.log(f"sink pad transceiver -> SENDONLY ({trans})")
         except Exception as e:  # noqa: BLE001
             self.log(f"transceiver direction set failed: {e}")
@@ -594,16 +755,32 @@ class Sender:
 
     # ---------- twin-bridge ↔ Unity 本地回环转发(M5) ----------
     def start_bridge(self):
-        threading.Thread(target=self._bridge_loop, daemon=True, name="bridge-link").start()
-        threading.Thread(target=self._bridge_writer, daemon=True, name="bridge-writer").start()
+        if not self._bridge_stop.is_set() and len(self._bridge_threads) == 2 and all(
+            t.is_alive() for t in self._bridge_threads
+        ):
+            return
+        self.stop_bridge()
+        with self._marker_lock:
+            self._capture_markers.clear()
+            self._mapped_rtp_timestamp = None
+        # Cancellation belongs to one attachment. Clearing a shared Event can
+        # revive a retired reader and let it replace or tear down the new link.
+        stop = self._bridge_stop = threading.Event()
+        outbound = self._bridge_queue = queue.Queue()
+        self._bridge_threads = [
+            threading.Thread(target=self._bridge_loop, args=(stop,), daemon=True, name="bridge-link"),
+            threading.Thread(target=self._bridge_writer, args=(stop, outbound), daemon=True, name="bridge-writer"),
+        ]
+        for t in self._bridge_threads:
+            t.start()
 
-    def _bridge_loop(self):
+    def _bridge_loop(self, stop):
         """连接 Unity TwinBridgeLocalChannel(127.0.0.1:bridge_port),读侧循环 + 断线重连。"""
-        while not self._bridge_stop.is_set():
+        while not stop.is_set():
             try:
                 sock = socket.create_connection(("127.0.0.1", self.args.bridge_port), timeout=5)
             except OSError:
-                self._bridge_stop.wait(1.0)  # player 未起/重启窗口:1s 退避重试
+                stop.wait(1.0)  # player 未起/重启窗口:1s 退避重试
                 continue
             sock.settimeout(None)
             try:
@@ -611,13 +788,17 @@ class Sender:
             except OSError:
                 pass
             with self._bridge_lock:
+                if stop.is_set():
+                    sock.close()
+                    return
                 self.bridge_sock = sock
             self.log(f"bridge: connected to Unity local channel 127.0.0.1:{self.args.bridge_port}")
             try:
-                for raw in sock.makefile("rb"):
-                    if self._bridge_stop.is_set():
-                        break
-                    GLib.idle_add(self._on_bridge_line, raw)
+                with sock.makefile("rb") as reader:
+                    for raw in reader:
+                        if stop.is_set():
+                            break
+                        GLib.idle_add(self._on_bridge_line, raw, stop)
             except OSError:
                 pass
             with self._bridge_lock:
@@ -627,31 +808,47 @@ class Sender:
                 sock.close()
             except OSError:
                 pass
+            if stop.is_set():
+                return
             if self.channel_open:
                 # player 掉线:浏览器 PC 已成死链,拆掉让 web 侧 watchdog 重连收敛
                 self.log("bridge: Unity link lost with browser attached — tearing down stale PC")
-                GLib.idle_add(self.teardown)
+                GLib.idle_add(self._on_bridge_lost, stop)
             else:
                 self.log("bridge: Unity link lost — reconnecting")
-            self._bridge_stop.wait(1.0)
+            stop.wait(1.0)
 
-    def _bridge_writer(self):
-        while not self._bridge_stop.is_set():
+    def _bridge_writer(self, stop, outbound):
+        while not stop.is_set():
             try:
-                s = self._bridge_queue.get(timeout=0.5)
+                s = outbound.get(timeout=0.5)
             except queue.Empty:
                 continue
-            with self._bridge_lock:
-                sock = self.bridge_sock
-            if sock is None:
-                continue  # 无链:丢弃(与 Unity 侧未连接丢弃语义一致;web 会随重连重发关键消息)
+            # WebRTC can finish before a cold Unity player opens the local port.
+            # Keep hello/attach in order until that link exists; dropping hello
+            # leaves a live video peer permanently waiting for bridge readiness.
+            while not stop.is_set():
+                with self._bridge_lock:
+                    sock = self.bridge_sock
+                if sock is not None:
+                    break
+                stop.wait(0.05)
+            if stop.is_set():
+                return
             try:
                 sock.sendall((s + "\n").encode("utf-8"))
             except OSError:
                 pass  # 断链由读线程判定触发重连
 
-    def _on_bridge_line(self, raw):
+    def _on_bridge_lost(self, stop):
+        if stop is self._bridge_stop and not stop.is_set():
+            self.teardown()
+        return False
+
+    def _on_bridge_line(self, raw, stop):
         """Unity → 浏览器(GLib 主线程,idle 单发)。"""
+        if stop is not self._bridge_stop or stop.is_set():
+            return False
         line = raw.decode("utf-8", "replace").rstrip("\n")
         if line and self.channel is not None and self.channel_open:
             self.channel.emit("send-string", line)
@@ -663,6 +860,12 @@ class Sender:
             sock = self.bridge_sock
             self.bridge_sock = None
         if sock is not None:
+            # makefile() keeps a socket reference: close() alone does not wake
+            # a blocked reader, so the old Unity attachment would remain alive.
+            try:
+                sock.shutdown(socket.SHUT_RDWR)
+            except OSError:
+                pass
             try:
                 sock.close()
             except OSError:
@@ -670,6 +873,11 @@ class Sender:
 
     # ---------- 拆除/杂项 ----------
     def teardown(self):
+        # Drop the bridge with the pipeline: the bridge socket is what keeps
+        # Unity in its attached state. Leaving it open after the browser leaves
+        # pinned Unity's per-frame Cesium selection cost to a dead session
+        # (render stuck ~28 fps with no viewer at all).
+        self.stop_bridge()
         if self.pipeline is not None:
             self.log("teardown: pipeline -> NULL")
             self.pipeline.set_state(Gst.State.NULL)
@@ -705,6 +913,7 @@ class Sender:
             f"STATUS ice={ice} conn={conn} offers_in={self.offers_in} answers_in={self.answers_in} "
             f"cands={self.cands_in}/{self.cands_out} enc_frames={self.frames_encoded} "
             f"keyframes={self.keyframes} fku={self.fku_events} dc={self.channel_open} "
+            f"mapped_frames={self.mapped_frames} "
             f"bridge={'up' if self.bridge_sock is not None else 'down'} profile={self.profile_applied} "
             f"sps={self.sps_profile}/{self.sps_level}")
 
@@ -727,7 +936,14 @@ def main():
     ap.add_argument("--ws-url", default="ws://127.0.0.1:8081")
     ap.add_argument("--width", type=int, default=2560)
     ap.add_argument("--height", type=int, default=1440)
-    ap.add_argument("--fps", type=int, default=30)
+    ap.add_argument("--fps", type=int, default=30,
+                    help="输出帧率(--no-gate 时=采集钟;gate 时仅作 gop 自动档参考)")
+    ap.add_argument("--sample-rate", type=int, default=240,
+                    help="x11 门控采样钟 Hz;须≥2×渲染帧率(默认 240,瞬态≈0.9ms 全滤)")
+    ap.add_argument("--decim", type=int, default=1,
+                    help="内容稳定门控后每 N 个新稳定帧推送 1 个(N=2 即确定性 2:1 抽取)")
+    ap.add_argument("--no-gate", action="store_true",
+                    help="关闭内容稳定门控,回到独立时钟采样(旧行为,有顿/跳/拉扯竞态)")
     ap.add_argument("--gop-size", type=int, default=0,
                     help="0=自动(30fps 档 60 / 60fps 档 2x);显式覆盖(如丢包恢复上界需 1s 时 gop=30)")
     ap.add_argument("--bitrate", type=int, default=20000)  # kbps

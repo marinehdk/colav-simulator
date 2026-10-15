@@ -98,15 +98,22 @@ namespace Sango
                 // Outward travel widens the envelope; old samples retain their own
                 // direction through a turn instead of rotating with the current hull.
                 float width = m_Beam * 1.1f + age * sample.speed;
+                // Emission cadence = m_Spacing / speed ≈ 1 Hz at cruise; popping a
+                // fresh sample in at full strength reads as the wake teleporting
+                // forward once a second under moving cameras (20261013 DT jelly
+                // probe: jump frames localize to the stern near-field). Ramp each
+                // sample in over ~1 s so the trail grows instead of stepping.
+                float spawn = Mathf.SmoothStep(0, 1, age / 0.9f);
                 float fade = 0.50f * Mathf.Exp(-age / 20f)
-                    * (1 - Mathf.SmoothStep(0, 1, Mathf.InverseLerp(16f, Lifetime, age)));
+                    * (1 - Mathf.SmoothStep(0, 1, Mathf.InverseLerp(16f, Lifetime, age)))
+                    * spawn;
                 float energy = Mathf.Clamp01(sample.speed * sample.speed / (9.81f * m_Loa) * 6);
                 sample.decal.enabled = true;
                 sample.decal.transform.SetPositionAndRotation(sample.position, Quaternion.LookRotation(sample.forward));
                 sample.decal.regionSize = new Vector2(width, m_Spacing * 3.5f);
                 sample.decal.surfaceFoamDimmer = energy * fade;
                 sample.decal.deepFoamDimmer = energy * fade * 0.25f;
-                sample.decal.amplitude = energy * Mathf.Exp(-age / 14f) * 0.5f;
+                sample.decal.amplitude = energy * Mathf.Exp(-age / 14f) * 0.5f * spawn;
                 ActiveSamples++;
                 OldestAge = Mathf.Max(OldestAge, age);
             }

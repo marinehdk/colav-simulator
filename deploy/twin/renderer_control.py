@@ -105,10 +105,11 @@ def _start_gst_group() -> str:
     _docker(
         "exec", "-d", GST_CONTAINER, "sh", "-c",
         f"mkdir -p /out/spike && exec python3 {GST_SENDER} --label {label} --source x11 "
-        f"--width {w} --height {h} --fps 30 --bitrate {GST_BITRATE} --gop-size 30 "
+        f"--width {w} --height {h} --fps 30 --decim 1 --sample-rate 90 --bitrate {GST_BITRATE} --gop-size 30 "
         f"--bridge-port {GST_BRIDGE_PORT} "
         f"> /out/spike/sender-{label}.log 2>&1",
-    )  # M3 达标参数:gop=30(丢包突发恢复上界 1s,笔记 03 §2);M5:--bridge-port 桥转发
+    )  # 30fps 均匀输出:Unity 渲染钟锁 30(TwinStreamQuality gst 分支)+ sender StableGate
+    # 240Hz 采样/内容稳定门控(20261013 根治采集竞态的顿/跳/拉扯);GOP 1s。
     time.sleep(2)
     if not _gst_sender_up():
         raise RuntimeError(f"sender died on startup; see ~/gst-spike/bench/spike/sender-{label}.log")
@@ -140,6 +141,8 @@ def _spawn_player() -> int:
     args = [
         str(ROOT / "player/sango.x86_64"),
         "--sango-twin-bridge",
+        # GL 对照路线已死:HDRP Linux 仅 Vulkan(HDRPPreprocessBuild 构建期硬拒 GLCore,
+        # 2026-10-14 实证"启动正常"系 vulkan 残尾误判)。GL 实验参数存远端 .glcore-stash。
         "-force-vulkan",
         "-force-device-index",
         "0",
@@ -157,6 +160,10 @@ def _spawn_player() -> int:
         # (HUD 全隐,Xvfb 屏幕采集前提)。UDS 设计落地为回环 TCP(容器 --network host,
         # 免宿主 socket 卷;端口默认 18020,TWIN_BRIDGE_PORT env 可覆盖)。
         args[1:1] = ["--sango-twin-bridge-local", "--sango-twin-hud-hide"]
+        # 船-水视觉特效总闸(20261014 验收):touch 本目录 wake-off.flag → 下次 restart
+        # 以纯净水面(无艏浪/尾迹)出片;rm 恢复。
+        if (ROOT / "wake-off.flag").exists():
+            args.append("--sango-twin-wake-off")
     return spawn("player", args, env=env)
 
 

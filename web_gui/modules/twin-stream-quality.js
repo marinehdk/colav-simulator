@@ -19,7 +19,21 @@ export function sampleTwinVideoStats(report, previous = null) {
   const delta = key => elapsed > 0 && Number.isFinite(v[key]) && Number.isFinite(previous?.[key]) && v[key] >= previous[key] ? v[key] - previous[key] : null;
   const received = delta('packetsReceived'), lost = delta('packetsLost');
   const decode = delta('totalDecodeTime'), buffer = delta('jitterBufferDelay'), emitted = delta('jitterBufferEmittedCount');
+  const receivedFrames = delta('framesReceived'), processing = delta('totalProcessingDelay');
+  const bufferTarget = delta('jitterBufferTargetDelay'), bufferMinimum = delta('jitterBufferMinimumDelay');
+  const freezeDuration = delta('totalFreezesDuration');
   return {
+    framesReceived: v.framesReceived, nackCount: v.nackCount, pliCount: v.pliCount,
+    retransmittedPacketsReceived: v.retransmittedPacketsReceived,
+    totalFreezesDuration: v.totalFreezesDuration, totalProcessingDelay: v.totalProcessingDelay,
+    jitterBufferTargetDelay: v.jitterBufferTargetDelay, jitterBufferMinimumDelay: v.jitterBufferMinimumDelay,
+    jitterBufferTargetMs: bufferTarget !== null && emitted > 0 ? bufferTarget * 1000 / emitted : null,
+    jitterBufferMinimumMs: bufferMinimum !== null && emitted > 0 ? bufferMinimum * 1000 / emitted : null,
+    receivedFps: receivedFrames === null ? null : receivedFrames / elapsed,
+    lostPackets: lost, nacks: delta('nackCount'), plis: delta('pliCount'),
+    retransmittedPackets: delta('retransmittedPacketsReceived'),
+    freezes: delta('freezeCount'), freezeDurationMs: freezeDuration === null ? null : freezeDuration * 1000,
+    processingMs: processing !== null && frames > 0 ? processing * 1000 / frames : null,
     packetsReceived: v.packetsReceived, packetsLost: v.packetsLost, totalDecodeTime: v.totalDecodeTime,
     jitterBufferDelay: v.jitterBufferDelay, jitterBufferEmittedCount: v.jitterBufferEmittedCount,
     lossRatio: received !== null && lost !== null && received + lost > 0 ? lost / (received + lost) : null,

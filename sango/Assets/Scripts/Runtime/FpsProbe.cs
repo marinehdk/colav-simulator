@@ -36,6 +36,11 @@ namespace Sango
         float m_FrameMsMax;
         int m_Windows;
 
+        // present 节拍插桩(2026-10-14 fb 抖动排查):FrameTiming 环形缓冲 64 帧覆盖 2s@30fps,
+        // 窗口收口时取 cpuTimePresentCalled 相邻差的中位/最大——主循环 fps 对渲染线程 present 抖动全盲。
+        readonly FrameTiming[] m_Timings = new FrameTiming[64];
+        readonly double[] m_PresentDeltas = new double[64];
+
         GUIStyle m_Style;
 
         public float LastFps { get; private set; }
@@ -43,6 +48,9 @@ namespace Sango
         public float LastFrameMsMax { get; private set; }
         public int LastQueriesPerFrame { get; private set; }
         public double LastQueryMsPerFrame { get; private set; }
+        public double LastPcIntMed { get; private set; }
+        public double LastPcIntMax { get; private set; }
+        public float LastGpuMsMax { get; private set; }
 
         [Tooltip("M0 闸门补测专用：Play 2s 后请求固定 2560x1440 backbuffer。普通运行（M1 GUI 交互/截图/录屏、播放器构建）必须保持 false——display topology 动荡下 SetResolution 会把 Game view 退化成幽灵尺寸（实测 2560x36），UGUI 面板下半对射线失联。")]
         public bool requestFixedResolution = false;
@@ -73,6 +81,7 @@ namespace Sango
             m_Frames++;
             m_FrameMsSum += frameMs;
             if (frameMs > m_FrameMsMax) m_FrameMsMax = frameMs;
+            FrameTimingManager.CaptureFrameTimings();
 
             if (m_WindowStart < 0f) m_WindowStart = Time.unscaledTime;
         }
@@ -88,6 +97,7 @@ namespace Sango
             LastFrameMsMax = m_FrameMsMax;
             LastQueriesPerFrame = TriangleBuoyancyProbe.FrameQueries;
             LastQueryMsPerFrame = TriangleBuoyancyProbe.FrameQueryMs;
+            CollectPresentTimings();
 
             WriteJsonLine();
             if (++m_Windows % k_ConsoleLogEveryNWindows == 0)
@@ -98,6 +108,26 @@ namespace Sango
             m_Frames = 0;
             m_FrameMsSum = 0.0;
             m_FrameMsMax = 0f;
+        }
+
+        void CollectPresentTimings()
+        {
+            LastPcIntMed = 0; LastPcIntMax = 0; LastGpuMsMax = 0;
+            int n = (int)FrameTimingManager.GetLatestTimings((uint)m_Timings.Length, m_Timings);
+            if (n < 2) return;
+            int d = 0;
+            for (int i = 1; i < n; i++)
+            {
+                double delta = (m_Timings[i].cpuTimePresentCalled - m_Timings[i - 1].cpuTimePresentCalled) * 1000.0;
+                // >1s 的跳变是缓冲区缝合点,不是帧间隔
+                if (delta > 0 && delta < 1000.0) m_PresentDeltas[d++] = delta;
+                double gpuMs = m_Timings[i].gpuFrameTime * 1000.0;
+                if (gpuMs > LastGpuMsMax) LastGpuMsMax = (float)gpuMs;
+            }
+            if (d == 0) return;
+            System.Array.Sort(m_PresentDeltas, 0, d);
+            LastPcIntMed = m_PresentDeltas[d / 2];
+            LastPcIntMax = m_PresentDeltas[d - 1];
         }
 
         void WriteJsonLine()
@@ -118,7 +148,10 @@ namespace Sango
                     + ",\"frame_ms_avg\":" + I(LastFrameMsAvg, "F3")
                     + ",\"frame_ms_max\":" + I(LastFrameMsMax, "F3")
                     + ",\"queries_per_frame\":" + LastQueriesPerFrame
-                    + ",\"query_ms_per_frame\":" + I(LastQueryMsPerFrame, "F3") + "}";
+                    + ",\"query_ms_per_frame\":" + I(LastQueryMsPerFrame, "F3")
+                    + ",\"pc_int_med\":" + I(LastPcIntMed, "F2")
+                    + ",\"pc_int_max\":" + I(LastPcIntMax, "F2")
+                    + ",\"gpu_ms_max\":" + I(LastGpuMsMax, "F2") + "}";
                 File.AppendAllText(path, line + "\n");
             }
             catch (System.Exception e)
@@ -133,9 +166,10 @@ namespace Sango
             if (Instance == null) return "FpsProbe: no instance in scene";
             return string.Format(
                 CultureInfo.InvariantCulture,
-                "fps={0:F1} frame_ms_avg={1:F2} frame_ms_max={2:F2} queries_per_frame={3} query_ms_per_frame={4:F2}",
+                "fps={0:F1} frame_ms_avg={1:F2} frame_ms_max={2:F2} queries_per_frame={3} query_ms_per_frame={4:F2} pc_int_med={5:F2} pc_int_max={6:F2} gpu_ms_max={7:F2}",
                 Instance.LastFps, Instance.LastFrameMsAvg, Instance.LastFrameMsMax,
-                Instance.LastQueriesPerFrame, Instance.LastQueryMsPerFrame);
+                Instance.LastQueriesPerFrame, Instance.LastQueryMsPerFrame,
+                Instance.LastPcIntMed, Instance.LastPcIntMax, Instance.LastGpuMsMax);
         }
 
         /// <summary>

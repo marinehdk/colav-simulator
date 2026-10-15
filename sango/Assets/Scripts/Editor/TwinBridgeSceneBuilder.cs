@@ -171,6 +171,8 @@ namespace Sango.Editor.TwinBridge
             PlayerSettings.SetScriptingBackend(NamedBuildTarget.Standalone, ScriptingImplementation.Mono2x);
             PlayerSettings.SetApplicationIdentifier(NamedBuildTarget.Standalone, "com.colav.sango.twin");
             PlayerSettings.runInBackground = true;
+            // FpsProbe pc_int 插桩依赖 FrameTiming 数据;players 默认关,须在 boot.config 落此开关
+            PlayerSettings.enableFrameTimingStats = true;
             // Stage a new player without replacing the binary currently streaming.
             var args = System.Environment.GetCommandLineArgs();
             int outputIndex = System.Array.IndexOf(args, "--twin-build-output");
@@ -181,6 +183,8 @@ namespace Sango.Editor.TwinBridge
             var target = linux ? BuildTarget.StandaloneLinux64 : BuildTarget.StandaloneOSX;
             if (linux)
                 PlayerSettings.SetGraphicsAPIs(target, new[] { UnityEngine.Rendering.GraphicsDeviceType.Vulkan });
+            // GLCore 不可入列:HDRP Linux 仅支持 Vulkan(HDRPPreprocessBuild 构建期硬拒),
+            // present 抖动的 GL 对照路线不通(2026-10-14 实证)。
             var report = BuildPipeline.BuildPlayer(
                 new[] { k_TwinScene },
                 output,

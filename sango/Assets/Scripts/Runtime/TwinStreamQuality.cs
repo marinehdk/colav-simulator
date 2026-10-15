@@ -1,5 +1,6 @@
 using Unity.RenderStreaming;
 using UnityEngine;
+using UnityEngine.Rendering;
 using UnityEngine.Rendering.HighDefinition;
 
 namespace Sango
@@ -11,7 +12,7 @@ namespace Sango
         public static readonly string[] Profiles = { "1080p", "1440p" };
         public string Profile { get; private set; }
 
-        public TwinStreamQuality(VideoStreamSender sender)
+        public TwinStreamQuality(VideoStreamSender sender, bool renderAtStreamRate = false)
         {
             m_Sender = sender;
 #if UNITY_STANDALONE_LINUX
@@ -30,19 +31,43 @@ namespace Sango
             if (camera != null)
             {
                 var hd = camera.GetComponent<HDAdditionalCameraData>() ?? camera.gameObject.AddComponent<HDAdditionalCameraData>();
-                // Avoid history trails as water normals and the follow camera move.
+                // AA(20261014 第四轮):cost30(tri30+60fps 全绿)下用户仍见动态段水面拉扯,
+                // Unity 循环/投递/元素层全净——嫌疑收敛到内容级。头号:水面不写运动矢量,
+                // TAA 对水像素只能相机运动重投影,相机微动(含 BridgeSway)→水纹理错误重投影
+                // =脉动拖影,观感"拉扯"。A/B 回 SMAA(历史 M7 选择)。若 SMAA 下仍拉,
+                // 再查水面细节法线混叠。
                 hd.antialiasing = HDAdditionalCameraData.AntialiasingMode.SubpixelMorphologicalAntiAliasing;
+                // Transparent SSR visibly jumps over animated water even with
+                // continuous render/stream clocks. Keep the sky/probe fallback
+                // on the DT camera; other cameras retain their own settings.
+                hd.customRenderingSettings = true;
+                var settings = hd.renderingPathCustomFrameSettings;
+                settings.SetEnabled(FrameSettingsField.TransparentSSR, false);
+                hd.renderingPathCustomFrameSettings = settings;
+                var mask = hd.renderingPathCustomFrameSettingsOverrideMask;
+                mask.mask[(uint)FrameSettingsField.TransparentSSR] = true;
+                hd.renderingPathCustomFrameSettingsOverrideMask = mask;
+            }
+            // 水面网格密度(20261014 三轮像素法证定案):Env ON chase 段 Unity 主循环 60→34fps
+            // (fps-report 锚定实测,75% 重帧)=内容更新率跌至 ~34Hz 不规则→屏幕 38/60 有效帧
+            // =用户"拉扯"根因;锚点吸附/波浪几何全部无罪(静相机照卡实证)。triangleSize 15 是
+            // 20261014 误诊期加码(4x 近场三角形,未治愈任何伪影,纯耗预算)——回 30 默认还预算。
+            // 仅 twin player 生效。
+            var globalVolume = Object.FindFirstObjectByType<Volume>();
+            if (globalVolume != null && globalVolume.sharedProfile != null
+                && globalVolume.sharedProfile.TryGet<WaterRendering>(out var waterRendering))
+            {
+                waterRendering.triangleSize.Override(30f);
             }
             if (Application.isPlaying)
             {
                 Application.runInBackground = true;
                 QualitySettings.vSyncCount = 0;
-                // Render above the 30 fps capture clock: the sender's 30 fps
-                // ticker then always samples a fresh, evenly spaced frame and
-                // absorbs render-side jitter. Capping render at 30 made the
-                // stream breathe at 27.8-29.5 fps, which reads as visible
-                // stutter on the water surface (uneven 2:1 pacing on 60 Hz).
-                Application.targetFrameRate = 60;
+                // 渲染钟(20261014 终局):主循环 60fps 时 Xvfb(报 0.00Hz)对 Vulkan present
+                // 做不规则合并——fb 内容账本实测仅 ~37Hz(18-28ms)前进,屏幕 38-45 有效帧
+                // =用户「拉扯」。33ms(30fps)低于合并阈、呈 2:2 均匀;历史 30fps 时代的
+                // 拉扯来自当时重构建(tri15 等)chase 段掉频+已修 bug 叠加。锁 30。
+                Application.targetFrameRate = 30;
             }
             TryApply("1080p");
         }
