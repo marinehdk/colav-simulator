@@ -27,5 +27,27 @@ namespace Sango
             }
             return best;
         }
+
+        /// <summary>
+        /// 按型取编目条目（目标船视觉档位；查无此型返回 null 走 truth 匹配）。
+        /// 20261015 用户裁决：DT 视口目标船默认 Kenney Medium 60m——12m 真值渔船在
+        /// 2km 外仅 ~4px 低于 YOLO P3 检测下限，检测链观感需要更大视觉目标；
+        /// 物理仍按 truth.length，仅显示层换型（--twin-target-visual truth 可复原）。
+        /// </summary>
+        public static VesselCatalog.Entry SelectByClass(VesselCatalog catalog, VesselClass vesselClass)
+        {
+            if (catalog == null || catalog.entries == null) return null;
+            foreach (var entry in catalog.entries)
+                if (entry != null && entry.vesselClass == vesselClass) return entry;
+            return null;
+        }
+
+        /// <summary>视觉档位 CLI 值解析（纯函数，测试锚）："truth"→null（按真值匹配），
+        /// 合法型名（大小写不敏感）→该型，非法值原样返回 fallback 不动当前档。</summary>
+        public static VesselClass? ParseVisualOverride(string value, VesselClass? fallback)
+        {
+            if (string.Equals(value, "truth", StringComparison.OrdinalIgnoreCase)) return null;
+            return Enum.TryParse(value, true, out VesselClass parsed) ? parsed : fallback;
+        }
     }
 }

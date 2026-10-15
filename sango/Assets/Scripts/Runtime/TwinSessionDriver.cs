@@ -108,6 +108,16 @@ namespace Sango
         long m_RxCount;
         int m_AcceptedCount, m_DuplicateCount, m_RebuildCount, m_MalformedCount, m_UnslottedCount;
 
+        // 目标船视觉档位（20261015 用户裁决）：null = truth.length 最近匹配（原行为）；
+        // 指定型 = 目标船统一显示该型（默认 Medium 60m，检测链小目标观感需要；
+        // 本船 id=0 不受影响——EnsureSlot 只对 ship.id != 0 应用档位）。仅显示层，
+        // 物理/尺寸语义仍按 truth。--twin-target-visual &lt;class|truth&gt; 覆盖。
+        VesselClass? m_TargetVisualClass = VesselClass.Medium;
+        public string targetVisualOverride
+        {
+            set => m_TargetVisualClass = TwinShipFactory.ParseVisualOverride(value, m_TargetVisualClass);
+        }
+
         /// <summary>后台线程收到的合法 compact 帧累计（诊断/探针对账）。</summary>
         public long RxCount => Interlocked.Read(ref m_RxCount);
         /// <summary>seq 闸门接受的快照数（去重后）。</summary>
@@ -526,7 +536,11 @@ namespace Sango
                 DestroySlot(existing);
                 m_Slots.Remove(ship.id);
             }
-            var entry = TwinShipFactory.Select(catalog, ship.length);
+            // 目标船视觉档位优先（null=truth 匹配；本船 id=0 恒走 truth 保持 hero 尺度）。
+            var entry = ship.id != 0 && m_TargetVisualClass.HasValue
+                ? TwinShipFactory.SelectByClass(catalog, m_TargetVisualClass.Value)
+                  ?? TwinShipFactory.Select(catalog, ship.length)
+                : TwinShipFactory.Select(catalog, ship.length);
             if (entry == null)
             {
                 m_UnslottedCount++;

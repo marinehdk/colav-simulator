@@ -69,6 +69,10 @@ GST_CONTAINER = os.environ.get("TWIN_GST_CONTAINER", "gst-base")  # M1 常驻底
 GST_SENDER = "/gst/sender/sender.py"  # run.sh volume:~/gst-spike/gst → /gst(ro)
 GST_BITRATE = os.environ.get("TWIN_GST_BITRATE", "20000")  # kbps;M3 1440p 达标档(1080p 手动实验 16000)
 GST_BRIDGE_PORT = os.environ.get("TWIN_BRIDGE_PORT", "18020")  # M5:Unity 本地桥回环端口(两侧同源)
+# DT 视口检测分流(默认关):TWIN_GST_DETECT_TAP=1 时给 sender 追加 --detect-tap
+# (零行为差;端口/速率常量见 deploy/twin/gst/README.md 检测分流一节)。
+GST_DETECT_TAP = os.environ.get("TWIN_GST_DETECT_TAP", "") == "1"
+GST_DETECT_RATE = os.environ.get("TWIN_GST_DETECT_RATE", "5")
 GST_WARMUP = (
     "gst-launch-1.0 -e videotestsrc num-buffers=300 "
     "! video/x-raw,width=640,height=360,format=NV12,framerate=30/1 "
@@ -102,11 +106,12 @@ def _start_gst_group() -> str:
         return "sender-already-up"
     label = "gst-" + time.strftime("%m%d%H%M")
     w, h = _player_window()  # 与 player 窗口同源(ximagesrc 抓 Xvfb 屏,窗口=采集区)
+    tap_flags = f" --detect-tap --detect-rate {GST_DETECT_RATE}" if GST_DETECT_TAP else ""
     _docker(
         "exec", "-d", GST_CONTAINER, "sh", "-c",
         f"mkdir -p /out/spike && exec python3 {GST_SENDER} --label {label} --source x11 "
         f"--width {w} --height {h} --fps 30 --decim 1 --sample-rate 90 --bitrate {GST_BITRATE} --gop-size 30 "
-        f"--bridge-port {GST_BRIDGE_PORT} "
+        f"--bridge-port {GST_BRIDGE_PORT}{tap_flags} "
         f"> /out/spike/sender-{label}.log 2>&1",
     )  # 30fps 均匀输出:Unity 渲染钟锁 30(TwinStreamQuality gst 分支)+ sender StableGate
     # 240Hz 采样/内容稳定门控(20261013 根治采集竞态的顿/跳/拉扯);GOP 1s。

@@ -1,0 +1,65 @@
+#!/bin/bash
+# detectctl — DT 视口 YOLO 检测服务(mac 侧)手动启停(免会话版)。
+# 前置:a4000 sender 带 --detect-tap(twinctl start 经 remote-runtime.json detect_tap 透传),
+# 隧道 -L 15556 已建(remote_control.py gst 路由自带)。手册:deploy/twin/gst/README.md §8。
+# 常规入口=web"海图显示→YOLO 检测"勾选(POST /api/viewport-detection-engine 自动拉起,
+# 免会话路由,reset/新建零重接线);本脚本为运维旁路,与后端引擎共用 pidfile。
+# 用法: detectctl start | stop | status
+set -u
+
+REPO="$(cd "$(dirname "$0")/../.." && pwd)"
+PIDFILE="$REPO/deploy/twin/logs/detector.pid"
+LOG="$REPO/deploy/twin/logs/detector.log"
+PY="$REPO/.venv-detector/bin/python"
+BACKEND="http://127.0.0.1:8010"
+
+mkdir -p "$(dirname "$PIDFILE")"
+
+pid_alive() { [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; }
+
+# 首选走后端引擎端点(pidfile 同源,进程描述一致);后端不可达再提示。
+do_stop() {
+  if curl -s --noproxy '*' -m 3 -X POST "$BACKEND/api/viewport-detection-engine" \
+       -H 'Content-Type: application/json' -d '{"enabled":false}' | grep -q stopped; then
+    echo "✓ detector stopped (engine 端点)"
+  elif pid_alive; then
+    kill "$(cat "$PIDFILE")" && echo "✓ detector stopped (pid $(cat "$PIDFILE"))"; rm -f "$PIDFILE"
+  else
+    echo "· detector 未在运行"
+  fi
+}
+
+do_start() {
+  local out
+  out="$(curl -s --noproxy '*' -m 5 -X POST "$BACKEND/api/viewport-detection-engine" \
+       -H 'Content-Type: application/json' -d '{"enabled":true}')" || true
+  if echo "$out" | grep -q '"pid"'; then
+    echo "✓ detector ${out}"
+  else
+    echo "✗ 引擎端点不可达($out),直接拉进程兜底"
+    [ -f "$PIDFILE" ] && kill "$(cat "$PIDFILE")" 2>/dev/null; rm -f "$PIDFILE"
+    nohup "$PY" "$REPO/tools/sango_detector_service.py" \
+      --endpoint tcp://127.0.0.1:15556 --out tcp://127.0.0.1:15557 \
+      --viewport-forward-url "$BACKEND/api/viewport-detections" \
+      >> "$LOG" 2>&1 &
+    echo $! > "$PIDFILE"; sleep 2
+    pid_alive && echo "✓ detector started (pid $(cat "$PIDFILE"))" || { echo "✗ 启动失败,查 $LOG"; tail -5 "$LOG"; exit 1; }
+  fi
+}
+
+do_status() {
+  if pid_alive; then
+    echo "detector: running (pid $(cat "$PIDFILE"))"
+    grep "viewport-forward branch ON" "$LOG" | tail -1
+  else
+    echo "detector: 未在运行(web 勾选 YOLO 检测或 detectctl start 拉起)"
+  fi
+  nc -z -w 2 127.0.0.1 15556 >/dev/null 2>&1 && echo "tunnel:   15556 开(sender tap 在发)" || echo "tunnel:   15556 不通(查 twinctl status)"
+}
+
+case "${1:-status}" in
+  start) do_start ;;
+  stop) do_stop ;;
+  status) do_status ;;
+  *) echo "用法: $0 start | stop | status"; exit 2 ;;
+esac

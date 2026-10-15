@@ -1,4 +1,4 @@
-import { targetsForDisplay } from './situation-display.js?v=20261011-dt-sensor-overlay-v1';
+import { targetsForDisplay } from './situation-display.js?v=20261015-dt-yolo-sd-v2';
 import { geographyProblem, frameIdentity, targetKey } from './scene-geography.js?v=20261004-token-cleanup-v1';
 
 // One display boundary. No session control, network telemetry or physics clock lives here.

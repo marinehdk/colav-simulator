@@ -86,3 +86,74 @@ legacy-urs(回退,M4 前行为逐字节等价):
 - 本地:`deploy/twin/gst/spike/results/`(m2/m3/m4 按里程碑子目录;SDP 语料在 `results/*/sdp/`)+ `deploy/twin/gst/bench/`(M1 基准)。
 - 远程:`~/gst-spike/bench/spike/`(sender/wslog 原始日志,容器 /out 卷)。需要回收时 rsync 回本地 results 再清理远程。
 - SDP 差异台账:`spike/sdp-diff.md`(webrtcbin vs Unity 差异 D1-D9 + 怪癖 Q1-Q6)。
+
+## 8. 检测分流(--detect-tap,DT 视口 YOLO)
+
+sender 可选把用户所见帧分流喂给 mac 上的 YOLO 检测服务(检测框随遥测 WS `viewport_detections` 键广播绿框):**默认关**——`--detect-tap` 缺省时管线逐链路不变(tee 都不插)。
+
+```
+ximagesrc → cf_raw(240Hz 采样门控)┬→ vconv → NV12 → NVENC → RTP → webrtcbin   (主路,不变)
+                                   └→ tee → queue(leaky=downstream, max-size-buffers=2)
+                                           → videoconvert → videoscale
+                                           → capsfilter(video/x-raw, 1280x720)
+                                           → jpegenc(quality=60)
+                                           → appsink(max-buffers=1, drop=True)
+                                             → 独立线程节流(--detect-rate,默认 5Hz)
+                                             → ZMQ PUB bind --detect-endpoint(默认 tcp://127.0.0.1:5556, SNDHWM 30)
+```
+
+ZMQ 消息 = frame-publisher-v1 三段式(`sango/Docs/contracts/frame-publisher-v1.md`):
+`b"sango.frame"` + FrameMetadata JSON `{frame_seq(自增), frame_time_s(=buffer.pts 秒), width:1280, height:720, jpeg_bytes, source:"twin-viewport"}` + JPEG 字节。
+
+### 8.1 容器装 pyzmq(一次性)
+
+```bash
+docker exec -e https_proxy=http://127.0.0.1:7897 -e http_proxy=http://127.0.0.1:7897 \
+  gst-base pip3 install pyzmq
+```
+
+(未装 pyzmq 时默认路径照常;开 tap 后 sender 日志报 `detect tap disabled: pyzmq unavailable`。)
+
+### 8.2 sender.py 更新步骤(挂载直读,不 docker cp)
+
+`run.sh` 把 a4000 宿主 `~/gst-spike/gst` **只读**挂载到容器 `/gst`(renderer_control.py 以 `/gst/sender/sender.py` 启动),所以更新 = 推文件到宿主挂载源 + 重拉 sender:
+
+```bash
+# 1) 仓库文件 → a4000 宿主挂载源(容器内 /gst/sender/sender.py 即时可见新内容)
+scp deploy/twin/gst/sender/sender.py a4000:~/gst-spike/gst/sender/sender.py
+# 2) 重拉 sender(容器不动;renderer_control pkill 旧进程后按新文件启动)
+./deploy/twin/twinctl restart
+```
+
+### 8.3 启用(任选其一)
+
+- 声明式(推荐):`remote-runtime.json` → `"detect_tap": true` → `./deploy/twin/twinctl restart`。经 SSH env `TWIN_GST_DETECT_TAP=1`(`TWIN_GST_DETECT_RATE` 同理)透传给 renderer_control,给 sender 追加旗标。
+- 手工:`docker exec gst-base pkill -f sender.py` 后按 §2 命令行 exec 启动,追加 `--detect-tap --detect-rate 5 --detect-endpoint tcp://127.0.0.1:5556`。
+  ⚠️ sender 即容器 PID1:pkill 后容器随退(exit 137),须走 `twinctl start` 重造容器(其内部含 docker run)。
+
+### 8.4 mac 侧消费链(免会话)
+
+`remote_control.py` gst 路由隧道含 `-L 127.0.0.1:15556:127.0.0.1:5556`(mac 15556 → a4000 容器 host netns 5556)。**常规入口=web"海图显示→YOLO 检测"勾选**:app.js POST `/api/viewport-detection-engine` 让后端拉起/停掉检测器(detached,pidfile `deploy/twin/logs/detector.pid`);检测器把结果 POST 到**免会话端点** `/api/viewport-detections`,后端路由进当前活动会话——**会话 reset/新建零重接线**。运维旁路=`./deploy/twin/detectctl start|stop|status`(与后端引擎共管 pidfile);等价手工命令:
+
+```bash
+.venv-detector/bin/python tools/sango_detector_service.py \
+  --endpoint tcp://127.0.0.1:15556 \
+  --out tcp://127.0.0.1:15557 \
+  --viewport-forward-url http://127.0.0.1:8010/api/viewport-detections
+```
+
+(按会话定向前向仍可用:`/api/sessions/<session_id>/viewport-detections`。)
+
+后端把最新一帧存会话级缓存,随遥测 WS 顶层键 `viewport_detections`(schema `viewport_detections@1`,received_at 超 2s 键整体缺省)广播;模型见 `colav_simulator/schemas/viewport_detections_v1.py`。
+
+### 8.5 a4000 GPU 检测器(20261015 上位,远程模式)
+
+用户裁决:检测器部署 a4000 GPU(**GPU1 推理,Unity 渲染占 GPU0;不动驱动,marine 用户级安装**)。mac 后端以 `TWIN_VIEWPORT_DETECTOR_REMOTE=a4000` 启动时,engine 端点(`/api/viewport-detection-engine`)改走 ssh 托管:
+
+- a4000 侧(一次性,已完成):`~/twin-detector-venv`(torch 2.5.1+cu121/ultralytics/sahi/pyzmq)+ 脚本 `~/twin-detector/sango_detector_service.py`;权重 `yolov8s.pt` 首启自动下载。
+- 引擎启动命令(常量在 `gui_server/main.py:_REMOTE_DETECT_CMD`):`CUDA_VISIBLE_DEVICES=1 … --device cuda:0 --model yolov8s.pt --slice-size 640 --pidfile detector.pid`——**SAHI 切片推理**(720p→640×640×6 片,小目标召回 +17%)。
+- 探活=远端 pidfile(`~/twin-detector/detector.pid`,serve 启动自写/退出自清);**不要用 pgrep -f 裸模式**(ssh/bash 包装进程自匹配假阳性)。
+- 结果回传走 `remote_control.py` 常驻反向隧道 `-R 127.0.0.1:18010:127.0.0.1:8010`(a4000:18010 → mac:8010):检测器 POST `http://127.0.0.1:18010/api/viewport-detections`。**渲染栈 stop 会拆隧道**(remote_control stop 语义),期间 POST 丢帧不致命,start 后自愈。
+- mac 8010 启动须带 env:`TWIN_VIEWPORT_DETECTOR_REMOTE=a4000 nohup .venv/bin/colav-sim serve --port 8010 …`(不带=回退本地 mac CPU 模式)。远程启动会先收口本地残留实例,防双推理双 POST。
+- 无观看者时 sender tap 不发帧(管线懒构建),检测器空转 recv 超时循环属正常态;日志 `~/twin-detector/logs/detector.log`。
+- a4000 shell 有 http_proxy,curl 测 18010 须 `--noproxy "*"`。

@@ -37,7 +37,7 @@ namespace Sango.Tests
                 sender.sourceCamera = camera;
 
                 var type = TestReflection.FindAssemblyCSharpType("Sango.TwinStreamQuality");
-                System.Activator.CreateInstance(type, new object[] { sender });
+                System.Activator.CreateInstance(type, new object[] { sender, false });
 
                 Assert.That(hd.customRenderingSettings, Is.True);
                 Assert.That(hd.renderingPathCustomFrameSettingsOverrideMask.mask[(uint)FrameSettingsField.TransparentSSR], Is.True);
@@ -58,7 +58,7 @@ namespace Sango.Tests
                 var sender = go.AddComponent<VideoStreamSender>();
                 sender.sourceCamera = camera;
                 var type = TestReflection.FindAssemblyCSharpType("Sango.TwinStreamQuality");
-                var quality = System.Activator.CreateInstance(type, new object[] { sender });
+                var quality = System.Activator.CreateInstance(type, new object[] { sender, false });
                 Assert.That(sender.width, Is.EqualTo(1920));
                 Assert.That(sender.height, Is.EqualTo(1080));
                 Assert.That(sender.frameRate, Is.EqualTo(30));

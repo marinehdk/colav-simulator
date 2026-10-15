@@ -10,7 +10,7 @@ import {
   voCandidateColor,
   drawVelocityArrow,
   simplifiedMpcFanGeometry,
-} from './modules/situation-display.js?v=20261011-dt-sensor-overlay-v1';
+} from './modules/situation-display.js?v=20261015-dt-yolo-sd-v2';
 import {
   AIS_STATE_COLORS,
   AIS_STATE_LABELS,
@@ -190,7 +190,7 @@ deploymentView = createDeploymentView({
   // P2-S4 A：第三态 twin —— 中心视口换 live 像素流（复用 twin-view 的 URS/bridge 客户端），
   // attach mode=live 活动会话；无 ReplayClock（时钟权威=后端，契约 §2）；sidebar 不动。
   createTwin: async options => {
-    const { createDeploymentTwinViewport } = await import('./modules/deployment-twin.js?v=20261015-bridge-look3');
+    const { createDeploymentTwinViewport } = await import('./modules/deployment-twin.js?v=20261015-dt-yolo-dt-v2');
     const viewport = createDeploymentTwinViewport({
       ...options,
       host: document.getElementById('deploymentTwinHost'),
@@ -202,7 +202,6 @@ deploymentView = createDeploymentView({
       healthEl: document.getElementById('deploymentTwinHealth'), // spec #91 前置批 B: 流健康状态卡
       // P3-S2 (spec #90): sensor-mode button group + state-echo chip.
       sensorGroup: document.getElementById('deploymentTwinSensorGroup'),
-      sensorModeEl: document.getElementById('deploymentTwinSensorMode'),
       sessionId: () => currentRunId(),
       info: options.info,
       chart: situationDisplay,
@@ -807,6 +806,14 @@ document.querySelectorAll('[data-map-orientation]').forEach(btn => {
 document.querySelectorAll('[data-layer]').forEach(input => {
   input.addEventListener('change', () => {
     situationDisplay.setLayerVisible(input.dataset.layer, input.checked);
+    // dt-yolo:勾选"YOLO 检测"=拉起/停掉后端检测引擎(免会话,reset/新建零重接线;
+    // 引擎起来后 3-6s 内检测框随遥测键 viewport_detections 到达)。
+    if (input.dataset.layer === 'detections') {
+      fetch('/api/viewport-detection-engine', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled: input.checked })
+      }).catch(() => {});
+    }
     updateLegendVisibility();
     deploymentView.layers();
   });

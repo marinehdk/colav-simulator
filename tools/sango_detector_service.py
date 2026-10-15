@@ -22,6 +22,11 @@ P3-S2 (observations-v1.md, spec #90): optional HTTP forward branch. With
 ``--forward-url`` set, every result is ALSO posted to the backend observations
 endpoint (``POST /api/sessions/{id}/observations``, frozen schema §3) — the
 same payload shape, zero change to the ZMQ return path (default off).
+
+DT 视口分流(2026-10-15):``--viewport-forward-url`` 把每条结果(含空检测帧)
+另按 viewport-detections@1 契约 POST 到后端
+``POST /api/sessions/{id}/viewport-detections``,随遥测 WS 广播绿框;与
+--forward-url 互不干扰可同开,同样零改 :5557 既有 PUB 契约(默认关)。
 """
 
 from __future__ import annotations
@@ -29,6 +34,7 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import os
 import signal
 import sys
 import time
@@ -51,6 +57,11 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--model", default=str(REPO_ROOT / "models" / "yolov8n.pt"),
                    help="YOLO weights (default models/yolov8n.pt, auto-downloaded on first run)")
     p.add_argument("--conf", type=float, default=0.25, help="confidence threshold (default 0.25)")
+    p.add_argument("--imgsz", type=int, default=640,
+                   help="inference input size (default 640; raise to 1280 for distant small hulls, CPU cost ~3-4x)")
+    p.add_argument("--slice-size", type=int, default=0,
+                   help="SAHI sliced inference tile size (default 0=off; 640 = 720p→3x2 tiles, "
+                        "small-target recall per SAHI paper ~+17%%; needs `pip install sahi`")
     p.add_argument("--endpoint", default="tcp://127.0.0.1:5556",
                    help="frame source to SUB connect (FramePublisher PUB bind address)")
     p.add_argument("--out", default="tcp://127.0.0.1:5557",
@@ -60,6 +71,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--source", default="yolo-detector", help="DetectionResult.source identifier")
     p.add_argument("--device", default=None, help="ultralytics device (default: CPU)")
     p.add_argument("--log-every", type=int, default=10, help="log every N processed frames (first frame always logs)")
+    p.add_argument("--pidfile", default="", help="serve mode writes its pid here on start (engine liveness probe)")
     p.add_argument("--selftest", action="store_true",
                    help="run inference on one synthetic frame (no sockets) and exit; verifies deps + weights")
     # P3-S2 observations forward branch (observations-v1.md §1/§3; default off — ZMQ path unchanged).
@@ -70,6 +82,10 @@ def parse_args() -> argparse.Namespace:
                    help="mount_id stamped on forwarded observations (mast camera table vocabulary)")
     p.add_argument("--forward-timeout", type=float, default=2.0,
                    help="per-POST timeout in seconds (failures are logged, never fatal)")
+    # DT 视口分流转发分支(viewport-detections@1;默认关,:5557 ZMQ 返回路径不变)。
+    p.add_argument("--viewport-forward-url", default="",
+                   help="POST each result to this viewport-detections endpoint "
+                        "(e.g. http://127.0.0.1:8010/api/sessions/<id>/viewport-detections); empty = off")
     p.add_argument("--dump-frame", default="",
                    help="save the first received frame as a JPEG at this path (feed-view evidence; off by default)")
     return p.parse_args()
@@ -99,10 +115,11 @@ def synthetic_frame(width: int = 640, height: int = 480):
 
 
 def run_inference(model: YOLO, image, conf: float, class_ids: list[int] | None,
-                  device: str | None) -> tuple[list[dict], float]:
+                  device: str | None, imgsz: int = 640) -> tuple[list[dict], float]:
     """单帧推理 → DetectionResult.detections 形状的 list + 推理耗时 ms（原图像素坐标系）。"""
     t0 = time.perf_counter()
-    results = model.predict(image, conf=conf, classes=class_ids or None, device=device, verbose=False)
+    results = model.predict(image, conf=conf, classes=class_ids or None, device=device,
+                            imgsz=imgsz, verbose=False)
     infer_ms = (time.perf_counter() - t0) * 1000.0
     result = results[0]
     names = result.names
@@ -114,6 +131,33 @@ def run_inference(model: YOLO, image, conf: float, class_ids: list[int] | None,
             "class_id": class_id,
             "class_name": names.get(class_id, str(class_id)),
             "confidence": round(float(cf), 4),
+        })
+    return detections, infer_ms
+
+
+def run_sliced_inference(sahi_model, image) -> tuple[list[dict], float]:
+    """SAHI 切片推理（--slice-size 开启）：720p 切 tile+重叠 → 逐片推理 → 跨片 NMS
+    合并，坐标回原图像素域。远距小目标召回 ~+17%（SAHI 原论文）。conf 沿用模型
+    构造时的 threshold（引擎链路不做 per-frame 覆盖）。"""
+    try:
+        from sahi import get_sliced_prediction  # sahi ≤0.11 顶层导出
+    except ImportError:  # sahi 0.12+ 挪到 sahi.predict
+        from sahi.predict import get_sliced_prediction
+    t0 = time.perf_counter()
+    result = get_sliced_prediction(
+        image, sahi_model,
+        slice_height=sahi_model.slice_size, slice_width=sahi_model.slice_size,
+        overlap_height_ratio=0.2, overlap_width_ratio=0.2, verbose=0,
+    )
+    infer_ms = (time.perf_counter() - t0) * 1000.0
+    detections = []
+    for pred in result.object_prediction_list:
+        det_class = pred.category
+        detections.append({
+            "box_xyxy": [round(float(v), 2) for v in pred.bbox.to_xyxy()],
+            "class_id": int(det_class.id),
+            "class_name": str(det_class.name),
+            "confidence": round(float(pred.score.value), 4),
         })
     return detections, infer_ms
 
@@ -170,6 +214,22 @@ def observation_payload(meta: dict, detections: list[dict], source: str, mount_i
     }
 
 
+def viewport_payload(meta: dict, detections: list[dict]) -> dict:
+    """viewport-detections@1 request body(DT 视口分流帧;received_at 由服务器覆写).
+
+    width/height 取当帧 FrameMetadata(处理循环现场留存;不改 :5557 既有
+    DetectionResult PUB payload 契约),source 固定 "twin-viewport".
+    """
+    return {
+        "schema": "viewport_detections@1",
+        "pts_s": float(meta.get("frame_time_s", 0.0)),
+        "width": int(meta.get("width", 0)),
+        "height": int(meta.get("height", 0)),
+        "source": "twin-viewport",
+        "detections": detections,
+    }
+
+
 def forward_observation(url: str, payload: dict, timeout_s: float) -> tuple[bool, str]:
     """POST one ObservationFrame; returns (ok, detail). Never raises — the ZMQ
     return path and the inference loop must survive backend downtime (contract
@@ -181,13 +241,36 @@ def forward_observation(url: str, payload: dict, timeout_s: float) -> tuple[bool
         method="POST",
     )
     try:
-        with urllib.request.urlopen(request, timeout=timeout_s) as response:
+        # 目标恒为本机/隧道回环端点(8010/18010),不吃部署机 http_proxy 环境变量
+        # (a4000 shell 带代理时 urllib 默认走 proxy → 127.0.0.1 POST 超时)
+        direct_opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+        with direct_opener.open(request, timeout=timeout_s) as response:
             body = response.read().decode("utf-8", "replace")[:200]
             return bool(200 <= response.status < 300), f"HTTP {response.status} {body}"
     except urllib.error.HTTPError as error:
         return False, f"HTTP {error.code} {error.read().decode('utf-8', 'replace')[:200]}"
     except Exception as error:  # noqa: BLE001 - any transport failure drops one frame only
         return False, f"{type(error).__name__}: {error}"
+
+
+def forward_branch(args: argparse.Namespace, url: str, payload: dict, rx: int, stats: list[int],
+                   label: str) -> None:
+    """One HTTP forward branch step shared by the observations/viewport branches.
+
+    ``stats`` = [forwarded, errors], mutated in place; the first error and every
+    ``--log-every``-th frame log a line. Transport failures drop one frame only
+    (never fatal) — see forward_observation.
+    """
+    try:
+        ok, detail = forward_observation(url, payload, args.forward_timeout)
+    except Exception as error:  # noqa: BLE001 - one frame dropped
+        ok, detail = False, f"{type(error).__name__}: {error}"
+    if ok:
+        stats[0] += 1
+    else:
+        stats[1] += 1
+    if (stats[1] == 1 and not ok) or rx % args.log_every == 0:
+        print(f"[detector] {label}: ok={stats[0]} err={stats[1]} last={detail}")
 
 
 def decode_frame(parts: list[bytes], topic: str):
@@ -244,7 +327,18 @@ def _sigterm_to_interrupt(signum, frame):
 def serve(args: argparse.Namespace) -> int:
     signal.signal(signal.SIGTERM, _sigterm_to_interrupt)
 
+    if args.pidfile:
+        Path(args.pidfile).write_text(f"{os.getpid()}\n")  # 引擎探活(engine 端点远程模式)
+
     model = load_model(args)
+    sahi_model = None
+    if args.slice_size:
+        from sahi import AutoDetectionModel  # GPU 部署件:SAHI 切片小目标召回
+        sahi_model = AutoDetectionModel.from_pretrained(
+            model_type="yolov8", model_path=args.model,
+            confidence_threshold=args.conf, device=args.device or "cpu",
+        )
+        sahi_model.slice_size = args.slice_size
 
     ctx = zmq.Context.instance()
     sub = ctx.socket(zmq.SUB)
@@ -256,13 +350,19 @@ def serve(args: argparse.Namespace) -> int:
     pub.setsockopt(zmq.SNDHWM, 30)  # 与 Unity 发布端对称：消费端掉线不积压
     pub.bind(args.out)
     print(f"[detector] SUB connected {args.endpoint} (topic {args.topic}) -> PUB bound {args.out} (topic {args.out_topic})")
-    print(f"[detector] conf={args.conf} boat_class_id={COCO_BOAT_CLASS_ID} source={args.source} device={args.device or 'cpu'}")
+    print(f"[detector] conf={args.conf} imgsz={args.imgsz} slice={args.slice_size or 'off'} boat_class_id={COCO_BOAT_CLASS_ID} source={args.source} device={args.device or 'cpu'}")
     if args.forward_url:
         print(f"[detector] forward branch ON -> {args.forward_url} (mount {args.forward_mount}, timeout {args.forward_timeout}s)")
     else:
         print("[detector] forward branch off (default; ZMQ return path only)")
+    if args.viewport_forward_url:
+        print(f"[detector] viewport-forward branch ON -> {args.viewport_forward_url} (timeout {args.forward_timeout}s)")
+    else:
+        print("[detector] viewport-forward branch off (default)")
 
-    rx = tx = forwarded = forward_errors = 0
+    rx = tx = 0
+    forward_stats = [0, 0]  # observations branch [forwarded, errors]
+    viewport_stats = [0, 0]  # DT 视口分流 branch [forwarded, errors]
     try:
         while True:
             try:
@@ -285,38 +385,39 @@ def serve(args: argparse.Namespace) -> int:
             if args.dump_frame and rx % 600 == 0:  # first frame + every ~60 s (10 fps budget) — last dump = latest view
                 cv2.imwrite(args.dump_frame, image)
                 print(f"[detector] feed frame dumped -> {args.dump_frame} (mount {meta.get('mount_id', '')} seq {meta.get('frame_seq')})")
-            detections, infer_ms = run_inference(model, image, confidence, [COCO_BOAT_CLASS_ID], args.device)
+            if sahi_model is not None:
+                # SAHI 无 classes 参数：boat-only 在输出侧过滤；conf 用构造阈值
+                detections, infer_ms = run_sliced_inference(sahi_model, image)
+                detections = [d for d in detections if d["class_id"] == COCO_BOAT_CLASS_ID]
+            else:
+                detections, infer_ms = run_inference(model, image, confidence, [COCO_BOAT_CLASS_ID], args.device, args.imgsz)
             pub.send_multipart([args.out_topic.encode("utf-8"),
                                 result_json(meta, detections, args.source).encode("utf-8")])
             rx += 1
             tx += 1
             if args.forward_url:
-                # P3-7: payload construction (mount table lookup) can raise on an
-                # unknown mount; like transport failures below, that drops one
-                # frame only — never the ZMQ return path or the serve loop.
-                try:
-                    ok, detail = forward_observation(
-                        args.forward_url,
-                        observation_payload(meta, detections, args.source, args.forward_mount),
-                        args.forward_timeout,
-                    )
-                except Exception as error:  # noqa: BLE001 - one frame dropped
-                    ok, detail = False, f"{type(error).__name__}: {error}"
-                if ok:
-                    forwarded += 1
-                else:
-                    forward_errors += 1
-                if (forward_errors == 1 and not ok) or rx % args.log_every == 0:
-                    print(f"[detector] forward: ok={forwarded} err={forward_errors} last={detail}")
+                # P3-S2 observations forward branch (default off; payload mount
+                # lookup can raise — forward_branch catches it, one frame dropped).
+                forward_branch(args, args.forward_url,
+                               observation_payload(meta, detections, args.source, args.forward_mount),
+                               rx, forward_stats, "forward")
+            if args.viewport_forward_url:
+                # DT 视口分流(默认关):含空检测帧逐条 POST,失败丢帧不致命。
+                forward_branch(args, args.viewport_forward_url, viewport_payload(meta, detections),
+                               rx, viewport_stats, "viewport-forward")
             if rx == 1 or rx % args.log_every == 0:
                 print(f"[detector] rx={rx} tx={tx} seq={meta.get('frame_seq')} "
                       f"infer={infer_ms:.1f}ms conf={confidence:.2f} detections={len(detections)}")
     except KeyboardInterrupt:
-        print(f"[detector] shutdown: rx={rx} tx={tx} forwarded={forwarded} forward_errors={forward_errors}")
+        print(f"[detector] shutdown: rx={rx} tx={tx} forwarded={forward_stats[0]} "
+              f"forward_errors={forward_stats[1]} viewport_forwarded={viewport_stats[0]} "
+              f"viewport_forward_errors={viewport_stats[1]}")
     finally:
         sub.close(0)
         pub.close(0)
         ctx.term()
+        if args.pidfile:
+            Path(args.pidfile).unlink(missing_ok=True)
     return 0
 
 

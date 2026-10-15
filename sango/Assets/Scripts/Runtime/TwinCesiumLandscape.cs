@@ -121,7 +121,7 @@ namespace Sango
                 var imagery = m_Terrain.gameObject.AddComponent<CesiumIonRasterOverlay>();
                 imagery.ionAssetID = 2;
                 imagery.ionAccessToken = token;
-                imagery.showCreditsOnScreen = true;
+                imagery.showCreditsOnScreen = false; // 20261015:积分不再上屏(用户裁决,见 Initialize)
                 imagery.maximumScreenSpaceError = 1.5f;
             m_Buildings = CreateTileset("Cesium OSM Buildings",96188,token,512L*1024*1024);
             m_Buildings.OnTileGameObjectCreated += go => m_ProjectionQueue.Enqueue(new KeyValuePair<GameObject,bool>(go, true));
@@ -133,7 +133,19 @@ namespace Sango
             m_Root.SetActive(true);
             ClipToNorwegianLand(); // Polygon OnEnable must precede the overlay's native creation.
             m_Credits = CesiumCreditSystem.GetDefaultCreditSystem();
-            CreateVideoCredits();
+            // 20261015 用户裁决:流内 provider 积分(Google/Cesium 标志)默认不显示——
+            // 直接跳过 CreateVideoCredits 不够:SDK 的屏幕 UIDocument 覆盖层会被
+            // ximagesrc 屏幕采集一并拍进流,须把该 UIDocument 关掉。--twin-cesium-credits
+            // 恢复旧的"渲染到相机画面"积分支路(合规需要时用)。
+            if (Array.IndexOf(Environment.GetCommandLineArgs(), "--twin-cesium-credits") >= 0)
+            {
+                CreateVideoCredits();
+            }
+            else
+            {
+                var creditDocument = m_Credits != null ? m_Credits.GetComponent<UIDocument>() : null;
+                if (creditDocument != null) creditDocument.enabled = false;
+            }
             Status = "loading";
         }
 

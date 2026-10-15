@@ -1,4 +1,4 @@
-import { TARGET_RISK_STYLES } from './situation-display.js?v=20261011-dt-sensor-overlay-v1';
+import { TARGET_RISK_STYLES } from './situation-display.js?v=20261015-dt-yolo-sd-v2';
 
 export const RADAR_FORWARD_HALF_ANGLE_RAD = Math.PI / 3;
 

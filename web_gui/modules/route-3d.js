@@ -1,4 +1,4 @@
-import { routeCorridorBoundaries, validRoute, waypointLabel } from './situation-display.js?v=20261011-dt-sensor-overlay-v1';
+import { routeCorridorBoundaries, validRoute, waypointLabel } from './situation-display.js?v=20261015-dt-yolo-sd-v2';
 
 export function routeRibbonQuads(route) {
   if (!validRoute(route) || !route[0].every(Number.isFinite) || !route[1].every(Number.isFinite)) return [];

@@ -1182,6 +1182,14 @@ namespace Sango
                 TwinSessionDriver.WakeEffectsEnabled = false;
                 Debug.Log("[Sango.TwinBridge] wake effects disabled via cli (--sango-twin-wake-off)");
             }
+            // --twin-target-visual <class|truth>：目标船视觉档位（默认 Medium 60m；
+            // truth 恢复按 truth.length 匹配）。20261015 检测链小目标观感裁决。
+            int visualIndex = Array.IndexOf(args, "--twin-target-visual");
+            if (visualIndex >= 0 && visualIndex + 1 < args.Length)
+            {
+                service.driver.targetVisualOverride = args[visualIndex + 1];
+                Debug.Log($"[Sango.TwinBridge] target visual class override = {args[visualIndex + 1]}");
+            }
             if (local)
             {
                 // 相机上屏保障（M5④）：gst 路由下 URS sender 禁用——永不 CreateTrack，相机持续

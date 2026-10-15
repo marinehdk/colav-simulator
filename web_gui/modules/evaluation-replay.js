@@ -9,7 +9,7 @@
  * only and never mutates an Active Session.
  */
 
-import { createSituationDisplay } from './situation-display.js?v=20261011-dt-sensor-overlay-v1';
+import { createSituationDisplay } from './situation-display.js?v=20261015-dt-yolo-sd-v2';
 import { createDeploymentView } from './deployment-view.js?v=20261004-token-cleanup-v1';
 import { createTelemetryProjection } from './telemetry-projection.js?v=20261004-token-cleanup-v1';
 import { projectReplayFrame, REPLAY_PRESENTATION_MODE } from './replay-source.js?v=20261004-token-cleanup-v1';

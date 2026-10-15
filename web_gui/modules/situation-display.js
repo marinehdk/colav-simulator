@@ -2062,9 +2062,10 @@ export function createSituationDisplay(options) {
     // P3-S4 (spec #90): the AIS layer is available when the transport
     // carries at least one backend AIS target object this frame.
     layerAvailability.aisTargets = targetsForAisLayer(data).length > 0;
-    // dt-sensor-overlay 契约 §6.5：YOLO 检测层在 transport 携带至少一条
-    // georef 检测（A 段 observations）时可用，对齐 aisTargets 的可用性模式。
-    layerAvailability.detections = Array.isArray(data?.observations) && data.observations.length > 0;
+    // dt-sensor-overlay 契约 §6.5 + dt-yolo 视口契约:YOLO 检测层按需可用——
+    // 勾选即拉起后端检测引擎(app.js → /api/viewport-detection-engine),不依赖
+    // 本帧已有数据,恒可用;无检测时叠加层自然为空(真实体现)。
+    layerAvailability.detections = true;
     emitLayerState();
   }
 

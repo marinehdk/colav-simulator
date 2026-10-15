@@ -327,10 +327,6 @@ export function createTwinBridgeClient({ channel = null, now = () => Date.now(),
       return send({ type: 'clock', playhead_s: playhead, rate, state });
     },
 
-    sendCameraTarget(runId, targetKey) {
-      return send({ type: 'camera_target', run_id: runId, target_key: targetKey });
-    },
-
     sendCamera(preset) {
       return send({ type: 'camera', preset });
     },

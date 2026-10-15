@@ -199,5 +199,23 @@ namespace Sango.Tests
             var catalog = Catalog();
             Assert.That(TwinShipFactory.Select(catalog, 10f), Is.Null, "空编目不脑补替身");
         }
+
+        // 20261015 目标船视觉档位：--twin-target-visual（默认 Medium 60m）按型直取。
+        [Test]
+        public void SelectByClass_ReturnsEntryOrNull()
+        {
+            var catalog = Catalog((VesselClass.Small, 12f), (VesselClass.Medium, 60f), (VesselClass.Fcb45, 45f));
+            Assert.That(TwinShipFactory.SelectByClass(catalog, VesselClass.Medium).loaMeters, Is.EqualTo(60f), "12m 渔船目标显示 60m 档");
+            Assert.That(TwinShipFactory.SelectByClass(catalog, VesselClass.Tanker), Is.Null, "编目无此型不脑补");
+            Assert.That(TwinShipFactory.SelectByClass(null, VesselClass.Medium), Is.Null);
+        }
+
+        [Test]
+        public void TargetVisualOverride_ParsesClassAndTruth()
+        {
+            Assert.That(TwinShipFactory.ParseVisualOverride("Fcb45", VesselClass.Medium), Is.EqualTo(VesselClass.Fcb45), "大小写不敏感枚举解析");
+            Assert.That(TwinShipFactory.ParseVisualOverride("TRUTH", VesselClass.Medium), Is.Null, "truth 恢复按真值匹配");
+            Assert.That(TwinShipFactory.ParseVisualOverride("nonsense", null), Is.Null, "非法值不动当前档位");
+        }
     }
 }

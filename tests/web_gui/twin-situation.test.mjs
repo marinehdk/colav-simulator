@@ -1,8 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { decodeFrameMarker, containedVideoRect, matchedSituationFrame, buildTwinPresentation, layoutTwinLabels,
-  pickTwinTarget, toggleYoloKey, latestDetectionForTrack } from '../../web_gui/modules/twin-situation.js?v=20261011-dt-sensor-overlay-v1';
-import { createTwinBridgeClient } from '../../web_gui/modules/twin-view.js?v=20261015-bridge-look';
+  pickTwinTarget, toggleYoloKey, latestDetectionForTrack, foldViewportDetections, viewportDetectionsFresh,
+  yoloViewportMode, viewportDetectionBoxes, associateViewportDetections, cycleViewportYoloStyle,
+  VIEWPORT_DETECTIONS_FRESH_S, VIEWPORT_ASSOCIATION_RADIUS } from '../../web_gui/modules/twin-situation.js?v=20261015-dt-yolo-ts-v4';
+import { createTwinBridgeClient } from '../../web_gui/modules/twin-view.js?v=20261015-dt-yolo-tv-v1';
 
 function marker(frame) {
   const value = frame & 65535, check = ((value >>> 8) ^ value ^ 0x5a) & 255;
@@ -181,8 +183,170 @@ test('dense ten-ship labels retain every anchor and separate all heads', () => {
   assert.deepEqual(items.map(i => i.x), Array.from({ length: 10 }, (_, i) => 500 + i));
 });
 
-test('target camera command preserves selected run and generation identity', () => {
+test('single-click tracking is removed: the bridge offers no camera_target sender', () => {
   const sent = [], client = createTwinBridgeClient({ channel: { isOpen: () => true, send: x => sent.push(JSON.parse(x)) } });
-  client.sendCameraTarget('run-a', 'run-a:8:3');
-  assert.deepEqual(sent[0], { type: 'camera_target', run_id: 'run-a', target_key: 'run-a:8:3' });
+  assert.equal(client.sendCameraTarget, undefined);
+  client.sendCamera('chase');   // 预设机位键保留（舰桥/追随/俯视）
+  assert.deepEqual(sent[0], { type: 'camera', preset: 'chase' });
+});
+
+/* ── dt-yolo 视口检测（遥测文档顶层 viewport_detections@1）─────────────────── */
+
+const vpDoc = {
+  schema: 'viewport_detections@1', pts_s: 123.456, width: 1280, height: 720, source: 'twin-viewport',
+  detections: [{ box_xyxy: [100, 100, 300, 260], class_id: 8, class_name: 'boat', confidence: 0.89 }],
+  received_at: 1760000000.123, age_s: 0.4,
+};
+test('viewport detections fold keeps the newest document and ignores out-of-order regressions', () => {
+  const first = foldViewportDetections(null, { viewport_detections: vpDoc }, 1000);
+  assert.equal(first.doc, vpDoc); assert.equal(first.at, 1000);
+  const newer = { ...vpDoc, received_at: 1760000001.5, detections: [] };
+  const second = foldViewportDetections(first, { viewport_detections: newer }, 1100);
+  assert.equal(second.doc, newer); assert.equal(second.at, 1100);
+  // 乱序旧文档（received_at 回退）不覆盖，本地接收时刻保持原值。
+  assert.equal(foldViewportDetections(second, { viewport_detections: vpDoc }, 1200), second);
+  // 键缺省（无数据/过期）= 状态原样保留。
+  assert.equal(foldViewportDetections(second, {}, 1300), second);
+  assert.equal(foldViewportDetections(null, {}, 0), null);
+  // detections 非数组的畸形文档不入状态。
+  assert.equal(foldViewportDetections(null, { viewport_detections: { ...vpDoc, detections: 'x' } }, 0), null);
+});
+test(`viewport detections freshness: age_s < ${VIEWPORT_DETECTIONS_FRESH_S} and a detections array (empty counts as active)`, () => {
+  const state = { doc: vpDoc, at: 5000 };
+  assert.equal(viewportDetectionsFresh(state, 5100), true);
+  assert.equal(viewportDetectionsFresh({ ...state, doc: { ...vpDoc, age_s: 1.2 } }, 5100), false, '边界含首不含尾');
+  assert.equal(viewportDetectionsFresh({ ...state, doc: { ...vpDoc, detections: [] } }, 5100), true, '空数组 = YOLO 活跃但无目标');
+  assert.equal(viewportDetectionsFresh({ ...state, doc: { ...vpDoc, age_s: -1 } }, 5100), false);
+  // age_s 缺失（旧后端）回退本地接收时刻差。
+  assert.equal(viewportDetectionsFresh({ doc: { ...vpDoc, age_s: undefined }, at: 5000 }, 5000 + 1199), true);
+  assert.equal(viewportDetectionsFresh({ doc: { ...vpDoc, age_s: undefined }, at: 5000 }, 5000 + 1201), false);
+  assert.equal(viewportDetectionsFresh(null, 0), false);
+});
+test('yolo viewport mode needs the layer checked AND fresh data', () => {
+  const state = { doc: vpDoc, at: 0 };
+  assert.equal(yoloViewportMode({ detections: { visible: true } }, state, 100), true);
+  assert.equal(yoloViewportMode({ detections: { visible: false } }, state, 100), false);
+  assert.equal(yoloViewportMode({}, state, 100), false);
+  assert.equal(yoloViewportMode({ detections: { visible: true } }, null, 100), false);
+});
+test('box_xyxy pixel domain maps onto the contained rect with normalized centers', () => {
+  const doc = { width: 1280, height: 720, detections: [
+    { box_xyxy: [640, 360, 896, 540], class_name: 'boat', confidence: 0.89 },
+    { box_xyxy: [0, 0, 1280, 720], class_name: 'ship', confidence: 0.5 },
+    { box_xyxy: ['x'], class_name: 'bad' },
+  ] };
+  const boxes = viewportDetectionBoxes(doc, 1600, 900);
+  assert.equal(boxes.length, 2);
+  assert.deepEqual(boxes[0], { index: 0, left: 800, top: 450, width: 320, height: 225,
+    cx: 0.6, cy: 0.625, className: 'boat', confidence: 0.89 });
+  assert.equal(boxes[1].width, 1600); assert.equal(boxes[1].confidence, 0.5);
+  assert.deepEqual(viewportDetectionBoxes(null, 100, 100), []);
+  assert.deepEqual(viewportDetectionBoxes({ width: 0, height: 0, detections: [] }, 100, 100), []);
+});
+test(`detection→track association takes the nearest target within the ${VIEWPORT_ASSOCIATION_RADIUS} radius`, () => {
+  const targets = [
+    { key: 'a:1:4', x: 0.30, y: 0.30 },
+    { key: 'a:2:4', x: 0.50, y: 0.50 },
+  ];
+  const keys = associateViewportDetections([{ cx: 0.31, cy: 0.31 }, { cx: 0.55, cy: 0.5 }, { cx: 0.9, cy: 0.9 }], targets);
+  assert.deepEqual(keys, ['a:1:4', 'a:2:4', null]);
+  assert.deepEqual(associateViewportDetections([], targets), []);
+  // 半径边界含首不含尾；缺 key / 非有限坐标的 target 不参与。
+  assert.deepEqual(associateViewportDetections([{ cx: 0.30, cy: 0.30 + VIEWPORT_ASSOCIATION_RADIUS }], targets), [null]);
+  assert.deepEqual(associateViewportDetections([{ cx: 0.31, cy: 0.31 }], [{ x: 0.31, y: 0.31 }, { key: 'a:1:4', x: NaN, y: 0.3 }]), [null]);
+});
+test('single click cycles the three global viewport styles and wraps', () => {
+  assert.equal(cycleViewportYoloStyle(0), 1);
+  assert.equal(cycleViewportYoloStyle(1), 2);
+  assert.equal(cycleViewportYoloStyle(2), 0);
+  assert.equal(cycleViewportYoloStyle(undefined), 1);   // 非法态按 0 处理
+});
+
+// dt-yolo 收编轮:HUD 后缀——勾选+新鲜=ON(在算,空集=没检测到);勾选+不新鲜=OFF(没在算);未勾=无。
+test('viewportYoloHudSuffix covers compute/no-compute/off states', async () => {
+  const { viewportYoloHudSuffix, foldViewportDetections } = await import('../../web_gui/modules/twin-situation.js?v=20261015-dt-yolo-ts-v4');
+  const checked = { detections: { visible: true } };
+  const unchecked = { detections: { visible: false } };
+  const doc = { detections: [], received_at: 100, age_s: 0.1 };
+  const state = foldViewportDetections(null, { viewport_detections: doc }, 0);
+  assert.equal(viewportYoloHudSuffix(checked, state, 0), '· YOLO ON');
+  assert.equal(viewportYoloHudSuffix(unchecked, state, 0), '');
+  const stale = foldViewportDetections(null, { viewport_detections: { ...doc, age_s: 1.9 } }, 0);
+  assert.equal(viewportYoloHudSuffix(checked, stale, 0), '· YOLO OFF');
+  assert.equal(viewportYoloHudSuffix(checked, null, 0), '· YOLO OFF');
+});
+
+// dt-yolo 第4轮:本船框抑制——camera_pose 正向投影本船点,圈内框剔除。
+test('projectViewportPoint maps chase camera onto own ship at frame center', async () => {
+  const { projectViewportPoint } = await import('../../web_gui/modules/twin-situation.js?v=20261015-dt-yolo-ts-v4');
+  // 相机在船正后方 130m、高 60m、正北俯视(-25°) → 本船投影应落在画面中央带
+  const chase = { east: 0, north: -130, height_m: 60, yaw_deg: 0, pitch_deg: -25, fov_deg: 60 };
+  const point = projectViewportPoint(chase, 0, 0, 0);
+  assert.ok(point, 'own ship in front of camera projects');
+  assert.ok(Math.abs(point.x - 0.5) < 0.02 && point.y > 0.45 && point.y < 0.62,
+    `centered: got x=${point.x?.toFixed(3)} y=${point.y?.toFixed(3)}`);
+  // 偏航 90°(向东看) → 正北的船应落在画面左侧之外
+  const east = { ...chase, yaw_deg: 90 };
+  assert.equal(projectViewportPoint(east, 0, 0, 0), null, 'off-axis own ship out of viewport');
+  // 桥视角:相机在本船桥位,船体中心在身后 → 无投影点(桥视角不抑制)
+  const bridge = { east: 0, north: 10, height_m: 12, yaw_deg: 0, pitch_deg: -8, fov_deg: 60 };
+  assert.equal(projectViewportPoint(bridge, 0, 0, 0), null, 'own hull behind bridge camera');
+  assert.equal(projectViewportPoint(null, 0, 0, 0), null, 'missing pose is inert');
+});
+
+test('ownShipViewportGuard + suppressOwnShipBoxes drop own hull, keep distant contacts', async () => {
+  const { ownShipViewportGuard, suppressOwnShipBoxes } = await import('../../web_gui/modules/twin-situation.js?v=20261015-dt-yolo-ts-v4');
+  const chase = { east: 0, north: -130, height_m: 60, yaw_deg: 0, pitch_deg: -25, fov_deg: 60 };
+  const guard = ownShipViewportGuard(chase, { east: 0, north: 0, psi: 0, length: 45 });
+  assert.ok(guard && guard.circles.length === 1 && guard.circles[0].radius > 0.04, '追随=单圆圈');
+  assert.equal(guard.floorY, null, '追随不启用底半平面');
+  const circle = guard.circles[0];
+  const boxes = [
+    { index: 0, cx: circle.x, cy: circle.y, confidence: 0.9 },            // 本船自身
+    { index: 1, cx: circle.x + 0.05, cy: circle.y + 0.03, confidence: 0.8 }, // 本船船楼框(框心偏移)
+    { index: 2, cx: 0.2, cy: 0.3, confidence: 0.4 },                    // 远处目标船
+  ];
+  const kept = suppressOwnShipBoxes(boxes, guard);
+  assert.deepEqual(kept.map(box => box.index), [2], 'own hull boxes suppressed, distant contact kept');
+  assert.deepEqual(suppressOwnShipBoxes(boxes, null).map(box => box.index), [0, 1, 2],
+    'no guard (behind) = no suppression');
+});
+
+// 20261015 验收轮:舰桥眼位——船中在相机身后投影不出,艏点投影产出底半平面,
+// 艏甲板误检框(画面底带)剔除,水平线附近目标船保留。
+test('bridge eye guard: bow-point floor suppresses deck boxes, keeps horizon contacts', async () => {
+  const { ownShipViewportGuard, suppressOwnShipBoxes } = await import('../../web_gui/modules/twin-situation.js?v=20261015-dt-yolo-ts-v4');
+  // 舰桥眼位:相机在本船中后部上方 12m,朝北俯 8°;船 45m(艏在相机前方 ~30m)
+  const bridge = { east: 0, north: -8, height_m: 12, yaw_deg: 0, pitch_deg: -8, fov_deg: 60 };
+  const own = { east: 0, north: 0, psi: 0, length: 45 };
+  const guard = ownShipViewportGuard(bridge, own);
+  assert.ok(guard, '艏点可投影 → guard 存在');
+  assert.equal(guard.circles.length, 0, '桥视角无圆圈(船中不可投影)');
+  assert.ok(guard.floorY > 0.5 && guard.floorY < 0.9, `艏点以下底半平面, got ${guard.floorY?.toFixed(3)}`);
+  const boxes = [
+    { index: 0, cx: 0.5, cy: 0.85, confidence: 0.92 },  // 本船艏甲板大框(画面底带)
+    { index: 1, cx: 0.35, cy: 0.4, confidence: 0.6 },   // 水平线附近目标船
+  ];
+  const kept = suppressOwnShipBoxes(boxes, guard);
+  assert.deepEqual(kept.map(box => box.index), [1], 'deck box suppressed, horizon contact kept');
+  // 瞭望明显抬头(仰 20°):艏点俯角 21° 超出画面下缘(30°-20°=10°)→投影出画,不抑制
+  const lookingUp = { ...bridge, pitch_deg: 20 };
+  assert.equal(ownShipViewportGuard(lookingUp, own), null, '仰视时甲板出画,不抑制');
+});
+
+// 20261015 验收轮:关联吸附——已关联 track 的检测框改用 track 实时投影包围盒
+// (消除检测链 ~0.5s 时延造成的滞后错位);未关联框保持检测原坐标。
+test('viewportBoxPlacement snaps associated boxes to live track projection', async () => {
+  const { viewportBoxPlacement } = await import('../../web_gui/modules/twin-situation.js?v=20261015-dt-yolo-ts-v4');
+  const box = { left: 100, top: 50, width: 40, height: 20 };
+  const track = { left: 0.3, top: 0.2, width: 0.05, height: 0.03, x: 0.325, y: 0.215 };
+  const snapped = viewportBoxPlacement(box, track, 1280, 720);
+  assert.equal(snapped.snapped, true, '有包围盒的 track 触发吸附');
+  assert.deepEqual([snapped.left, snapped.top, snapped.width, snapped.height],
+    [0.3 * 1280, 0.2 * 720, 0.05 * 1280, 0.03 * 720], '位置/尺寸=track 投影×rect');
+  const plain = viewportBoxPlacement(box, null, 1280, 720);
+  assert.equal(plain.snapped, false, '无关联=检测原坐标');
+  assert.equal(plain.left, 100, '未关联框保持检测坐标');
+  const degenerate = viewportBoxPlacement(box, { left: 0.1, top: 0.1, width: 0, height: 0 }, 1280, 720);
+  assert.equal(degenerate.snapped, false, '零尺寸 track(越界投影)不吸附');
 });

@@ -33,6 +33,11 @@ def remote(action: str) -> subprocess.CompletedProcess[str]:
         if CFG.get("player_window"):
             # M5:gst 档窗口固化(免每次 env 直连)。legacy 不透传——保 640×360 逐字节等价。
             env_prefix.append(f"TWIN_PLAYER_WINDOW={CFG['player_window']}")
+        if CFG.get("detect_tap"):
+            # DT 视口检测分流(默认关):remote-runtime.json 声明开关透传给 renderer_control。
+            env_prefix.append("TWIN_GST_DETECT_TAP=1")
+            if CFG.get("detect_rate"):
+                env_prefix.append(f"TWIN_GST_DETECT_RATE={CFG['detect_rate']}")
     cmd = env_prefix + cmd
     command = shlex.join(cmd)
     return call([*BASE, "-S", str(SOCKET), HOST, command])
@@ -49,6 +54,8 @@ def start():
                 "-R", "127.0.0.1:18010:127.0.0.1:8010",
                 "-L", "127.0.0.1:8080:127.0.0.1:8081",
                 "-L", "127.0.0.1:8081:127.0.0.1:8081",
+                # detect-tap frames for mac YOLO(mac 15556 → a4000 容器 host netns 5556)
+                "-L", "127.0.0.1:15556:127.0.0.1:5556",
             ]
         else:
             forwards = [

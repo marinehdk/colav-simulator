@@ -173,6 +173,11 @@ class Sender:
         self._mapped_rtp_timestamp = None
         self.mapped_frames = 0
         self.profile_applied = None
+        # 检测分流(--detect-tap,默认关):appsink + 独立发送线程(照 bridge 线程模式)
+        self.tap_sink = None
+        self._tap_stop = threading.Event()
+        self._tap_thread = None
+        self._tap_seq, self._tap_last_push = 0, 0.0
 
     def log(self, msg):
         print(f"[{monotonic() - self.t0:8.3f}] {msg}", flush=True)
@@ -349,7 +354,9 @@ class Sender:
     def _sync_branch_playing(self):
         if self.pipeline is None:
             return False
-        for name in ("vsrc", "cf_raw", "vconv", "cf_nv12", "enc", "parse", "pay", "cf_rtp"):
+        # 检测分流元素(tap_*)随编码支线同一拍 sync;未开 tap 时 get_by_name 返 None 跳过。
+        for name in ("vsrc", "cf_raw", "vconv", "cf_nv12", "enc", "parse", "pay", "cf_rtp",
+                     "tap_tee", "tap_queue", "tap_conv", "tap_scale", "tap_cf", "tap_jpeg", "tap_sink"):
             el = self.pipeline.get_by_name(name)
             if el is not None:
                 el.sync_state_with_parent()
@@ -439,13 +446,19 @@ class Sender:
         cf_rtp.set_property("caps", Gst.Caps.from_string(
             "application/x-rtp,media=video,encoding-name=H264,payload=%d,clock-rate=90000" % a.payload))
         els = [vsrc, cf_raw, vconv, cf_nv12, enc, parse, pay, cf_rtp]
+        chain = [
+            (vsrc, cf_raw), (cf_raw, vconv), (vconv, cf_nv12),
+            (cf_nv12, enc), (enc, parse), (parse, pay), (pay, cf_rtp),
+        ]
+        if a.detect_tap:
+            # 检测分流(默认关):cf_raw 之后插 tee,主路链路不变;支路独立成链。
+            tee = self._build_detect_tap()
+            chain[1] = (cf_raw, tee)
+            chain.insert(2, (tee, vconv))
         for el in els:
             self.pipeline.add(el)
         ok = True
-        for src, dst in [
-            (vsrc, cf_raw), (cf_raw, vconv), (vconv, cf_nv12),
-            (cf_nv12, enc), (enc, parse), (parse, pay), (pay, cf_rtp),
-        ]:
+        for src, dst in chain:
             ok = ok and src.link(dst)
         assert ok, "encode branch link failed"
         # 探针:PLI→GstForceKeyUnit(上行事件)、IDR(非 delta 帧)、SPS profile
@@ -478,6 +491,134 @@ class Sender:
             cf_rtp.get_static_pad("src").add_probe(Gst.PadProbeType.BUFFER, self._loss_probe)
             self.log(f"drop window armed: [{self._drop_at}s, {self._drop_until}s) of wallclock")
         return cf_rtp
+
+    # ---------- 检测分流(--detect-tap,默认关) ----------
+    def _build_detect_tap(self) -> Gst.Element:
+        """分流支路: tee → queue(leaky) → convert → scale → 1280x720 → jpegenc → appsink.
+
+        主路行为不变(tee 只转发 buffer 引用);支路 leaky queue 吸收背压,
+        jpegenc 慢时丢旧帧不拖主路。返回 tee 供主路串接(cf_raw→tee→vconv)。
+        """
+        a = self.args
+        tee = Gst.ElementFactory.make("tee", "tap_tee")
+        tap_queue = Gst.ElementFactory.make("queue", "tap_queue")
+        for key, value in [("leaky", 2), ("max-size-buffers", 2)]:  # downstream:满时丢最旧帧,保新鲜
+            tap_queue.set_property(key, value)
+        tap_conv = Gst.ElementFactory.make("videoconvert", "tap_conv")
+        tap_scale = Gst.ElementFactory.make("videoscale", "tap_scale")
+        tap_cf = Gst.ElementFactory.make("capsfilter", "tap_cf")
+        # 契约钉 1280x720 分流帧(frame-publisher-v1 三段式 metadata 同源取自 caps)
+        tap_cf.set_property("caps", Gst.Caps.from_string("video/x-raw,width=1280,height=720"))
+        tap_jpeg = Gst.ElementFactory.make("jpegenc", "tap_jpeg")
+        tap_jpeg.set_property("quality", 60)
+        tap_sink = Gst.ElementFactory.make("appsink", "tap_sink")
+        for key, value in [("max-buffers", 1), ("drop", True), ("sync", False)]:
+            tap_sink.set_property(key, value)
+        els = (tee, tap_queue, tap_conv, tap_scale, tap_cf, tap_jpeg, tap_sink)
+        for el in els:
+            self.pipeline.add(el)
+        ok = True
+        for src, dst in [
+            (tee, tap_queue), (tap_queue, tap_conv), (tap_conv, tap_scale),
+            (tap_scale, tap_cf), (tap_cf, tap_jpeg), (tap_jpeg, tap_sink),
+        ]:
+            ok = ok and src.link(dst)
+        assert ok, "detect tap branch link failed"
+        self._start_detect_tap(tap_sink)
+        self.log(f"detect tap armed: 1280x720 @<={a.detect_rate}Hz -> {a.detect_endpoint}")
+        return tee
+
+    def _start_detect_tap(self, tap_sink: Gst.Element) -> None:
+        """分流发送线程(daemon,stop-Event 模式照 start_bridge;上一 epoch 残留兜底)."""
+        self.stop_detect_tap()
+        self.tap_sink = tap_sink
+        stop = self._tap_stop = threading.Event()
+        self._tap_thread = threading.Thread(
+            target=self._detect_tap_loop, args=(stop,), daemon=True, name="detect-tap")
+        self._tap_thread.start()
+
+    def _detect_tap_loop(self, stop: threading.Event) -> None:
+        """Appsink → 节流(--detect-rate)→ ZMQ PUB(frame-publisher-v1 三段式).
+
+        pyzmq import 留在本分支:容器未装时不影响默认路径。ZMQ 发送异常只 log
+        不崩(丢帧继续);终止只认 stop-Event(teardown 先 pipeline→NULL 再 set)。
+        pull 必须用 try-pull-sample 超时轮询:阻塞版 pull-sample 在分支尚处
+        READY(等 answer#2 transport)时立即返 None,线程会在 PLAYING 前夭折。
+        """
+        a = self.args
+        try:
+            import zmq  # noqa: PLC0415 — 仅 flag-on 分支需要
+        except ImportError as e:
+            self.log(f"detect tap disabled: pyzmq unavailable ({e})")
+            return
+        ctx = zmq.Context()
+        pub = ctx.socket(zmq.PUB)
+        pub.setsockopt(zmq.SNDHWM, 30)  # 订阅端掉线不积压(frame-publisher-v1 §1 同款)
+        try:
+            pub.bind(a.detect_endpoint)
+        except zmq.ZMQError as e:
+            self.log(f"detect tap PUB bind {a.detect_endpoint} failed: {e}")
+            pub.close(0)
+            ctx.term()
+            return
+        self.log(f"detect tap PUB bound {a.detect_endpoint} (topic sango.frame)")
+        interval = 1.0 / max(a.detect_rate, 0.1)
+        sent = send_errors = 0
+        try:
+            while not stop.is_set():
+                sink = self.tap_sink
+                if sink is None:
+                    break
+                sample = sink.emit("try-pull-sample", 100 * Gst.MSECOND)
+                if sample is None:
+                    continue  # 分支未 PLAYING/暂无帧:继续等,终止只认 stop-Event
+                if stop.is_set():
+                    break
+                now = monotonic()
+                if now - self._tap_last_push < interval:
+                    continue  # 超速率上限:丢帧(drop=True 已保证总能取到最新)
+                buf = sample.get_buffer()
+                caps = sample.get_caps()
+                if buf is None or caps is None:
+                    continue
+                shape = caps.get_structure(0)
+                okm, m = buf.map(Gst.MapFlags.READ)
+                if not okm:
+                    continue
+                jpeg = m.data
+                if not isinstance(jpeg, bytes):
+                    jpeg = jpeg.tobytes()
+                buf.unmap(m)
+                pts_s = buf.pts / Gst.SECOND if buf.pts != Gst.CLOCK_TIME_NONE else monotonic() - self.t0
+                self._tap_seq += 1
+                meta = json.dumps({
+                    "frame_seq": self._tap_seq,
+                    "frame_time_s": pts_s,
+                    "width": int(shape.get_value("width")),
+                    "height": int(shape.get_value("height")),
+                    "jpeg_bytes": len(jpeg),
+                    "source": "twin-viewport",
+                }).encode("utf-8")
+                try:
+                    pub.send_multipart([b"sango.frame", meta, jpeg])
+                    sent += 1
+                    self._tap_last_push = now
+                except zmq.ZMQError as e:
+                    send_errors += 1
+                    if send_errors <= 3 or send_errors % 100 == 0:
+                        self.log(f"detect tap send error #{send_errors}: {e}")
+        finally:
+            self.log(f"detect tap shutdown: sent={sent} send_errors={send_errors}")
+            pub.close(0)
+            ctx.term()
+
+    def stop_detect_tap(self):
+        self._tap_stop.set()
+        thread = self._tap_thread
+        self._tap_thread = None
+        self.tap_sink = None
+        if thread is not None and thread.is_alive():
+            thread.join(timeout=2.0)  # pipeline →NULL 后 pull-sample 即返,超时兜底(daemon)
 
     @staticmethod
     def _running_time(pad, buffer):
@@ -881,6 +1022,7 @@ class Sender:
         if self.pipeline is not None:
             self.log("teardown: pipeline -> NULL")
             self.pipeline.set_state(Gst.State.NULL)
+        self.stop_detect_tap()  # pipeline NULL 后 pull-sample 返 None,线程即退
         self.pipeline = None
         self.webrtc = None
         self.peer_id = None
@@ -959,6 +1101,13 @@ def main():
     ap.add_argument("--duration-s", type=int, default=0)
     ap.add_argument("--bridge-port", type=int, default=18020,
                     help="M5 twin-bridge 转发目标:Unity TwinBridgeLocalChannel 回环端口")
+    # 检测分流(默认关,零行为差):cf_raw 后 tee 分支 1280x720 JPEG → ZMQ PUB。
+    ap.add_argument("--detect-tap", action="store_true",
+                    help="检测分流:tee 支路 1280x720 JPEG 按 frame-publisher-v1 三段式 PUB 到 --detect-endpoint")
+    ap.add_argument("--detect-rate", type=float, default=5.0,
+                    help="检测分流发送速率上限 Hz(默认 5)")
+    ap.add_argument("--detect-endpoint", default="tcp://127.0.0.1:5556",
+                    help="检测分流 ZMQ PUB bind 地址(默认 tcp://127.0.0.1:5556)")
     args = ap.parse_args()
     os.makedirs(args.log_dir, exist_ok=True)
 

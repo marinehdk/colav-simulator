@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-import { createDeploymentTwinViewport, projectTwinLandscape } from '../../web_gui/modules/deployment-twin.js?v=20261015-bridge-look3';
+import { createDeploymentTwinViewport, projectTwinLandscape } from '../../web_gui/modules/deployment-twin.js?v=20261015-dt-yolo-dt-v2';
 
 const html = await readFile(new URL('../../web_gui/index.html', import.meta.url), 'utf8');
 const styles = await readFile(new URL('../../web_gui/style.css', import.meta.url), 'utf8');
@@ -140,7 +140,6 @@ function viewportHarness({
   ready = true,
   attached = null,
   sensorGroup = null,
-  sensorModeEl = null,
   runtimeResponse = { ok: true, status: 200, json: async () => ({ state: 'RUNNING' }) },
   video = { srcObject: null },
   stats = null,
@@ -165,7 +164,6 @@ function viewportHarness({
     statusEl,
     errorEl,
     sensorGroup,
-    sensorModeEl,
     sessionId,
     backendBase: 'http://127.0.0.1:8010',
     info,
@@ -183,7 +181,7 @@ function viewportHarness({
   });
   return {
     viewport, client, factory, scheduler, linkToggle, linkPane, statusEl, errorEl,
-    linkScenes, moved: raw => linkCameraMoved?.(raw), sensorGroup, sensorModeEl, runtimeCalls,
+    linkScenes, moved: raw => linkCameraMoved?.(raw), sensorGroup, runtimeCalls,
   };
 }
 
@@ -370,17 +368,16 @@ test('deployment twin shell exposes the sensor-mode button group with the frozen
   for (const mode of ['eo', 'ir', 'lidar']) {
     assert.match(group, new RegExp(`data-twin-sensor="${mode}"`), `${mode} button present`);
   }
-  assert.match(html, /id="deploymentTwinSensorMode"[^>]*>SENSOR EO</, 'state-echo chip defaults to EO');
+  // dt-yolo 收编轮:左下"SENSOR EO"角标移除(右上 EO/IR/LD 按钮已表意)。
+  assert.doesNotMatch(html, /deploymentTwinSensorMode/);
+  assert.doesNotMatch(app, /sensorModeEl/);
   assert.match(styles, /\.deployment-twin-sensor-group \{ position: absolute;/, 'group pinned over the video');
-  assert.match(styles, /\.deployment-twin-sensor-mode \{ position: absolute;/, 'chip pinned over the video');
   assert.match(app, /sensorGroup: document\.getElementById\('deploymentTwinSensorGroup'\)/);
-  assert.match(app, /sensorModeEl: document\.getElementById\('deploymentTwinSensorMode'\)/);
 });
 
 test('sensor-mode click sends the contract literal; §5 realignment rides the attach', async () => {
   const group = fakeSensorGroup({ initialActive: 'eo' });
-  const chip = { textContent: '' };
-  const h = viewportHarness({ sensorGroup: group, sensorModeEl: chip });
+  const h = viewportHarness({ sensorGroup: group });
   await h.viewport.attach();
   h.scheduler.run(); // attach-when-ready poll
   const modes = h.client.sent.filter(message => message.type === 'sensor_mode');
@@ -396,22 +393,20 @@ test('sensor-mode click sends the contract literal; §5 realignment rides the at
   h.viewport.destroy();
 });
 
-test('state echo is the authority: chip text and buttons mirror sensor_mode, lidar is a real mode in S3', async () => {
+test('state echo is the authority: buttons mirror sensor_mode, lidar is a real mode in S3', async () => {
   const group = fakeSensorGroup();
-  const chip = { textContent: '' };
-  const h = viewportHarness({ sensorGroup: group, sensorModeEl: chip });
+  const h = viewportHarness({ sensorGroup: group });
   await h.viewport.attach();
   h.client.lastState = { _receivedAt: Date.now(), stream: { state: 'ok', latency_ms: 0 }, fps: 60, sensor_mode: 'lidar' };
   h.scheduler.run(); // HUD tick
-  assert.equal(chip.textContent, 'SENSOR LiDAR', 'S3 起 lidar = 真实现（点云视角），S2 pending 徽标移除');
-  assert.equal(group.of('lidar').activeState, true);
+  assert.equal(group.of('lidar').activeState, true, 'S3 起 lidar = 真实现（点云视角）');
   assert.equal(group.of('eo').activeState, false);
   h.client.lastState = { _receivedAt: Date.now(), stream: { state: 'ok', latency_ms: 0 }, sensor_mode: 'ir' };
   h.scheduler.run();
-  assert.equal(chip.textContent, 'SENSOR IR', 'ir echo = plain IR chip');
+  assert.equal(group.of('ir').activeState, true);
   h.client.lastState = { _receivedAt: Date.now(), stream: { state: 'ok', latency_ms: 0 } };
   h.scheduler.run();
-  assert.equal(chip.textContent, 'SENSOR EO', 'old Unity build (no field) falls back to the contract default');
+  assert.equal(group.of('eo').activeState, true, 'old Unity build (no field) falls back to the contract default');
 });
 
 test('viewport changes select capture profiles, and sustained decode pressure stays above 1080p', async () => {
@@ -580,4 +575,33 @@ test('terrain warmup shows progress, failures remain explicit and local terrain 
   assert.equal(projectTwinLandscape({ ready: false, state: 'failed', progress: 90 }).level, 'failed');
   assert.equal(projectTwinLandscape({ ready: true, state: 'offline-terrain' }), null);
   assert.equal(projectTwinLandscape(null), null, 'older renderer remains compatible');
+});
+
+// dt-yolo:勾选"YOLO 检测"图层 = 拉起/停掉后端检测引擎(免会话,勾选即用)。
+test('detections layer checkbox drives the viewport detection engine endpoint', () => {
+  const wiring = app.match(/querySelectorAll\('\[data-layer\]'\)\.forEach\(input => \{[\s\S]*?deploymentView\.layers\(\);/);
+  assert.ok(wiring, 'layer checkbox handler block exists');
+  assert.match(wiring[0], /input\.dataset\.layer === 'detections'/);
+  assert.match(wiring[0], /viewport-detection-engine/);
+  assert.match(wiring[0], /enabled: input\.checked/);
+});
+
+// dt-yolo 第4轮:追随左键平移两处根因修复的源码断言。
+// ① 流 <video> 原生可拖拽,真实左键拖先触发 dragstart 抢走 pointermove(合成
+//   事件不触发=harness/CDP 复现不出)→ 禁拖+阻断;② 本船检测框体盖住画面中央
+//   吃掉左键起点 → 框体 pointer-events 穿透,仅标签可点;③ 右上角一行化布局。
+test('chase left-drag repairs: video drag guard + box pass-through + one-row top-right', async () => {
+  const { readFileSync } = await import('node:fs');
+  const twinSource = readFileSync(new URL('../../web_gui/modules/deployment-twin.js', import.meta.url), 'utf8');
+  assert.match(twinSource, /setAttribute\('draggable', 'false'\)/, 'video native drag disabled');
+  assert.match(twinSource, /addEventListener\?\.?\('dragstart', swallowDragStart\)/, 'dragstart swallowed with destroy cleanup');
+  const css = readFileSync(new URL('../../web_gui/style.css', import.meta.url), 'utf8');
+  const boxRule = css.match(/\.twin-vp-detection \{[^}]+\}/)?.[0] ?? '';
+  assert.match(boxRule, /pointer-events: none/, 'detection box body passes pointer through');
+  const tagRule = css.match(/\.twin-vp-detection-tag \{[^}]+\}/)?.[0] ?? '';
+  assert.match(tagRule, /pointer-events: auto/, 'tag stays clickable for style cycling');
+  const sensorRule = css.match(/\.deployment-twin-sensor-group \{[^}]+\}/)?.[0] ?? '';
+  assert.match(sensorRule, /top: 12px; right: 87px/, 'EO/IR/LD sits beside 联动 in one row');
+  const toolbarRule = css.match(/\.deployment-twin-host \.scene3d-toolbar \{[^}]+\}/)?.[0] ?? '';
+  assert.match(toolbarRule, /top: 12px; right: 191px/, 'view presets continue the row leftward');
 });

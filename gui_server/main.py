@@ -15,6 +15,8 @@ import math
 import os
 import re
 import shutil
+import signal
+import subprocess
 import threading
 import time
 from collections import OrderedDict, deque
@@ -27,8 +29,6 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
-
-from colav_simulator.environment_settings import normalize_settings
 import orjson
 import yaml
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
@@ -38,14 +38,15 @@ from pydantic import BaseModel, Field
 
 from colav_simulator.cli import _load_algorithm_config
 from colav_simulator.common import map_functions as mapf
-from colav_simulator.core.colav.diagnostics import ColavExecutionError, PlanStatus
 
 # P3-S2 observations endpoint (spec #90 whitelist: new routes + calibration
 # table + measurement hookup). ExternalCameraSensor is the session-scoped
 # measurement cache the accepted frames feed (sensor-model-v1 sensor_id 2|3).
 from colav_simulator.core.ais_display import AisReportClock, ais_target_state
+from colav_simulator.core.colav.diagnostics import ColavExecutionError, PlanStatus
 from colav_simulator.core.mast_cameras import MAST_MOUNTS_BY_ID, georeference_box
 from colav_simulator.core.sensing import ExternalCameraSensor
+from colav_simulator.core.tracking.trackers import sensor_channel_id
 from colav_simulator.decision_replay.sink import (
     REASON_GNC_BALANCE_CAPTURE_FAILED,
     REASON_THREAT_CAPTURE_FAILED,
@@ -56,6 +57,7 @@ from colav_simulator.decision_replay.sink import (
     TraceSinkPolicy,
     vo_decision_space_for_snapshot,
 )
+from colav_simulator.environment_settings import normalize_settings
 from colav_simulator.experiment.busy_water import (
     ACCEPTANCE_SCENARIO_ID,
     DEFAULT_SEED,
@@ -79,12 +81,11 @@ from colav_simulator.schemas.sensor_model_v1 import (
     ConfirmedTrackList,
     TrackSourceContribution,
 )
-from colav_simulator.core.tracking.trackers import sensor_channel_id
+from colav_simulator.schemas.viewport_detections_v1 import ViewportDetectionsFrame
 from gui_server import canonical_threat as _canonical_threat
 from gui_server.gnc_balance import balance_telemetry
-from gui_server.radar_transport import LIVE_CHECKPOINTS, project_scans
-from gui_server.twin_runtime import TwinRuntime, TwinRuntimeError
 from gui_server.historical_api import router as historical_api_router
+from gui_server.radar_transport import LIVE_CHECKPOINTS, project_scans
 from gui_server.replay import (
     RunReplayStore,
     build_replay_router,
@@ -100,6 +101,7 @@ from gui_server.replay_artifacts import (
     persist_static_context,
     render_enc,
 )
+from gui_server.twin_runtime import TwinRuntime, TwinRuntimeError
 
 log = logging.getLogger("gui_server")
 logging.basicConfig(level=logging.INFO)
@@ -113,6 +115,19 @@ TELEMETRY_PUBLISH_INTERVAL_S = 0.1
 TELEMETRY_TRAIL_HISTORY_SECONDS = 300.0
 TELEMETRY_MAX_TRAIL_POINTS = 120
 TELEMETRY_EVIDENCE_RECENT_EVENTS = 32
+# DT 视口 YOLO 检测分流:telemetry 顶层键 viewport_detections 的过期上界(秒)。
+# received_at 距广播构建时刻超过该值即不再注入(键整体缺省)。
+VIEWPORT_DETECTION_MAX_AGE_S = 2.0
+# DT 视口 YOLO 检测引擎:勾选"YOLO 检测"图层即拉起/停掉检测器进程(detached,
+# 后端重启不连坐;pidfile 与 deploy/twin/detectctl 共管)。检测器免会话——
+# POST /api/viewport-detections 由后端路由进当前活动会话,会话换新零重接线。
+VIEWPORT_DETECTOR_PY = BASE_DIR / ".venv-detector" / "bin" / "python"
+VIEWPORT_DETECTOR_SCRIPT = BASE_DIR / "tools" / "sango_detector_service.py"
+VIEWPORT_DETECTOR_PIDFILE = BASE_DIR / "deploy" / "twin" / "logs" / "detector.pid"
+VIEWPORT_DETECTOR_LOG = BASE_DIR / "deploy" / "twin" / "logs" / "detector.log"
+VIEWPORT_DETECTOR_FORWARD_URL = os.environ.get(
+    "VIEWPORT_ENGINE_FORWARD_URL", "http://127.0.0.1:8010/api/viewport-detections"
+)
 VO_DECISION_HISTORY_LIMIT = 64
 
 REPLAY_STATE_UNAVAILABLE = "UNAVAILABLE"
@@ -658,6 +673,9 @@ class WebSessionManager:
         # (under self.lock) and the telemetry tick thread can share it safely.
         self._observation_display_cache: deque[dict[str, Any]] = deque(maxlen=512)
         self._observation_display_lock = threading.Lock()
+        # DT 视口 YOLO 检测分流:会话级最新一帧(display-only,遥测注入体;
+        # 只留最新——旧帧被新 POST 覆写,过期由 _viewport_detections_envelope 判)。
+        self._viewport_detection: dict[str, Any] | None = None
         self.lock = threading.RLock()
 
     @property
@@ -702,6 +720,7 @@ class WebSessionManager:
         self._observation_totals = {}
         with self._observation_display_lock:
             self._observation_display_cache.clear()
+        self._viewport_detection = None  # 新会话清空上一会话的检测分流帧(同上:reset 即清)
         self.previous_prediction_horizon = []
         self.current_prediction_horizon = []
         self.last_solve_id = None
@@ -1410,6 +1429,32 @@ class WebSessionManager:
             totals["detections"] += len(records)
             return {"accepted": True, "frame_seq": frame.frame_seq, "detections_accepted": len(records)}
 
+    def ingest_viewport_detections(self, session_id: str, frame: ViewportDetectionsFrame) -> dict[str, Any]:
+        """DT 视口 YOLO 检测分流:存会话级最新一帧供遥测注入(display-only).
+
+        Gates mirror ``ingest_observations`` **except** PAUSED is accepted:
+        sim 暂停时 Unity 画面与 tap 帧照发(渲染钟独立),检测框属显示层,
+        暂停看画面时绿框必须在——session must exist (404);CREATED/RUNNING/PAUSED
+        accept,其余 409 SESSION_NOT_ACCEPTING;schema violations are rejected
+        by the pydantic body model (422). Only the latest frame is kept — each
+        POST overwrites the envelope and stamps ``received_at`` (server wall
+        clock; a client value is never trusted).
+        """
+        with self.lock:
+            prepared = self._require(session_id)
+            if prepared.session.state not in (SessionState.CREATED, SessionState.RUNNING, SessionState.PAUSED):
+                raise SessionNotAcceptingError(prepared.session.state.value)
+            self._viewport_detection = {
+                "schema": "viewport_detections@1",
+                "pts_s": float(frame.pts_s),
+                "width": int(frame.width),
+                "height": int(frame.height),
+                "source": str(frame.source),
+                "detections": [detection.model_dump() for detection in frame.detections],
+                "received_at": time.time(),
+            }
+            return {"accepted": True, "detections": len(frame.detections)}
+
     def observation_status(self, session_id: str) -> dict[str, Any]:
         """Status/test hook for the E2E probe.
 
@@ -1939,6 +1984,11 @@ class WebSessionManager:
             # association). Key survives all stream transports; [] without camera
             # observations, so consumers never have to guess.
             "observations": self._display_observations(session, ships, origin_n, origin_e),
+            # DT 视口 YOLO 检测分流(viewport-detections@1):用户所见帧的最新像素域
+            # 检测框。无数据/过期(>2s,见 _viewport_detections_envelope)时键整体缺省;
+            # 顶层键存活于全部 transports(_compact_stream_payload 只裁 truth 内部键),
+            # web 消费端宽松读取。
+            **self._viewport_detections_envelope(),
             "radar_scans": jsonable(own_raw.get("radar_scans", [])),
             "ais_reports": jsonable(own_raw.get("ais_reports", [])),
         }
@@ -2057,6 +2107,20 @@ class WebSessionManager:
                 }
             )
         return observations
+
+    def _viewport_detections_envelope(self) -> dict[str, Any]:
+        """DT 视口检测的遥测注入体(spread 用):无数据或过期时返回 {}(键整体缺省).
+
+        age_s 按注入构建时刻的墙钟计算;_telemetry 在运行会话每个 tick 重建,
+        缓存窗口 ≤ 一个发布周期(0.1s),过期键随之消失.
+        """
+        frame = self._viewport_detection
+        if frame is None:
+            return {}
+        age_s = time.time() - float(frame["received_at"])
+        if age_s > VIEWPORT_DETECTION_MAX_AGE_S:
+            return {}
+        return {"viewport_detections": {**frame, "age_s": max(0.0, age_s)}}
 
 
 def _bounded_playback_deadline(
@@ -2392,6 +2456,173 @@ def api_session_observations_status(session_id: str) -> dict[str, Any]:
         return manager.observation_status(session_id)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail="SESSION_NOT_FOUND") from exc
+
+
+# DT 视口 YOLO 检测分流(viewport-detections@1):detector --viewport-forward-url 的
+# 落点。校验行为照 observations 端点(404 / 409 SESSION_NOT_ACCEPTING);422 交 pydantic。
+@app.post("/api/sessions/{session_id}/viewport-detections")
+def api_session_viewport_detections(session_id: str, frame: ViewportDetectionsFrame) -> dict[str, Any]:
+    try:
+        return manager.ingest_viewport_detections(session_id, frame)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="SESSION_NOT_FOUND") from exc
+    except SessionNotAcceptingError as exc:
+        raise HTTPException(status_code=409, detail="SESSION_NOT_ACCEPTING") from exc
+
+
+# DT 视口 YOLO 检测引擎(web 勾选驱动的免会话通路)。
+# 20261015 用户裁决:检测器部署 a4000 GPU(GPU1 推理,Unity 渲染占 GPU0)。
+# TWIN_VIEWPORT_DETECTOR_REMOTE 非空(如 "a4000")= ssh 远程托管:venv ~/twin-detector-venv、
+# 脚本目录 ~/twin-detector;检测结果经 remote_control 常驻 -R 反向隧道 18010 回本端;
+# 空串 = 本地 mac CPU 模式(原行为)。远程启动同时停本地实例,防双推理双 POST。
+VIEWPORT_DETECTOR_REMOTE = os.environ.get("TWIN_VIEWPORT_DETECTOR_REMOTE", "").strip()
+VIEWPORT_DETECTOR_REMOTE_DIR = "~/twin-detector"
+# 探活走远端 pidfile(serve --pidfile 自写):pgrep -f 会同时命中 ssh/bash 包装进程
+_REMOTE_DETECT_PGID = "pid=$(cat ~/twin-detector/detector.pid 2>/dev/null) && kill -0 $pid 2>/dev/null && echo $pid"
+_REMOTE_DETECT_CMD = (
+    "mkdir -p ~/twin-detector/logs && cd ~/twin-detector && "
+    "CUDA_VISIBLE_DEVICES=1 nohup ~/twin-detector-venv/bin/python sango_detector_service.py "
+    "--endpoint tcp://127.0.0.1:5556 --out tcp://127.0.0.1:5557 "
+    "--viewport-forward-url http://127.0.0.1:18010/api/viewport-detections "
+    "--device cuda:0 --model yolov8s.pt --slice-size 640 --pidfile detector.pid "
+    # </dev/null:后台进程不持有 ssh 会话 fd,否则 ssh 等管道关闭直至超时
+    ">> logs/detector.log 2>&1 < /dev/null & echo $!"
+)
+
+
+def _ssh_remote(command: str, timeout: float = 10.0) -> str:
+    try:
+        result = subprocess.run(  # noqa: S603 — host/命令均来自本文件常量
+            ["ssh", VIEWPORT_DETECTOR_REMOTE, command],
+            capture_output=True, text=True, timeout=timeout, check=False,
+        )
+    except subprocess.TimeoutExpired:
+        return ""  # 命令可能已生效(如 nohup spawn);由调用方 pgrep 复核
+    return result.stdout.strip() if result.returncode == 0 else ""
+
+
+def _local_detector_pid() -> int | None:
+    try:
+        pid = int(VIEWPORT_DETECTOR_PIDFILE.read_text().strip())
+    except (OSError, ValueError):
+        return None
+    try:
+        os.kill(pid, 0)  # 存活探测;ESRCH → ProcessLookupError
+    except ProcessLookupError:
+        return None
+    except PermissionError:
+        return pid  # 活着但非本用户(理论不可达,保守视为在跑)
+    return pid
+
+
+def _detector_pid() -> int | None:
+    if VIEWPORT_DETECTOR_REMOTE:
+        pid = _ssh_remote(_REMOTE_DETECT_PGID)
+        return int(pid) if pid.isdigit() else None
+    return _local_detector_pid()
+
+
+def _detector_start() -> dict[str, Any]:
+    if VIEWPORT_DETECTOR_REMOTE:
+        if _detector_pid() is not None:
+            return {"started": False, "reason": "already-running", "mode": "remote",
+                    "host": VIEWPORT_DETECTOR_REMOTE}
+        if _local_detector_pid() is not None:
+            _detector_stop_local()  # 本地实例残留先停,防双推理双 POST
+        _ssh_remote(_REMOTE_DETECT_CMD)
+        pid = _detector_pid()
+        if pid is None:
+            return {"started": False, "reason": "remote-spawn-failed", "mode": "remote",
+                    "host": VIEWPORT_DETECTOR_REMOTE}
+        return {"started": True, "pid": pid, "mode": "remote", "host": VIEWPORT_DETECTOR_REMOTE}
+    pid = _local_detector_pid()
+    if pid is not None:
+        return {"started": False, "pid": pid, "reason": "already-running"}
+    VIEWPORT_DETECTOR_PIDFILE.parent.mkdir(parents=True, exist_ok=True)
+    VIEWPORT_DETECTOR_LOG.parent.mkdir(parents=True, exist_ok=True)
+    command = [
+        str(VIEWPORT_DETECTOR_PY), str(VIEWPORT_DETECTOR_SCRIPT),
+        "--endpoint", "tcp://127.0.0.1:15556",  # remote_control gst 路由隧道(a4000 sender tap)
+        "--out", "tcp://127.0.0.1:15557",
+        "--viewport-forward-url", VIEWPORT_DETECTOR_FORWARD_URL,
+        # 小目标召回:远距小船在 720p→640 letterbox 下只剩十余像素;1280 推理输入
+        # 换召回,CPU 代价 ~3x(检测器主循环排空取最新帧,慢推理不积压延迟)。
+        "--imgsz", "1280",
+    ]
+    with VIEWPORT_DETECTOR_LOG.open("a") as log:
+        process = subprocess.Popen(  # noqa: S603 — 常量命令,无用户输入
+            command, cwd=str(BASE_DIR), stdin=subprocess.DEVNULL,
+            stdout=log, stderr=subprocess.STDOUT, start_new_session=True,  # detached:后端重启不连坐
+        )
+    VIEWPORT_DETECTOR_PIDFILE.write_text(f"{process.pid}\n")
+    return {"started": True, "pid": process.pid}
+
+
+def _detector_stop_local() -> dict[str, Any]:
+    pid = _local_detector_pid()
+    if pid is None:
+        VIEWPORT_DETECTOR_PIDFILE.unlink(missing_ok=True)
+        return {"stopped": False, "reason": "not-running"}
+    try:
+        os.kill(pid, signal.SIGTERM)
+        deadline = time.monotonic() + 3.0
+        while time.monotonic() < deadline:
+            try:
+                os.waitpid(pid, os.WNOHANG)  # 收尸(自有子进程);他人子进程抛 ChildProcessError
+            except (ChildProcessError, PermissionError):
+                pass
+            try:
+                os.kill(pid, 0)
+            except ProcessLookupError:
+                break
+            time.sleep(0.1)
+        else:
+            os.kill(pid, signal.SIGKILL)
+    except ProcessLookupError:
+        pass
+    VIEWPORT_DETECTOR_PIDFILE.unlink(missing_ok=True)
+    return {"stopped": True, "pid": pid}
+
+
+def _detector_stop() -> dict[str, Any]:
+    if VIEWPORT_DETECTOR_REMOTE:
+        pid = _detector_pid()
+        # SIGTERM 走 pidfile;pkill 兜底收残留(字符类防自匹配)
+        _ssh_remote("kill $(cat ~/twin-detector/detector.pid) 2>/dev/null; "
+                    "pkill -f '[s]ango_detector_service.py'; rm -f ~/twin-detector/detector.pid")
+        _detector_stop_local()  # 远程模式下本地也可能有残留,一并收口
+        return {"stopped": pid is not None, "pid": pid, "mode": "remote",
+                "host": VIEWPORT_DETECTOR_REMOTE}
+    return _detector_stop_local()
+
+
+class EngineEnableRequest(BaseModel):
+    enabled: bool
+
+
+@app.post("/api/viewport-detections")
+def api_viewport_detections_sessionless(frame: ViewportDetectionsFrame) -> dict[str, Any]:
+    """检测器免会话入口:路由进当前活动会话(勾选驱动的引擎默认落点)."""
+    with manager.lock:
+        description = manager.describe()
+    if not description["active"]:
+        raise HTTPException(status_code=404, detail="NO_ACTIVE_SESSION")
+    try:
+        return manager.ingest_viewport_detections(description["session_id"], frame)
+    except SessionNotAcceptingError as exc:
+        raise HTTPException(status_code=409, detail="SESSION_NOT_ACCEPTING") from exc
+
+
+@app.get("/api/viewport-detection-engine")
+def api_engine_status() -> dict[str, Any]:
+    return {"running": _detector_pid() is not None, "pid": _detector_pid(),
+            "forward_url": VIEWPORT_DETECTOR_FORWARD_URL,
+            "mode": "remote:" + VIEWPORT_DETECTOR_REMOTE if VIEWPORT_DETECTOR_REMOTE else "local"}
+
+
+@app.post("/api/viewport-detection-engine")
+def api_engine_toggle(request: EngineEnableRequest) -> dict[str, Any]:
+    return _detector_start() if request.enabled else _detector_stop()
 
 
 # P3-S5 (spec #90) high-confidence track data product: the ownship's latest

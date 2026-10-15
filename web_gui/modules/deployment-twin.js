@@ -26,16 +26,15 @@ import {
   observeTheme,
   projectTwinHud,
   projectSensorMode,
-  sensorModeItems,
   themeValue,
   TWIN_SENSOR_MODE_DEFAULT,
   TWIN_SENSOR_MODES,
-} from './twin-view.js?v=20261015-bridge-look';
+} from './twin-view.js?v=20261015-dt-yolo-tv-v1';
 import { createGeography } from './scene-geography.js?v=20261004-token-cleanup-v1';
 import { chooseTwinStreamProfile, sampleTwinVideoStats } from './twin-stream-quality.js?v=20261013-dt-diagnostics-v11';
 
 import { createTwinCameraControls } from './twin-camera-controls.js?v=20261010-dt-camera-v6';
-import { createTwinSituationOverlay } from './twin-situation.js?v=20261014-wp-hyst';
+import { createTwinSituationOverlay } from './twin-situation.js?v=20261015-dt-yolo-ts-v4';
 
 // HUD refresh cadence (Unity state echo is ~1Hz; same as the Evaluation twin).
 const HUD_INTERVAL_MS = 250;
@@ -60,7 +59,6 @@ export function createDeploymentTwinViewport({
   errorEl = null, // error slot
   healthEl = null, // spec #91 前置批 B: stream-health status card (hidden when healthy)
   sensorGroup = null, // P3-S2 sensor-mode button group ([data-twin-sensor] buttons)
-  sensorModeEl = null, // P3-S2 current sensor-mode chip (state echo)
   signalingUrl = undefined, // default from twin-view
   backendBase = globalThis.location?.origin ?? 'http://127.0.0.1:8010',
   fetchRef = globalThis.fetch,
@@ -116,8 +114,16 @@ export function createDeploymentTwinViewport({
   let landscapeReadyMs = null;
   const sourceCadence = { matched: 0, consecutive: 0, repeated: 0, advanced: 0 };
   let lastSourceFrame = null;
+  // 本船真值(east/north ENU + 船长):situation 本船框抑制与 cameraControls
+  // 初始化同源(相机控件 getOwnship 原getter上提共用)。
+  const twinOwnship = () => {
+    const ship = latestProjection?.raw?.os;
+    if (!ship || !info) return null;
+    return { east: info.origin_e + ship.y, north: info.origin_n + ship.x,
+      psi: ship.psi, length: ship.length };
+  };
   const situation = chart && host?.ownerDocument && video ? createTwinSituationOverlay({
-    host, video, chart, info, client: () => streamCtl?.client, onSelect, onCameraChange: () => cameraControls.reset(), getPlannerSurface, requestVODecisionSpace,
+    host, video, chart, info, client: () => streamCtl?.client, onSelect, onCameraChange: () => cameraControls.reset(), getPlannerSurface, requestVODecisionSpace, getOwnship: twinOwnship,
   }) : null;
   const videoFrameIntervals = [];
   function observeVideoFrame(timestamp, metadata = {}) {
@@ -229,12 +235,7 @@ export function createDeploymentTwinViewport({
     enabled: () => !destroyed && !linkOn && syncBridgeLookPreset() !== 'bridge'
       && (streamCtl?.client?.lastState?.landscape || situation?.landscape)?.ready !== false,
     getCameraPose: () => situation?.cameraPose || streamCtl?.client?.lastState?.camera_pose,
-    getOwnship: () => {
-      const ship = latestProjection?.raw?.os;
-      if (!ship || !info) return null;
-      return { east: info.origin_e + ship.y, north: info.origin_n + ship.x,
-        psi: ship.psi, length: ship.length };
-    },
+    getOwnship: twinOwnship,
     onSend: pose => {
       cameraFreeSent += 1;
       if (video?.dataset) video.dataset.cameraPose = JSON.stringify(pose);
@@ -242,6 +243,12 @@ export function createDeploymentTwinViewport({
     },
   });
   if (video?.style) { video.style.touchAction = 'none'; video.style.visibility = 'hidden'; }
+  // 左键拖拽守卫:流 <video> 默认可拖拽,真实左键拖会先触发原生 dragstart 抢走
+  // pointermove(合成事件不触发——harness/CDP 复现不出来的根因),相机控件左键
+  // 平移因此"失灵"而中/右键正常。禁拖 + 阻断 dragstart,拖拽事件链回归 video。
+  if (video?.setAttribute) video.setAttribute('draggable', 'false');
+  const swallowDragStart = event => event.preventDefault();
+  video?.addEventListener?.('dragstart', swallowDragStart);
   if (video?.setAttribute) video.setAttribute('title', '舰桥：拖拽瞭望 · 双击回正 · 其他视角：左键平移 · 中键旋转 · 右键/滚轮缩放 · 双击回到本船');
   let lookPointer = null;
   pointerHubs.pointerdown.push(event => {
@@ -554,6 +561,14 @@ export function createDeploymentTwinViewport({
     const width = measuredVideo?.width || video?.videoWidth;
     const height = measuredVideo?.height || video?.videoHeight;
     statusEl.textContent = `${hud.signal.toUpperCase()} · ${width && height ? `${width}×${height}` : '—'} · ${measuredVideo?.fps == null ? '—' : measuredVideo.fps.toFixed(0)} FPS · ${measuredVideo?.bitrateMbps == null ? '—' : measuredVideo.bitrateMbps.toFixed(1)} Mb/s${streamCtl?.client?.lastState?.presentation_buffering ? ' · 缓冲中' : ''}`;
+    // dt-yolo:左上 HUD 拼 YOLO 状态(在算=ON 绿字;勾了没数据=OFF;未勾=无后缀)。
+    const yoloSuffix = situation?.yoloStatus?.() ?? '';
+    if (yoloSuffix) {
+      const chip = document.createElement('span');
+      chip.className = 'twin-yolo-hud' + (yoloSuffix.endsWith('ON') ? ' twin-yolo-hud--on' : '');
+      chip.textContent = ' ' + yoloSuffix;
+      statusEl.append(chip);
+    }
     const ms = value => Number.isFinite(value) ? value.toFixed(1) + ' ms' : '—';
     statusEl.title = [
       `视频冻结 ${measuredVideo?.freezeCount ?? '—'} 次；最长帧间隔 ${ms(videoGapMaxMs)}`,
@@ -586,6 +601,7 @@ export function createDeploymentTwinViewport({
       && (video?.videoWidth ?? 0) > 0,
     ));
     // P3-S2 (spec #90): state echo is the authority for the sensor mode UI.
+    // dt-yolo 收编轮:左下"SENSOR EO"角标移除(右上 EO/IR/LD 按钮已表意)。
     const mode = projectSensorMode(streamCtl?.client?.lastState);
     if (sensorGroup) {
       sensorGroup.querySelectorAll('[data-twin-sensor]').forEach(button => {
@@ -593,10 +609,6 @@ export function createDeploymentTwinViewport({
         button.classList.toggle('active', on);
         button.setAttribute('aria-pressed', String(on));
       });
-    }
-    if (sensorModeEl) {
-      const item = sensorModeItems(mode).find(entry => entry.value === mode);
-      sensorModeEl.textContent = `SENSOR ${item?.label ?? mode.toUpperCase()}`;
     }
     publishDebug();
   }
@@ -678,6 +690,7 @@ export function createDeploymentTwinViewport({
     for (const type of Object.keys(pointerHubs)) video?.removeEventListener?.(type, dispatchPointer(type));
     documentRef?.removeEventListener?.('click', onPresetButtonClick, true);
     video?.removeEventListener?.('dblclick', recenterCamera);
+    video?.removeEventListener?.('dragstart', swallowDragStart);
     streamCtl?.client?.sendDetach();
     void streamCtl?.close();
     streamCtl = null;

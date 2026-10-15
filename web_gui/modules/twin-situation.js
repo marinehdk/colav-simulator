@@ -1,4 +1,4 @@
-import { targetsForDisplay, RADAR_DETECTION_RANGE_M, drawVODecisionDisc, trackConfidenceColor } from './situation-display.js?v=20261011-dt-sensor-overlay-v1';
+import { targetsForDisplay, RADAR_DETECTION_RANGE_M, drawVODecisionDisc, trackConfidenceColor } from './situation-display.js?v=20261015-dt-yolo-sd-v2';
 import { routeRibbonQuads } from './route-3d.js?v=20260921-route-ar-v1';
 import { predictionMarkers, targetKey, offscreenDirection } from './scene-geography.js?v=20261004-token-cleanup-v1';
 import { targetPresentation, updateTargetPoi, applyTargetAppearance, renderTargetCard } from './scene-target.js?v=20260923-follow-v1';
@@ -107,6 +107,146 @@ export function layoutTwinLabels(items, width, topInset = 20) {
   return result;
 }
 
+// ── DT 视口 YOLO 检测（telemetry WS 文档顶层 viewport_detections@1）──────────
+// 后端把像素域检测（720p，左上原点 y 向下）挂在遥测文档顶层；无数据/过期时键
+// 缺省。fold 留存最新一条 + 本地接收时刻，乱序旧消息（received_at 回退）不覆盖。
+export function foldViewportDetections(state, raw, nowMs) {
+  const doc = raw?.viewport_detections;
+  if (!doc || typeof doc !== 'object' || !Array.isArray(doc.detections)) return state ?? null;
+  const receivedAt = Number(doc.received_at), previous = Number(state?.doc?.received_at);
+  if (state && Number.isFinite(previous) && Number.isFinite(receivedAt) && receivedAt < previous) return state;
+  return { doc, at: nowMs };
+}
+
+// 新鲜 = age_s < 1.2 且带 detections 数组（空数组也算活跃：YOLO 模式开着但此刻
+// 看不到船 = 视口无标注）。age_s 缺失（旧后端）回退本地接收时刻差。
+export const VIEWPORT_DETECTIONS_FRESH_S = 1.2;
+export function viewportDetectionsFresh(state, nowMs) {
+  if (!state || !Array.isArray(state.doc?.detections)) return false;
+  const age = Number(state.doc.age_s);
+  if (Number.isFinite(age)) return age >= 0 && age < VIEWPORT_DETECTIONS_FRESH_S;
+  return Number.isFinite(state.at) && (nowMs - state.at) / 1000 < VIEWPORT_DETECTIONS_FRESH_S;
+}
+
+// YOLO 视口模式 = 海图"YOLO 检测"图层勾选（visible 已并入可用性）且数据新鲜。
+export function yoloViewportMode(layerState, state, nowMs) {
+  return layerState?.detections?.visible === true && viewportDetectionsFresh(state, nowMs);
+}
+
+// box_xyxy（文档 width×height 像素域）→ 根叠层（contained rect）像素坐标，
+// 并带归一化中心（cx/cy）供最近邻关联。
+export function viewportDetectionBoxes(doc, rectWidth, rectHeight) {
+  const w = Number(doc?.width), h = Number(doc?.height);
+  if (!(w > 0) || !(h > 0) || !Array.isArray(doc.detections)) return [];
+  return doc.detections.flatMap((det, index) => {
+    const box = Array.isArray(det?.box_xyxy) ? det.box_xyxy.map(Number) : [];
+    if (!box.every(Number.isFinite)) return [];
+    return [{ index,
+      left: box[0] / w * rectWidth, top: box[1] / h * rectHeight,
+      width: Math.max(0, (box[2] - box[0]) / w * rectWidth),
+      height: Math.max(0, (box[3] - box[1]) / h * rectHeight),
+      cx: (box[0] + box[2]) / 2 / w, cy: (box[1] + box[3]) / 2 / h,
+      className: String(det.class_name ?? ''),
+      confidence: Number.isFinite(Number(det.confidence)) ? Number(det.confidence) : 0 }];
+  });
+}
+
+// 检测↔track 最近邻关联（归一化域欧氏距离 < 半径取最近）：style 1/2 的导航
+// 数据块由此拿 BRG/RNG/DCPA；关联不到 = 无导航数据。
+export const VIEWPORT_ASSOCIATION_RADIUS = 0.12;
+export function associateViewportDetections(centers, targets, radius = VIEWPORT_ASSOCIATION_RADIUS) {
+  return (centers || []).map(({ cx, cy }) => {
+    let best = null, bestDistance = radius;
+    for (const target of targets || []) {
+      if (!target?.key || !Number.isFinite(target.x) || !Number.isFinite(target.y)) continue;
+      const distance = Math.hypot(target.x - cx, target.y - cy);
+      if (distance < bestDistance) { bestDistance = distance; best = target.key; }
+    }
+    return best;
+  });
+}
+
+// 全局三态样式循环（单击任一检测标签/框切换）：0=框+类别标签，1=+导航数据块，
+// 2=无框仅导航数据块。
+export function cycleViewportYoloStyle(style) {
+  return ((Number.isFinite(Number(style)) ? Number(style) : 0) + 1) % 3;
+}
+
+// HUD YOLO 后缀：勾选且数据新鲜='· YOLO ON'(链路在算,空集=没检测到);
+// 勾选但不新鲜='· YOLO OFF'(引擎启动中/链路断=没在算);未勾选=''。
+export function viewportYoloHudSuffix(layerState, state, nowMs) {
+  if (layerState?.detections?.visible !== true) return '';
+  return viewportDetectionsFresh(state, nowMs) ? '· YOLO ON' : '· YOLO OFF';
+}
+
+// ── 本船框抑制（dt-yolo 第4轮）────────────────────────────────────────────
+// 追随/俯仰视角里本船自身是画面主体,COCO boat 检出它属真实检测但无情报价值;
+// 用 situation 帧 camera_pose 把本船水线中心正向投影到视口,落在投影圈内的框
+// 即本船框,渲染前剔除。桥视角本船在相机身后(深度≤近轴)→ 无投影点 → 不抑制。
+// 相机基与 CameraRig camera_free 语义同源:yaw 北向东顺时针,pitch 负=俯,
+// fov=垂直向度;水平向按 aspect(视口族恒 16:9,由调用方传入)。
+export function projectViewportPoint(pose, east, north, height, aspect = 16 / 9) {
+  if (!pose || ![pose.east, pose.north, pose.height_m, pose.yaw_deg, pose.pitch_deg, pose.fov_deg].every(Number.isFinite)) return null;
+  if (![east, north, height].every(Number.isFinite) || !(aspect > 0)) return null;
+  const radians = Math.PI / 180;
+  const yaw = pose.yaw_deg * radians, pitch = pose.pitch_deg * radians;
+  const de = east - pose.east, dn = north - pose.north, dh = height - pose.height_m;
+  const f = [Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), Math.cos(yaw) * Math.cos(pitch)];
+  const r = [Math.cos(yaw), 0, -Math.sin(yaw)];
+  const u = [f[1] * r[2] - f[2] * r[1], f[2] * r[0] - f[0] * r[2], f[0] * r[1] - f[1] * r[0]];
+  const depth = de * f[0] + dh * f[1] + dn * f[2];
+  if (depth <= 1) return null; // 本船在相机身后/脚下近轴外
+  const px = de * r[0] + dh * r[1] + dn * r[2];
+  const py = de * u[0] + dh * u[1] + dn * u[2];
+  const tv = Math.tan(pose.fov_deg * radians / 2);
+  const x = px / (2 * depth * tv * aspect) + 0.5;
+  const y = 0.5 - py / (2 * depth * tv);
+  if (x < -0.1 || x > 1.1 || y < -0.1 || y > 1.1) return null; // 视口外(留越界容差)
+  return { x, y, depth };
+}
+
+// 抑制圈(20261015 验收轮扩展):两条几何规则,无屏幕魔法数——
+// ① 追随/俯仰:本船水线中心可投影 → 圆圈(半长在该深度的屏幕占比 ×1.3,下限保底);
+// ② 舰桥眼位:船中在相机身后投影不出,艏点在前方 → 艏点以下的底半平面(艏甲板/
+//    栏杆误检框恒在画面底带;水平线附近目标船 cy ≤ ~0.55 天然安全;瞭望抬头艏点
+//    移出下半区(y ≤ 0.5)则不抑制)。floorY/circles 任一命中即剔除。
+export function ownShipViewportGuard(pose, own, aspect = 16 / 9) {
+  const radians = Math.PI / 180;
+  const halfLength = Math.max(Number(own?.length) || 0, 12) / 2;
+  const psi = Number(own?.psi) || 0;
+  const center = projectViewportPoint(pose, Number(own?.east), Number(own?.north), 0, aspect);
+  if (center) {
+    const tv = Math.tan((Number(pose?.fov_deg) || 60) * radians / 2);
+    const radius = Math.max(halfLength / (2 * center.depth * tv * aspect), 0.04) * 1.3;
+    return { circles: [{ x: center.x, y: center.y, radius }], floorY: null };
+  }
+  const bow = projectViewportPoint(pose,
+    Number(own?.east) + Math.sin(psi) * halfLength,
+    Number(own?.north) + Math.cos(psi) * halfLength, 0, aspect);
+  if (bow && bow.y > 0.5) return { circles: [], floorY: bow.y - 0.06 };
+  return null;
+}
+
+export function suppressOwnShipBoxes(boxes, guard) {
+  if (!guard) return boxes || [];
+  return (boxes || []).filter(box =>
+    !(guard.floorY != null && box.cy > guard.floorY)
+    && !guard.circles.some(g => Math.hypot(box.cx - g.x, box.cy - g.y) <= g.radius));
+}
+
+// 检测框显示位置(20261015 验收轮):检测链端到端 ~0.3-0.5s 时延,检测坐标画在
+// 实时视频帧上恒滞后/错位(相机跟随转动时尤甚)。已关联 track 的框改用 track
+// 实时投影包围盒(situation 帧与视频帧 marker 对齐,零滞后),检测框仅贡献类别
+// 标签+置信度;未关联(无 track 的真实检出)保持检测原坐标。
+export function viewportBoxPlacement(box, track, rectWidth, rectHeight) {
+  if (track && [track.left, track.top, track.width, track.height].every(Number.isFinite)
+    && track.width > 0 && track.height > 0) {
+    return { left: track.left * rectWidth, top: track.top * rectHeight,
+      width: track.width * rectWidth, height: track.height * rectHeight, snapped: true };
+  }
+  return { left: box.left, top: box.top, width: box.width, height: box.height, snapped: false };
+}
+
 export function buildTwinPresentation(projection, chart, info, vo = null, documentRef = null, yoloKeys = null) {
   const raw = projection?.raw;
   if (!raw || !info || raw.run_id !== info.run_id) return null;
@@ -162,7 +302,7 @@ export function buildTwinPresentation(projection, chart, info, vo = null, docume
 
 // OpenBridge DOM stays outside the video. All placements are taken from a decoded
 // frame, never from the newest camera heartbeat or a second Cesium camera.
-export function createTwinSituationOverlay({ host, video, chart, info, client, onSelect, onCameraChange = () => {}, getPlannerSurface, requestVODecisionSpace }) {
+export function createTwinSituationOverlay({ host, video, chart, info, client, onSelect, onCameraChange = () => {}, getPlannerSurface, requestVODecisionSpace, getOwnship = () => null }) {
   const doc = host.ownerDocument;
   const root = doc.createElement('div'); root.className = 'twin-situation-overlay'; root.hidden = true;
   const layer = doc.createElement('div'); layer.className = 'scene3d-pois';
@@ -175,17 +315,18 @@ export function createTwinSituationOverlay({ host, video, chart, info, client, o
   const cardBody = doc.createElement('div'); cardBody.className = 'scene3d-card-body'; card.append(cardBody);
   const cardIcon = doc.createElement('obi-vessel-generic-default-outlined'); cardIcon.slot = 'poi-icon'; card.append(cardIcon);
   const cardAlert = doc.createElement('obc-alert-frame'); cardAlert.className = 'scene3d-card-alert'; cardAlert.type = 'regular'; cardAlert.thickness = 'large'; cardAlert.hidden = true; card.append(cardAlert);
-  const markerCover = doc.createElement('div'); markerCover.className = 'twin-frame-cover'; markerCover.textContent = 'DT';
-  markerCover.hidden = true;
+  // dt-yolo 收编轮:markerCover("DT · N 个目标"角标)移除;相机预设 toolbar 迁出
+  // overlay 根、挂 host 与"联动"同排右上角(视口 letterbox 不再牵动预设按钮位置)。
   const toolbar = doc.createElement('div'); toolbar.className = 'scene3d-toolbar';
-  for (const [preset, label] of [['bridge', '舰桥'], ['chase', '追随'], ['top', '俯视'], ['target', '目标跟踪']]) {
+  // dt-yolo：'目标跟踪' 预设随单击跟踪一并移除——预设只留跟随相机的三键。
+  for (const [preset, label] of [['bridge', '舰桥'], ['chase', '追随'], ['top', '俯视']]) {
     const button = doc.createElement('button'); button.textContent = label; button.dataset.camera = preset;
     button.addEventListener('click', () => {
       onCameraChange();
-      if (preset === 'target') trackSelected(); else client()?.sendCamera?.(preset);
+      client()?.sendCamera?.(preset);
     }); toolbar.append(button);
   }
-  root.append(detectionsLayer, badges, layer, waypoints, edges, aisLayer, card, toolbar); host.append(root, markerCover);
+  root.append(detectionsLayer, badges, layer, waypoints, edges, aisLayer, card); host.append(root, toolbar);
   const compass = createSceneCompass({ host: root, onSelect: id => choose(id) });
   const sample = doc.createElement('canvas'); sample.width = 32; sample.height = 1;
   const sampleContext = sample.getContext('2d', { willReadFrequently: true }); sampleContext.imageSmoothingEnabled = false;
@@ -194,7 +335,11 @@ export function createTwinSituationOverlay({ host, video, chart, info, client, o
   // = 静态视角下白线"时隐时现"。连续缺席 3 个 situation 帧才移除节点(迟滞)。
   const waypointAbsent = new Map();
   const detectionNodes = new Map(), badgeNodes = new Map(), yoloKeys = new Set();
+  const viewportDetectionNodes = new Map();
   let latest = null, frame = null, frameId = null, selectedKey = null, disposed = false;
+  // dt-yolo 视口检测：最新 viewport_detections 文档 + 本地接收时刻（fold 防乱序
+  // 回退）；全局三态样式与 per-run 清空照 yoloKeys 模式。
+  let viewportDetectionsState = null, viewportYoloRunId = null, viewportYoloStyle = 0;
   let lastSent = null, lastPick = null, lastVideoAt = 0, pointer = null, yoloRunId = null;
   let presentationClient = null, presentationAttachment = null;
   let matched = 0, unmatched = 0;
@@ -223,18 +368,10 @@ export function createTwinSituationOverlay({ host, video, chart, info, client, o
   function choose(id, key = null) {
     const projection = models.get(frame?.source_seq) || latest;
     const ship = targetsForDisplay(projection?.raw || {}).find(ship => String(ship.id) === String(id));
-    const previous = selectedKey;
+    // dt-yolo：选中只驱动详情卡/高亮，不再跟踪相机（trackSelected/camera_target 已移除）。
     selectedKey = key || (ship ? targetKey(projection.raw.run_id, ship) : null);
     if (onSelect) onSelect(id); else chart.selectTarget(id);
-    if (selectedKey !== previous) {
-      onCameraChange();
-      if (selectedKey) trackSelected(); else client()?.sendCamera?.('chase');
-    }
     renderFrame();
-  }
-  function trackSelected() {
-    const projection = models.get(frame?.source_seq) || latest;
-    if (selectedKey && projection) client()?.sendCameraTarget?.(projection.raw.run_id, selectedKey);
   }
   card.addEventListener('close-click', () => choose(null));
   // 契约 §6.3：右键不再送 Unity pick（button !== 0 直接置空 pointer）。
@@ -268,17 +405,13 @@ export function createTwinSituationOverlay({ host, video, chart, info, client, o
     const rect = containedVideoRect(videoBox.width, videoBox.height, video.videoWidth, video.videoHeight);
     if (!rect) { root.hidden = true; return; }
     rect.left += videoBox.left - hostBox.left; rect.top += videoBox.top - hostBox.top;
-    markerCover.hidden = client()?.situationSync !== 'frame-marker@1';
-    Object.assign(markerCover.style, { left: rect.left + 'px', top: rect.top + 'px',
-      width: FRAME_MARKER.width * rect.scale + 'px', height: Math.max(18, FRAME_MARKER.height * rect.scale) + 'px' });
     const projection = frame && models.get(frame.source_seq);
     if (!projection || projection.raw.run_id !== frame.run_id) { root.hidden = true; return; }
-    markerCover.textContent = 'DT · ' + (frame.targets?.length || 0) + ' 个目标';
     Object.assign(root.style, { left: rect.left + 'px', top: rect.top + 'px', width: rect.width + 'px', height: rect.height + 'px' });
     if (frame.landscape?.ready === false) {
       // A heartbeat can release the video if hidden-video callbacks are throttled.
       if (!client()?.lastState?.landscape?.ready) video.style.visibility = 'hidden';
-      root.hidden = true; markerCover.hidden = true; return;
+      root.hidden = true; return;
     }
     video.style.visibility = '';
     root.hidden = false;
@@ -286,8 +419,11 @@ export function createTwinSituationOverlay({ host, video, chart, info, client, o
     if (frame.camera_pose) root.dataset.cameraPose = JSON.stringify(frame.camera_pose);
     toolbar.querySelectorAll('button').forEach(button => {
       button.setAttribute('aria-pressed', String(button.dataset.camera === frame.camera));
-      button.disabled = button.dataset.camera === 'target' && !selectedKey;
     });
+    // dt-yolo：YOLO 视口模式 = "YOLO 检测"图层勾选且 viewport_detections 新鲜。
+    // 激活时整帧抑制 contacts（标牌/IPDA 徽标/AIS 符号/离屏边钮随 contacts=[]
+    // 自然清场），旧 NE 域 .twin-detections 层同样跳过（避免双框）。
+    const yoloMode = yoloViewportMode(chart.getLayerState(), viewportDetectionsState, performance.now());
     const ships = targetsForDisplay(projection.raw), byKey = new Map(ships.map(ship => [targetKey(frame.run_id, ship), ship]));
     const selected = chart.getSelectedTargetId();
     if (selectedKey && !byKey.has(selectedKey)) { selectedKey = null; chart.selectTarget(null); onSelect?.(null); }
@@ -297,8 +433,9 @@ export function createTwinSituationOverlay({ host, video, chart, info, client, o
     const lowHorizon = visibleY.length > 0 && Math.min(...visibleY) < compassHeight + 80;
     root.classList.toggle('twin-low-horizon', lowHorizon);
     const topInset = lowHorizon ? 24 : Math.min(rect.height / 3, compassHeight + 12);
-    // 契约 §6.4：C 段帧回包检测投影（旧 Unity 无 detections → 空数组）。
-    const frameDetections = Array.isArray(frame.detections) ? frame.detections : [];
+    // 契约 §6.4：C 段帧回包检测投影（旧 Unity 无 detections → 空数组）；
+    // YOLO 视口模式下跳过（该层无数据时本来就不画，加 gate 明确防双框）。
+    const frameDetections = yoloMode ? [] : (Array.isArray(frame.detections) ? frame.detections : []);
     const visibleDetections = frameDetections.filter(det => det && det.visible
       && [det.left, det.top, det.width, det.height].every(Number.isFinite));
     // yoloKeys 内目标且当前帧存在可见关联检测 → POI 隐藏（保留节点/选择态），
@@ -311,7 +448,9 @@ export function createTwinSituationOverlay({ host, video, chart, info, client, o
       }
     }
     const wanted = new Set(), edgeRecords = [], aisWanted = new Set(), badgeWanted = new Set();
-    const contacts = (frame.targets || []).flatMap(p => {
+    // YOLO 视口模式：contacts 置空 → 下方 POI/徽标/AIS/离屏边钮整段跳过，
+    // 且末尾按 wanted 空集清场（保留节点创建代码路径不重入）。
+    const contacts = yoloMode ? [] : (frame.targets || []).flatMap(p => {
       const ship = byKey.get(p.key); if (!ship) return [];
       const model = targetPresentation(projection, ship, info), x = p.x * rect.width, y = p.y * rect.height;
       const selectedContact = String(selected) === p.id;
@@ -417,6 +556,44 @@ export function createTwinSituationOverlay({ host, video, chart, info, client, o
         String(det.class_name ?? '') + ' : ' + Math.round((Number(det.confidence) || 0) * 100) + '%';
     }
     for (const [key, node] of detectionNodes) if (!detectionWanted.has(key)) { node.remove(); detectionNodes.delete(key); }
+    // dt-yolo 视口检测层（viewport_detections@1）：绿框 + `class : NN%` 标签，
+    // 坐标 = box_xyxy / 文档 width×height 归一化 × contained rect。单击任一框
+    // 循环全局三态（0=框+标签，1=+导航数据块，2=无框仅数据块）；数据块导航量
+    // 与 POI 同源（targetPresentation.blocks），关联不到 track 的检测无导航数据。
+    detectionsLayer.dataset.yoloStyle = String(viewportYoloStyle);
+    const viewportWanted = new Set();
+    if (yoloMode) {
+      // 本船框剔除(ownShipViewportGuard):框心落在本船投影圈内 = 本船自身检出。
+      const guard = ownShipViewportGuard(frame?.camera_pose, getOwnship(),
+        (frame?.width || 16) / (frame?.height || 9));
+      const boxes = suppressOwnShipBoxes(viewportDetectionBoxes(viewportDetectionsState.doc, rect.width, rect.height), guard);
+      const associated = associateViewportDetections(boxes, frame.targets || []);
+      for (let position = 0; position < boxes.length; position++) {
+        const box = boxes[position];   // associated 按过滤后 boxes 位置对齐（box.index 是文档原始序号）
+        const key = 'vp' + box.index;
+        viewportWanted.add(key);
+        let node = viewportDetectionNodes.get(key);
+        if (!node) {
+          node = doc.createElement('button'); node.type = 'button'; node.className = 'twin-vp-detection';
+          const tag = doc.createElement('span'); tag.className = 'twin-vp-detection-tag';
+          const data = doc.createElement('span'); data.className = 'twin-vp-detection-data';
+          node.append(tag, data);
+          node.addEventListener('click', () => { viewportYoloStyle = cycleViewportYoloStyle(viewportYoloStyle); renderFrame(); });
+          viewportDetectionNodes.set(key, node); detectionsLayer.append(node);
+        }
+        const ship = byKey.get(associated[position] || '');
+        const blocks = ship ? targetPresentation(projection, ship, info).blocks : [];
+        node.hidden = viewportYoloStyle === 2 && blocks.length === 0;   // 无关联 track 的 style2 = 完全无标注
+        const placement = viewportBoxPlacement(box, ship, rect.width, rect.height);
+        node.style.left = placement.left + 'px'; node.style.top = placement.top + 'px';
+        node.style.width = placement.width + 'px'; node.style.height = placement.height + 'px';
+        node.querySelector('.twin-vp-detection-tag').textContent =
+          box.className + ' : ' + Math.round(box.confidence * 100) + '%';
+        node.querySelector('.twin-vp-detection-data').textContent =
+          blocks.map(block => [block.label, block.value, block.unit].filter(Boolean).join(' ')).join(' · ');
+      }
+    }
+    for (const [key, node] of viewportDetectionNodes) if (!viewportWanted.has(key)) { node.remove(); viewportDetectionNodes.delete(key); }
     for (const [key, node] of badgeNodes) if (!badgeWanted.has(key)) { node.remove(); badgeNodes.delete(key); }
     edges.replaceChildren(...edgeRecords.map(({ p, model, edge, arrow }, index) => {
       const button = doc.createElement('button'); button.className = edge; button.textContent = arrow + ' TS' + p.id;
@@ -468,6 +645,11 @@ export function createTwinSituationOverlay({ host, video, chart, info, client, o
       if (!projection?.raw) return;
       // 契约 §6.3.3：run_id 变化清空 per-target 切换集合（防跨 run key 碰撞）。
       if (projection.raw.run_id !== yoloRunId) { yoloRunId = projection.raw.run_id; yoloKeys.clear(); }
+      // dt-yolo：run 切换同样重置视口检测状态与全局样式（照 yoloKeys 清空模式）。
+      if (projection.raw.run_id !== viewportYoloRunId) {
+        viewportYoloRunId = projection.raw.run_id; viewportYoloStyle = 0; viewportDetectionsState = null;
+      }
+      viewportDetectionsState = foldViewportDetections(viewportDetectionsState, projection.raw, performance.now());
       const bridge = client();
       if (bridge !== presentationClient || bridge?.attached !== presentationAttachment) {
         lastSent = null; presentationClient = bridge; presentationAttachment = bridge?.attached;
@@ -515,9 +697,11 @@ export function createTwinSituationOverlay({ host, video, chart, info, client, o
       if (latest) this.render(latest);
     },
     reset() {
-      lastSent = null; frame = null; frameId = null; root.hidden = true; markerCover.hidden = true;
+      lastSent = null; frame = null; frameId = null; root.hidden = true;
       models.clear(); yoloKeys.clear(); yoloRunId = null;
+      viewportDetectionsState = null; viewportYoloRunId = null; viewportYoloStyle = 0;
       for (const node of detectionNodes.values()) node.remove(); detectionNodes.clear();
+      for (const node of viewportDetectionNodes.values()) node.remove(); viewportDetectionNodes.clear();
       for (const node of badgeNodes.values()) node.remove(); badgeNodes.clear();
     },
     select(id) { choose(id); },
@@ -525,6 +709,9 @@ export function createTwinSituationOverlay({ host, video, chart, info, client, o
     get landscape() { return frame?.landscape; },
     get diagnostics() { return diagnostics; },
     get frameCosts() { return frameCosts; },
-    destroy() { disposed = true; video.style.visibility = ''; video.removeEventListener('pointerdown', down); video.removeEventListener('pointerup', up); video.removeEventListener('contextmenu', contextMenu); compass.destroy(); root.remove(); markerCover.remove(); },
+    // dt-yolo:HUD 后缀(deployment-twin renderHud 消费)——'· YOLO ON'(绿,链路在算)/
+    // '· YOLO OFF'(勾了但数据不新鲜:引擎启动中或链路断)/''(未勾选)。
+    yoloStatus() { return viewportYoloHudSuffix(chart.getLayerState(), viewportDetectionsState, performance.now()); },
+    destroy() { disposed = true; video.style.visibility = ''; video.removeEventListener('pointerdown', down); video.removeEventListener('pointerup', up); video.removeEventListener('contextmenu', contextMenu); compass.destroy(); root.remove(); toolbar.remove(); },
   };
 }
