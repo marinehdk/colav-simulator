@@ -204,5 +204,41 @@ namespace Sango.Tests
             Assert.That(quay.ndcX, Is.InRange(-1f, 1f), "PP 码头 NDC x ∈ (-1,1)（16:9 横向视场内，bearing 345° vs 回望 314°）");
             Assert.That(quay.ndcY, Is.InRange(-1f, 1f), "PP 码头 NDC y ∈ (-1,1)（远处水面点近视线高度）");
         }
+
+        [Test]
+        public void BridgeEyeMount_ScalesWithLoa_AndLooksForwardDown()
+        {
+            // 20261015 用户验收:舰桥玻璃第一人称挂点——高度随船高(0.22×LOA 钳位),
+            // 艏向前偏,俯 5°;prefab 尺度/艏轴偏航归一。
+            var (pos, rot) = CameraViews.BridgeEyeMount(45f, 0.5f, 0f, 1f);
+            Assert.That(pos.y, Is.EqualTo(9.9f - 0.5f).Within(0.01f), "45m 船:0.22×45=9.9m 高(钳内)");
+            Assert.That(pos.z, Is.EqualTo(45f * 0.08f).Within(0.01f), "驾驶室前缘 +0.08×LOA");
+            Assert.That(rot.eulerAngles.x, Is.EqualTo(5f).Within(0.01f), "俯 5°(Unity 正 x=低头)");
+
+            var (small, _) = CameraViews.BridgeEyeMount(5f, 0.2f, 0f, 1f);
+            Assert.That(small.y + 0.2f, Is.EqualTo(CameraViews.BridgeEyeHeightMinM).Within(0.01f), "小船钳下限 2.5m");
+
+            var (scaled, _) = CameraViews.BridgeEyeMount(45f, 0.5f, 0f, 2f);
+            Assert.That(scaled.y * 2f, Is.EqualTo(pos.y).Within(0.01f), "prefab 缩放归一(本地÷scale)");
+
+            var (yawed, yawRot) = CameraViews.BridgeEyeMount(45f, 0.5f, 90f, 1f);
+            Assert.That(yawed.x, Is.EqualTo(-45f * 0.08f).Within(0.01f), "bowYaw=90° 时艏向偏移在本地 −x(surfaceRoot canonicalizer 同向)");
+            Assert.That(yawRot.eulerAngles.y, Is.EqualTo(270f).Within(0.1f), "挂点本地艏轴归一 −bowYaw");
+        }
+
+        [Test]
+        public void ClampBridgeLook_CaptainHorizonLimits()
+        {
+            // 20261015 用户验收:舰桥瞭望——水平前方 180°,俯仰受驾驶室玻璃限制。
+            var clamped = CameraViews.ClampBridgeLook(179f, 80f);
+            Assert.That(clamped.x, Is.EqualTo(90f).Within(0.01f), "yaw 钳 ±90(前方 180°)");
+            Assert.That(clamped.y, Is.EqualTo(15f).Within(0.01f), "仰限玻璃上缘 +15°");
+            var down = CameraViews.ClampBridgeLook(-179f, -80f);
+            Assert.That(down.x, Is.EqualTo(-90f).Within(0.01f), "负向对称");
+            Assert.That(down.y, Is.EqualTo(-25f).Within(0.01f), "俯限看水线/艏浪 −25°");
+            var pass = CameraViews.ClampBridgeLook(-45f, 5f);
+            Assert.That(pass.x, Is.EqualTo(-45f).Within(0.001f), "限内原值通过");
+            Assert.That(pass.y, Is.EqualTo(5f).Within(0.001f));
+        }
     }
 }

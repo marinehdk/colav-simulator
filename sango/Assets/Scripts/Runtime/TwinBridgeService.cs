@@ -161,7 +161,7 @@ namespace Sango
             active.onOpened += HandleChannelOpened;
             active.onClosed += DetachDataPlane;
             var sender = GetComponent<Unity.RenderStreaming.VideoStreamSender>();
-            if (sender != null) m_StreamQuality = new TwinStreamQuality(sender);
+            if (sender != null) m_StreamQuality = new TwinStreamQuality(sender, useLocalChannel);
             m_BridgeUp = true;
             if (m_Situation == null) m_Situation = gameObject.AddComponent<TwinSituationDisplay>();
             m_Situation.bridge = this;
@@ -285,6 +285,24 @@ namespace Sango
             AttachMastRigWhenOwnShipReady();
             DriveLidarView();
             SendStateHeartbeat();
+            ProbeFeedConsumers();
+        }
+
+        DetectionResultConsumer m_DetectionConsumer;
+        float m_NextFeedConsumerCheckS;
+
+        /// <summary>Feed 相机按需渲染探测（0.5Hz）：无 YOLO 宿主且发布闸关闭时，
+        /// 640×480 全场景附加渲染纯烧帧预算（attach 稳态 46-51fps 的主体残余 +
+        /// 尖峰底火）。asmdef 边界：探测必须在根程序集（Vessels 看不到这两个类型）。</summary>
+        void ProbeFeedConsumers()
+        {
+            if (mastRig == null || Time.unscaledTime < m_NextFeedConsumerCheckS) return;
+            m_NextFeedConsumerCheckS = Time.unscaledTime + 0.5f;
+            if (m_DetectionConsumer == null) m_DetectionConsumer = FindFirstObjectByType<DetectionResultConsumer>();
+            if (m_FeedPublisher == null) m_FeedPublisher = FindFirstObjectByType<FramePublisher>();
+            bool consumed = (m_DetectionConsumer != null && m_DetectionConsumer.Active)
+                || (m_FeedPublisher != null && m_FeedPublisher.Active);
+            mastRig.SetFeedRenderingEnabled(consumed);
         }
 
         /// <summary>
@@ -302,6 +320,9 @@ namespace Sango
         TwinCesiumLandscape m_Landscape;
         public TwinSituationMessage Presentation => m_Situation?.CurrentPresentation;
         public TwinBridgeLandscapeState Landscape => m_Landscape?.Describe();
+
+        /// <summary>replay 数据面播态非 PLAYING（live 恒 false）——TwinCesiumLandscape 暂停挂起用（契约 §4）。</summary>
+        public bool ReplayPaused => m_Mode == "replay" && m_PlayState != "PLAYING";
 
         void AttachMastRigWhenOwnShipReady()
         {
@@ -354,12 +375,31 @@ namespace Sango
             {
                 cameraRig.followShip = ownShip;
                 cameraRig.ClearFreePose(); // old scene coordinates do not survive a new Twin anchor
-                cameraRig.bridgeMount = null;
                 cameraRig.bowMount = null;
                 cameraRig.bridgeShipRelative = true;
+                // 20261015 舰桥玻璃第一人称:bridgeMount 不再摘空换"艉后 40m"常量位,改挂本船
+                // 驾驶室前玻璃眼(LOA 推导高度/前偏,继承浮态 6DOF;数学=CameraViews.BridgeEyeMount)。
+                // mount 写权集中本函数(会话重置 followShip 变化时自动重挂),WireTwinVisuals
+                // 不再竞争——终结挂靠期 mount 被本函数清空的竞态。M6 注释的"demo mount 摘除"
+                // 语义由覆盖式赋值保留。摘除后 Bow = 常量机位(无 mount)。
+                cameraRig.bridgeMount = BuildOwnShipBridgeEye(ownShip);
                 Debug.Log($"[Sango.TwinBridge] camera follow retargeted -> {ownShipName}" +
-                          " (bridge mounts detached, ship-relative bridge view)");
+                          " (bridge eye mount)");
             }
+        }
+
+        /// <summary>本船舰桥玻璃挂点(Twin bridge eye);参数缺失返 null(退回 ship-relative 常量位)。</summary>
+        Transform BuildOwnShipBridgeEye(Transform ownShip)
+        {
+            if (driver == null
+                || !driver.TryGetOwnShipBridgeEye(out var loa, out var waterlineY, out var bowYaw, out var scale))
+                return null;
+            var (pos, rot) = CameraViews.BridgeEyeMount(loa, waterlineY, bowYaw, scale);
+            var eye = new GameObject("Twin bridge eye");
+            eye.transform.SetParent(ownShip, false);
+            eye.transform.localPosition = pos;
+            eye.transform.localRotation = rot;
+            return eye.transform;
         }
 
         /// <summary>
@@ -413,6 +453,11 @@ namespace Sango
                 case "clock": HandleClock(cmd); break;
                 case "camera_target": HandleCameraTarget(cmd); break;
                 case "camera": HandleCamera(cmd); break;
+                case "camera_look":
+                    // 20261015 舰桥瞭望:玻璃眼机位拖拽看视野(绝对偏移;钳位在 rig,preset
+                    // 切换经 SetView 归零)。复用 camera_free 的 yaw_deg/pitch_deg 字段。
+                    if (cameraRig != null) cameraRig.SetBridgeLook((float)cmd.yaw_deg, (float)cmd.pitch_deg);
+                    break;
                 case "camera_free": HandleCameraFree(cmd); break;
                 case "theme": HandleTheme(cmd); break;
                 case "detection": HandleDetection(cmd); break;
@@ -1129,10 +1174,18 @@ namespace Sango
             }
             service.EnsureWiring();
             service.useLocalChannel = local;
+            // --sango-twin-wake-off：船-水视觉特效总闸关（艏浪粒子/艏波/尾迹条带/触点贴花），
+            // 纯净水面观感对比用（20261014 验收流程）；renderer_control 以 wake-off.flag 标记文件挂参。
+            bool wakeOff = Array.IndexOf(args, "--sango-twin-wake-off") >= 0;
+            if (wakeOff)
+            {
+                TwinSessionDriver.WakeEffectsEnabled = false;
+                Debug.Log("[Sango.TwinBridge] wake effects disabled via cli (--sango-twin-wake-off)");
+            }
             if (local)
             {
                 // 相机上屏保障（M5④）：gst 路由下 URS sender 禁用——永不 CreateTrack，相机持续
-                // 上屏（Xvfb 采集前提）。TwinStreamQuality 仍在 StartBridge 构造：60fps 渲染钟/
+                // 上屏（Xvfb 采集前提）。TwinStreamQuality 仍在 StartBridge 构造：渲染钟(gst 路由锁 30 配 StableGate)/
                 // SMAA 副作用与 ready.video_profiles 上报（web 降档逻辑依赖）都系在它身上。
                 var sender = service.GetComponent<Unity.RenderStreaming.VideoStreamSender>();
                 if (sender != null) sender.enabled = false;

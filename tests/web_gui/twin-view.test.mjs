@@ -12,7 +12,7 @@ import {
   projectTwinHud,
   themeValue,
   twinReplayRange,
-} from '../../web_gui/modules/twin-view.js?v=20261010-dt-camera-v4';
+} from '../../web_gui/modules/twin-view.js?v=20261015-bridge-look';
 
 const html = await readFile(new URL('../../web_gui/index.html', import.meta.url), 'utf8');
 const styles = await readFile(new URL('../../web_gui/style.css', import.meta.url), 'utf8');
@@ -67,6 +67,20 @@ test('twin-view.js import specifier is unified across shell, deployment-twin and
   }
   assert.equal(new Set(found).size, 1,
     `every twin-view.js import must share one ?v= specifier (ES module identity), got: ${[...new Set(found)].map(v => `?v=${v}`).join(', ')}`);
+});
+
+test('video RTP timestamps resolve captured frame IDs and cannot survive reattachment', () => {
+  const client = createTwinBridgeClient();
+  client.onMessage(JSON.stringify({ type: 'attached', run_id: 'a' }));
+  client.onMessage(JSON.stringify({ type: 'video_frame', rtp_timestamp: 4294967280, frame_id: 65535 }));
+  client.onMessage(JSON.stringify({ type: 'video_frame', rtp_timestamp: 1484, frame_id: 0 }));
+  assert.equal(client.videoFrameId(4294967280), 65535);
+  assert.equal(client.videoFrameId(1484), 0);
+  assert.equal(client.videoFrameId(999), null);
+  client.onMessage(JSON.stringify({ type: 'video_frame', rtp_timestamp: 1484, frame_id: -1 }));
+  assert.equal(client.videoFrameId(1484), 0, 'malformed mapping cannot overwrite a valid frame');
+  client.onMessage(JSON.stringify({ type: 'attached', run_id: 'b' }));
+  assert.equal(client.videoFrameId(1484), null);
 });
 
 test('Digital Twin view section mirrors the replay viewer skeleton', () => {
@@ -329,7 +343,7 @@ test('themeValue maps the OpenBridge theme attribute onto the contract vocabular
 
 /* ── P2-S4：camera_free（契约 §8 演进记录）+ cameraFreePose 折算 + 流客户端抽取 ── */
 
-import { cameraFreePose, createTwinStreamClient, TWIN_LINK_CHANGE_PERCENT } from '../../web_gui/modules/twin-view.js?v=20261010-dt-camera-v4';
+import { cameraFreePose, createTwinStreamClient, TWIN_LINK_CHANGE_PERCENT } from '../../web_gui/modules/twin-view.js?v=20261015-bridge-look';
 
 test('camera_free message matches the frozen contract §8 literal (只加字段演进)', () => {
   const channel = recordingChannel();
@@ -417,7 +431,7 @@ test('twin runs table paginates with the same footer controls and page sizes as 
 
 test('sensorModeItems projects the frozen vocabulary; S3 un-pends lidar (pure)', async () => {
   const { sensorModeItems, TWIN_SENSOR_MODE_DEFAULT, projectSensorMode } = await import(
-    '../../web_gui/modules/twin-view.js?v=20261010-dt-camera-v4'
+    '../../web_gui/modules/twin-view.js?v=20261015-bridge-look'
   );
   assert.deepEqual(TWIN_SENSOR_MODES, ['eo', 'ir', 'lidar']);
   assert.equal(TWIN_SENSOR_MODE_DEFAULT, 'eo');

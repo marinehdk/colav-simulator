@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { chooseTwinStreamProfile, sampleTwinVideoStats } from '../../web_gui/modules/twin-stream-quality.js?v=20261009-dt-quality-v3';
-import { createTwinBridgeClient } from '../../web_gui/modules/twin-view.js?v=20261010-dt-camera-v4';
+import { createTwinBridgeClient } from '../../web_gui/modules/twin-view.js?v=20261015-bridge-look';
 
 test('viewport selects 1080p or 1440p using contained physical video pixels', () => {
   assert.equal(chooseTwinStreamProfile(1800, 1000, 1), '1440p');
@@ -55,4 +55,28 @@ test('network and decode metrics separate transport loss from codec/render blur'
   assert.equal(current.rttMs, 4);
   const missing = sampleTwinVideoStats([{ id: 'x', type: 'inbound-rtp', kind: 'video', timestamp: 1 }]);
   assert.equal(missing.lossRatio, null); assert.equal(missing.decodeMs, null);
+});
+
+test('burst diagnostics distinguish packet recovery, missing frames and decode queues', () => {
+  const row = (timestamp, extra) => [{ id: 'in', type: 'inbound-rtp', kind: 'video',
+    timestamp, bytesReceived: timestamp * 1000, ...extra }];
+  const a = sampleTwinVideoStats(row(1000, { framesDecoded: 100, framesReceived: 100,
+    framesDropped: 0, packetsReceived: 1000, packetsLost: 0, nackCount: 0, pliCount: 0,
+    retransmittedPacketsReceived: 0, totalProcessingDelay: 2, totalDecodeTime: 0.2,
+    freezeCount: 0, totalFreezesDuration: 0 }));
+  const b = sampleTwinVideoStats(row(2000, { framesDecoded: 117, framesReceived: 118,
+    framesDropped: 1, packetsReceived: 1500, packetsLost: 10, nackCount: 3, pliCount: 1,
+    retransmittedPacketsReceived: 8, totalProcessingDelay: 2.51, totalDecodeTime: 0.234,
+    freezeCount: 1, totalFreezesDuration: 0.53 }), a);
+  assert.equal(b.receivedFps, 18);
+  assert.equal(b.lostPackets, 10);
+  assert.equal(b.nacks, 3);
+  assert.equal(b.plis, 1);
+  assert.equal(b.retransmittedPackets, 8);
+  assert.equal(b.freezes, 1);
+  assert.equal(b.freezeDurationMs, 530);
+  assert.ok(Math.abs(b.processingMs - 30) < 1e-8);
+  const restarted = sampleTwinVideoStats(row(3000, { framesDecoded: 0, framesReceived: 0 }), b);
+  assert.equal(restarted.receivedFps, null);
+  assert.equal(restarted.freezes, null);
 });

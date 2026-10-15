@@ -176,5 +176,45 @@ namespace Sango
             int next = (int)view + 1;
             return next > (int)CameraView.Overlook ? CameraView.Bridge : (CameraView)next;
         }
+
+        // ── twin 舰桥玻璃第一人称挂点（20261015 用户验收："舰桥视角在船体后上方"）──
+        // M1 的 Bridge=(0,12,-40) 艉后固定偏移对 twin 是第三人称；本挂点把相机放到
+        // 驾驶室前玻璃：高度 0.22×LOA（钳 2.5-11m，随船高）、艏向 +0.08×LOA（驾驶室
+        // 前缘）、俯 5°（看艏浪/水线）。挂点为船子物体 → CameraRig.bridgeMount 消费，
+        // 继承浮态 6DOF 摇摆；独立场景 M1 固定机位零变化（仅 twin 槽位船接线）。
+        public const float BridgeEyeHeightPerLoa = 0.22f;
+        public const float BridgeEyeHeightMinM = 2.5f;
+        public const float BridgeEyeHeightMaxM = 11f;
+        public const float BridgeEyeForwardPerLoa = 0.08f;
+        public const float BridgeEyePitchDeg = -5f;
+
+        /// <summary>
+        /// 舰桥玻璃挂点的船体本地位姿（prefab 本地系）。返回：
+        /// localPosition = canonicalizer(−bowYaw) × (0, h−waterlineOffsetY, +0.08L) / scale
+        /// （surfaceRoot 同款尺度/艏轴归一）；localRotation = Euler(+5° 俯, −bowYawDeg, 0)
+        /// （CameraPose"负=俯"→Unity 正 x 的单点换算在此内联）。
+        /// </summary>
+        public static (Vector3 localPosition, Quaternion localRotation) BridgeEyeMount(
+            float loaMeters, float waterlineOffsetY, float bowYawDeg, float prefabLossyScale)
+        {
+            float loa = Mathf.Max(6f, loaMeters);
+            float height = Mathf.Clamp(loa * BridgeEyeHeightPerLoa, BridgeEyeHeightMinM, BridgeEyeHeightMaxM);
+            var canonical = new Vector3(0f, height - waterlineOffsetY, loa * BridgeEyeForwardPerLoa);
+            float scale = Mathf.Max(1e-3f, prefabLossyScale);
+            return (
+                Quaternion.Euler(0f, -bowYawDeg, 0f) * canonical / scale,
+                Quaternion.Euler(-BridgeEyePitchDeg, -bowYawDeg, 0f));
+        }
+
+        // ── 舰桥瞭望(20261015 用户验收):玻璃眼机位上鼠标拖拽看视野 ──
+        // 船长瞭望语义:水平前方 180°(yaw ±90),俯仰受驾驶室玻璃限制(俯到水线/艏浪,
+        // 仰到玻璃上缘)。web camera_look 消息携带绝对偏移,Unity 侧钳位。
+        public const float BridgeLookYawLimitDeg = 90f;
+        public const float BridgeLookPitchMinDeg = -25f;
+        public const float BridgeLookPitchMaxDeg = 15f;
+
+        public static Vector2 ClampBridgeLook(float yawDeg, float pitchDeg) => new(
+            Mathf.Clamp(yawDeg, -BridgeLookYawLimitDeg, BridgeLookYawLimitDeg),
+            Mathf.Clamp(pitchDeg, BridgeLookPitchMinDeg, BridgeLookPitchMaxDeg));
     }
 }

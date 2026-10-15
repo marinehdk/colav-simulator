@@ -33,6 +33,11 @@ namespace Sango
         [Tooltip("运行期开关；默认关（Demo 行为零变化）。Play 中勾选/取消即启停")]
         public bool runtimeEnabled = false;
 
+        /// <summary>船-水视觉特效总闸（艏浪粒子/艏波/尾迹条带/舷侧触点贴花）。
+        /// --sango-twin-wake-off 出片自举置 false：纯净水面观感对比用（20261014 用户验收流程）。
+        /// 只断视觉层；VesselBuoyancy 浮态与 VectorArrows 等非水特效不受影响。</summary>
+        public static bool WakeEffectsEnabled = true;
+
         [Tooltip("后端基址（gui_server 本机常驻，00-REPORT.md §2.2）")]
         public string backendBase = SangoSeamConfig.TwinBackendBase;
 
@@ -191,6 +196,10 @@ namespace Sango
                        $"bad={m_MalformedCount} slots={m_Slots.Count} sim={(double.IsNaN(renderSim) ? 0.0 : renderSim):0.00}s" + own;
             }
         }
+
+        /// <summary>live 呈现暂停（心跳帧 state=PAUSED/FINISHED/FAILED，TwinLivePresentation.ObservePlayback 维护）。
+        /// TwinCesiumLandscape 暂停挂起用：画面静止时地形选集/更新纯属帧预算白烧。</summary>
+        public bool PresentationPaused => runtimeEnabled && m_LivePresentation.Paused;
 
         /// <summary>开启 Twin 数据面（幂等：线程已在跑则忽略）。</summary>
         public void StartTwin()
@@ -545,6 +554,24 @@ namespace Sango
         }
 
         /// <summary>
+        /// 本船舰桥玻璃挂点参数（20261015 用户验收）：service 的 RetargetCameraFollow 在挂靠/
+        /// 会话重置时建 CameraRig.bridgeMount（mount 写权集中在该函数——此处只供给参数，
+        /// 不再直接写 rig，终结挂靠期 mount 被清空的竞态）。数学=CameraViews.BridgeEyeMount。
+        /// </summary>
+        public bool TryGetOwnShipBridgeEye(out float loaMeters, out float waterlineOffsetY, out float bowYawDeg, out float lossyScale)
+        {
+            loaMeters = waterlineOffsetY = bowYawDeg = lossyScale = 0f;
+            if (m_Latest?.truth == null || m_Latest.truth.Length == 0
+                || !m_Slots.TryGetValue(m_Latest.truth[0].id, out var slot) || slot.Ship == null)
+                return false;
+            loaMeters = slot.LengthMeters;
+            waterlineOffsetY = slot.Entry.waterlineOffsetY;
+            bowYawDeg = slot.Entry.bowYawDeg;
+            lossyScale = slot.Ship.transform.lossyScale.x;
+            return true;
+        }
+
+        /// <summary>
         /// P2-S4 D 收口（类头注遗留）：槽位船接速度矢量 + 尾迹，驱动源 = Twin 会话 sog
         /// （ApplyPoses 逐帧写 slot.SogMps）。Demo 路径零变化——VectorArrows/WakeFoamRig 的
         /// twinSpeedMps 外部源只在本方法注入（Demo 船组件由场景预接线走 follower 路径原样）；
@@ -564,59 +591,62 @@ namespace Sango
             var lights = slot.Ship.GetComponent<NavigationLights>() ?? slot.Ship.AddComponent<NavigationLights>();
             lights.weather = m_Weather;
             lights.bowYawDeg = entry.bowYawDeg;
-            // Canonical +Z bow rig is independent of prefab authoring yaw/scale.
-            var surfaceRoot = new GameObject("Twin surface interaction");
-            surfaceRoot.transform.SetParent(slot.Ship.transform, false);
-            surfaceRoot.transform.localRotation = Quaternion.Euler(0, -entry.bowYawDeg, 0);
-            surfaceRoot.transform.localScale = Vector3.one / Mathf.Max(slot.Ship.transform.lossyScale.x, 1e-3f);
-            surfaceRoot.transform.localPosition = new Vector3(0, -slot.Entry.waterlineOffsetY / Mathf.Max(slot.Ship.transform.lossyScale.x, 1e-3f), 0);
-            var gate = surfaceRoot.AddComponent<BoatWaterDecals>();
-            gate.loaMeters = entry.loaMeters;
-            gate.bowAmplitudeM = WaterDecalSizing.ForLoa(entry.loaMeters).bowAmplitudeM;
-            gate.twinSpeedMps = () => slot.WaterSpeedMps;
-            gate.twinCurrentVelocity = () => LiveEnvironment?.CurrentVelocity ?? Vector3.zero;
-            var sizing = WaterDecalSizing.ForLoa(entry.loaMeters);
-            foreach (bool bow in new[] { true, false })
+            if (WakeEffectsEnabled) // 船-水视觉特效总闸(--sango-twin-wake-off 出片自举关)
             {
-                var go = new GameObject(bow ? "Twin bow wave" : "Twin wake foam");
-                go.transform.SetParent(surfaceRoot.transform, false);
-                var size = bow ? sizing.bowRegionSize : sizing.wakeRegionSize;
-                go.transform.localPosition = new Vector3(0, 0, (bow ? entry.loaMeters * 0.5f : 0) - size.y * 0.4f);
-                go.transform.localRotation = Quaternion.Euler(0, 180, 0);
-                var decal = go.AddComponent<UnityEngine.Rendering.HighDefinition.WaterDecal>();
-                decal.material = Resources.Load<Material>(bow ? "TwinBowWave" : "TwinWakeFoam");
-                decal.scaleMode = UnityEngine.Rendering.HighDefinition.DecalScaleMode.ScaleInvariant;
-                decal.regionSize = size;
-                decal.surfaceFoamDimmer = bow ? 0.25f : 0;
-                if (bow) gate.bowDecal = decal; else gate.wakeDecal = decal;
+                // Canonical +Z bow rig is independent of prefab authoring yaw/scale.
+                var surfaceRoot = new GameObject("Twin surface interaction");
+                surfaceRoot.transform.SetParent(slot.Ship.transform, false);
+                surfaceRoot.transform.localRotation = Quaternion.Euler(0, -entry.bowYawDeg, 0);
+                surfaceRoot.transform.localScale = Vector3.one / Mathf.Max(slot.Ship.transform.lossyScale.x, 1e-3f);
+                surfaceRoot.transform.localPosition = new Vector3(0, -slot.Entry.waterlineOffsetY / Mathf.Max(slot.Ship.transform.lossyScale.x, 1e-3f), 0);
+                var gate = surfaceRoot.AddComponent<BoatWaterDecals>();
+                gate.loaMeters = entry.loaMeters;
+                gate.bowAmplitudeM = WaterDecalSizing.ForLoa(entry.loaMeters).bowAmplitudeM;
+                gate.twinSpeedMps = () => slot.WaterSpeedMps;
+                gate.twinCurrentVelocity = () => LiveEnvironment?.CurrentVelocity ?? Vector3.zero;
+                var sizing = WaterDecalSizing.ForLoa(entry.loaMeters);
+                foreach (bool bow in new[] { true, false })
+                {
+                    var go = new GameObject(bow ? "Twin bow wave" : "Twin wake foam");
+                    go.transform.SetParent(surfaceRoot.transform, false);
+                    var size = bow ? sizing.bowRegionSize : sizing.wakeRegionSize;
+                    go.transform.localPosition = new Vector3(0, 0, (bow ? entry.loaMeters * 0.5f : 0) - size.y * 0.4f);
+                    go.transform.localRotation = Quaternion.Euler(0, 180, 0);
+                    var decal = go.AddComponent<UnityEngine.Rendering.HighDefinition.WaterDecal>();
+                    decal.material = Resources.Load<Material>(bow ? "TwinBowWave" : "TwinWakeFoam");
+                    decal.scaleMode = UnityEngine.Rendering.HighDefinition.DecalScaleMode.ScaleInvariant;
+                    decal.regionSize = size;
+                    decal.surfaceFoamDimmer = bow ? 0.25f : 0;
+                    if (bow) gate.bowDecal = decal; else gate.wakeDecal = decal;
+                }
+                gate.ConfigureTwinWater(water, slot.BeamMeters, slot.Ship == OwnShipObject);
+                if (water != null && slot.Ship == OwnShipObject)
+                {
+                    water.deformation = water.foam = true;
+                    // HDRP 17.3's reprojection branch does not rebind the graphics foam target.
+                    // Keep the region stable during ordinary motion; reproject only near its edge.
+                    m_PreviousFoamAnchor = water.decalRegionAnchor;
+                    m_FoamRegionRoot = new GameObject("Twin foam region");
+                    m_FoamRegionRoot.transform.position = surfaceRoot.transform.position;
+                    water.decalRegionAnchor = m_FoamRegionRoot.transform;
+                    float wakeRegion = Mathf.Clamp(entry.loaMeters * 12f, 256f, 768f);
+                    water.decalRegionSize = new Vector2(wakeRegion, wakeRegion);
+                    water.deformationRes = UnityEngine.Rendering.HighDefinition.WaterSurface.WaterDecalRegionResolution.Resolution512;
+                    water.foamResolution = UnityEngine.Rendering.HighDefinition.WaterSurface.WaterDecalRegionResolution.Resolution1024;
+                    water.foamPersistenceMultiplier = 0.75f;
+                    water.foamCurrentInfluence = 1f;
+                    water.foamTextureTiling = 0.5f;
+                }
+                var wake = slot.Ship.AddComponent<WakeFoamRig>();
+                wake.decals = gate;
+                wake.twinSurfaceWake = true;
+                wake.twinContactEntryMps = () => gate.ContactEntryMps;
+                wake.water = water;
+                wake.loaMeters = entry.loaMeters;
+                wake.twinSpeedMps = () => slot.WaterSpeedMps;
+                wake.twinWaveHsM = () => LiveEnvironment?.enabled == true ? LiveEnvironment.wave_hs_m : 0f;
+                wake.twinCurrentVelocity = () => LiveEnvironment?.CurrentVelocity ?? Vector3.zero;
             }
-            gate.ConfigureTwinWater(water, slot.BeamMeters, slot.Ship == OwnShipObject);
-            if (water != null && slot.Ship == OwnShipObject)
-            {
-                water.deformation = water.foam = true;
-                // HDRP 17.3's reprojection branch does not rebind the graphics foam target.
-                // Keep the region stable during ordinary motion; reproject only near its edge.
-                m_PreviousFoamAnchor = water.decalRegionAnchor;
-                m_FoamRegionRoot = new GameObject("Twin foam region");
-                m_FoamRegionRoot.transform.position = surfaceRoot.transform.position;
-                water.decalRegionAnchor = m_FoamRegionRoot.transform;
-                float wakeRegion = Mathf.Clamp(entry.loaMeters * 12f, 256f, 768f);
-                water.decalRegionSize = new Vector2(wakeRegion, wakeRegion);
-                water.deformationRes = UnityEngine.Rendering.HighDefinition.WaterSurface.WaterDecalRegionResolution.Resolution512;
-                water.foamResolution = UnityEngine.Rendering.HighDefinition.WaterSurface.WaterDecalRegionResolution.Resolution1024;
-                water.foamPersistenceMultiplier = 0.75f;
-                water.foamCurrentInfluence = 1f;
-                water.foamTextureTiling = 0.5f;
-            }
-            var wake = slot.Ship.AddComponent<WakeFoamRig>();
-            wake.decals = gate;
-            wake.twinSurfaceWake = true;
-            wake.twinContactEntryMps = () => gate.ContactEntryMps;
-            wake.water = water;
-            wake.loaMeters = entry.loaMeters;
-            wake.twinSpeedMps = () => slot.WaterSpeedMps;
-            wake.twinWaveHsM = () => LiveEnvironment?.enabled == true ? LiveEnvironment.wave_hs_m : 0f;
-            wake.twinCurrentVelocity = () => LiveEnvironment?.CurrentVelocity ?? Vector3.zero;
             // P3-S2 (spec #90): 槽位船进热目标分级注册表——sensor_mode=ir 时
             // ThermalTagApplier 按材质名温度档改写，EO 恢复；随槽位销毁自动失效。
             Vessels.Mast.ThermalTagApplier.Register(slot.Ship);

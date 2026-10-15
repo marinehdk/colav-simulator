@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-import { createDeploymentTwinViewport, projectTwinLandscape } from '../../web_gui/modules/deployment-twin.js?v=20261010-dt-landscape-v1';
+import { createDeploymentTwinViewport, projectTwinLandscape } from '../../web_gui/modules/deployment-twin.js?v=20261015-bridge-look3';
 
 const html = await readFile(new URL('../../web_gui/index.html', import.meta.url), 'utf8');
 const styles = await readFile(new URL('../../web_gui/style.css', import.meta.url), 'utf8');
@@ -61,6 +61,7 @@ function fakeBridgeClient() {
       client.sent.push({ type: 'camera_free', pos: { east, north, height_m }, yaw_deg, pitch_deg, fov_deg });
     },
     sendCamera(value) { client.sent.push({ type: 'camera', value }); },
+    sendCameraLook(yawDeg, pitchDeg) { client.sent.push({ type: 'camera_look', yaw_deg: yawDeg, pitch_deg: pitchDeg }); },
     sendDetach() { client.sent.push({ type: 'detach' }); },
   };
   return client;
@@ -502,6 +503,42 @@ test('DT uses Cesium buttons: left pans, middle rotates, right and wheel zoom, d
   const count = h.client.sent.length;
   video.emit('wheel', { deltaY: -200 }); h.scheduler.run();
   assert.equal(h.client.sent.length, count, 'destroyed viewport cannot control camera');
+});
+
+test('DT bridge look: preset-drag looks around within glass limits, dblclick recenters, orbit yields', async () => {
+  // 20261015 舰桥瞭望:预设权威源=lastState.camera;Bridge 拖拽发 camera_look(±90°/玻璃
+  // 俯仰限),轨道控件让位(不再 camera_free 顶掉预设),双击回正,destroy 清 hub 监听。
+  const video = pointerVideo();
+  const h = viewportHarness({ video, attached: { anchor: { east: 40000, north: 6957000 } } });
+  await h.viewport.attach(); h.scheduler.run();
+  h.viewport.render({ raw: { state: 'RUNNING', os: { x: 1000, y: 1000, psi: 0.2, length: 45 } } });
+  h.client.lastState = { camera: 'bridge' };
+
+  video.emit('pointerdown', { button: 0, clientX: 100, clientY: 100 });
+  video.emit('pointermove', { clientX: 300, clientY: 80 }); // 拖右 200px + 上 20px
+  video.emit('pointerup');
+  const look = h.client.sent.findLast(m => m.type === 'camera_look');
+  assert.ok(look, 'bridge drag reaches Unity as camera_look');
+  assert.equal(look.yaw_deg, 50, 'yaw = dx × 0.25 (drag right = starboard)');
+  assert.equal(look.pitch_deg, 4, 'pitch = −dy × 0.2 (drag up = raise, glass-limited)');
+  assert.equal(h.client.sent.filter(m => m.type === 'camera_free').length, 0, 'orbit controls yield in bridge preset');
+
+  video.emit('pointerdown', { button: 0, clientX: 300, clientY: 80 });
+  video.emit('pointermove', { clientX: 1200, clientY: 80 }); // 越界拖拽 → 钳 ±90
+  video.emit('pointerup');
+  const clamped = h.client.sent.findLast(m => m.type === 'camera_look');
+  assert.equal(clamped.yaw_deg, 90, 'yaw clamped to ±90 (forward 180°)');
+
+  video.emit('dblclick', { button: 0 });
+  const reset = h.client.sent.findLast(m => m.type === 'camera_look');
+  assert.equal(reset.yaw_deg, 0, 'dblclick recenters look');
+  assert.equal(reset.pitch_deg, 0);
+
+  h.client.lastState = { camera: 'chase' }; // 离开 Bridge:累积量归零,轨道控件回归
+  video.emit('pointerdown', { button: 1 }); video.emit('pointermove', { clientX: 180, clientY: 130 });
+  h.scheduler.run(); video.emit('pointerup', { button: 1 });
+  assert.ok(h.client.sent.findLast(m => m.type === 'camera_free'), 'orbit reaches Unity outside bridge');
+  h.viewport.destroy(); assert.equal(video.listeners, 0, 'hub listeners removed on destroy');
 });
 
 test('DT camera starts from Unity pose, coalesces motion and yields control to linked Cesium', async () => {

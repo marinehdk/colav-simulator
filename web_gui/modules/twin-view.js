@@ -174,6 +174,16 @@ export function createTwinStreamClient({
     rs.onTrackEvent = data => {
       if (!video) return;
       video.srcObject = new MediaStream([data.track]);
+      // Request a small recovery window for packet retransmission. This is a
+      // browser hint, not a guaranteed delay; diagnostics measure the actual buffer.
+      try {
+        const pc = rs._peer?.pc ?? rs.pc; // vendor RenderStreaming keeps the PC on _peer
+        const receiver = pc?.getReceivers?.().find(r => r.track === data.track) ?? null;
+        window.__twinVideoReceiver = receiver;
+        const supported = receiver && 'jitterBufferTarget' in receiver;
+        if (supported) receiver.jitterBufferTarget = 120;
+        if (video.dataset) video.dataset.jitterBufferTarget = supported ? String(receiver.jitterBufferTarget) : 'unsupported';
+      } catch { /* peer may be gone during reconnect */ }
       video.play?.().catch(() => { /* autoplay policy: element is muted */ });
     };
     rs.onAddChannel = data => {
@@ -231,6 +241,7 @@ export function createTwinBridgeClient({ channel = null, now = () => Date.now(),
   let videoProfiles = [];
   let situationSync = null;
   const situationFrames = new Map();
+  const videoFrames = new Map(); // encoded RTP timestamp -> exact captured Unity marker
   let lastPick = null;
   let lastError = null;
   let errorCount = 0;
@@ -256,6 +267,11 @@ export function createTwinBridgeClient({ channel = null, now = () => Date.now(),
     get situationSync() { return situationSync; },
     get lastPick() { return lastPick; },
     situationFrame(id) { return situationFrames.get(id) ?? null; },
+    videoFrameId(timestamp) { return videoFrames.get(timestamp) ?? null; },
+    get situationFrameRange() {
+      const ids = [...situationFrames.keys()];
+      return { first: ids[0] ?? null, last: ids.at(-1) ?? null, count: ids.length };
+    },
     get lastError() { return lastError; },
     get errorCount() { return errorCount; },
     get samples() { return samples; },
@@ -280,6 +296,7 @@ export function createTwinBridgeClient({ channel = null, now = () => Date.now(),
 
     sendDetach() {
       situationFrames.clear();
+      videoFrames.clear();
       return send({ type: 'detach' });
     },
 
@@ -316,6 +333,14 @@ export function createTwinBridgeClient({ channel = null, now = () => Date.now(),
 
     sendCamera(preset) {
       return send({ type: 'camera', preset });
+    },
+
+    /**
+     * 20261015 舰桥瞭望（契约 §8 演进，只加消息）：Bridge 玻璃眼机位拖拽看视野——
+     * 绝对偏移（deg），Unity 侧钳位（前方 180°、俯仰受玻璃限制），preset 切换归零。
+     */
+    sendCameraLook(yawDeg, pitchDeg) {
+      return send({ type: 'camera_look', yaw_deg: yawDeg, pitch_deg: pitchDeg });
     },
 
     /**
@@ -363,10 +388,12 @@ export function createTwinBridgeClient({ channel = null, now = () => Date.now(),
           videoProfiles = Array.isArray(message.video_profiles) ? message.video_profiles : [];
           situationSync = message.situation_sync ?? null;
           situationFrames.clear();
+          videoFrames.clear();
           break;
         case 'attached':
           attached = message;
           situationFrames.clear();
+          videoFrames.clear();
           lastPick = null;
           break;
         case 'situation_frame':
@@ -374,6 +401,12 @@ export function createTwinBridgeClient({ channel = null, now = () => Date.now(),
           message._receivedAt = now();
           situationFrames.set(message.frame_id, message);
           if (situationFrames.size > 240) situationFrames.delete(situationFrames.keys().next().value);
+          break;
+        case 'video_frame':
+          if (!Number.isInteger(message.rtp_timestamp) || message.rtp_timestamp < 0 || message.rtp_timestamp > 0xffffffff
+            || !Number.isInteger(message.frame_id) || message.frame_id < 0 || message.frame_id > 65535) break;
+          videoFrames.set(message.rtp_timestamp, message.frame_id);
+          if (videoFrames.size > 240) videoFrames.delete(videoFrames.keys().next().value);
           break;
         case 'situation_pick':
           if (message.run_id === attached?.run_id) lastPick = message;

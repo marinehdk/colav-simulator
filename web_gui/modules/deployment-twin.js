@@ -30,18 +30,20 @@ import {
   themeValue,
   TWIN_SENSOR_MODE_DEFAULT,
   TWIN_SENSOR_MODES,
-} from './twin-view.js?v=20261010-dt-camera-v4';
+} from './twin-view.js?v=20261015-bridge-look';
 import { createGeography } from './scene-geography.js?v=20261004-token-cleanup-v1';
-import { chooseTwinStreamProfile, sampleTwinVideoStats } from './twin-stream-quality.js?v=20261009-dt-quality-v3';
+import { chooseTwinStreamProfile, sampleTwinVideoStats } from './twin-stream-quality.js?v=20261013-dt-diagnostics-v11';
 
 import { createTwinCameraControls } from './twin-camera-controls.js?v=20261010-dt-camera-v6';
-import { createTwinSituationOverlay } from './twin-situation.js?v=20261011-dt-sensor-overlay-v1';
+import { createTwinSituationOverlay } from './twin-situation.js?v=20261014-wp-hyst';
 
 // HUD refresh cadence (Unity state echo is ~1Hz; same as the Evaluation twin).
 const HUD_INTERVAL_MS = 250;
 
 export function projectTwinLandscape(state) {
   if (!state || state.ready !== false) return null;
+  if (state.state === 'waiting-session') return { visible: true, level: 'warming',
+    title: '正在同步仿真会话', detail: '正在等待当前会话的视景数据，然后检查地形。' };
   const progress = Number.isFinite(state.progress) ? Math.max(0, Math.min(100, state.progress)) : 0;
   return { visible: true, level: state.state === 'failed' ? 'failed' : 'warming',
     title: state.state === 'failed' ? '地形预热未完成' : '正在预热地形 · ' + progress.toFixed(0) + '%',
@@ -103,31 +105,129 @@ export function createDeploymentTwinViewport({
   let resizeObserver = null;
   let videoFrameCallback = null;
   let lastVideoFrameAt = null;
+  if (video?.dataset) for (const key of ['landscape', 'sourceVideo', 'motion', 'unityCameraPose', 'streamDiagnostics']) delete video.dataset[key];
+  let lastVideoMetadata = null;
+  let videoCallbacks = 0, skippedVideoCallbacks = 0, videoGapCount = 0, videoGapMaxMs = 0;
+  let animationFrame = null, lastAnimationAt = null, animationGapMaxMs = 0;
+  let longTaskObserver = null, longTasks = 0, longTaskMaxMs = 0;
+  let longFrameObserver = null;
+  const longFrames = [];
+  const viewportOpenedAt = now();
+  let landscapeReadyMs = null;
+  const sourceCadence = { matched: 0, consecutive: 0, repeated: 0, advanced: 0 };
+  let lastSourceFrame = null;
   const situation = chart && host?.ownerDocument && video ? createTwinSituationOverlay({
     host, video, chart, info, client: () => streamCtl?.client, onSelect, onCameraChange: () => cameraControls.reset(), getPlannerSurface, requestVODecisionSpace,
   }) : null;
   const videoFrameIntervals = [];
-  function observeVideoFrame(timestamp) {
+  function observeVideoFrame(timestamp, metadata = {}) {
     if (destroyed) return;
-    situation?.videoFrame(timestamp);
-    if (lastVideoFrameAt !== null) {
-      videoFrameIntervals.push(timestamp - lastVideoFrameAt);
-      if (videoFrameIntervals.length > 120) videoFrameIntervals.shift();
-      const sorted = [...videoFrameIntervals].sort((a, b) => a - b);
-      if (video?.dataset) {
-        video.dataset.frameIntervalP95Ms = sorted[Math.floor((sorted.length - 1) * 0.95)].toFixed(1);
-        video.dataset.frameIntervalMaxMs = sorted.at(-1).toFixed(1);
+    const sourceFrame = streamCtl?.client?.videoFrameId?.(metadata.rtpTimestamp) ?? null;
+    if (sourceFrame !== null) {
+      sourceCadence.matched++;
+      if (lastSourceFrame !== null && metadata.presentedFrames === lastVideoMetadata?.presentedFrames + 1) {
+        const advance = (sourceFrame - lastSourceFrame + 65536) % 65536;
+        sourceCadence.consecutive++;
+        if (advance === 0) sourceCadence.repeated++;
+        // Advancing by two is expected when rendering at 60 and capturing at 30.
+        if (advance < 240) sourceCadence.advanced += advance;
       }
     }
+    lastSourceFrame = sourceFrame;
+    situation?.videoFrame(timestamp, metadata);
+    if (lastVideoFrameAt !== null) {
+      const gap = timestamp - lastVideoFrameAt;
+      videoFrameIntervals.push(gap);
+      if (documentRef?.visibilityState !== 'hidden') {
+        videoGapMaxMs = Math.max(videoGapMaxMs, gap);
+        if (gap > 100) videoGapCount++;
+      }
+      if (videoFrameIntervals.length > 120) videoFrameIntervals.shift();
+    }
+    if (lastVideoMetadata && Number.isFinite(metadata.presentedFrames))
+      skippedVideoCallbacks += Math.max(0, metadata.presentedFrames - lastVideoMetadata.presentedFrames - 1);
+    lastVideoMetadata = metadata;
+    videoCallbacks++;
     lastVideoFrameAt = timestamp;
     videoFrameCallback = video.requestVideoFrameCallback(observeVideoFrame);
   }
+  function observeAnimationFrame(timestamp) {
+    if (destroyed) return;
+    if (lastAnimationAt !== null && documentRef?.visibilityState !== 'hidden')
+      animationGapMaxMs = Math.max(animationGapMaxMs, timestamp - lastAnimationAt);
+    lastAnimationAt = documentRef?.visibilityState === 'hidden' ? null : timestamp;
+    animationFrame = scheduler.requestAnimationFrame(observeAnimationFrame);
+  }
   const geography = info ? createGeography(info) : null;
 
+  // 20261015 舰桥瞭望（契约 §8 演进）：Bridge 玻璃眼预设下，视口拖拽 = 船长瞭望
+  // （前方 180°，俯仰受玻璃限制），走 camera_look；其他预设维持原轨道控件——旧路径
+  // 任何拖拽都发 camera_free 把预设顶成自由静态机位（用户观感"单击退出到静态相机"）。
+  // 预设离开 Bridge 再回来时累积量归零（Unity SetView 同步归零）；双击在 Bridge = 回正
+  // 视线（不切预设）。单监听器契约（测试桩 listeners.set 每类型一槽）：pointer 事件由
+  // 分发 hub 统一持有，controls 经 controlsVideo 原型链包装注册进 hub，共用每类型一槽。
+  const bridgeLook = { yaw: 0, pitch: 0, sentAt: 0, preset: '' };
+  // 预设权威源 = Unity 状态回显(state.camera:'bridge'/'chase'/'free'…);DOM data-camera
+  // 仅兜底(视频元素不必然是 situation 根的后代——实测 closest 常落空,拖拽瞭望失灵根因)。
+  // 回显延迟竞态(20261015 chase"固定"实证):点预设按钮后 ~1s 内回显未达,拖拽被旧预设
+  // 的处理器吃掉(chase 下瞭望偏移不可见=视觉无反应)。捕获期监听按钮点击,本地即时记
+  // 预设,5s 内以本地为准;回显追平或超时后回到权威源。
+  let presetClickOverride = null;
+  let presetClickAt = 0;
+  const onPresetButtonClick = event => {
+    const btn = event.target?.closest?.('button[data-camera]');
+    if (!btn || !btn.dataset.camera) return;
+    presetClickOverride = btn.dataset.camera;
+    presetClickAt = performance.now();
+  };
+  documentRef?.addEventListener?.('click', onPresetButtonClick, true);
+  const currentPreset = () => {
+    const echo = streamCtl?.client?.lastState?.camera;
+    if (presetClickOverride !== null) {
+      if (echo === presetClickOverride || performance.now() - presetClickAt > 5000) presetClickOverride = null;
+      else return presetClickOverride;
+    }
+    return echo || video?.closest?.('[data-camera]')?.dataset.camera || '';
+  };
+  const clampBridgeLook = () => {
+    bridgeLook.yaw = Math.max(-90, Math.min(90, bridgeLook.yaw));
+    bridgeLook.pitch = Math.max(-25, Math.min(15, bridgeLook.pitch));
+  };
+  const syncBridgeLookPreset = () => {
+    const preset = currentPreset();
+    if (bridgeLook.preset !== preset) {
+      bridgeLook.preset = preset;
+      bridgeLook.yaw = 0;
+      bridgeLook.pitch = 0;
+    }
+    return preset;
+  };
+  const sendBridgeLook = () => {
+    clampBridgeLook();
+    streamCtl?.client?.sendCameraLook?.(bridgeLook.yaw, bridgeLook.pitch);
+  };
+
+  const pointerHubs = { pointerdown: [], pointermove: [], pointerup: [], pointercancel: [] };
+  const dispatchPointer = type => event => { for (const fn of pointerHubs[type]) fn(event); };
+  for (const type of Object.keys(pointerHubs)) video?.addEventListener?.(type, dispatchPointer(type));
+  const controlsVideo = video ? Object.assign(Object.create(video), {
+    addEventListener(type, fn) {
+      if (pointerHubs[type]) pointerHubs[type].push(fn);
+      else video?.addEventListener?.(type, fn);
+    },
+    removeEventListener(type, fn) {
+      if (pointerHubs[type]) {
+        const at = pointerHubs[type].indexOf(fn);
+        if (at >= 0) pointerHubs[type].splice(at, 1);
+      } else video?.removeEventListener?.(type, fn);
+    },
+  }) : video;
+
   const cameraControls = createTwinCameraControls({
-    video, scheduler,
+    video: controlsVideo, scheduler,
     getClient: () => streamCtl?.client,
-    enabled: () => !destroyed && !linkOn && (streamCtl?.client?.lastState?.landscape || situation?.landscape)?.ready !== false,
+    enabled: () => !destroyed && !linkOn && syncBridgeLookPreset() !== 'bridge'
+      && (streamCtl?.client?.lastState?.landscape || situation?.landscape)?.ready !== false,
     getCameraPose: () => situation?.cameraPose || streamCtl?.client?.lastState?.camera_pose,
     getOwnship: () => {
       const ship = latestProjection?.raw?.os;
@@ -142,9 +242,38 @@ export function createDeploymentTwinViewport({
     },
   });
   if (video?.style) { video.style.touchAction = 'none'; video.style.visibility = 'hidden'; }
-  if (video?.setAttribute) video.setAttribute('title', '左键平移 · 中键旋转 · 右键/滚轮缩放 · 左键双击回到本船');
+  if (video?.setAttribute) video.setAttribute('title', '舰桥：拖拽瞭望 · 双击回正 · 其他视角：左键平移 · 中键旋转 · 右键/滚轮缩放 · 双击回到本船');
+  let lookPointer = null;
+  pointerHubs.pointerdown.push(event => {
+    if (event.button !== 0 || syncBridgeLookPreset() !== 'bridge') return;
+    lookPointer = { id: event.pointerId, x: event.clientX, y: event.clientY };
+    video.setPointerCapture?.(event.pointerId);
+    event.preventDefault?.();
+  });
+  pointerHubs.pointermove.push(event => {
+    if (!lookPointer || lookPointer.id !== event.pointerId) return;
+    if (syncBridgeLookPreset() !== 'bridge') { lookPointer = null; return; }
+    bridgeLook.yaw += (event.clientX - lookPointer.x) * 0.25;   // 拖右=向右舷看
+    bridgeLook.pitch -= (event.clientY - lookPointer.y) * 0.2;  // 拖上=抬头（玻璃内限位）
+    lookPointer.x = event.clientX; lookPointer.y = event.clientY;
+    clampBridgeLook();
+    const now = performance.now();
+    if (now - bridgeLook.sentAt > 80) { bridgeLook.sentAt = now; sendBridgeLook(); }
+  });
+  const endLookPointer = event => {
+    if (!lookPointer || lookPointer.id !== event.pointerId) return;
+    lookPointer = null;
+    sendBridgeLook();
+  };
+  pointerHubs.pointerup.push(endLookPointer);
+  pointerHubs.pointercancel.push(endLookPointer);
   function recenterCamera(event) {
     if (event && event.button !== 0) return;
+    if (syncBridgeLookPreset() === 'bridge') {
+      bridgeLook.yaw = 0; bridgeLook.pitch = 0;
+      sendBridgeLook();
+      return;
+    }
     cameraControls.reset();
     streamCtl?.client?.sendCamera?.('chase');
   }
@@ -224,6 +353,7 @@ export function createDeploymentTwinViewport({
   // Contract §2 live semantics: hello → attach(mode live) and NOTHING else —
   // the backend owns the clock, so no ReplayClock and no clock messages ever.
   function attachLiveWhenReady(timeoutMs = 15000) {
+    for (const pending of attachTimers) clearAttachTimer(pending);
     const gen = generation;
     const deadline = Date.now() + timeoutMs;
     const timer = scheduler.setInterval(() => {
@@ -260,7 +390,11 @@ export function createDeploymentTwinViewport({
       signalingUrl,
       page: 'deployment-twin',
       now,
-      onChannel: () => { sentProfile = null; measuredVideo = null; if (video?.dataset) video.dataset.sourceVideo = ''; attachLiveWhenReady(); },
+      onChannel: () => {
+        sentProfile = null; measuredVideo = null; lastVideoFrameAt = null; lastVideoMetadata = null;
+        if (video?.dataset) { video.dataset.sourceVideo = ''; delete video.dataset.landscape; }
+        attachLiveWhenReady();
+      },
       onState: () => { renderHud(); publishDebug(); },
     });
     return streamCtl.ensureStream();
@@ -361,6 +495,28 @@ export function createDeploymentTwinViewport({
     void ctl.getStats().then(report => {
       if (destroyed || ctl !== streamCtl) return;
       measuredVideo = sampleTwinVideoStats(report, measuredVideo);
+      if (video?.dataset) {
+        const intervals = [...videoFrameIntervals].sort((a, b) => a - b);
+        if (intervals.length) {
+          video.dataset.frameIntervalP95Ms = intervals[Math.floor((intervals.length - 1) * 0.95)].toFixed(1);
+          video.dataset.frameIntervalMaxMs = intervals.at(-1).toFixed(1);
+        }
+        // One compact sample per second. Browser probes read DOM data without
+        // opening another peer or injecting a second rendering loop.
+        const metadata = lastVideoMetadata;
+        const quality = video.getVideoPlaybackQuality?.();
+        video.dataset.streamDiagnostics = JSON.stringify({
+          at: now(), visibility: documentRef?.visibilityState ?? null, landscapeReadyMs,
+          ...measuredVideo, videoCallbacks, skippedVideoCallbacks, videoGapCount, videoGapMaxMs,
+          animationGapMaxMs, longTasks, longTaskMaxMs, longFrames, sourceCadence,
+          presentedFrames: metadata?.presentedFrames ?? null,
+          displayDelayMs: Number.isFinite(metadata?.receiveTime) ? metadata.expectedDisplayTime - metadata.receiveTime : null,
+          callbackLateMs: Number.isFinite(metadata?.expectedDisplayTime) ? lastVideoFrameAt - metadata.expectedDisplayTime : null,
+          totalVideoFrames: quality?.totalVideoFrames ?? null, droppedVideoFrames: quality?.droppedVideoFrames ?? null,
+          situation: situation?.diagnostics ?? null,
+          frameCosts: situation?.frameCosts ?? null,
+        });
+      }
       // The stream's first seconds ramp the encoder/bitrate up; judging there
       // downgraded a healthy 1440p stream to 1080p on startup and never came
       // back. Settle for ~15 one-second samples before evaluating, then allow
@@ -398,6 +554,14 @@ export function createDeploymentTwinViewport({
     const width = measuredVideo?.width || video?.videoWidth;
     const height = measuredVideo?.height || video?.videoHeight;
     statusEl.textContent = `${hud.signal.toUpperCase()} · ${width && height ? `${width}×${height}` : '—'} · ${measuredVideo?.fps == null ? '—' : measuredVideo.fps.toFixed(0)} FPS · ${measuredVideo?.bitrateMbps == null ? '—' : measuredVideo.bitrateMbps.toFixed(1)} Mb/s${streamCtl?.client?.lastState?.presentation_buffering ? ' · 缓冲中' : ''}`;
+    const ms = value => Number.isFinite(value) ? value.toFixed(1) + ' ms' : '—';
+    statusEl.title = [
+      `视频冻结 ${measuredVideo?.freezeCount ?? '—'} 次；最长帧间隔 ${ms(videoGapMaxMs)}`,
+      `标牌隐藏 ${situation?.diagnostics?.hiddenEvents ?? 0} 次；最长 ${ms(situation?.diagnostics?.hiddenMaxMs)}`,
+      `丢包 ${measuredVideo?.packetsLost ?? '—'}；NACK ${measuredVideo?.nackCount ?? '—'}；重传 ${measuredVideo?.retransmittedPacketsReceived ?? '—'}`,
+      `解码 ${ms(measuredVideo?.decodeMs)}；缓冲 ${ms(measuredVideo?.jitterBufferMs)}；接收至解码完成 ${ms(measuredVideo?.processingMs)}`,
+      `主线程长任务 ${longTasks} 次；最长 ${ms(longTaskMaxMs)}；地形加载 ${ms(landscapeReadyMs)}`,
+    ].join('\n');
     if (video?.dataset) {
       video.dataset.receivedFps = measuredVideo?.fps == null ? '' : measuredVideo.fps.toFixed(2);
       video.dataset.bitrateMbps = measuredVideo?.bitrateMbps == null ? '' : measuredVideo.bitrateMbps.toFixed(3);
@@ -408,6 +572,7 @@ export function createDeploymentTwinViewport({
       video.dataset.streamProfile = requestedProfile;
       video.dataset.presentationBuffering = String(Boolean(streamCtl?.client?.lastState?.presentation_buffering));
       const landscape = streamCtl?.client?.lastState?.landscape || situation?.landscape;
+      if (landscapeReadyMs === null && landscape?.ready && video?.readyState >= 2) landscapeReadyMs = now() - viewportOpenedAt;
       if (video.style) video.style.visibility = !streamCtl?.client?.lastState || landscape?.ready === false ? 'hidden' : '';
       if (landscape) video.dataset.landscape = JSON.stringify(landscape);
       const cameraPose = streamCtl?.client?.lastState?.camera_pose;
@@ -465,6 +630,26 @@ export function createDeploymentTwinViewport({
     }
     hudTimer = scheduler.setInterval(renderHud, HUD_INTERVAL_MS);
     if (video?.requestVideoFrameCallback) videoFrameCallback = video.requestVideoFrameCallback(observeVideoFrame);
+    if (scheduler.requestAnimationFrame) animationFrame = scheduler.requestAnimationFrame(observeAnimationFrame);
+    if (globalThis.PerformanceObserver?.supportedEntryTypes?.includes('longtask')) {
+      longTaskObserver = new PerformanceObserver(list => {
+        if (documentRef?.visibilityState === 'hidden') return;
+        for (const entry of list.getEntries()) { longTasks++; longTaskMaxMs = Math.max(longTaskMaxMs, entry.duration); }
+      });
+      longTaskObserver.observe({ type: 'longtask' });
+    }
+    if (globalThis.PerformanceObserver?.supportedEntryTypes?.includes('long-animation-frame')) {
+      longFrameObserver = new PerformanceObserver(list => {
+        if (documentRef?.visibilityState === 'hidden') return;
+        for (const entry of list.getEntries()) {
+          longFrames.push({ start: entry.startTime, duration: entry.duration, blocking: entry.blockingDuration,
+            scripts: entry.scripts.map(script => ({ duration: script.duration, source: script.sourceURL,
+              function: script.sourceFunctionName, invoker: script.invoker, layout: script.forcedStyleAndLayoutDuration })) });
+          if (longFrames.length > 5) longFrames.shift();
+        }
+      });
+      longFrameObserver.observe({ type: 'long-animation-frame' });
+    }
     if (typeof ResizeObserver !== 'undefined' && video) {
       resizeObserver = new ResizeObserver(updateViewportProfile);
       resizeObserver.observe(video);
@@ -482,11 +667,16 @@ export function createDeploymentTwinViewport({
     themeObserver?.disconnect?.();
     resizeObserver?.disconnect();
     if (videoFrameCallback !== null) video?.cancelVideoFrameCallback?.(videoFrameCallback);
+    if (animationFrame !== null) scheduler.cancelAnimationFrame?.(animationFrame);
+    longTaskObserver?.disconnect();
+    longFrameObserver?.disconnect();
     themeObserver = null;
     closeLink();
     cameraControls.destroy();
     if (video?.style) video.style.visibility = '';
     situation?.destroy();
+    for (const type of Object.keys(pointerHubs)) video?.removeEventListener?.(type, dispatchPointer(type));
+    documentRef?.removeEventListener?.('click', onPresetButtonClick, true);
     video?.removeEventListener?.('dblclick', recenterCamera);
     streamCtl?.client?.sendDetach();
     void streamCtl?.close();

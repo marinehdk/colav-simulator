@@ -36,6 +36,20 @@ namespace Sango
         [Tooltip("桥楼机位随船解算（M6 海峡 review S1）：true = 船位 + 船艏向系 (0,12,-40) 偏移、视线沿艏向（首帧/航行中船恒在画面）；false = M1 固定机位 (0,12,-40) 望北，语义零变化。")]
         public bool bridgeShipRelative = false;
 
+        // ── 舰桥瞭望(20261015 用户验收):玻璃眼机位上鼠标拖拽看视野 ──
+        // web camera_look 绝对偏移;yaw 正=右舷,pitch 负=俯(CameraPose 约定);
+        // 钳位=CameraViews(前方 180°,俯仰受玻璃限制);SetView 重置(预设切换/重选归零)。
+        [Range(-90f, 90f)] public float bridgeLookYawDeg;
+        [Range(-25f, 15f)] public float bridgeLookPitchDeg;
+
+        /// <summary>舰桥瞭望偏移(绝对值,内部钳位);仅 Bridge+mount 位姿消费。</summary>
+        public void SetBridgeLook(float yawDeg, float pitchDeg)
+        {
+            var look = CameraViews.ClampBridgeLook(yawDeg, pitchDeg);
+            bridgeLookYawDeg = look.x;
+            bridgeLookPitchDeg = look.y;
+        }
+
         /// <summary>当前视图（C 键循环；面板/日志同源）。</summary>
         public CameraView CurrentView { get; private set; } = CameraView.Bridge;
 
@@ -100,6 +114,9 @@ namespace Sango
             {
                 target.Position = mount.position;
                 targetRot = mount.rotation * Quaternion.Euler(-target.PitchDeg, 0f, 0f);
+                // 舰桥瞭望偏移(仅 Bridge):mount 玻璃基础位姿之上叠加拖拽视角。
+                if (CurrentView == CameraView.Bridge && (bridgeLookYawDeg != 0f || bridgeLookPitchDeg != 0f))
+                    targetRot *= Quaternion.Euler(-bridgeLookPitchDeg, bridgeLookYawDeg, 0f);
                 if (observationTarget != null)
                 {
                     var direction = observationTarget.position + Vector3.up * observationTargetHeightM - target.Position;
@@ -226,6 +243,7 @@ namespace Sango
         {
             m_TrackedShip = null;
             ClearFreePose(); // 预设消息收回控制权（camera_free 联动 spike 单向语义的退出缝）
+            bridgeLookYawDeg = 0f; bridgeLookPitchDeg = 0f; // 舰桥瞭望随预设切换/重选归零
             if (view == CurrentView || controlledCamera == null) return;
             m_FromPos = controlledCamera.transform.position;
             m_FromRot = controlledCamera.transform.rotation;
@@ -247,8 +265,17 @@ namespace Sango
             var target = CameraViews.Resolve(CurrentView, FollowPos(), FollowYawDeg(), bridgeShipRelative);
             var mount = CurrentView == CameraView.Bridge ? bridgeMount : CurrentView == CameraView.Bow ? bowMount : null;
             ApplyPose(mount != null ? mount.position : target.Position,
-                mount != null ? mount.rotation * Quaternion.Euler(-target.PitchDeg, 0f, 0f)
+                mount != null ? MountRotWithLook(mount, target)
                               : Quaternion.Euler(-target.PitchDeg, target.YawDeg, 0f), target.FieldOfView);
+        }
+
+        /// <summary>mount 位姿 + 舰桥瞭望偏移(SnapNow/Update 同源,仅 Bridge 叠加)。</summary>
+        Quaternion MountRotWithLook(Transform mount, CameraPose target)
+        {
+            var rot = mount.rotation * Quaternion.Euler(-target.PitchDeg, 0f, 0f);
+            if (CurrentView == CameraView.Bridge && (bridgeLookYawDeg != 0f || bridgeLookPitchDeg != 0f))
+                rot *= Quaternion.Euler(-bridgeLookPitchDeg, bridgeLookYawDeg, 0f);
+            return rot;
         }
 
         Vector3 FollowPos() => followShip != null ? followShip.position : Vector3.zero;

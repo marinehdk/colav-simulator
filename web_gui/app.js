@@ -22,7 +22,7 @@ import {
   matchAisAssociations,
   trackExistenceForTarget,
 } from './modules/ais-display.js';
-import { buildPpiModel, createRadarPpi } from './modules/radar-ppi.js?v=20261002-ppi-v1';
+import { buildPpiModel, createRadarPpi } from './modules/radar-ppi.js?v=20261013-visible-v2';
 import { bindRadarControls } from './modules/radar-video.js?v=20261008-radar-v1';
 import { routeLegs, routeProgress } from './modules/route-progress.js?v=20260901-route-card-v1';
 
@@ -190,7 +190,7 @@ deploymentView = createDeploymentView({
   // P2-S4 A：第三态 twin —— 中心视口换 live 像素流（复用 twin-view 的 URS/bridge 客户端），
   // attach mode=live 活动会话；无 ReplayClock（时钟权威=后端，契约 §2）；sidebar 不动。
   createTwin: async options => {
-    const { createDeploymentTwinViewport } = await import('./modules/deployment-twin.js?v=20261012-dt-2k60-v1');
+    const { createDeploymentTwinViewport } = await import('./modules/deployment-twin.js?v=20261015-bridge-look3');
     const viewport = createDeploymentTwinViewport({
       ...options,
       host: document.getElementById('deploymentTwinHost'),
@@ -618,6 +618,7 @@ function syncDeploymentSidebarControls() {
   });
   for (const sidebar of [document.getElementById('liveInfoSidebar'), document.getElementById('replay-liveInfoSidebar')]) sidebar?.setAttribute('aria-hidden', String(leftSidebarCollapsed));
   for (const sidebar of [document.getElementById('liveOperationsSidebar'), document.getElementById('replay-liveOperationsSidebar')]) sidebar?.setAttribute('aria-hidden', String(rightSidebarCollapsed));
+  renderRadarPpi(currentData);
 
   if (mainTopBar) {
     mainTopBar.menuButtonActivated = leftSidebarCollapsed;
@@ -2962,6 +2963,7 @@ function setupDeploymentPagination() {
       else dot.removeAttribute('aria-current');
     });
     ownshipCardPosition.setAttribute('aria-label', `第 ${ownshipCardIndex + 1} 张，共 ${dots.length} 张`);
+    renderRadarPpi(currentData);
   };
 
   previousOwnshipCardBtn?.addEventListener('click', () => {
