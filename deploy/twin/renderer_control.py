@@ -169,6 +169,10 @@ def _spawn_player() -> int:
         # 以纯净水面(无艏浪/尾迹)出片;rm 恢复。
         if (ROOT / "wake-off.flag").exists():
             args.append("--sango-twin-wake-off")
+        # N50 地形裁剪 A/B(20261016 垭口空洞排障):touch no-land-clip.flag → 下次
+        # restart 不挂海岸线裁剪(全球地形全显);rm 恢复。
+        if (ROOT / "no-land-clip.flag").exists():
+            args.append("--twin-no-land-clip")
     return spawn("player", args, env=env)
 
 

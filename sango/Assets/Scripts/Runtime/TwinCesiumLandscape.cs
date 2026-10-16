@@ -131,7 +131,12 @@ namespace Sango
             m_Terrain.suspendUpdate = true;
             if (m_Buildings != null) m_Buildings.suspendUpdate = true;
             m_Root.SetActive(true);
-            ClipToNorwegianLand(); // Polygon OnEnable must precede the overlay's native creation.
+            // --twin-no-land-clip:N50 裁剪 A/B 开关(20261016 地形空洞排障——垭口处
+            // 方形缺失,嫌疑=N50 mask 环把该山划为水/材质 cutoff 漏设,关裁剪对照定性)。
+            if (Array.IndexOf(Environment.GetCommandLineArgs(), "--twin-no-land-clip") >= 0)
+                Debug.Log("[Sango.Cesium] land clipping disabled (--twin-no-land-clip)");
+            else
+                ClipToNorwegianLand(); // Polygon OnEnable must precede the overlay's native creation.
             m_Credits = CesiumCreditSystem.GetDefaultCreditSystem();
             // 20261015 用户裁决:流内 provider 积分(Google/Cesium 标志)默认不显示——
             // 直接跳过 CreateVideoCredits 不够:SDK 的屏幕 UIDocument 覆盖层会被
