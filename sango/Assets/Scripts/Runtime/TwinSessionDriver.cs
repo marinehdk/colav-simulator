@@ -595,6 +595,7 @@ namespace Sango
         {
             if (m_CameraRig == null) m_CameraRig = FindFirstObjectByType<CameraRig>();
             var arrows = slot.Ship.AddComponent<VectorArrows>();
+            arrows.show = false; // DT defaults to a clean view; V can opt into diagnostic vectors.
             arrows.cameraRig = m_CameraRig;
             arrows.twinSpeedMps = () => slot.SogMps;
             arrows.twinActive = () => runtimeEnabled && slot.Ship != null && slot.Ship.activeInHierarchy;

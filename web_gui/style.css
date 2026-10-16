@@ -3974,6 +3974,8 @@ canvas#simCanvas.route-pick-mode { cursor: crosshair; }
 .deployment-twin-host .scene3d-toolbar button { height: 38px; box-sizing: border-box; }
 .twin-time-marker .scene3d-waypoint-icon { border-color: #e99819; background: #fff2dc; }
 .twin-time-marker .scene3d-waypoint-icon::after { border-color: #e99819; }
+.twin-situation-overlay .scene3d-waypoint-head { transform: translateX(var(--waypoint-offset, 0px)); }
+.twin-situation-overlay .scene3d-waypoint-leader { height: var(--waypoint-leader-length); transform: rotate(var(--waypoint-leader-angle)); transform-origin: bottom center; }
 .twin-ais-markers { position: absolute; inset: 0; pointer-events: none; }
 .twin-ais-marker { position: absolute; transform: translate(-50%, -50%); padding: 0; border: 0; background: transparent; pointer-events: auto; cursor: pointer; }
 .twin-ais-marker img { display: block; height: auto; }

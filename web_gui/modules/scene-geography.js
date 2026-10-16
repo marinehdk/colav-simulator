@@ -73,7 +73,7 @@ export function frameIdentity(data) {
 }
 
 // Only label samples when the planner supplies an actual time axis.
-export function predictionMarkers(data) {
+export function predictionMarkers(data, { includeEndpoint = false } = {}) {
   const path = data.plans?.prediction_horizon || [];
   const typed = data.plans?.prediction_render;
   let times = typed?.ownship?.time_s;
@@ -86,12 +86,16 @@ export function predictionMarkers(data) {
   if (!times.every(Number.isFinite)) return [];
   const start = times[0];
   let bucket = 0;
-  return path.flatMap((point, index) => {
+  const markers = path.flatMap((point, index) => {
     const elapsed = times[index] - start, next = Math.floor(elapsed / 60);
     if (next <= bucket || !point.slice(0, 2).every(Number.isFinite)) return [];
     bucket = next;
     return [{ point, elapsed }];
   });
+  const endpoint = path.at(-1), elapsed = times.at(-1) - start;
+  if (includeEndpoint && elapsed > 0 && endpoint?.slice(0, 2).every(Number.isFinite)
+    && markers.at(-1)?.elapsed !== elapsed) markers.push({ point: endpoint, elapsed });
+  return markers;
 }
 
 export function offscreenDirection(point, width, height, ahead, right) {

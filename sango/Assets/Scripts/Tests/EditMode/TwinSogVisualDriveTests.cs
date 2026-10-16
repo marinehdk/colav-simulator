@@ -60,6 +60,47 @@ namespace Sango.Tests
         // ── VectorArrows：Twin sog → 速度矢量 ───────────────────────────────────
 
         [Test]
+        public void TwinSlot_DefaultsToHiddenVectors_WithoutChangingDemoDefault()
+        {
+            var driverHost = new GameObject("twin-vector-default-test");
+            driverHost.SetActive(false);
+            var type = TestReflection.FindAssemblyCSharpType("Sango.TwinSessionDriver");
+            var wakeFlag = type.GetField("WakeEffectsEnabled");
+            bool previousWake = (bool)wakeFlag.GetValue(null);
+            Component arrows = null;
+            try
+            {
+                wakeFlag.SetValue(null, false);
+                var driver = driverHost.AddComponent(type);
+                type.GetField("runtimeEnabled").SetValue(driver, true);
+                var slotType = type.GetNestedType("TwinSlot", System.Reflection.BindingFlags.NonPublic);
+                var slot = System.Activator.CreateInstance(slotType, true);
+                slotType.GetField("Ship").SetValue(slot, _ship);
+                var entry = new VesselCatalog.Entry { loaMeters = 45f };
+                type.GetMethod("WireTwinVisuals", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
+                    .Invoke(driver, new object[] { slot, entry });
+                arrows = _ship.GetComponent(TestReflection.FindAssemblyCSharpType("Sango.VectorArrows"));
+                Assert.That((bool)arrows.GetType().GetField("show").GetValue(arrows), Is.False);
+                arrows.GetType().GetMethod("OnEnable", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
+                    .Invoke(arrows, null);
+                Tick(arrows, true);
+                Assert.That(Rig(arrows).gameObject.activeSelf, Is.False, "DT must not render the blue diagnostic arrow by default");
+                Object.DestroyImmediate(Rig(arrows).gameObject);
+                Object.DestroyImmediate(arrows); arrows = null;
+
+                var demo = AddArrows(() => 3f);
+                Assert.That((bool)demo.GetType().GetField("show").GetValue(demo), Is.True, "component default remains available to Demo");
+                Object.DestroyImmediate(Rig(demo).gameObject);
+            }
+            finally
+            {
+                if (arrows != null && Rig(arrows) != null) Object.DestroyImmediate(Rig(arrows).gameObject);
+                wakeFlag.SetValue(null, previousWake);
+                Object.DestroyImmediate(driverHost);
+            }
+        }
+
+        [Test]
         public void TwinSog_DrivesVelocityArrowLengthAndHeading()
         {
             _ship.transform.rotation = Quaternion.Euler(0f, 90f, 0f); // 艏东（psi=90，补偿 0）

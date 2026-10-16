@@ -34,7 +34,7 @@ import { createGeography } from './scene-geography.js?v=20261004-token-cleanup-v
 import { chooseTwinStreamProfile, sampleTwinVideoStats } from './twin-stream-quality.js?v=20261013-dt-diagnostics-v11';
 
 import { createTwinCameraControls } from './twin-camera-controls.js?v=20261010-dt-camera-v6';
-import { createTwinSituationOverlay } from './twin-situation.js?v=20261015-dt-yolo-ts-v4';
+import { createTwinSituationOverlay } from './twin-situation.js?v=20261016-dt-labels-v1';
 
 // HUD refresh cadence (Unity state echo is ~1Hz; same as the Evaluation twin).
 const HUD_INTERVAL_MS = 250;

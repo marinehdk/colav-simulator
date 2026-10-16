@@ -1,6 +1,6 @@
 import { targetsForDisplay, RADAR_DETECTION_RANGE_M, drawVODecisionDisc, trackConfidenceColor } from './situation-display.js?v=20261015-dt-yolo-sd-v2';
 import { routeRibbonQuads } from './route-3d.js?v=20260921-route-ar-v1';
-import { predictionMarkers, targetKey, offscreenDirection } from './scene-geography.js?v=20261004-token-cleanup-v1';
+import { predictionMarkers, targetKey, offscreenDirection } from './scene-geography.js?v=20261016-dt-labels-v1';
 import { targetPresentation, updateTargetPoi, applyTargetAppearance, renderTargetCard } from './scene-target.js?v=20260923-follow-v1';
 import { createSceneCompass } from './scene-compass.js?v=20261013-dt-frame-cost-v1';
 import { AIS_SYMBOL_ASSETS, AIS_SYMBOL_SIZES, aisSymbolState } from './ais-display.js';
@@ -103,6 +103,41 @@ export function layoutTwinLabels(items, width, topInset = 20) {
     // Retain even a tightly clipped contact as a compact selectable head.
     chosen ||= { x: Math.max(36, Math.min(width - 36, item.x)), lift: 0, top: item.y - 48, bottom: item.y, compact: true };
     placed.push(chosen); result.set(item.key, chosen);
+  }
+  return result;
+}
+
+// Keep the prediction geometry intact; only thin its screen-space annotations.
+export function layoutTwinWaypoints(waypoints, timeMarkers, width, height, topInset) {
+  const result = new Map();
+  const visible = points => points.filter(p => p.visible && Number.isFinite(p.x) && Number.isFinite(p.y)
+    && p.x * width >= 36 && p.x * width <= width - 36
+    && p.y * height >= topInset && p.y * height <= height - 16);
+  const times = visible(timeMarkers);
+  // Projection order follows the real planner time axis. Reserve the nearest
+  // sample and horizon endpoint before considering intermediate annotations.
+  const ordered = times.length > 1 ? [times[0], times.at(-1), ...times.slice(1, -1)] : times;
+  let timeCount = 0;
+  for (const p of [...visible(waypoints), ...ordered]) {
+    const timed = p.label.startsWith('+');
+    if (timed && timeCount >= 4) continue;
+    const x = p.x * width, y = p.y * height;
+    const halfWidth = Math.max(32, p.label.length * 4 + 8);
+    let chosen = null;
+    for (const lift of [56, 96]) {
+      for (const offset of [0, 72, -72]) {
+        const box = { x, y, lift, offset, left: x + offset - halfWidth, right: x + offset + halfWidth,
+          top: y - lift - 42, bottom: y - lift + 18 };
+        if (box.left < 8 || box.right > width - 8 || box.top < topInset || box.bottom > height - 8) continue;
+        if ([...result.values()].some(q => box.left < q.right + 8 && box.right + 8 > q.left
+          && box.top < q.bottom + 8 && box.bottom + 8 > q.top)) continue;
+        chosen = box; break;
+      }
+      if (chosen) break;
+    }
+    if (!chosen) continue;
+    result.set(p.label, chosen);
+    if (timed) timeCount++;
   }
   return result;
 }
@@ -292,7 +327,7 @@ export function buildTwinPresentation(projection, chart, info, vo = null, docume
     ribbon: visible('route') ? routeRibbonQuads(route).flat().map(p => point(p.north, p.east)) : [],
     waypoints: route[0].map((north, i) => point(north, route[1][i], 'WPT' + (i + 1))),
     waypoints_visible: visible('waypoints'), ships_visible: visible('ships'), lines, vo: disc,
-    time_markers: visible('prediction') ? predictionMarkers(raw).map(m => point(...m.point, '+' + m.elapsed.toFixed(0) + 's')) : [],
+    time_markers: visible('prediction') ? predictionMarkers(raw, { includeEndpoint: true }).map(m => point(...m.point, '+' + m.elapsed.toFixed(0) + 's')) : [],
     targets: targets.map(ship => ({ ...point(ship.x, ship.y), id: String(ship.id), key: targetKey(raw.run_id, ship),
       truth: raw.executed_tracker === 'god', length: ship.length || 12, width: ship.width || 5,
       existence: Number.isFinite(ship.existence) ? ship.existence : -1 })),
@@ -331,8 +366,7 @@ export function createTwinSituationOverlay({ host, video, chart, info, client, o
   const sample = doc.createElement('canvas'); sample.width = 32; sample.height = 1;
   const sampleContext = sample.getContext('2d', { willReadFrequently: true }); sampleContext.imageSmoothingEnabled = false;
   const models = new Map(), pois = new Map(), waypointNodes = new Map(), aisNodes = new Map();
-  // 20261014:航点引线/标签在可见性边界(p.visible 翻转/屏幕边缘裁剪)附近逐帧增删
-  // = 静态视角下白线"时隐时现"。连续缺席 3 个 situation 帧才移除节点(迟滞)。
+  // Keep absent nodes cached for three frames, but hide rejected placements immediately.
   const waypointAbsent = new Map();
   const detectionNodes = new Map(), badgeNodes = new Map(), yoloKeys = new Set();
   const viewportDetectionNodes = new Map();
@@ -600,27 +634,29 @@ export function createTwinSituationOverlay({ host, video, chart, info, client, o
       button.style.setProperty('--edge-index', index); applyTargetAppearance(button, model.alert);
       button.addEventListener('click', () => choose(p.id, p.key)); return button;
     }));
-    const waypointWanted = new Set(), placed = [];
-    for (const p of [...(frame.waypoints || []), ...(frame.time_markers || [])]) {
-      if (!p.visible) continue;
-      const x = p.x * rect.width, y = p.y * rect.height;
-      if (x < 36 || x > rect.width - 36 || y < topInset || y > rect.height - 16) continue;
-      waypointWanted.add(p.label); let node = waypointNodes.get(p.label);
+    const waypointLayout = layoutTwinWaypoints(frame.waypoints || [], frame.time_markers || [], rect.width, rect.height, topInset);
+    for (const [label, placement] of waypointLayout) {
+      let node = waypointNodes.get(label);
       if (!node) {
-        node = doc.createElement('div'); node.className = 'scene3d-waypoint' + (p.label.startsWith('+') ? ' twin-time-marker' : '');
+        node = doc.createElement('div'); node.className = 'scene3d-waypoint' + (label.startsWith('+') ? ' twin-time-marker' : '');
         const leader = doc.createElement('div'); leader.className = 'scene3d-waypoint-leader';
         const head = doc.createElement('div'); head.className = 'scene3d-waypoint-head';
-        const label = doc.createElement('span'); label.className = 'scene3d-waypoint-label'; label.textContent = p.label;
-        const icon = doc.createElement('span'); icon.className = 'scene3d-waypoint-icon'; head.append(label, icon);
-        node.append(leader, head); waypoints.append(node); waypointNodes.set(p.label, node);
+        const text = doc.createElement('span'); text.className = 'scene3d-waypoint-label'; text.textContent = label;
+        const icon = doc.createElement('span'); icon.className = 'scene3d-waypoint-icon'; head.append(text, icon);
+        node.append(leader, head); waypoints.append(node); waypointNodes.set(label, node);
       }
-      let lift = 92;
-      while (placed.some(q => Math.abs(q.x - x) < 64 && Math.abs(q.y - (y - lift)) < 52) && y - lift > topInset + 52) lift += 52;
-      lift = Math.min(lift, y - topInset); placed.push({ x, y: y - lift });
+      const { x, y, lift, offset } = placement;
+      node.hidden = false;
       node.style.left = x + 'px'; node.style.top = y + 'px'; node.style.setProperty('--waypoint-lift', lift + 'px');
+      node.style.setProperty('--waypoint-offset', offset + 'px');
+      node.style.setProperty('--waypoint-leader-length', Math.max(0, Math.hypot(lift, offset) - 18) + 'px');
+      node.style.setProperty('--waypoint-leader-angle', Math.atan2(offset, lift) + 'rad');
     }
     for (const [key, node] of waypointNodes) {
-      if (waypointWanted.has(key)) { waypointAbsent.delete(key); continue; }
+      if (waypointLayout.has(key)) { waypointAbsent.delete(key); continue; }
+      // Cached nodes must disappear immediately when spacing rejects them;
+      // retaining an old placement for three frames would reintroduce overlap.
+      node.hidden = true;
       const streak = (waypointAbsent.get(key) ?? 0) + 1;
       if (streak >= 3) { node.remove(); waypointNodes.delete(key); waypointAbsent.delete(key); }
       else waypointAbsent.set(key, streak);
