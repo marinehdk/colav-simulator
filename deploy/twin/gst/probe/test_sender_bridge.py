@@ -129,6 +129,16 @@ class SenderBridgeTests(unittest.TestCase):
         finally:
             allow_connect.set()
 
+    @staticmethod
+    def marker_row_bytes(frame_id):
+        bits = (0xd3 << 24) | (frame_id << 8) | (((frame_id >> 8) ^ frame_id ^ 0x5a) & 255)
+        return b''.join(bytes([255 if bits & (1 << (31 - i)) else 0] * 3 + [255]) * 8 for i in range(32))
+
+    def fill_marker_rows(self, buffer, width, rows, frame_id):
+        row = self.marker_row_bytes(frame_id)
+        for r in rows:
+            buffer.fill(width * 4 * r, row)
+
     def test_capture_marker_maps_exact_running_time_to_rtp_timestamp(self):
         gst = sender_module.Gst
         raw_segment = gst.Segment(); raw_segment.init(gst.Format.TIME)
@@ -143,9 +153,7 @@ class SenderBridgeTests(unittest.TestCase):
         for index, frame_id in enumerate((65535, 0)):
             capture = gst.Buffer.new_allocate(None, 1920 * 4 * 16, None)
             capture.pts = 13_000_000 + index * 16_666_667
-            bits = (0xd3 << 24) | (frame_id << 8) | (((frame_id >> 8) ^ frame_id ^ 0x5a) & 255)
-            row = b''.join(bytes([255 if bits & (1 << (31 - i)) else 0] * 3 + [255]) * 8 for i in range(32))
-            capture.fill(1920 * 4 * 8, row)
+            self.fill_marker_rows(capture, 1920, sender_module.Sender.MARKER_SAMPLE_ROWS, frame_id)
             self.sender._capture_frame_marker(raw_pad, SimpleNamespace(get_buffer=lambda: capture), stop)
             timestamp = (0xfffffff0 + index * 1500) & 0xffffffff
             packet = gst.Buffer.new_allocate(None, 12, None)
@@ -158,6 +166,60 @@ class SenderBridgeTests(unittest.TestCase):
             self.assertEqual(self.messages[-1],
                 '{"type": "video_frame", "rtp_timestamp": %d, "frame_id": %d}' % (timestamp, frame_id))
         self.assertEqual(len(self.messages), 2, 'one mapping per encoded video frame, including wraparound')
+
+    def test_capture_tap_marker_stamps_frame_id_by_pts(self):
+        """检测分流帧标识:缩放前探针 pts→frame_id,取用精确命中 + ±40ms 近邻兜底
+        (720p 分流帧像素 marker 不可解码,frame_id 只能由元数据携带——20261020)。"""
+        gst = sender_module.Gst
+        pad = SimpleNamespace(
+            get_current_caps=lambda: gst.Caps.from_string('video/x-raw,format=BGRx,width=2560,height=1440'))
+        pts_a, pts_b = 5_000_000_000, 5_016_666_667
+        for pts, frame_id in ((pts_a, 1234), (pts_b, 65535)):
+            capture = gst.Buffer.new_allocate(None, 2560 * 4 * 16, None)
+            capture.pts = pts
+            self.fill_marker_rows(capture, 2560, sender_module.Sender.MARKER_SAMPLE_ROWS, frame_id)
+            self.sender._capture_tap_marker(pad, SimpleNamespace(get_buffer=lambda: capture))
+        self.assertEqual(self.sender._tap_frame_id_for(pts_b), 65535, '精确 pts 命中')
+        self.assertEqual(self.sender._tap_frame_id_for(pts_a + 3_000_000), 1234,
+                         '±40ms 近邻兜底(jpegenc pts 微差)')
+        self.assertIsNone(self.sender._tap_frame_id_for(9_999_999_999), '超窗未命中返 None')
+        self.assertIsNone(self.sender._tap_frame_id_for(gst.CLOCK_TIME_NONE), '无 pts 返 None')
+
+    def test_decode_marker_survives_row_smear(self):
+        """三期回归锁(20261020 empty 89% 根因):快速转视角时 TAA 幽影/亮部泛光
+        逐行污染 marker 条带——部分采样行落歧义窗时,其余行的校验和票选必须救回
+        frame_id;全行污染才允许失败(近邻兜底/stamp 由调用方接手)。"""
+        gst = sender_module.Gst
+        pad = SimpleNamespace(
+            get_current_caps=lambda: gst.Caps.from_string('video/x-raw,format=BGRx,width=2560,height=1440'))
+        rows = sender_module.Sender.MARKER_SAMPLE_ROWS
+        smear = bytes([128, 128, 128, 255]) * 256  # 歧义窗灰:该行必须弃权
+        capture = gst.Buffer.new_allocate(None, 2560 * 4 * 16, None)
+        self.fill_marker_rows(capture, 2560, rows, 4242)
+        for r in rows[:3]:  # 污染一半采样行
+            capture.fill(2560 * 4 * r, smear)
+        self.assertEqual(self.sender._decode_marker_pad(pad, SimpleNamespace(get_buffer=lambda: capture)), 4242,
+                         '部分行拖影:干净行多数票救回')
+        self.assertGreater(self.sender._marker_rows_recovered, 0, '救回计数入账(30s 诊断账本)')
+        self.assertEqual(self.sender._marker_decode_fails, 0)
+        all_smeared = gst.Buffer.new_allocate(None, 2560 * 4 * 16, None)
+        for r in rows:
+            all_smeared.fill(2560 * 4 * r, smear)
+        self.assertIsNone(self.sender._decode_marker_pad(pad, SimpleNamespace(get_buffer=lambda: all_smeared)),
+                          '全行拖影:fail-closed 返 None')
+        self.assertEqual(self.sender._marker_decode_fails, 1)
+
+    def test_decode_marker_majority_beats_single_adversarial_row(self):
+        """单行碰巧通过魔数+校验和的对抗位串不得劫持票选:多数行赢。"""
+        gst = sender_module.Gst
+        pad = SimpleNamespace(
+            get_current_caps=lambda: gst.Caps.from_string('video/x-raw,format=BGRx,width=2560,height=1440'))
+        rows = sender_module.Sender.MARKER_SAMPLE_ROWS
+        capture = gst.Buffer.new_allocate(None, 2560 * 4 * 16, None)
+        self.fill_marker_rows(capture, 2560, rows, 1234)
+        capture.fill(2560 * 4 * rows[-1], self.marker_row_bytes(5678))  # 最后一行改投合法异值
+        self.assertEqual(self.sender._decode_marker_pad(pad, SimpleNamespace(get_buffer=lambda: capture)), 1234,
+                         '5:1 票型多数赢')
 
 
 if __name__ == "__main__":

@@ -170,6 +170,14 @@ class Sender:
         self._bridge_threads = []
         self._marker_lock = threading.Lock()
         self._capture_markers = {}
+        # 检测分流帧标识缓存(tap 支路缩放前全分辨率侧解码,pts → frame_id):
+        # 720p 分流帧像素 marker 4px 格 JPEG 后落歧义窗不可解码(20261020 生产
+        # 实测),frame_id 改由本缓存经 FrameMetadata 直供检测端。
+        self._tap_markers = {}
+        # marker 多行解码诊断(20261020 三期):部分行被 TAA 幽影/泛光污染但被
+        # 其余行多数票救回 / 全行失败(→ 近邻兜底或 stamp)的累计计数。
+        self._marker_rows_recovered = 0
+        self._marker_decode_fails = 0
         self._mapped_rtp_timestamp = None
         self.mapped_frames = 0
         self.profile_applied = None
@@ -524,8 +532,11 @@ class Sender:
         ]:
             ok = ok and src.link(dst)
         assert ok, "detect tap branch link failed"
+        # 帧标识探针:tee 后缩放前的全分辨率侧解码(720p 缩放后像素 marker 不可
+        # 靠),pts→frame_id 供 _detect_tap_loop 随 FrameMetadata 下发检测端。
+        tap_queue.get_static_pad("sink").add_probe(Gst.PadProbeType.BUFFER, self._capture_tap_marker)
         self._start_detect_tap(tap_sink)
-        self.log(f"detect tap armed: 1280x720 @<={a.detect_rate}Hz -> {a.detect_endpoint}")
+        self.log(f"detect tap armed: 1280x720 @<={a.detect_rate}Hz -> {a.detect_endpoint} (frame_id stamped)")
         return tee
 
     def _start_detect_tap(self, tap_sink: Gst.Element) -> None:
@@ -564,6 +575,7 @@ class Sender:
         self.log(f"detect tap PUB bound {a.detect_endpoint} (topic sango.frame)")
         interval = 1.0 / max(a.detect_rate, 0.1)
         sent = send_errors = 0
+        last_stat = monotonic()
         try:
             while not stop.is_set():
                 sink = self.tap_sink
@@ -591,6 +603,12 @@ class Sender:
                 buf.unmap(m)
                 pts_s = buf.pts / Gst.SECOND if buf.pts != Gst.CLOCK_TIME_NONE else monotonic() - self.t0
                 self._tap_seq += 1
+                if now - last_stat > 30.0:
+                    # marker 解码健康账本(20261020 三期):rows_recovered=多行票选救回的
+                    # 帧(单行解码时代即 empty 泄漏),fails=全行失败(近邻兜底/stamp 源)。
+                    last_stat = now
+                    self.log(f"detect tap marker: sent={sent} rows_recovered={self._marker_rows_recovered}"
+                             f" all_rows_failed={self._marker_decode_fails}")
                 meta = json.dumps({
                     "frame_seq": self._tap_seq,
                     "frame_time_s": pts_s,
@@ -598,6 +616,9 @@ class Sender:
                     "height": int(shape.get_value("height")),
                     "jpeg_bytes": len(jpeg),
                     "source": "twin-viewport",
+                    # 本帧 marker frame_id(全分辨率侧解码;None=不可解码,检测端
+                    # 回退像素条解码→无 marker 优雅跳过)
+                    **({"frame_id": fid} if (fid := self._tap_frame_id_for(buf.pts)) is not None else {}),
                 }).encode("utf-8")
                 try:
                     pub.send_multipart([b"sango.frame", meta, jpeg])
@@ -631,32 +652,92 @@ class Sender:
     def _capture_frame_marker(self, pad, info, stop):
         if stop is not self._bridge_stop or stop.is_set():
             return Gst.PadProbeReturn.OK
-        buffer = info.get_buffer()
-        caps = pad.get_current_caps()
-        if buffer is None or caps is None:
+        frame_id = self._decode_marker_pad(pad, info)
+        if frame_id is None:
             return Gst.PadProbeReturn.OK
-        shape = caps.get_structure(0)
-        width, height = shape.get_value("width"), shape.get_value("height")
-        if shape.get_value("format") not in ("BGRx", "RGBx", "BGRA", "RGBA") or width < 256 or height < 16:
-            return Gst.PadProbeReturn.OK
-        row = buffer.extract_dup(width * 4 * 8, 256 * 4)
-        bits = 0
-        for index in range(32):
-            offset = (index * 8 + 4) * 4
-            level = sum(row[offset:offset + 3]) / 3
-            if 80 < level < 175:
-                return Gst.PadProbeReturn.OK
-            bits = (bits << 1) | int(level >= 175)
-        frame_id = (bits >> 8) & 65535
-        if bits >> 24 != 0xd3 or bits & 255 != ((frame_id >> 8) ^ frame_id ^ 0x5a) & 255:
-            return Gst.PadProbeReturn.OK
-        running = self._running_time(pad, buffer)
+        running = self._running_time(pad, info.get_buffer())
         if running is not None:
             with self._marker_lock:
                 self._capture_markers[running] = frame_id
                 if len(self._capture_markers) > 240:
                     self._capture_markers.pop(next(iter(self._capture_markers)))
         return Gst.PadProbeReturn.OK
+
+    # marker 条内独立解码的采样行(0..15):快速转视角时 TAA 幽影/亮部泛光会
+    # 逐行污染条带(20261020 泄漏帧实测:列内 16 行自上而下白→黑渐变),单行
+    # 采样撞上污染行=歧义窗失败;多行独立解码 + 校验和门控票选,行级污染免疫。
+    MARKER_SAMPLE_ROWS = (3, 5, 7, 9, 11, 13)
+
+    def _decode_marker_pad(self, pad, info) -> int | None:
+        """pad 当前 buffer 的 FRAME_MARKER 解码(全分辨率几何:顶部 256×16 条、
+        32 格 × 8px)。对条内 MARKER_SAMPLE_ROWS 各行独立解码,魔数+校验和
+        通过的行投票,取多数;全部失败返 None(检测端回退/近邻兜底)。
+        web 与 tap 两路共用。"""
+        buffer = info.get_buffer()
+        caps = pad.get_current_caps()
+        if buffer is None or caps is None:
+            return None
+        shape = caps.get_structure(0)
+        width, height = shape.get_value("width"), shape.get_value("height")
+        if shape.get_value("format") not in ("BGRx", "RGBx", "BGRA", "RGBA") or width < 256 or height < 16:
+            return None
+        votes = {}
+        for row in self.MARKER_SAMPLE_ROWS:
+            frame_id = self._decode_marker_row(buffer, width, row)
+            if frame_id is not None:
+                votes[frame_id] = votes.get(frame_id, 0) + 1
+        if not votes:
+            self._marker_decode_fails += 1
+            return None
+        if len(votes) > 1 or sum(votes.values()) < len(self.MARKER_SAMPLE_ROWS):
+            self._marker_rows_recovered += 1
+        return max(votes, key=votes.get)
+
+    @staticmethod
+    def _decode_marker_row(buffer, width, row) -> int | None:
+        """marker 单行解码:32 格心采样,歧义窗即本行弃权;魔数/校验和不过返
+        None(行拖影下位串几乎不可能碰巧通过双重校验)。"""
+        strip = buffer.extract_dup(width * 4 * row, 256 * 4)
+        bits = 0
+        for index in range(32):
+            offset = (index * 8 + 4) * 4
+            level = sum(strip[offset:offset + 3]) / 3
+            if 80 < level < 175:
+                return None
+            bits = (bits << 1) | int(level >= 175)
+        frame_id = (bits >> 8) & 65535
+        if bits >> 24 != 0xd3 or bits & 255 != ((frame_id >> 8) ^ frame_id ^ 0x5a) & 255:
+            return None
+        return frame_id
+
+    def _capture_tap_marker(self, pad, info):
+        """检测分流支路帧标识探针:接在 tap_queue sink pad(tee 后、缩放前,全
+        分辨率)→ pts → frame_id 入 _tap_markers。pts 贯穿 convert/scale/jpegenc
+        不变,appsink 拉样侧按 pts 精确对位(±40ms 近邻兜底)。"""
+        frame_id = self._decode_marker_pad(pad, info)
+        if frame_id is None:
+            return Gst.PadProbeReturn.OK
+        pts = info.get_buffer().pts
+        if pts == Gst.CLOCK_TIME_NONE:
+            return Gst.PadProbeReturn.OK
+        with self._marker_lock:
+            self._tap_markers[pts] = frame_id
+            if len(self._tap_markers) > 240:
+                self._tap_markers.pop(next(iter(self._tap_markers)))
+        return Gst.PadProbeReturn.OK
+
+    def _tap_frame_id_for(self, pts):
+        """appsink buffer pts → 该帧 marker frame_id;未命中返 None(检测端回退
+        像素解码→无 marker→优雅跳过,不崩溃不阻塞)。"""
+        if pts is None or pts == Gst.CLOCK_TIME_NONE:
+            return None
+        with self._marker_lock:
+            frame_id = self._tap_markers.pop(pts, None)
+            if frame_id is None and self._tap_markers:
+                nearest = min(self._tap_markers, key=lambda key: abs(key - pts))
+                if abs(nearest - pts) <= 40 * Gst.MSECOND:
+                    frame_id = self._tap_markers.pop(nearest)
+            return frame_id
 
     def _map_video_frame(self, pad, info, stop):
         if stop is not self._bridge_stop or stop.is_set():
