@@ -170,10 +170,24 @@ namespace Sango
                 refining=ready && progress<99, extent_m=Geography!=null ? Geography.size_m : 0 };
         }
 
+        /// <summary>当前是否处于 Open 生命周期内（live 会话地理自选期 Landscape 取态用）。</summary>
+        public bool Opened => m_Opened;
+
         public static Vector3 LocalPosition(double east, double north, TerrainManifest geography)
             => new Vector3((float)(east-geography.origin_e),0,(float)(north-geography.origin_n));
 
-        public void Open(TwinSessionDriver driver, CameraRig camera)
+        /// <summary>场景点高程（青岛 Terrain 采样；界外 NaN）——driver 外部高程覆盖用。</summary>
+        public float ElevationAt(Vector3 point)
+        {
+            if (m_Terrain == null) return float.NaN;
+            var p = m_Terrain.transform.position;
+            var size = m_Terrain.terrainData.size;
+            if (point.x < p.x || point.x > p.x + size.x || point.z < p.z || point.z > p.z + size.z)
+                return float.NaN;
+            return m_Terrain.SampleHeight(point) + p.y;
+        }
+
+        public void Open(TwinSessionDriver driver, CameraRig camera, bool staticView = true)
         {
             m_Driver=driver; m_Camera=camera;
             if (!m_Opened)
@@ -207,6 +221,15 @@ namespace Sango
                 }
             }
             ApplyShoreWaterTuning();
+            // 青岛域 live 会话（2026-10-21 场景布置）：本景同时是 TwinSessionDriver 的
+            // 地理提供方——锚 = manifest 中心原点（零登记平移：船位直落本地地形系，
+            // 与 LocalPosition 同式），高程 = 本景 Terrain 采样。Clear 时还原。
+            if (m_Driver != null)
+            {
+                m_Driver.externalGeographyAnchor = new TwinAnchor {
+                    EastM = Geography.origin_e, NorthM = Geography.origin_n, LandingM = Vector2.zero };
+                m_Driver.externalElevationAt = ElevationAt;
+            }
             // Static-view frame clock (2026-10-21): Application.targetFrameRate is
             // owned by the Norwegian landscape's idle governor, but this scene
             // disables that component on entry — a player that idle-shed to 5 fps
@@ -217,7 +240,7 @@ namespace Sango
             int previousFrameRate = Application.targetFrameRate;
             Application.targetFrameRate = 30;
             Debug.Log($"[Sango.Qingdao] static view frame clock 30 (was {previousFrameRate})");
-            Camera("overlook");
+            if (staticView) Camera("overlook"); // live 会话保持 bridge 预设跟船
             onReady?.Invoke(new Frame { origin_e=Geography.origin_e, origin_n=Geography.origin_n });
         }
 
@@ -1062,6 +1085,8 @@ namespace Sango
             if(!m_Opened) return;
             // Attachment release retains geographic resources; the next Qingdao entry reuses them.
             m_Opened=false;m_Camera?.ClearFreePose();
+            // 还原 driver 地理覆盖（live 会话 detach 后回挪威链默认）。
+            if (m_Driver != null) { m_Driver.externalGeographyAnchor = null; m_Driver.externalElevationAt = null; }
             if(m_Tiles!=null) m_Tiles.suspendUpdate=true;
             if(m_Root!=null) foreach(var renderer in m_Root.GetComponentsInChildren<Renderer>()) renderer.enabled=false;
             if(m_Terrain!=null) m_Terrain.drawHeightmap=false;

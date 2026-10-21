@@ -2,7 +2,7 @@ import { SCENARIO_LABELS, ALGORITHM_LABELS } from './config-labels.js';
 import { presetBinding, presetStackId } from './gnc-presets.js?v=20260914-gnc-replay-v3';
 import { createValidationAssembly } from './validation-assembly.js?v=20261009-dt-environment-v1';
 import { activeSessionRuntime, telemetryProjection } from './session-runtime-instance.js?v=20260908-buffered-motion-v2';
-import { createSituationDisplay } from './situation-display.js?v=20261015-dt-yolo-sd-v2';
+import { createSituationDisplay } from './situation-display.js?v=20261016-qingdao-v2';
 
 const OPENBRIDGE_VERSION = '1.0.1';
 const RULE_IMAGES = {
@@ -16,6 +16,10 @@ let assembly = null;
 let multishipRuleImageIndex = 0;
 let lastRuntimeSyncKey = null;
 let validationAuthorityRefreshPending = false;
+let selectedEncRegion = null;
+let qingdaoScenarioSelected = false;
+let qingdaoCreating = false;
+let qingdaoOpened = false;
 
 class ApiError extends Error {
   constructor(response, detail) {
@@ -358,6 +362,7 @@ function trackerDisplayLabel(snapshot) {
 }
 
 function scenarioChartId(scenarioId) {
+  if (/qingdao/i.test(scenarioId || '')) return 'Qingdao';
   return /(^|\/)(rl|rrt|planning)|boknafjorden|rogaland/i.test(scenarioId || '')
     ? 'Rogaland'
     : 'Romsdal';
@@ -401,6 +406,26 @@ function renderRuleGuide(snapshot) {
 function renderScenarioDetail(snapshot) {
   if (!snapshot.draft) return;
   const currentRuleId = snapshot.draft.validation_rule_id || 'rule14';
+  document.getElementById('validationScenarioOverlayCanvas').hidden = false;
+  if (currentRuleId !== 'multiship') selectedEncRegion = null;
+  if (selectedEncRegion === 'qingdao') {
+    renderChoiceCarousel('scenario', [{ id: 'qingdao-ais', name: 'AIS', desc: 'Geographic environment', grade: 'STATIC' }], qingdaoScenarioSelected ? 'qingdao-ais' : null, snapshot.readOnly || qingdaoCreating);
+    renderChoiceCarousel('enc', [{ id: 'romsdal', name: 'Romsdal', desc: 'Derived reference', grade: 'ENC' }, { id: 'qingdao', name: 'QingDao', desc: 'Qingdao Port · S-57', grade: 'ENC' }], 'qingdao', snapshot.readOnly || qingdaoCreating);
+    const image = document.getElementById('validationScenarioImage');
+    image.src = '/api/geography/qingdao/chart.png';
+    image.alt = 'QingDao S-57 ENC reference';
+    image.hidden = false;
+    const placeholder = document.getElementById('validationScenarioPlaceholder');
+    placeholder.hidden = true;
+    replaceDefinitionRows(document.getElementById('validationScenarioFacts'), [
+      ['Region', 'QingDao'], ['Content', 'ENC and geographic landscape'],
+      ['Source', 'Qingdao S-57 · GLO-30 · Cesium imagery'],
+    ]);
+    document.getElementById('validationScenarioPreview').textContent = 'QingDao · ENC and geographic landscape.';
+    scenarioPreviewDisplay?.clearSession?.();
+    document.getElementById('validationScenarioOverlayCanvas').hidden = true;
+    return;
+  }
   const rule = snapshot.catalog?.rules?.find((r) => r.id === currentRuleId);
   const supportedScenarioIds = new Set([
     ...(rule?.supported_scenarios || []),
@@ -423,7 +448,8 @@ function renderScenarioDetail(snapshot) {
   const scenario = selectedCatalogItem(snapshot, 'scenarios', snapshot.draft.scenario_id);
   const chart = scenarioChartId(snapshot.draft.scenario_id);
   renderChoiceCarousel('scenario', scenariosToDisplay, snapshot.draft.scenario_id, snapshot.readOnly || snapshot.creating);
-  renderChoiceCarousel('enc', [{ id: chart.toLowerCase(), name: chart, desc: 'Derived reference', grade: 'ENC' }], chart.toLowerCase(), false);
+  renderChoiceCarousel('enc', [{ id: chart.toLowerCase(), name: chart, desc: 'Derived reference', grade: 'ENC' },
+    ...(currentRuleId === 'multiship' ? [{ id: 'qingdao', name: 'QingDao', desc: 'Qingdao Port · S-57', grade: 'ENC' }] : [])], chart.toLowerCase(), snapshot.readOnly || snapshot.creating);
   const historical = scenario?.historical_ais;
   const factRows = [
     ['Scenario ID', snapshot.draft.scenario_id],
@@ -443,9 +469,12 @@ function renderScenarioDetail(snapshot) {
   }
   replaceDefinitionRows(document.getElementById('validationScenarioFacts'), factRows);
   const image = document.getElementById('validationScenarioImage');
+  image.src = chart === 'Qingdao'
+    ? '/api/geography/qingdao/chart.png'
+    : '/static/assets/openbridge/romsdal-head-on-seacharts.png';
   const placeholder = document.getElementById('validationScenarioPlaceholder');
-  image.hidden = chart !== 'Romsdal';
-  placeholder.hidden = chart === 'Romsdal';
+  image.hidden = chart !== 'Romsdal' && chart !== 'Qingdao';
+  placeholder.hidden = !image.hidden;
   if (chart !== 'Romsdal') {
     placeholder.replaceChildren();
     const title = document.createElement('strong');
@@ -456,8 +485,8 @@ function renderScenarioDetail(snapshot) {
   }
   document.getElementById('validationScenarioPreview').textContent = historical
     ? `${scenario?.name || snapshot.draft.scenario_id} · Historical AIS bounded window. Selection runs Counterfactual semantics: AIS actors replay history and the selected algorithm takes over ownship at T0. Live ENC in Deployment.`
-    : chart === 'Romsdal'
-      ? `${scenario?.name || snapshot.draft.scenario_id} · catalog metadata paired with static Romsdal reference image. Live ENC remains in Deployment.`
+    : chart === 'Romsdal' || chart === 'Qingdao'
+      ? `${scenario?.name || snapshot.draft.scenario_id} · catalog metadata paired with static ${chart} reference image. Live ENC remains in Deployment.`
       : `${scenario?.name || snapshot.draft.scenario_id} · no production reference image is bundled for ${chart}. Live ENC remains in Deployment.`;
   renderScenarioPreviewCanvas(scenario);
 }
@@ -881,7 +910,11 @@ function renderEnvironmentSettings(snapshot, enabled, locked) {
       }
       const label = document.createElement('label');
       const text = document.createElement('span'); text.textContent = `${field.label}${field.unit ? ` (${field.unit})` : ''}`;
-      const input = document.createElement(field.type === 'select' ? 'select' : 'input');
+      // boolean → obc-checkbox(OpenBridge 组件,style 参 openbridge-storybook):此前原生
+      // input[type=checkbox] 被 .config-step-panel input{width:100%;min-height:44px} 拉
+      // 成整行大块,并挤得标签换行。obc-checkbox 无原生 checkValidity/value,status 属性
+      // 驱动(unchecked/checked/mixed),change 为组件 CustomEvent。
+      const input = document.createElement(field.type === 'select' ? 'select' : field.type === 'boolean' ? 'obc-checkbox' : 'input');
       input.dataset.environmentKey = field.key; input.setAttribute('aria-label', text.textContent);
       if (field.type === 'select') {
         for (const value of field.options) {
@@ -889,16 +922,16 @@ function renderEnvironmentSettings(snapshot, enabled, locked) {
             hazy_clear: '晴 / 薄雾', cumulonimbus: '积雨云', thunderstorm: '雷暴', high: '高', low: '低' })[value] || value;
           input.append(option);
         }
-      } else {
-        input.type = field.type === 'boolean' ? 'checkbox' : 'number';
-        if (field.type === 'number') { input.min = field.min; input.max = field.max; input.step = 'any'; input.required = true; }
+      } else if (field.type !== 'boolean') {
+        input.type = 'number';
+        input.min = field.min; input.max = field.max; input.step = 'any'; input.required = true;
       }
       const update = () => {
-        if (!input.checkValidity()) { input.reportValidity(); return; }
+        if (input.checkValidity && !input.checkValidity()) { input.reportValidity(); return; }
         const current = assembly.snapshot();
         if (current.readOnly || current.creating) return;
         const settings = Object.fromEntries(schema.map(f => [f.key, current.draft.environment_settings?.[f.key] ?? f.default]));
-        settings[field.key] = field.type === 'boolean' ? input.checked : field.type === 'number' ? Number(input.value) : input.value;
+        settings[field.key] = field.type === 'boolean' ? input.status === 'checked' : field.type === 'number' ? Number(input.value) : input.value;
         if (field.presets) Object.assign(settings, field.presets[input.value] || {});
         edit('environment_settings', settings);
       };
@@ -912,7 +945,7 @@ function renderEnvironmentSettings(snapshot, enabled, locked) {
     if (!input) continue;
     input.disabled = locked;
     const value = snapshot.draft?.environment_settings?.[field.key] ?? field.default;
-    if (field.type === 'boolean') input.checked = value;
+    if (field.type === 'boolean') input.status = value ? 'checked' : 'unchecked';
     else if (document.activeElement !== input) input.value = value;
   }
 }
@@ -991,6 +1024,7 @@ function createStatusText(snapshot) {
 
 function render() {
   const snapshot = assembly.snapshot();
+  document.getElementById('configWorkface').classList.toggle('geography-config', selectedEncRegion === 'qingdao');
   const draft = snapshot.draft;
   renderRuleChoices(snapshot);
   renderRuleGuide(snapshot);
@@ -1052,6 +1086,30 @@ function render() {
     ? snapshot.readOnly
     : ![null, 'experimental-confirmation'].includes(snapshot.createBlock);
   create.title = cleanMatch ? 'Draft matches the active session · jump to Deployment' : createStatusText(snapshot);
+  if (selectedEncRegion === 'qingdao') {
+    if (classification) {
+      classification.className = 'classification-card';
+      classification.textContent = 'Static inspection · algorithms and trackers not executed';
+    }
+    assemblyStatus.textContent = qingdaoOpened ? 'CREATED' : qingdaoScenarioSelected ? 'READY' : 'DRAFT';
+    assemblyStatus.dataset.ready = String(qingdaoScenarioSelected);
+    assemblyStatus.dataset.created = String(qingdaoOpened);
+    document.getElementById('validationSummary').replaceChildren();
+    replaceDefinitionRows(document.getElementById('validationSummary'), [
+      ['COLREGS', 'Multiship'], ['Scenario', 'AIS'], ['ENC', 'QingDao'],
+      ['Content', 'Chart and terrain'],
+    ]);
+    document.getElementById('validationContract').textContent = 'mode: GEOGRAPHIC_STATIC\nregion: QingDao\ncontent: ENC + terrain';
+    document.getElementById('configStepScenariosState').textContent = 'QingDao · AIS';
+    document.getElementById('validationTupleStateTitle').textContent = 'Geographic environment';
+    document.querySelectorAll('#validationSummary > div').forEach(row => row.className = 'summary-row');
+    document.getElementById('validationNotices').textContent = '';
+    create.dataset.mode = 'static-scene';
+    create.textContent = qingdaoCreating ? 'CREATING' : qingdaoOpened ? 'Open' : 'Create';
+    create.disabled = !qingdaoScenarioSelected || qingdaoCreating || snapshot.readOnly
+      || ['active-running', 'runtime-pending', 'current-session-loading', 'current-session-unknown'].includes(snapshot.createBlock);
+    create.title = 'Open QingDao chart and terrain';
+  }
 }
 
 function edit(field, value) {
@@ -1098,7 +1156,14 @@ function bindControls() {
   document.getElementById('validationScenarioChoices').addEventListener('click', (event) => {
     const card = event.target.closest('[data-choice-id]');
     if (!card || card.disabled) return;
+    if (card.dataset.choiceId === 'qingdao-ais') { qingdaoScenarioSelected = true; render(); return; }
     edit('scenario_id', card.dataset.choiceId);
+  });
+  document.getElementById('validationEncChoices').addEventListener('click', (event) => {
+    const card = event.target.closest('[data-choice-id]');
+    if (!card || card.disabled) return;
+    selectedEncRegion = card.dataset.choiceId === 'qingdao' ? 'qingdao' : null;
+    render();
   });
   document.getElementById('validationAlgorithmChoices').addEventListener('click', (event) => {
     const card = event.target.closest('[data-choice-id]');
@@ -1130,16 +1195,33 @@ function bindControls() {
     if (id !== null) commitGncStackId(id);
   });
   document.getElementById('validationDefault').addEventListener('click', () => {
+    selectedEncRegion = null;
+    qingdaoScenarioSelected = qingdaoOpened = false;
     assembly.resetDefault();
     render();
   });
   document.getElementById('validationCreate').addEventListener('click', () => {
+    if (selectedEncRegion === 'qingdao') { void openQingdaoStaticScene(); return; }
+    window.dispatchEvent(new Event('colav:geography-close'));
     if (document.getElementById('validationCreate').dataset.mode === 'open-deployment') {
       switchWorkface('deployment');
       return;
     }
     createSessionFromDraft();
   });
+}
+
+async function openQingdaoStaticScene() {
+  if (!qingdaoScenarioSelected || qingdaoCreating) return;
+  qingdaoCreating = true; render();
+  try {
+    const info = await fetchJson('/api/geography/qingdao/create', { method: 'POST' });
+    window.dispatchEvent(new CustomEvent('colav:geography-open', { detail: info }));
+    qingdaoOpened = true;
+    switchWorkface('deployment');
+  } catch (error) {
+    document.getElementById('validationNotices').textContent = error.message;
+  } finally { qingdaoCreating = false; render(); }
 }
 
 function syncRuntimeAuthority(runtimeSnapshot, reason = 'runtime-sync') {

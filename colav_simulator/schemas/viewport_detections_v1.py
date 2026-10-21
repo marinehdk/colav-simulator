@@ -43,4 +43,7 @@ class ViewportDetectionsFrame(_Strict):
     height: int = Field(gt=0)
     source: str
     detections: list[PixelDetection]
+    # 本船抑制命中态(ownship-mask-v1 §5,2026-10-20 可选扩展):"mask"=逐像素掩膜
+    # 已应用 / "polygon"=P1 多边形回退 / "none"=两通道都无。旧发送端缺省 None。
+    ownship_mask: Literal["mask", "polygon", "none"] | None = None
     received_at: float | None = None  # 服务器覆写;客户端值不作数

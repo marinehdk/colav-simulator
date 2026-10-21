@@ -1,5 +1,5 @@
 import { ENCOUNTER_LABELS, eventDisplayContent, visibleMonitorEvents, renderMonitorEventItems } from './modules/monitor-event-presentation.js?v=20260924-replay-events-v1';
-import { createDeploymentView } from './modules/deployment-view.js?v=20261004-token-cleanup-v1';
+import { createDeploymentView } from './modules/deployment-view.js?v=20261016-qingdao-v2';
 import { renderBalance, resetBalance } from './modules/gnc-balance.js?v=20260909-balance-v7';
 import { activeSessionRuntime, telemetryProjection } from './modules/session-runtime-instance.js?v=20260908-buffered-motion-v2';
 import './modules/line-graph.js?v=20260826-chart-view-control-v1';
@@ -10,7 +10,7 @@ import {
   voCandidateColor,
   drawVelocityArrow,
   simplifiedMpcFanGeometry,
-} from './modules/situation-display.js?v=20261015-dt-yolo-sd-v2';
+} from './modules/situation-display.js?v=20261016-qingdao-v2';
 import {
   AIS_STATE_COLORS,
   AIS_STATE_LABELS,
@@ -75,8 +75,9 @@ let latestAisMarkers = [];
 let latestOwnshipMarker = null;
 let selectedVesselTarget = null;
 let selectedVesselAnchor = null;
+let staticGeography = null;
 function currentRunId() {
-  return deploymentRuntimeSnapshot.session?.session_id || null;
+  return staticGeography?.run_id || deploymentRuntimeSnapshot.session?.session_id || null;
 }
 
 /* ══════════════════════════════════════════════
@@ -179,7 +180,7 @@ radarPpiPanel.querySelectorAll('[data-ppi-range]').forEach(btn => {
 deploymentView = createDeploymentView({
   chart: situationDisplay,
   createScene: async options => {
-    const { createScene3D } = await import('./modules/scene-3d.js?v=20261004-token-cleanup-v1');
+    const { createScene3D } = await import('./modules/scene-3d.js?v=20261020-bulk');
     return createScene3D({ ...options, chart: situationDisplay,
       host: document.getElementById('scene3dHost'),
       onSelect: id => situationDisplay.selectTarget(id),
@@ -190,7 +191,7 @@ deploymentView = createDeploymentView({
   // P2-S4 A：第三态 twin —— 中心视口换 live 像素流（复用 twin-view 的 URS/bridge 客户端），
   // attach mode=live 活动会话；无 ReplayClock（时钟权威=后端，契约 §2）；sidebar 不动。
   createTwin: async options => {
-    const { createDeploymentTwinViewport } = await import('./modules/deployment-twin.js?v=20261016-dt-labels-v1');
+    const { createDeploymentTwinViewport } = await import('./modules/deployment-twin.js?v=20261021-qingdao-route-v8');
     const viewport = createDeploymentTwinViewport({
       ...options,
       host: document.getElementById('deploymentTwinHost'),
@@ -210,7 +211,7 @@ deploymentView = createDeploymentView({
       requestVODecisionSpace: () => ensureVODecisionSpace(currentDiagnosticPlanner()),
       // P2-S4 C：联动 spike（默认关）——开 = 分屏从视口（Cesium 主）+ camera.changed 折算发 camera_free。
       createLinkScene: async ({ host, signal, onFailure, onCameraMoved }) => {
-        const { createScene3D } = await import('./modules/scene-3d.js?v=20261004-token-cleanup-v1');
+        const { createScene3D } = await import('./modules/scene-3d.js?v=20261020-bulk');
         return createScene3D({ ...options, chart: situationDisplay,
           host,
           signal,
@@ -241,7 +242,7 @@ deploymentView = createDeploymentView({
     document.getElementById('canvasWrapper').classList.toggle('view-twin', twin);
     document.getElementById('canvasWrapper').dataset.frame = JSON.stringify(state.frame);
     const button = document.getElementById('scene3dBtn');
-    button.disabled = Boolean(state.unavailable) && !active && !state.loading;
+    button.disabled = Boolean(staticGeography) || Boolean(state.unavailable) && !active && !state.loading;
     button.title = state.loading ? '加载三维视景，可取消' : state.unavailable || '切换三维视景';
     button.setAttribute('aria-pressed', String(active));
     button.classList.toggle('active', active);
@@ -275,6 +276,39 @@ const deploymentVisibility = new MutationObserver(() => {
   if (deploymentPanel?.hidden && (state.mode !== '2d' || state.loading)) deploymentView.toggle();
 });
 if (deploymentPanel) deploymentVisibility.observe(deploymentPanel, { attributes: true, attributeFilter: ['hidden'] });
+
+async function openStaticGeography(info) {
+  staticGeography = info;
+  deploymentView.beginSession(info.run_id);
+  deploymentPanel.classList.add('geographic-static');
+  document.getElementById('liveEmptyState').hidden = true;
+  currentData = null; hideVesselPlacard(); hideAisPlacard();
+  await situationDisplay.beginGeography(info);
+  if (staticGeography !== info) return;
+  deploymentView.render({ raw: { run_id: info.run_id, scene_mode: 'GEOGRAPHIC_STATIC',
+    seq: 0, sim_time: 0, state: 'CREATED', os: null, truth: [], obstacles: [] } });
+  situationDisplay.fitView();
+}
+
+function closeStaticGeography() {
+  if (!staticGeography) return;
+  staticGeography = null;
+  deploymentPanel.classList.remove('geographic-static');
+  if (deploymentRuntimeSnapshot.session) {
+    resetDeploymentForSession(deploymentRuntimeSnapshot.session);
+    renderProjection(telemetryProjection.snapshot());
+  } else {
+    deploymentView.beginSession(null); situationDisplay.clearSession();
+    document.getElementById('liveEmptyState').hidden = false;
+  }
+}
+window.addEventListener('colav:geography-open', event => {
+  void openStaticGeography(event.detail).catch(error => {
+    const notice = document.getElementById('scene3dError');
+    notice.textContent = error.message; notice.hidden = false;
+  });
+});
+window.addEventListener('colav:geography-close', closeStaticGeography);
 window.addEventListener('pagehide', () => { deploymentVisibility.disconnect(); deploymentView.destroy(); }, { once: true });
 
 
@@ -2708,6 +2742,7 @@ function renderTimelineLog(proj) {
 }
 
 function renderProjection(proj) {
+  if (staticGeography) return;
   const data = proj.raw;
   if (!data) return;
   renderBalance(data);
@@ -2819,6 +2854,8 @@ function syncDeploymentRuntime(snapshot) {
   const previousSessionId = previous.session?.session_id || null;
   const sessionId = snapshot.session?.session_id || null;
   deploymentRuntimeSnapshot = snapshot;
+  if (staticGeography && sessionId === previousSessionId) return;
+  if (staticGeography) closeStaticGeography();
 
   if (previous.connection.status !== snapshot.connection.status) {
     setSessionConnectionState(snapshot.connection.status, previousSessionId !== null);

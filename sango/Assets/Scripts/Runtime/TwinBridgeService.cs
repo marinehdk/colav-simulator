@@ -82,6 +82,8 @@ namespace Sango
         // ── attach 会话态（主线程独占写） ────────────────────────────────────────
         string m_RunId;
         string m_Mode;
+        // presentation_shard 重组缓冲(20261016):按 seq 一槽,集齐才组包;换 run 清空。
+        readonly Dictionary<int, string[]> m_PresentationShards = new Dictionary<int, string[]>();
         string m_BackendBase;
         double m_SpanStart, m_SpanEnd; // attach.replay + descriptor 播放窗钳位
         bool m_Helloed;
@@ -91,6 +93,8 @@ namespace Sango
         bool m_DetectionEnabled;
         // P3-S2 sensor_mode（契约 §2/§8；默认 eo，state 回显）
         string m_SensorMode = TwinBridge.DefaultSensorMode;
+        // 2026-10-21 P0 radar_view（契约 §2/§8 演进；默认 off，state 回显；数据面恒活与本开关正交）
+        string m_RadarView = TwinBridge.DefaultRadarView;
         FramePublisher m_FeedPublisher; // 桅杆馈送改接（rig attach 后一次性）
         bool m_LidarViewLogged; // P3-S3 lidar 视角激活日志（每次进入模式记一条，探针双证）
         // P3-11：视口跟随重挂记账（首挂记忆 demo 跟随目标与桥楼/艏锚点，detach 恢复）
@@ -105,6 +109,18 @@ namespace Sango
         double m_Playhead;
         double m_Rate = 1.0;
         volatile string m_PlayState = "PAUSED";
+
+        // ── P1 本船多边形中继（viewport-ownship-polygon@1）──────────────────────
+        // situation_frame 只走桥 DataChannel 到浏览器，8010 后端不可见——把最近渲染帧
+        // 的 (frame_id → 本船水线多边形) 在数据面同一 backend_base 上 ≤10Hz 批量 POST
+        // （每批几百字节~1KB；TwinSituationDisplay 逐帧入队，有界丢最旧）。检测器 GET
+        // 缓存按解码 frame_id 精确匹配后，推理前把本船区域填海灰（dt-ownship-mask 契约）。
+        // POST 失败静默丢批（检测端退化为"无 polygon 优雅跳过"），永不影响消息面/数据面。
+        readonly ConcurrentQueue<TwinSituationFrame> m_OwnshipPending = new ConcurrentQueue<TwinSituationFrame>();
+        Thread m_OwnshipRelayThread;
+        CancellationTokenSource m_OwnshipRelayCancel;
+        const double OwnshipRelayIntervalS = 0.1; // 批量节流上限：≥100ms 一批 ≈ ≤10Hz
+        const int OwnshipPendingCapacity = 64;    // ~2s@30fps 渲染帧；超容丢最旧（保新鲜）
 
         // replay 泵（fetch 线程 → 主线程）
         Thread m_FetchThread;
@@ -127,6 +143,7 @@ namespace Sango
         bool m_BridgeUp;
         TwinStreamQuality m_StreamQuality;
         TwinSituationDisplay m_Situation;
+        TwinOwnshipMaskPublisher m_OwnshipMask;
 
         /// <summary>clock.playhead_s 非有限值拒绝计数（F10 诊断；DataChannel 回调主线程独占写）。</summary>
         int m_MalformedClockCount;
@@ -136,6 +153,9 @@ namespace Sango
 
         /// <summary>当前相机预设词汇（bridge state.camera 同源）。</summary>
         public string CurrentPreset => m_CurrentPreset;
+
+        /// <summary>当前雷达表现层模式词汇（bridge state.radar_view 同源；静态效果查询 = TwinBridge.RadarViewEffect）。</summary>
+        public string CurrentRadarView => m_RadarView;
 
         /// <summary>HandleClock 拒绝的非有限 playhead 计数（探针/诊断用）。</summary>
         public int MalformedClockCount => m_MalformedClockCount;
@@ -165,6 +185,9 @@ namespace Sango
             m_BridgeUp = true;
             if (m_Situation == null) m_Situation = gameObject.AddComponent<TwinSituationDisplay>();
             m_Situation.bridge = this;
+            // 路线A 逐像素掩膜通道（ownship-mask-v1）:随桥挂载,门控/相机/帧对齐自管
+            if (m_OwnshipMask == null) m_OwnshipMask = gameObject.AddComponent<TwinOwnshipMaskPublisher>();
+            m_OwnshipMask.bridge = this;
             Debug.Log($"[Sango.TwinBridge] service started (local={useLocalChannel})");
         }
 
@@ -185,6 +208,8 @@ namespace Sango
             // P3-S2: 停桥回默认 eo 渲染态（IR pass 关 + 温度 tag 恢复，Demo 零残留）。
             m_SensorMode = TwinBridge.DefaultSensorMode;
             ApplySensorMode();
+            // 2026-10-21 P0: radar_view 同款回默认（表现层词汇复位，Demo 零残留）。
+            m_RadarView = TwinBridge.DefaultRadarView;
             Debug.Log("[Sango.TwinBridge] service stopped");
         }
 
@@ -318,8 +343,13 @@ namespace Sango
         string m_TrackedTargetKey;
 
         TwinCesiumLandscape m_Landscape;
+        QingdaoStaticScene m_StaticScene;
         public TwinSituationMessage Presentation => m_Situation?.CurrentPresentation;
-        public TwinBridgeLandscapeState Landscape => m_Landscape?.Describe();
+        /// <summary>态势显示组件（掩膜发布器经此取当帧 marker frame_id,ownship-mask-v1）。</summary>
+        public TwinSituationDisplay Situation => m_Situation;
+        public TwinBridgeLandscapeState Landscape => m_StaticScene != null && m_StaticScene.Opened
+            ? m_StaticScene.Describe() // 静态视图或 live 青岛地理自选（挪威景已禁用，取青岛态）
+            : (m_Mode == "static" ? m_StaticScene?.Describe() : m_Landscape?.Describe());
 
         /// <summary>replay 数据面播态非 PLAYING（live 恒 false）——TwinCesiumLandscape 暂停挂起用（契约 §4）。</summary>
         public bool ReplayPaused => m_Mode == "replay" && m_PlayState != "PLAYING";
@@ -343,6 +373,13 @@ namespace Sango
                     return;
                 }
                 Debug.Log($"[Sango.TwinBridge] mast rig attached to {ownShip.name} mounts={mastRig.BuiltMountCount} feed={mastRig.feedMountId}");
+                // P1 桅顶天线接线（00-REPORT §3/§4-4）：扫掠钟 = driver 同一 TwinClock
+                // （相位与位姿插值/盘扫线同源 sim_time）；可见性施当前 radar_view（契约
+                // §2 默认 off = 表现全关——attach 即默认隐藏；命令先到/重挂都重施当前态）。
+                // 重挂时 holder 重建（Detach 销毁），clock 随新实例重注入。
+                var antenna = mastRig.RadarAntenna;
+                if (antenna != null) antenna.clock = driver.RenderClock;
+                ApplyRadarView();
             }
             if (m_FeedPublisher == null) m_FeedPublisher = FindFirstObjectByType<FramePublisher>();
             if (m_FeedPublisher != null && m_FeedPublisher.sourceCamera != mastRig.FeedCamera)
@@ -444,6 +481,9 @@ namespace Sango
                 case "presentation":
                     if (cmd.presentation?.run_id == m_RunId) m_Situation?.Offer(cmd.presentation);
                     break;
+                case "presentation_shard":
+                    HandlePresentationShard(cmd);
+                    break;
                 case "pick":
                     if (cmd.run_id == m_RunId) m_Situation?.Pick(cmd.frame_id, cmd.x, cmd.y);
                     break;
@@ -462,6 +502,7 @@ namespace Sango
                 case "theme": HandleTheme(cmd); break;
                 case "detection": HandleDetection(cmd); break;
                 case "sensor_mode": HandleSensorMode(cmd); break; // P3-S2（契约 §2/§8 演进，spec #90）
+                case "radar_view": HandleRadarView(cmd); break; // 2026-10-21 P0（契约 §2/§8 演进，00-REPORT §2.2）
                 case "stream_profile":
                     if (useLocalChannel) break; // M5：gst 路由下 sender 拦截并映射编码档，Unity 不再消费
                     if (m_StreamQuality == null || !m_StreamQuality.TryApply(cmd.value))
@@ -471,6 +512,30 @@ namespace Sango
                     SendError(TwinBridge.ErrorBadMessage, $"unknown type '{cmd.type}'");
                     break;
             }
+        }
+
+        /// <summary>
+        /// presentation_shard 重组(20261016):gst webrtcbin 数据通道消息 ~64KB 上限,
+        /// 大 presentation(VO 决策盘 PNG/hazard 三角整包 100KB+)web 侧按 (run,seq) 拆片,
+        /// 此处集齐组包后走与 presentation 同一 Offer 路径。通道有序=顺序到达;
+        /// 新 seq 进位时清老槽(缓冲上限 8 seq,防坏流堆积)。
+        /// </summary>
+        void HandlePresentationShard(TwinBridgeCommand cmd)
+        {
+            if (cmd.run_id != m_RunId || cmd.total <= 0 || cmd.index < 0 || cmd.index >= cmd.total
+                || string.IsNullOrEmpty(cmd.part)) return;
+            if (!m_PresentationShards.TryGetValue(cmd.seq, out var parts) || parts == null || parts.Length != cmd.total)
+            {
+                if (m_PresentationShards.Count >= 8) m_PresentationShards.Clear();
+                m_PresentationShards[cmd.seq] = parts = new string[cmd.total];
+            }
+            parts[cmd.index] = cmd.part;
+            foreach (var shard in parts) if (shard == null) return;
+            var assembled = TwinBridgeCommand.FromJson(
+                "{\"type\":\"presentation\",\"presentation\":" + string.Concat(parts) + "}");
+            m_PresentationShards.Remove(cmd.seq);
+            if (assembled?.presentation != null && assembled.presentation.run_id == m_RunId)
+                m_Situation?.Offer(assembled.presentation);
         }
 
         void HandleHello(TwinBridgeCommand cmd)
@@ -502,6 +567,8 @@ namespace Sango
                 SendError(TwinBridge.ErrorUnsupportedMode, $"mode '{cmd.mode}' not in [{string.Join(",", TwinBridge.ModesSupported)}]");
                 return;
             }
+            if (cmd.mode == "static" && cmd.run_id != "geography-qingdao")
+            { SendError(TwinBridge.ErrorBadMessage, "static attach requires Qingdao identity and backend_base"); return; }
             if (cmd.mode == "replay")
             {
                 if (cmd.replay == null || cmd.replay.t_end <= cmd.replay.t_start)
@@ -517,6 +584,7 @@ namespace Sango
             }
             // 幂等重挂：同参数静默接受；新 attach 一律替换旧（契约 §2）
             DetachDataPlane();
+            m_PresentationShards.Clear();
             m_RunId = cmd.run_id;
             m_Mode = cmd.mode;
             m_BackendBase = string.IsNullOrEmpty(cmd.backend_base) ? SangoSeamConfig.TwinBackendBase : cmd.backend_base;
@@ -530,12 +598,26 @@ namespace Sango
             m_LastOfferedSim = double.NegativeInfinity;
             m_CurrentPreset = cameraRig != null ? PresetOf(cameraRig.CurrentView) : "bridge";
             Debug.Log($"[Sango.TwinBridge] attach run={m_RunId} mode={m_Mode} backend={m_BackendBase}");
+            StartOwnshipRelay(); // P1：本船多边形中继随会话代际起停（runId 快照防串批）
 
-            if (m_Mode == "live")
+            if (m_Mode == "static")
+            {
+                m_CurrentPreset = "overlook";
+                if (m_StaticScene == null) m_StaticScene = gameObject.AddComponent<QingdaoStaticScene>();
+                m_StaticScene.onReady = frame => {
+                    if (m_Mode != "static") return;
+                    Send(new TwinBridgeAttached { run_id=m_RunId, mode="static", ships=m_StaticScene.ShipCount,
+                        anchor=new TwinBridgeAnchor { east=frame.origin_e, north=frame.origin_n }, camera="overlook" });
+                    m_AttachedSent=true;
+                };
+                try { m_StaticScene.Open(driver,cameraRig); }
+                catch (Exception ex) { SendError(TwinBridge.ErrorBadMessage,ex.Message); m_StaticScene.Clear(); }
+            }
+            else if (m_Mode == "live")
             {
                 driver.backendBase = m_BackendBase;
                 driver.sessionId = m_RunId; // live：run 即活跃会话 id；后端 404 时 ReceiveLoop 报错退避
-                driver.StartTwin();
+                StartCoroutine(OpenLiveGeographyThenStart());
             }
             else
             {
@@ -548,7 +630,10 @@ namespace Sango
         /// attach 同通道必须幂等可用，web 换 run 不重发 hello）。</summary>
         void DetachDataPlane()
         {
+            m_StaticScene?.Clear();
             m_TrackedTargetKey = null;
+            m_PresentationShards.Clear();
+            StopOwnshipRelay(); // P1：会话代际终结（runId 失配旧线程自退 + 探针收口）
             if (cameraRig != null) { cameraRig.twinOverviewLengthM = 0; cameraRig.SetView(CameraView.Bridge); }
             m_Landscape?.ResetWarmup();
             m_Situation?.Clear();
@@ -618,6 +703,7 @@ namespace Sango
 
         void HandleCamera(TwinBridgeCommand cmd)
         {
+            if (m_Mode == "static") { m_CurrentPreset=cmd.preset; m_StaticScene?.Camera(cmd.preset); return; }
             if (!TwinBridge.IsValidPreset(cmd.preset))
             {
                 SendError(TwinBridge.ErrorBadMessage, $"unknown preset '{cmd.preset}'");
@@ -647,6 +733,8 @@ namespace Sango
                 return;
             }
             if (cameraRig == null) return;
+            if (m_Mode == "static")
+            { m_StaticScene?.FreePose(cmd.pos,cmd.yaw_deg,cmd.pitch_deg,cmd.fov_deg); m_CurrentPreset="free"; return; }
             if (driver == null || !driver.Anchor.HasValue)
             {
                 SendError(TwinBridge.ErrorBadMessage, "camera_free requires an attached data plane (anchor)");
@@ -723,13 +811,39 @@ namespace Sango
         /// <summary>sensor_mode → 渲染效果（状态机效果面 = TwinBridge.SensorModeEffect 纯函数）。</summary>
         void ApplySensorMode()
         {
-            TwinBridge.SensorModeEffect(m_SensorMode, out bool irActive, out bool lidarActive);
+            TwinBridge.SensorModeEffect(m_SensorMode, out bool irActive, out bool lidarActive, out bool blackHot);
             var streamCamera = Camera.main;
-            Vessels.Mast.IrViewPass.SetActive(irActive, streamCamera);
+            Vessels.Mast.IrViewPass.SetActive(irActive, streamCamera, blackHot); // P2 IR realism：极性随 pass
             if (irActive) Vessels.Mast.ThermalTagApplier.Apply();
             else Vessels.Mast.ThermalTagApplier.Revert();
             Vessels.Mast.LidarViewPass.SetActive(lidarActive, streamCamera); // P3-S3：点云视角真实现
             if (!lidarActive) m_LidarViewLogged = false; // 复位：每次进入 lidar 模式记一条激活日志（探针双证）
+        }
+
+        /// <summary>
+        /// radar_view（2026-10-21 P0 接线，契约 §2/§8 演进；00-REPORT §2.2/§6）：雷达表现层
+        /// 开关。字段面 = mode（契约 §2），未知词汇回 BAD_MESSAGE（§4 非致命）。与 camera
+        /// 预设/sensor_mode 正交叠加；数据面（RadarSpokeStream）恒活不受门控——表现层
+        /// 消费口（P1 overlay / P2 ppi）落地后在本方法接线（先例 ApplySensorMode pass 闸）。
+        /// </summary>
+        void HandleRadarView(TwinBridgeCommand cmd)
+        {
+            if (!TwinBridge.IsValidRadarView(cmd.mode))
+            {
+                SendError(TwinBridge.ErrorBadMessage, $"unknown radar_view '{cmd.mode}'");
+                return;
+            }
+            m_RadarView = cmd.mode;
+            ApplyRadarView();
+        }
+
+        /// <summary>radar_view → 表现层效果（效果面 = TwinBridge.RadarViewEffect 纯函数）：
+        /// overlay 位含桅顶天线实体（契约 §2；MastSensorRig 门控口，attach 先/后到都收口）。</summary>
+        void ApplyRadarView()
+        {
+            TwinBridge.RadarViewEffect(m_RadarView, out bool overlay, out bool ppi);
+            if (mastRig != null) mastRig.SetRadarAntennaVisible(overlay);
+            Debug.Log($"[Sango.TwinBridge] radar_view -> {m_RadarView} (overlay={overlay} ppi={ppi})");
         }
 
         /// <summary>
@@ -955,6 +1069,87 @@ namespace Sango
 
         double ClampSpan(double simTime) => Math.Max(m_SpanStart, Math.Min(m_SpanEnd, simTime));
 
+        // ── P1 本船多边形中继泵：主线程入队 → 后台线程批量 POST ──────────────────
+
+        /// <summary>帧产出方（TwinSituationDisplay.LateUpdate）入队一帧掩膜记录；有界丢最旧。</summary>
+        public void OfferOwnshipPolygon(TwinSituationFrame frame)
+        {
+            if (frame == null || string.IsNullOrEmpty(m_RunId) || string.IsNullOrEmpty(m_BackendBase)) return;
+            m_OwnshipPending.Enqueue(frame);
+            while (m_OwnshipPending.Count > OwnshipPendingCapacity && m_OwnshipPending.TryDequeue(out _)) { }
+        }
+
+        void StartOwnshipRelay()
+        {
+            if (m_OwnshipRelayThread != null) return;
+            m_OwnshipRelayCancel = new CancellationTokenSource();
+            var cancellation = m_OwnshipRelayCancel.Token;
+            m_OwnshipRelayThread = new Thread(() => OwnshipRelayLoop(
+                m_BackendBase, m_RunId, cancellation))
+                { IsBackground = true, Name = "Sango.TwinBridge.ownship-polygon" };
+            m_OwnshipRelayThread.Start();
+            Debug.Log($"[Sango.TwinBridge] ownship polygon relay started -> {m_BackendBase}/api/viewport-ownship-polygon");
+        }
+
+        void StopOwnshipRelay()
+        {
+            if (m_OwnshipRelayCancel != null) { try { m_OwnshipRelayCancel.Cancel(); } catch (ObjectDisposedException) { } }
+            if (m_OwnshipRelayThread != null && m_OwnshipRelayThread.IsAlive && !m_OwnshipRelayThread.Join(500))
+                Debug.LogWarning("[Sango.TwinBridge] ownship polygon relay thread did not exit within 0.5s");
+            m_OwnshipRelayThread = null;
+            if (m_OwnshipRelayCancel != null) { m_OwnshipRelayCancel.Dispose(); m_OwnshipRelayCancel = null; }
+            while (m_OwnshipPending.TryDequeue(out _)) { }
+        }
+
+        /// <summary>
+        /// 后台线程：批出队列 → POST（TwinRest 同步阻塞，仅本线程）。代际快照
+        /// backendBase/runId——detach（m_RunId 置空）或换 run 后旧线程自行退出，
+        /// 与 ReplayFetchLoop 同工艺；失败节流告警（前 3 次 + 每 100 次），丢批不重试。
+        /// </summary>
+        void OwnshipRelayLoop(string backendBase, string runId, CancellationToken cancellation)
+        {
+            var batch = new List<TwinSituationFrame>();
+            int posted = 0, errors = 0;
+            try
+            {
+                while (!cancellation.IsCancellationRequested && m_RunId == runId)
+                {
+                    batch.Clear();
+                    while (m_OwnshipPending.TryDequeue(out var item)) batch.Add(item);
+                    if (batch.Count > 0)
+                    {
+                        var report = new TwinOwnshipPolygonReport {
+                            run_id = runId,
+                            sim_time = batch[batch.Count - 1].sim_time,
+                            camera_pose = batch[batch.Count - 1].camera_pose,
+                            frames = batch.ConvertAll(f => new TwinOwnshipPolygonFrameEntry {
+                                frame_id = f.frame_id, polygon = f.ownship_polygon }).ToArray(),
+                        };
+                        try
+                        {
+                            TwinRest.PostJson(backendBase, "/api/viewport-ownship-polygon", report.ToJson());
+                            posted += batch.Count;
+                        }
+                        catch (Exception error)
+                        {
+                            errors++;
+                            if (errors <= 3 || errors % 100 == 0)
+                                Debug.LogWarning($"[Sango.TwinBridge] ownship polygon relay POST failed (#{errors}): {error.Message}");
+                        }
+                    }
+                    if (cancellation.WaitHandle.WaitOne(TimeSpan.FromSeconds(OwnshipRelayIntervalS))) break;
+                }
+            }
+            catch (Exception error)
+            {
+                Debug.LogError($"[Sango.TwinBridge] ownship polygon relay crashed: {error}");
+            }
+            finally
+            {
+                Debug.Log($"[Sango.TwinBridge] ownship polygon relay stopped (frames_posted={posted} errors={errors})");
+            }
+        }
+
         // ── live attached 重发（重连恢复，契约 §5） ─────────────────────────────
 
         void PollLiveAttached()
@@ -999,7 +1194,8 @@ namespace Sango
             if (nowUnixS - m_LastStateSentUnixS < StateIntervalS) return;
             m_LastStateSentUnixS = nowUnixS;
 
-            var state = new TwinBridgeState { landscape = Landscape, video = m_StreamQuality?.Describe(), fps = Math.Round(m_FpsSmoothed * 10.0) / 10.0, camera = m_CurrentPreset, sensor_mode = m_SensorMode };
+            var state = new TwinBridgeState { landscape = Landscape, video = m_StreamQuality?.Describe(), fps = Math.Round(m_FpsSmoothed * 10.0) / 10.0, camera = m_CurrentPreset, sensor_mode = m_SensorMode,
+                radar_view = m_RadarView }; // 2026-10-21 P0 演进只加字段：radar_view 回显（sensor_mode 同惯例）
             if (driver != null)
             {
                 state.frame_seq = driver.LastSeq;
@@ -1043,6 +1239,17 @@ namespace Sango
                     pitch_deg = -Mathf.DeltaAngle(0f, camera.transform.eulerAngles.x),
                     fov_deg = camera.fieldOfView,
                 };
+            }
+            if (m_Mode == "static" && m_StaticScene?.Geography != null && cameraRig?.controlledCamera != null)
+            {
+                var camera = cameraRig.controlledCamera;
+                var position = camera.transform.position;
+                state.presentation_buffering=false;
+                state.frame_seq=0;state.sim_time=0;
+                state.camera_pose=new TwinBridgeCameraPose {
+                    east=m_StaticScene.Geography.origin_e+position.x, north=m_StaticScene.Geography.origin_n+position.z,
+                    height_m=position.y, yaw_deg=camera.transform.eulerAngles.y,
+                    pitch_deg=-Mathf.DeltaAngle(0,camera.transform.eulerAngles.x), fov_deg=camera.fieldOfView };
             }
             var buoyancy = driver?.OwnShipObject?.GetComponent<VesselBuoyancy>();
             if (buoyancy != null)
@@ -1182,8 +1389,8 @@ namespace Sango
                 TwinSessionDriver.WakeEffectsEnabled = false;
                 Debug.Log("[Sango.TwinBridge] wake effects disabled via cli (--sango-twin-wake-off)");
             }
-            // --twin-target-visual <class|truth>：目标船视觉档位（默认 Medium 60m；
-            // truth 恢复按 truth.length 匹配）。20261015 检测链小目标观感裁决。
+            // --twin-target-visual <class|truth>：目标船视觉档位（默认 BulkCarrier 180m 散货船，
+            // 20261020 裁决；truth 恢复按 truth.length 匹配）。
             int visualIndex = Array.IndexOf(args, "--twin-target-visual");
             if (visualIndex >= 0 && visualIndex + 1 < args.Length)
             {
@@ -1200,6 +1407,39 @@ namespace Sango
             }
             service.runtimeEnabled = true;
             Debug.Log($"[Sango.TwinBridge] enabled via cli (local={local})");
+        }
+
+        /// <summary>
+        /// live attach 的地理自选（2026-10-21 青岛会话）：后端 enc_info 报 UTM51（青岛域
+        /// 会话）→ 以 QingdaoStaticScene 为地理提供方（Open 注入锚/高程覆盖）再开数据面；
+        /// 否则维持挪威景观默认。探测失败/超时（≤3s）按默认，不阻塞 attach 契约——
+        /// live 的 attached 本就等 driver.Anchor（首帧），晚开数据面无契约影响。
+        /// </summary>
+        System.Collections.IEnumerator OpenLiveGeographyThenStart()
+        {
+            bool qingdao = false;
+            string url = m_BackendBase.TrimEnd('/') + "/api/enc_info";
+            using (var request = UnityEngine.Networking.UnityWebRequest.Get(url))
+            {
+                request.timeout = 3;
+                yield return request.SendWebRequest();
+                if (request.result == UnityEngine.Networking.UnityWebRequest.Result.Success)
+                {
+                    qingdao = TwinLiveGeographyProbe.IsQingdao(request.downloadHandler.text);
+                }
+                else
+                {
+                    Debug.LogWarning($"[Sango.TwinBridge] enc_info probe failed ({request.result}); Norway geography assumed: {url}");
+                }
+            }
+            if (m_Mode != "live") yield break; // 探测期间被 detach/换 attach
+            if (qingdao)
+            {
+                if (m_StaticScene == null) m_StaticScene = gameObject.AddComponent<QingdaoStaticScene>();
+                try { m_StaticScene.Open(driver, cameraRig, staticView: false); }
+                catch (Exception ex) { SendError(TwinBridge.ErrorBadMessage, ex.Message); m_StaticScene.Clear(); }
+            }
+            driver.StartTwin();
         }
     }
 }

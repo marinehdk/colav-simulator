@@ -31,8 +31,8 @@ from typing import Any
 import numpy as np
 import orjson
 import yaml
-from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
+from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -47,6 +47,10 @@ from colav_simulator.core.colav.diagnostics import ColavExecutionError, PlanStat
 from colav_simulator.core.mast_cameras import MAST_MOUNTS_BY_ID, georeference_box
 from colav_simulator.core.sensing import ExternalCameraSensor
 from colav_simulator.core.tracking.trackers import sensor_channel_id
+from colav_simulator.core.viewport_tracks import (
+    ViewportTrackService,
+    camera_pose_valid,
+)
 from colav_simulator.decision_replay.sink import (
     REASON_GNC_BALANCE_CAPTURE_FAILED,
     REASON_THREAT_CAPTURE_FAILED,
@@ -82,10 +86,15 @@ from colav_simulator.schemas.sensor_model_v1 import (
     TrackSourceContribution,
 )
 from colav_simulator.schemas.viewport_detections_v1 import ViewportDetectionsFrame
+from colav_simulator.schemas.viewport_ownship_polygon_v1 import (
+    VIEWPORT_OWNSHIP_POLYGON_SCHEMA_VERSION,
+    ViewportOwnshipPolygonReport,
+)
 from gui_server import canonical_threat as _canonical_threat
 from gui_server.gnc_balance import balance_telemetry
 from gui_server.historical_api import router as historical_api_router
-from gui_server.radar_transport import LIVE_CHECKPOINTS, project_scans
+from gui_server.pose_history import CameraPoseRing, OwnshipPoseRing
+from gui_server.radar_transport import LIVE_CHECKPOINTS, project_compact_scans, project_scans
 from gui_server.replay import (
     RunReplayStore,
     build_replay_router,
@@ -101,6 +110,8 @@ from gui_server.replay_artifacts import (
     persist_static_context,
     render_enc,
 )
+from gui_server.static_scene import descriptor as static_scene_descriptor
+from gui_server.static_scene import router as static_scene_router
 from gui_server.twin_runtime import TwinRuntime, TwinRuntimeError
 
 log = logging.getLogger("gui_server")
@@ -118,6 +129,27 @@ TELEMETRY_EVIDENCE_RECENT_EVENTS = 32
 # DT 视口 YOLO 检测分流:telemetry 顶层键 viewport_detections 的过期上界(秒)。
 # received_at 距广播构建时刻超过该值即不再注入(键整体缺省)。
 VIEWPORT_DETECTION_MAX_AGE_S = 2.0
+# P3 viewport_tracks@1:confirmed 航迹文档与 viewport_detections 同生命周期
+# (检测停 → 两键一起缺省 → web 回退 DET 不悬挂);跟踪步 received_at 判过期。
+VIEWPORT_TRACKS_MAX_AGE_S = VIEWPORT_DETECTION_MAX_AGE_S
+# 评审 Q1/Q2:检测采集→收包延迟常量(后端镜像 web twin-situation.js 的
+# DETECTION_CAPTURE_INFERENCE_MS=80 + DETECTION_CAPTURE_TAP_MS=50;两侧字面量
+# 需一起改)。采集时刻 = 收包墙钟 − 该值,在位姿环上插值。
+DETECTION_CAPTURE_LATENCY_S = (80.0 + 50.0) / 1000.0
+# 评审 Q2 运行时检测:P1 中继 camera_pose 龄期门——Unity 桥断流超过该值即弃
+# 跟踪腿(陈旧位姿 georef 会系统性抹 bearing),限频告警留痕。
+VIEWPORT_TRACKS_RELAY_MAX_AGE_S = 2.0
+# 通用限频告警窗(秒):Q2 各运行时偏差检测共用,不刷日志。
+_WARN_RATE_LIMIT_S = 10.0
+_rate_limit_state: dict[str, float] = {"last_warn_s": 0.0}  # 可变单例,免 global 重绑
+
+
+def _warn_rate_limited(message: str, *args: Any) -> None:
+    """限频 WARNING(同窗多源合并;时钟轴/中继断流类检测用,不刷日志)."""
+    now = time.monotonic()
+    if now - _rate_limit_state["last_warn_s"] >= _WARN_RATE_LIMIT_S:
+        _rate_limit_state["last_warn_s"] = now
+        log.warning(message, *args)
 # DT 视口 YOLO 检测引擎:勾选"YOLO 检测"图层即拉起/停掉检测器进程(detached,
 # 后端重启不连坐;pidfile 与 deploy/twin/detectctl 共管)。检测器免会话——
 # POST /api/viewport-detections 由后端路由进当前活动会话,会话换新零重接线。
@@ -239,7 +271,8 @@ def _compact_stream_payload(payload: dict[str, Any], *, include_static: bool) ->
     ]
     compact.pop("os", None)
     compact.pop("obstacles", None)
-    compact.pop("radar_scans", None)
+    if payload.get("radar_scans"):
+        compact["radar_scans"] = project_compact_scans(payload["radar_scans"], LIVE_CHECKPOINTS.reference)
     compact.pop("ais_reports", None)
     for field in ("planner", "latest_planner_solve"):
         compact[field] = {
@@ -676,6 +709,13 @@ class WebSessionManager:
         # DT 视口 YOLO 检测分流:会话级最新一帧(display-only,遥测注入体;
         # 只留最新——旧帧被新 POST 覆写,过期由 _viewport_detections_envelope 判)。
         self._viewport_detection: dict[str, Any] | None = None
+        # 到达即推版本号(SSE):ingest 每次 +1;检测文档不搭仿真步节拍的全量文档车
+        self._viewport_detection_version = 0
+        # P3 检测→跟踪层:viewport detections → observations/IPDA 装配(vimmjipda
+        # 惰性装配;会话级,换会话即弃)。getattr 容错:测试替身绕过 __init__。
+        self._viewport_track_service: ViewportTrackService | None = None
+        # 评审 Q1:权威本船位姿环(tick 采样;采集时刻插值 georef 用;会话级)。
+        self._ownship_pose_ring = OwnshipPoseRing()
         self.lock = threading.RLock()
 
     @property
@@ -720,7 +760,10 @@ class WebSessionManager:
         self._observation_totals = {}
         with self._observation_display_lock:
             self._observation_display_cache.clear()
-        self._viewport_detection = None  # 新会话清空上一会话的检测分流帧(同上:reset 即清)
+        # 新会话清空上一会话的检测分流帧(reset 即清);P3:航迹不跨会话延续
+        # (与 web 端 run 切换清场对齐;跟踪器随服务重建)。链式赋值保持语句数。
+        self._viewport_detection = self._viewport_track_service = None
+        self._ownship_pose_ring.reset()  # 位姿环随会话重置(评审 Q1;不跨 run 外推)
         self.previous_prediction_horizon = []
         self.current_prediction_horizon = []
         self.last_solve_id = None
@@ -1161,6 +1204,13 @@ class WebSessionManager:
                 return None
             try:
                 snapshot = self.prepared.session.advance()
+                # 评审 Q1:tick 级权威位姿采样(墙钟+sim 钟+ownship 6 态),
+                # 供观测/视口 georef 在采集时刻插值(pose_history 环)。
+                self._ownship_pose_ring.sample(
+                    time.time(),
+                    float(self.prepared.session.simulator.t),
+                    np.asarray(self.prepared.session.ship_list[0].state, dtype=float),
+                )
                 self._record_telemetry_trails(snapshot.payload)
                 self._record_ais_reports(snapshot.payload)
                 self._append_trace_capture(snapshot)
@@ -1271,16 +1321,23 @@ class WebSessionManager:
             return {"ready": False}
         enc = prepared.session.enc
         run_id = prepared.manifest.run_id
+        zone = int(enc.utm_zone)
+        if zone in (32, 33):
+            # Horizontal part of the existing ETRS89 / UTM + NN54 compound CRS.
+            horizontal_crs: str | None = f"EPSG:{25800 + zone}"
+        elif 1 <= zone <= 60:
+            horizontal_crs = f"EPSG:{32600 + zone}"
+        else:
+            horizontal_crs = None
         return {
             "ready": True,
             "origin_e": float(enc.origin[0]),
             "origin_n": float(enc.origin[1]),
             "width": float(enc.size[0]),
             "height": float(enc.size[1]),
-            "utm_zone": int(enc.utm_zone),
-            # Horizontal part of the existing ETRS89 / UTM + NN54 compound CRS.
-            "horizontal_crs": f"EPSG:{25800 + int(enc.utm_zone)}" if int(enc.utm_zone) in (32, 33) else None,
-            "hemisphere": "north" if int(enc.utm_zone) in (32, 33) else None,
+            "utm_zone": zone,
+            "horizontal_crs": horizontal_crs,
+            "hemisphere": "north" if 1 <= zone <= 60 else None,
             "display_height_reference": "ellipsoid-zero-visual-only",
             "tile_url": "/api/enc_tile",
             "navigation_area_url": f"/api/sessions/{run_id}/navigation-area",
@@ -1356,9 +1413,14 @@ class WebSessionManager:
         (CREATED/RUNNING only, 409 SESSION_NOT_ACCEPTING); ``frame_seq`` is
         strictly monotonic per (sensor_id, mount_id) (409 FRAME_SEQ_REGRESSION);
         schema violations are rejected by the pydantic body model (422).
-        Georef uses the authoritative ownship state at receipt (contract §5:
-        same-host loop latency is sub-second, far below the ship-length accuracy
-        budget; ``frame_time_s`` stays a Unity-domain reference stamp).
+
+        Georef pose = 采集时刻的权威本船位姿(评审 Q1 修复):收包墙钟 −
+        ``DETECTION_CAPTURE_LATENCY_S`` 在 tick 采样位姿环(pose_history)上插值,
+        回转 bearing 抹扫从 yaw_rate×(0.13-0.5s) 收到插值误差级;环空/越窗
+        (双钟轴偏差,环限频告警,Q2)回退收包时刻位姿(修复前行为,有界)。
+        契约 §5.4 名义上的 frame_time_s 是 Unity 域参考戳——服务端无 Unity→
+        墙钟/仿真钟桥,维持落库不消费(实现偏差如实记录于此);记录 ``t_s``
+        用插值出的采集时刻 sim 钟。
         """
         if frame.mount_id not in MAST_MOUNTS_BY_ID:
             raise ValueError(f"unknown mount_id {frame.mount_id!r}")
@@ -1371,7 +1433,15 @@ class WebSessionManager:
             if last_seq is not None and frame.frame_seq <= last_seq:
                 raise FrameSeqRegressionError(last_seq)
 
-            ship_state = np.asarray(prepared.session.ship_list[0].state, dtype=float)
+            capture = None
+            ring = getattr(self, "_ownship_pose_ring", None)
+            if ring is not None:
+                capture = ring.at_wall(time.time() - DETECTION_CAPTURE_LATENCY_S)
+            if capture is not None:
+                sim_t, ship_state = capture
+            else:
+                sim_t = float(prepared.session.simulator.t)
+                ship_state = np.asarray(prepared.session.ship_list[0].state, dtype=float)
             own_north, own_east, own_yaw = float(ship_state[0]), float(ship_state[1]), float(ship_state[2])
             mount = MAST_MOUNTS_BY_ID[frame.mount_id]
             sensor = self._camera_sensor_for(prepared)
@@ -1396,7 +1466,7 @@ class WebSessionManager:
                         "confidence": float(detection.confidence),
                         "class_name": detection.class_name,
                         "class_confidence": float(detection.confidence),
-                        "t_s": float(prepared.session.simulator.t),
+                        "t_s": sim_t,
                         "mount_id": frame.mount_id,
                         "frame_seq": int(frame.frame_seq),
                         "frame_time_s": float(frame.frame_time_s),
@@ -1413,7 +1483,7 @@ class WebSessionManager:
                         "confidence": float(detection.confidence),
                         "class_name": detection.class_name,
                         "sensor_id": int(frame.sensor_id),
-                        "t_s": float(prepared.session.simulator.t),
+                        "t_s": sim_t,
                         "frame_seq": int(frame.frame_seq),
                         "det_id": f"{frame.sensor_id}:{frame.frame_seq}:{ordinal}",
                     }
@@ -1439,6 +1509,10 @@ class WebSessionManager:
         by the pydantic body model (422). Only the latest frame is kept — each
         POST overwrites the envelope and stamps ``received_at`` (server wall
         clock; a client value is never trusted).
+
+        P3 跟踪腿(仅 CREATED/RUNNING):同一帧经 P1 中继 camera_pose georef
+        进 observations/IPDA 装配 → viewport_tracks@1(见 _feed_viewport_tracks;
+        PAUSED 只显示不喂——sim 钟冻结,记录会在缓存里积压到恢复)。
         """
         with self.lock:
             prepared = self._require(session_id)
@@ -1451,9 +1525,67 @@ class WebSessionManager:
                 "height": int(frame.height),
                 "source": str(frame.source),
                 "detections": [detection.model_dump() for detection in frame.detections],
+                # 本船抑制命中态透传(ownship-mask-v1 §5;旧发送端 None 原样保留)
+                "ownship_mask": frame.ownship_mask,
                 "received_at": time.time(),
             }
+            # getattr 容错:测试替身绕过 __init__(同 _viewport_track_service 注)
+            self._viewport_detection_version = getattr(self, "_viewport_detection_version", 0) + 1
+            if prepared.session.state in (SessionState.CREATED, SessionState.RUNNING):
+                self._feed_viewport_tracks(prepared, frame)
             return {"accepted": True, "detections": len(frame.detections)}
+
+    def _feed_viewport_tracks(self, prepared: PreparedRun, frame: ViewportDetectionsFrame) -> None:
+        """P3:一帧视口检测 → (采集时刻位姿 georef)→ ExternalCameraSensor + IPDA.
+
+        位姿 = 采集时刻(收包墙钟 − ``DETECTION_CAPTURE_LATENCY_S``)的双环插值
+        (评审 Q1/Q2 修复):camera_pose 取 P1 中继位姿环(viewport-ownship-polygon@
+        1 每批 POST 采样,web poseAtCapture 同语义);ownship 6 态 + sim 时刻取
+        tick 位姿环。环空/越窗回退各自最新值(修复前行为,环已限频告警)。
+        中继龄期超过 ``VIEWPORT_TRACKS_RELAY_MAX_AGE_S``(Q2 运行时检测:Unity 桥
+        断流)则跳过跟踪腿并限频告警——陈旧位姿 georef 会系统性抹 bearing,宁缺
+        毋错;显示帧照常存,绝不 4xx。
+        跟踪步时刻 = 采集时刻的 sim 钟(评审 Q3:逐帧步进,10Hz 帧各入各步,不随
+        sim tick 批量 drain)。
+        """
+        with _ownship_polygon_lock:
+            relay_meta = dict(_ownship_polygon_meta)
+        relay_pose = relay_meta.get("camera_pose") or {}
+        if not camera_pose_valid(relay_pose):
+            return
+        updated_at = relay_meta.get("updated_at")
+        relay_age_s = time.time() - float(updated_at) if isinstance(updated_at, (int, float)) else None
+        if relay_age_s is None or relay_age_s > VIEWPORT_TRACKS_RELAY_MAX_AGE_S:
+            _warn_rate_limited(
+                "viewport track feed skipped: camera pose relay stale (>%.1fs)", VIEWPORT_TRACKS_RELAY_MAX_AGE_S
+            )
+            return
+        capture_wall = time.time() - DETECTION_CAPTURE_LATENCY_S
+        camera_pose = _camera_pose_ring.at_wall(capture_wall) or dict(relay_pose)
+        capture = None
+        ownship_ring = getattr(self, "_ownship_pose_ring", None)
+        if ownship_ring is not None:
+            capture = ownship_ring.at_wall(capture_wall)
+        if capture is not None:
+            sim_t, own_state = capture
+        else:
+            session = prepared.session
+            sim_t = float(session.simulator.t)
+            own_state = np.asarray(session.ship_list[0].state, dtype=float)
+        service = getattr(self, "_viewport_track_service", None)  # 测试替身可绕过 __init__
+        if service is None:
+            service = self._viewport_track_service = ViewportTrackService()
+        try:
+            service.feed(
+                camera_pose,
+                int(frame.width),
+                int(frame.height),
+                [detection.model_dump() for detection in frame.detections],
+                sim_t,
+                own_state,
+            )
+        except Exception:  # noqa: BLE001 (跟踪腿失败不连坐显示分流;下帧重试)
+            log.exception("viewport track feed failed; frame skipped")
 
     def observation_status(self, session_id: str) -> dict[str, Any]:
         """Status/test hook for the E2E probe.
@@ -1989,6 +2121,11 @@ class WebSessionManager:
             # 顶层键存活于全部 transports(_compact_stream_payload 只裁 truth 内部键),
             # web 消费端宽松读取。
             **self._viewport_detections_envelope(),
+            # P3 viewport_tracks@1:视口检测经 observations/IPDA 装配的 confirmed
+            # 航迹(confirmed 状态+existence 概率+滤波后 brg/rng;跟踪时刻冻结,
+            # 不追显示帧)。无跟踪步/过期(>VIEWPORT_TRACKS_MAX_AGE_S)时键整体
+            # 缺省,web 回退裸检测(DET);顶层键存活于全部 transports(同上)。
+            **self._viewport_tracks_envelope(),
             "radar_scans": jsonable(own_raw.get("radar_scans", [])),
             "ais_reports": jsonable(own_raw.get("ais_reports", [])),
         }
@@ -2122,6 +2259,31 @@ class WebSessionManager:
             return {}
         return {"viewport_detections": {**frame, "age_s": max(0.0, age_s)}}
 
+    def viewport_detection_event(self, last_version: int) -> tuple[int, dict[str, Any] | None]:
+        """SSE 到达即推(20261020 记录仪裁决:检测文档此前搭全量文档车随仿真步
+        ~2Hz 重建,PAUSED 冻结——检测属显示层,独立通道按版本变化即时下发)."""
+        version = getattr(self, "_viewport_detection_version", 0)
+        if version == last_version:
+            return version, None
+        return version, self._viewport_detections_envelope().get("viewport_detections")
+
+    def _viewport_tracks_envelope(self) -> dict[str, Any]:
+        """P3 viewport_tracks@1 注入体:无跟踪步/服务惰性/过期时 {}(键缺省).
+
+        过期语义与 viewport_detections 同生命周期:检测断流 → 两键一起缺省,
+        web 端 TRK→DET 回退即时生效(不悬挂旧航迹)。
+        """
+        service = getattr(self, "_viewport_track_service", None)
+        if service is None:
+            return {}
+        document = service.document()
+        if document is None:
+            return {}
+        age_s = time.time() - float(document["received_at"])
+        if age_s > VIEWPORT_TRACKS_MAX_AGE_S:
+            return {}
+        return {"viewport_tracks": {**document, "age_s": max(0.0, age_s)}}
+
 
 def _bounded_playback_deadline(
     previous_deadline: float,
@@ -2222,6 +2384,28 @@ async def lifespan(_: FastAPI):
 manager = WebSessionManager()
 app = FastAPI(title="COLAV Simulator Research Control", version="1.0", lifespan=lifespan)
 app.include_router(historical_api_router)
+app.include_router(static_scene_router)
+
+
+def _require_static_inspection_available() -> None:
+    if manager.prepared and manager.prepared.session.state == SessionState.RUNNING:
+        raise HTTPException(status_code=409, detail="Pause the active session before opening static inspection")
+
+
+@app.post("/api/geography/qingdao/create")
+def api_create_qingdao_static() -> dict[str, Any]:
+    with manager.lock:
+        _require_static_inspection_available()
+        return static_scene_descriptor()
+
+
+@app.post("/api/geography/qingdao/twin/start")
+def api_start_qingdao_static_twin() -> dict[str, Any]:
+    with manager.lock:
+        _require_static_inspection_available()
+        startup = manager.twin_runtime.start("geography-qingdao")
+    return startup.result()
+
 # Sealed Run Replay discovery, inspection and deletion. The store
 # root resolves exactly like the writer (project-root anchored runs/), so
 # discovery can never diverge from where runs are written.
@@ -2477,6 +2661,11 @@ def api_session_viewport_detections(session_id: str, frame: ViewportDetectionsFr
 # 空串 = 本地 mac CPU 模式(原行为)。远程启动同时停本地实例,防双推理双 POST。
 VIEWPORT_DETECTOR_REMOTE = os.environ.get("TWIN_VIEWPORT_DETECTOR_REMOTE", "").strip()
 VIEWPORT_DETECTOR_REMOTE_DIR = "~/twin-detector"
+# P1 本船掩膜:检测器拉多边形缓存的端点(默认从转发 URL 同源推导;可环境变量覆盖)。
+VIEWPORT_DETECTOR_POLYGON_URL = os.environ.get(
+    "TWIN_VIEWPORT_POLYGON_URL",
+    VIEWPORT_DETECTOR_FORWARD_URL.replace("/api/viewport-detections",
+                                          "/api/viewport-ownship-polygon")).strip()
 # 探活走远端 pidfile(serve --pidfile 自写):pgrep -f 会同时命中 ssh/bash 包装进程
 _REMOTE_DETECT_PGID = "pid=$(cat ~/twin-detector/detector.pid 2>/dev/null) && kill -0 $pid 2>/dev/null && echo $pid"
 _REMOTE_DETECT_CMD = (
@@ -2484,7 +2673,9 @@ _REMOTE_DETECT_CMD = (
     "CUDA_VISIBLE_DEVICES=1 nohup ~/twin-detector-venv/bin/python sango_detector_service.py "
     "--endpoint tcp://127.0.0.1:5556 --out tcp://127.0.0.1:5557 "
     "--viewport-forward-url http://127.0.0.1:18010/api/viewport-detections "
+    "--ownship-polygon-url http://127.0.0.1:18010/api/viewport-ownship-polygon "
     "--device cuda:0 --model yolov8s.pt --slice-size 640 --pidfile detector.pid "
+    "--dump-frame /tmp/owmask-dump.jpg --ownship-diag-dir /tmp/owmask-diag "
     # </dev/null:后台进程不持有 ssh 会话 fd,否则 ssh 等管道关闭直至超时
     ">> logs/detector.log 2>&1 < /dev/null & echo $!"
 )
@@ -2545,6 +2736,7 @@ def _detector_start() -> dict[str, Any]:
         "--endpoint", "tcp://127.0.0.1:15556",  # remote_control gst 路由隧道(a4000 sender tap)
         "--out", "tcp://127.0.0.1:15557",
         "--viewport-forward-url", VIEWPORT_DETECTOR_FORWARD_URL,
+        "--ownship-polygon-url", VIEWPORT_DETECTOR_POLYGON_URL,
         # 小目标召回:远距小船在 720p→640 letterbox 下只剩十余像素;1280 推理输入
         # 换召回,CPU 代价 ~3x(检测器主循环排空取最新帧,慢推理不积压延迟)。
         "--imgsz", "1280",
@@ -2611,6 +2803,114 @@ def api_viewport_detections_sessionless(frame: ViewportDetectionsFrame) -> dict[
         return manager.ingest_viewport_detections(description["session_id"], frame)
     except SessionNotAcceptingError as exc:
         raise HTTPException(status_code=409, detail="SESSION_NOT_ACCEPTING") from exc
+
+
+# 检测框观测记录仪(验收诊断用):web 渲染层逐帧采样 POST 到这里,追加 JSONL 供
+# 离线逐帧分析(guard 抖动/track churn/闪动归因)。只追加文件,不进遥测不进会话。
+VIEWPORT_BOX_LOG_PATH = os.environ.get("TWIN_VIEWPORT_BOX_LOG", "/tmp/viewport-boxes.jsonl")
+_box_log_lock = threading.Lock()
+
+
+@app.get("/api/viewport-detections/stream")
+async def viewport_detections_sse(request: Request) -> StreamingResponse:
+    """检测文档 SSE(到达即推):50ms 轮版本,变化即发;15s 注释心跳防中间层断连."""
+    async def generate():
+        last_version = -1
+        idle = 0.0
+        while True:
+            if await request.is_disconnected():
+                return
+            version, doc = manager.viewport_detection_event(last_version)
+            if doc is not None:
+                last_version = version
+                yield f"data: {json.dumps(doc)}\n\n"
+                idle = 0.0
+            else:
+                idle += 0.05
+                if idle >= 15.0:
+                    idle = 0.0
+                    yield ": ping\n\n"
+            await asyncio.sleep(0.05)
+
+    return StreamingResponse(generate(), media_type="text/event-stream",
+                             headers={"Cache-Control": "no-cache"})
+
+
+@app.post("/api/viewport-box-log")
+def api_viewport_box_log(payload: dict[str, Any]) -> dict[str, Any]:
+    lines = payload.get("lines") if isinstance(payload, dict) else None
+    if not isinstance(lines, list):
+        raise HTTPException(status_code=422, detail="LINES_REQUIRED")
+    if len(lines) > 2000:
+        raise HTTPException(status_code=413, detail="TOO_MANY_LINES")
+    with _box_log_lock:
+        with open(VIEWPORT_BOX_LOG_PATH, "a", encoding="utf-8") as fh:
+            client = payload.get("client")
+            if isinstance(client, dict):
+                fh.write(json.dumps({"client": client}, ensure_ascii=False) + "\n")
+            for line in lines:
+                if isinstance(line, dict):
+                    fh.write(json.dumps(line, ensure_ascii=False) + "\n")
+    return {"appended": len(lines)}
+
+
+# P1 本船掩膜中继(viewport-ownship-polygon@1):situation_frame 只走桥 DataChannel
+# 到浏览器,后端不可见——Unity 桥服务在数据面同一 backend_base 上 ≤10Hz 批量
+# POST 最近渲染帧的 (frame_id → 本船水线多边形);检测器 GET 拉环形缓存按解码
+# frame_id 精确匹配,推理前掩掉本船。免会话单槽(末位写者胜,run_id 仅诊断):
+# 检测链本身免会话(POST /api/viewport-detections 同哲学),会话换新零重接线。
+_OWNSHIP_POLYGON_RING = 512  # ≥17s@30fps 渲染帧,覆盖 tap 采样+中继滞后
+_ownship_polygon_lock = threading.Lock()
+_ownship_polygon_frames: OrderedDict[int, dict[str, Any]] = OrderedDict()
+_ownship_polygon_meta: dict[str, Any] = {}  # 空 = 从未写入(可变单例,免 global 重绑)
+# 评审 Q1/Q2:P1 中继 camera_pose 环(每批 POST 采样,免会话)——视口跟踪腿在
+# 采集时刻插值当帧相机位姿(web poseAtCapture 后端镜像),环空/越窗回退最新回显。
+_camera_pose_ring = CameraPoseRing()
+
+
+def _ingest_ownship_polygon(report: ViewportOwnshipPolygonReport) -> dict[str, Any]:
+    """缓存一批 (frame_id → polygon) 记录;同 frame_id 覆写,超环长逐出最旧."""
+    stored = 0
+    with _ownship_polygon_lock:
+        for entry in report.frames:
+            _ownship_polygon_frames[entry.frame_id] = {
+                "frame_id": entry.frame_id,
+                "polygon": [corner.model_dump() for corner in entry.polygon],
+            }
+            stored += 1
+        while len(_ownship_polygon_frames) > _OWNSHIP_POLYGON_RING:
+            _ownship_polygon_frames.popitem(last=False)
+        _ownship_polygon_meta.clear()
+        _ownship_polygon_meta.update({
+            "run_id": report.run_id,
+            "sim_time": report.sim_time,
+            "camera_pose": report.camera_pose.model_dump(),
+            "updated_at": time.time(),
+        })
+    _camera_pose_ring.sample(time.time(), report.camera_pose.model_dump())
+    return {"stored": stored, "cached_frames": len(_ownship_polygon_frames)}
+
+
+@app.post("/api/viewport-ownship-polygon")
+def api_viewport_ownship_polygon_post(report: ViewportOwnshipPolygonReport) -> dict[str, Any]:
+    """Unity 桥服务中继写入(≤10Hz 批量;失败由客户端静默丢批,服务端零状态可重入)."""
+    return _ingest_ownship_polygon(report)
+
+
+@app.get("/api/viewport-ownship-polygon")
+def api_viewport_ownship_polygon_get() -> dict[str, Any]:
+    """检测器拉取:最新相机位姿+时间戳+最近帧环形缓存(frames 升序,末位最新).
+
+    从未写入时 frames=[](检测端按"无 polygon 优雅跳过"消费,不 404)。
+    """
+    with _ownship_polygon_lock:
+        meta = dict(_ownship_polygon_meta)
+        frames = [dict(entry) for entry in _ownship_polygon_frames.values()]
+    if not meta:
+        return {"schema": VIEWPORT_OWNSHIP_POLYGON_SCHEMA_VERSION,
+                "run_id": None, "sim_time": 0.0, "camera_pose": None,
+                "updated_at": None, "frames": []}
+    return {"schema": VIEWPORT_OWNSHIP_POLYGON_SCHEMA_VERSION, **meta, "frames": frames}
 
 
 @app.get("/api/viewport-detection-engine")

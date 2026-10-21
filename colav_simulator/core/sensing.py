@@ -455,6 +455,18 @@ MOUNT_ID_RADAR_X_DEFAULT = "mast_top_xband"
 #: formula (SNR @ PD=0.9, Pfa=1e-4, single pulse ≈ 11.7 dB, ±0.2 dB accuracy).
 PD_ERFC_OFFSET = 0.85
 
+#: RCS aspect-modulation span (dB, beam-on peak over bow/stern trough). Domain
+#: doc 20 §3-3: the same vessel fluctuates >25 dB with aspect angle; modeled
+#: deterministically, median-preserving over uniformly distributed aspects.
+RCS_ASPECT_SPAN_DB = 25.0
+
+#: ITU-R P.838 rain specific-attenuation coefficients at 9.4 GHz, horizontal
+#: polarization (domain doc 20 §3-2: kH 0.0085 @ 9 GHz .. 0.0101 @ 10 GHz,
+#: alphaH 1.28 .. 1.276, linear interpolation to 9.4 GHz); gamma = k Rr^alpha
+#: [dB/km] with the rain rate Rr in mm/h.
+RAIN_ATTENUATION_K_H = 0.00914
+RAIN_ATTENUATION_ALPHA_H = 1.2784
+
 
 def detection_probability_swerling0(snr_db: float | np.ndarray, pfa: float = 1e-4) -> float | np.ndarray:
     """Single-pulse non-fluctuating (Swerling-0) detection probability from SNR.
@@ -518,6 +530,8 @@ class RadarXParams:
     clutter_db_per_beaufort: float = 3.0  # sea-state intensity factor
     clutter_texture_nu_ref: float = 4.0  # compound texture shape at Beaufort 3
     clutter_snr_ref_db: float = 5.0  # amplitude-to-equivalent-SNR offset for confidence
+    # Two-path rain attenuation gamma = k Rr^alpha (ITU-R P.838 @ 9.4 GHz, 20 §3-2); 0 = dry.
+    rain_rate_mm_h: float = 0.0
     max_measurements_per_scan: int = 400  # per-scan output cap (targets prioritized)
     # Terrain occlusion: M6 strait DEM (EPSG:32648) or any projected GeoTIFF.
     occlusion_dem_path: str | None = None
@@ -538,6 +552,9 @@ class RadarXParams:
             raise ValueError(msg)
         if self.occlusion_mode not in {"elevation", "landmask"}:
             msg = f"occlusion_mode must be 'elevation' or 'landmask', got {self.occlusion_mode!r}"
+            raise ValueError(msg)
+        if not np.isfinite(self.rain_rate_mm_h) or self.rain_rate_mm_h < 0.0:
+            msg = f"rain_rate_mm_h must be finite and non-negative, got {self.rain_rate_mm_h!r}"
             raise ValueError(msg)
         Halo24Profile(range_bins=self.shadow_video_range_bins, rain_mm_h=self.shadow_video_rain_mm_h)
         mount_values = (
@@ -572,6 +589,10 @@ class RadarXBand(ISensor):
       the antenna revolution that sweeps its bearing (scan period 60/rpm);
     - power detection PD(SNR) with a range-equation SNR model and per-class RCS
       estimate from ship dimensions;
+    - RCS aspect modulation (beam-on peak / bow-stern trough, 25 dB span,
+      20 §3-3) with Swerling-1 per-revolution fluctuation, and two-way rain
+      attenuation exp(-2 gamma R) with ITU-R P.838 9.4 GHz coefficients
+      (20 §3-2, ``rain_rate_mm_h``);
     - vertical-beam near blind ring R_min = h_ant / tan(VBW/2) and configurable
       mast/rigging blind sectors (relative to bow);
     - radar horizon d = 4.12 (sqrt(h_ant) + sqrt(h_tgt)) [m] with k = 4/3;
@@ -887,7 +908,16 @@ class RadarXBand(ISensor):
             return None
         if self._occluded(own_ne, np.asarray(do_state, dtype=float)[:2], target_height):
             return None
-        snr_db = self.snr_db(distance, self.rcs_m2(do_length, do_width))
+        # Effective RCS: deterministic aspect modulation + Swerling-1 draw that is
+        # constant within this revolution (isolated seed, 20 §3-3).
+        velocity = np.asarray(do_state, dtype=float)[2:4]
+        heading = float(np.arctan2(velocity[1], velocity[0])) if np.linalg.norm(velocity) > 0.1 else 0.0
+        aspect = abs((bearing - heading + np.pi) % (2.0 * np.pi) - np.pi)  # 0 = bow/stern-on
+        fluctuation_db = self.rcs_aspect_gain_db(aspect) + self.sw1_fluctuation_db(
+            int(t_cross // self.scan_period_s), do_idx
+        )
+        rcs = max(p.rcs_min_m2, self.rcs_m2(do_length, do_width) * 10.0 ** (0.1 * fluctuation_db))
+        snr_db = self.snr_db(distance, rcs) - self.rain_attenuation_db(distance)
         pd = float(detection_probability_swerling0(snr_db, p.pfa))
         if self._rng.random() > pd:
             return None
@@ -980,6 +1010,27 @@ class RadarXBand(ISensor):
         """Rough RCS estimate from ship dimensions (domain doc 02 §5 row 5, class table stand-in)."""
         return max(self._params.rcs_min_m2, do_length * do_width * self._params.rcs_area_factor)
 
+    def rcs_aspect_gain_db(self, aspect_rad: float) -> float:
+        """Deterministic RCS aspect modulation (dB): beam-on +span/2, bow/stern-on -span/2.
+
+        ``span (sin^2(aspect) - 1/2)`` over the 20 §3-3 peak-to-trough span;
+        ``aspect`` is the target-relative line-of-sight angle (0 = bow/stern-on,
+        pi/2 = beam-on). Median-preserving over uniform aspects (mean sin^2 = 1/2).
+        """
+        return RCS_ASPECT_SPAN_DB * (np.sin(aspect_rad) ** 2 - 0.5)
+
+    def sw1_fluctuation_db(self, revolution_seq: int, do_idx: int) -> float:
+        """Swerling-1 RCS fluctuation (dB): constant within a revolution, redrawn each.
+
+        Unit-mean exponential power draw (Rayleigh amplitude). Stream is keyed by
+        the seed (sensor seed, revolution_seq, target index) — the RNG-isolation
+        discipline of the shadow video and web clutter regen: deterministic given
+        the sensor seed, never consuming the production ``self._rng`` stream.
+        """
+        rng = np.random.default_rng([int(self._seed or 0) & 0xFFFFFFFF, int(revolution_seq), int(do_idx)])
+        power = max(float(rng.exponential()), 1e-12)  # bounded away from log10(0)
+        return 10.0 * np.log10(power)
+
     def snr_db(self, distance_m: float, rcs_m2: float) -> float:
         """Range-equation SNR: reference point + RCS ratio - r^4 decay (dB)."""
         p = self._params
@@ -989,6 +1040,17 @@ class RadarXBand(ISensor):
             + 10.0 * np.log10(rcs_m2 / p.rcs_ref_m2)
             - p.snr_decay_db_per_decade * np.log10(floor_distance / p.snr_ref_range_m)
         )
+
+    def rain_attenuation_db(self, distance_m: float) -> float:
+        """Two-way rain attenuation (dB), the dB-domain form of exp(-2 gamma R).
+
+        gamma = k Rr^alpha with ITU-R P.838 9.4 GHz horizontal-polarization
+        coefficients (20 §3-2); A = 2 gamma R_km over the outbound + return
+        path. ``rain_rate_mm_h = 0`` returns exactly 0.0, leaving the legacy
+        SNR formula bit-identical.
+        """
+        gamma_db_per_km = RAIN_ATTENUATION_K_H * self._params.rain_rate_mm_h ** RAIN_ATTENUATION_ALPHA_H
+        return 2.0 * gamma_db_per_km * (distance_m / 1000.0)
 
     def horizon_range_m(self, target_height_m: float) -> float:
         """Radar horizon d[m] = 4.12 (sqrt(h_ant[m]) + sqrt(h_tgt[m])) (k = 4/3)."""

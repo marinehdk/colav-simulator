@@ -8,6 +8,10 @@ mirrors these constants; the parity test
 ``tests/test_observations_endpoint.py`` pins both tables to the same literals
 (edit any side only together with the other and this doc).
 
+The X-band radar antenna mount (P1, 00-REPORT §3) rides this module as a
+single-row PARALLEL table (``RADAR_*`` constants below) — not inside
+``MAST_MOUNTS``, which stays the camera-only calibration family.
+
 Conventions (frozen for v1):
 - ``azimuth_deg``: relative bearing from the bow, compass-clockwise (0 = bow,
   90 = starboard beam, 180 = stern, 270 = port beam).
@@ -227,6 +231,32 @@ MAST_MOUNTS: tuple[MastMount, ...] = (
 )
 
 MAST_MOUNTS_BY_ID: dict[str, MastMount] = {mount.mount_id: mount for mount in MAST_MOUNTS}
+
+
+#: ── X-band radar antenna mount (P1 mast-top entity, 00-REPORT §3 A案定案) ──
+#: Single-row PARALLEL table — deliberately not a ``MAST_MOUNTS`` row: that tuple
+#: is the pixel-calibration camera family (sensor_id {2,3,4} vocabulary the
+#: observations endpoint pins), a radar row would break the parity enumeration.
+#: Mirror of the Unity ``sango/.../Mast/RadarAntennaMount.cs`` constants; change
+#: both sides together (parity pinned by ``tests/test_observations_endpoint.py``).
+RADAR_MOUNT_ID = "mast_top_xband"  # sensor-model-v1 §3 frozen vocabulary == RadarXParams.mount_id default
+RADAR_ANTENNA_HEIGHT_M = 12.98  # FBX-measured mast top air draught (工程口径; FBX attribute 12.9)
+RADAR_ANTENNA_FORWARD_M = 2.1  # mast centreline, +2.1 m forward of midship
+RADAR_ANTENNA_STARBOARD_M = 0.0  # mast centreline
+#: HALO24 24-inch radome envelope (manual 988-12307-003: Ø610×225 mm) — Unity procedural entity dims.
+RADAR_RADOME_DIAMETER_M = 0.61
+RADAR_RADOME_HEIGHT_M = 0.225
+#: Default rotation 24 rpm == RadarXParams.rpm default (far-range mode, scan period 2.5 s).
+RADAR_SCAN_RPM = 24.0
+
+
+def radar_scan_period_s(rpm: float = RADAR_SCAN_RPM) -> float:
+    """Antenna revolution period in seconds (60/rpm; 24 rpm → 2.5 s/rev).
+
+    Same period the web PPI sweep (``radar-ppi.js`` ``sweepAzimuthRad``) and the
+    Unity antenna spin consume — one sim-time phase across all three views.
+    """
+    return 60.0 / rpm
 
 
 @dataclass(frozen=True)

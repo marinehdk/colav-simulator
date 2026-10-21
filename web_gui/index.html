@@ -6,7 +6,7 @@
   <title>综合避碰仿真器</title>
   <meta name="description" content="NTNU autonomous ship COLAV & MPC route planning algorithm verification console with real-time COLREGs risk assessment." />
   <link id="openbridgeStyles" rel="stylesheet" href="/static/vendor/openbridge/openbridge.css?v=20260827-vessel-placard-v1" onerror="this.dataset.failed='true'" />
-  <link rel="stylesheet" href="/static/style.css?v=20261016-dt-labels-v1" />
+  <link rel="stylesheet" href="/static/style.css?v=20261021-qingdao-route-v8" />
 </head>
 <body>
   <div class="app-container">
@@ -515,7 +515,7 @@
                     <div class="twin-hud deployment-control-state" id="deploymentTwinHud" aria-live="polite">TWIN IDLE</div>
                     <div class="map-mode-control deployment-twin-sensor-group" aria-label="传感器模式（主孪生视口）" id="deploymentTwinSensorGroup">
                       <button class="map-mode-button active" type="button" data-twin-sensor="eo" aria-pressed="true" aria-label="可见光模式" title="EO（可见光）">EO</button>
-                      <button class="map-mode-button" type="button" data-twin-sensor="ir" aria-pressed="false" aria-label="红外模式" title="IR（黑白热像）">IR</button>
+                      <button class="map-mode-button" type="button" data-twin-sensor="ir" aria-pressed="false" aria-label="红外模式（再点切换白热/黑热）" title="IR（热像，再点切换白热/黑热）">IR</button>
                       <button class="map-mode-button" type="button" data-twin-sensor="lidar" aria-pressed="false" aria-label="LiDAR 模式（点云视角）" title="LiDAR（点云视角）">LD</button>
                     </div>
                     <label class="twin-link-toggle" id="twinLinkToggleWrap" for="twinLinkToggle">
@@ -1038,10 +1038,17 @@
             </div>
             <div class="map-mode-control" aria-label="Sensor mode (main twin viewport)" id="twinSensorGroup">
               <button class="map-mode-button active" type="button" data-twin-sensor="eo" aria-pressed="true" aria-label="Electro-optical mode" title="EO (visible light)">EO</button>
-              <button class="map-mode-button" type="button" data-twin-sensor="ir" aria-pressed="false" aria-label="Infrared mode" title="IR (white-hot thermal)">IR</button>
+              <button class="map-mode-button" type="button" data-twin-sensor="ir" aria-pressed="false" aria-label="Infrared mode (click again to cycle white-hot/black-hot)" title="IR (thermal; click again to cycle white-hot/black-hot)">IR</button>
               <button class="map-mode-button" type="button" data-twin-sensor="lidar" aria-pressed="false" aria-label="LiDAR mode (point cloud)" title="LiDAR (point cloud)">LD</button>
             </div>
             <span class="deployment-control-state" id="twinSensorMode" aria-live="polite">SENSOR EO</span>
+            <div class="map-mode-control" aria-label="Radar presentation view (twin-bridge radar_view)" id="twinRadarGroup">
+              <button class="map-mode-button active" type="button" data-twin-radar="off" aria-pressed="true" aria-label="Radar presentation off (default)" title="Radar presentation off (default)">RD·OFF</button>
+              <button class="map-mode-button" type="button" data-twin-radar="overlay" aria-pressed="false" aria-label="3D radar overlay (surface disc, blind zones, target markers, sweep beam, mast antenna)" title="3D radar overlay (surface disc, blind zones, target markers, sweep beam, mast antenna)">RD·OVL</button>
+              <button class="map-mode-button" type="button" data-twin-radar="ppi" aria-pressed="false" aria-label="Standalone radar PPI screen" title="Standalone radar PPI screen">RD·PPI</button>
+              <button class="map-mode-button" type="button" data-twin-radar="both" aria-pressed="false" aria-label="Overlay and PPI together" title="Overlay and PPI together">RD·BOTH</button>
+            </div>
+            <span class="deployment-control-state" id="twinRadarView" aria-live="polite">RADAR OFF</span>
             <select id="twinDetectionSelect" aria-label="Detection overlay source (twin only)">
               <option value="off">DETECTION OFF</option>
               <option value="truth" selected>GT BOXES</option>
@@ -1154,11 +1161,11 @@
     <obc-brilliance-menu class="brilliance-menu-popover" id="brillianceMenu" variant="compact" aria-label="显示模式" hidden></obc-brilliance-menu>
   </div>
 
-  <script type="module" src="/static/app.js?v=20261016-dt-labels-v1"></script>
-  <script type="module" src="/static/modules/config-shell.js?v=20261009-dt-environment-v2"></script>
+  <script type="module" src="/static/app.js?v=20261021-qingdao-route-v8"></script>
+  <script type="module" src="/static/modules/config-shell.js?v=20261021-qingdao-route-v8"></script>
   <script type="module" src="/static/modules/historical-ais-workbench.js?v=20260923-vo-primitive-v1"></script>
   <script type="module" src="/static/modules/replay-runs.js?v=20260916-replay-layout-v4"></script>
   <script type="module" src="/static/modules/evaluation-replay.js?v=20261008-sensor-ppi-v1"></script>
-  <script type="module" src="/static/modules/twin-view.js?v=20261015-dt-yolo-tv-v1"></script>
+  <script type="module" src="/static/modules/twin-view.js?v=20261016-shard-tv-v1"></script>
 </body>
 </html>

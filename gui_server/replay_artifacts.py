@@ -14,7 +14,8 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 from matplotlib.backends.backend_agg import FigureCanvasAgg
 from matplotlib.figure import Figure
-from shapely.geometry import Point
+from shapely import constrained_delaunay_triangles
+from shapely.geometry import Point, box as shapely_box
 
 from colav_simulator.common import map_functions as mapf
 from colav_simulator.experiment.persistence import jsonable
@@ -150,6 +151,46 @@ def _local_polygon_coordinates(
     return output
 
 
+# DT 视景"不安全水域"红区的三角预算:补集经简化+CDT 后一次性随 enc_navigation_area
+# 下发,web 转发进 presentation(数据面单条消息,须有界——绝对 UTM 全精度会超
+# WebRTC SCTP ~256KB 上限并打死通道,web 侧再以 0.1 m 平铺数组压到 <100KB)。
+_HAZARD_TRIANGLE_CAP = 1200
+
+
+def _unsafe_water_triangles(
+    safe_water: Any,
+    bbox: tuple[float, float, float, float],
+    origin_e: float,
+    origin_n: float,
+) -> list[list[list[float]]]:
+    """CDT triangles of the unsafe complement (ENC bbox − safe water), local [north, east].
+
+    The 2D chart keeps its canvas evenodd fill; the DT view instead drapes one translucent
+    red mesh, so the complement is triangulated here (shapely constrained Delaunay) and
+    simplified adaptively so the triangle count stays under the presentation budget.
+    """
+    if safe_water is None or safe_water.is_empty:
+        return []
+    e_min, n_min, e_max, n_max = bbox
+    hazard = shapely_box(e_min, n_min, e_max, n_max).difference(safe_water)
+    if hazard.is_empty:
+        return []
+    triangles: list[Any] = []
+    for tolerance in (15.0, 40.0, 80.0, 160.0):
+        simplified = hazard.simplify(tolerance, preserve_topology=True)
+        collection = constrained_delaunay_triangles(simplified)
+        triangles = [tri for tri in getattr(collection, "geoms", ()) if not tri.is_empty]
+        if len(triangles) <= _HAZARD_TRIANGLE_CAP:
+            break
+    return [
+        [
+            [round(float(north - origin_n), 1), round(float(east - origin_e), 1)]
+            for east, north in tri.exterior.coords[:3]
+        ]
+        for tri in triangles[:_HAZARD_TRIANGLE_CAP]
+    ]
+
+
 def render_enc(prepared: PreparedRun) -> Path:
     """Render the exact ENC object used by one prepared simulation."""
     enc = prepared.session.enc
@@ -208,6 +249,10 @@ def build_enc_navigation_area(prepared: PreparedRun | None) -> dict[str, Any]:
             "type": "MultiPolygon",
             "polygons": _local_polygon_coordinates(safe_water, float(origin_e), float(origin_n)),
         },
+        # DT 视景红区(见 _unsafe_water_triangles);2D 海图路径不消费此字段。
+        "hazard_triangles": _unsafe_water_triangles(
+            safe_water, enc.bbox, float(origin_e), float(origin_n)
+        ),
     }
 
 

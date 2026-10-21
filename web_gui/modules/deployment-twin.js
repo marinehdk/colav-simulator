@@ -26,21 +26,28 @@ import {
   observeTheme,
   projectTwinHud,
   projectSensorMode,
+  nextSensorMode,
   themeValue,
   TWIN_SENSOR_MODE_DEFAULT,
   TWIN_SENSOR_MODES,
-} from './twin-view.js?v=20261015-dt-yolo-tv-v1';
-import { createGeography } from './scene-geography.js?v=20261004-token-cleanup-v1';
+  TWIN_SENSOR_IR_MODES,
+  TWIN_SENSOR_ECHO_GUARD_MS,
+} from './twin-view.js?v=20261016-shard-tv-v1';
+import { createGeography } from './scene-geography.js?v=20261016-qingdao-v2';
 import { chooseTwinStreamProfile, sampleTwinVideoStats } from './twin-stream-quality.js?v=20261013-dt-diagnostics-v11';
 
 import { createTwinCameraControls } from './twin-camera-controls.js?v=20261010-dt-camera-v6';
-import { createTwinSituationOverlay } from './twin-situation.js?v=20261016-dt-labels-v1';
+import { createTwinSituationOverlay } from './twin-situation.js?v=20261021-qingdao-route-v8';
 
 // HUD refresh cadence (Unity state echo is ~1Hz; same as the Evaluation twin).
 const HUD_INTERVAL_MS = 250;
 
+function landscapeIsDisplayable(state) {
+  return state?.ready !== false || state?.displayable === true;
+}
+
 export function projectTwinLandscape(state) {
-  if (!state || state.ready !== false) return null;
+  if (!state || landscapeIsDisplayable(state)) return null;
   if (state.state === 'waiting-session') return { visible: true, level: 'warming',
     title: '正在同步仿真会话', detail: '正在等待当前会话的视景数据，然后检查地形。' };
   const progress = Number.isFinite(state.progress) ? Math.max(0, Math.min(100, state.progress)) : 0;
@@ -78,6 +85,7 @@ export function createDeploymentTwinViewport({
   requestVODecisionSpace = () => {},
 } = {}) {
   let streamCtl = null;
+  const staticRegion = info?.scene_mode === 'GEOGRAPHIC_STATIC';
   let linkScene = null;
   let linkOn = false;
   let linkStarting = false;
@@ -89,6 +97,10 @@ export function createDeploymentTwinViewport({
   let generation = 0;
   let runtimeRunId = null;
   let runtimeStarting = false;
+  // P2 IR realism: 当前 sensor_mode（含极性值）——IR 键再点循环基 + §5 重发值。
+  let currentSensorMode = TWIN_SENSOR_MODE_DEFAULT;
+  // P2 race fix: pick 后的 stale-echo 护窗（twin-view.js#TWIN_SENSOR_ECHO_GUARD_MS）。
+  let sensorEchoGuard = { value: null, until: 0 };
   const attachTimers = new Set();
   let requestedProfile = '1080p';
   let sentProfile = null;
@@ -117,12 +129,13 @@ export function createDeploymentTwinViewport({
   // 本船真值(east/north ENU + 船长):situation 本船框抑制与 cameraControls
   // 初始化同源(相机控件 getOwnship 原getter上提共用)。
   const twinOwnship = () => {
+    if (staticRegion) return { east: info.origin_e+info.width/2, north: info.origin_n+info.height/2 };
     const ship = latestProjection?.raw?.os;
     if (!ship || !info) return null;
     return { east: info.origin_e + ship.y, north: info.origin_n + ship.x,
       psi: ship.psi, length: ship.length };
   };
-  const situation = chart && host?.ownerDocument && video ? createTwinSituationOverlay({
+  const situation = !staticRegion && chart && host?.ownerDocument && video ? createTwinSituationOverlay({
     host, video, chart, info, client: () => streamCtl?.client, onSelect, onCameraChange: () => cameraControls.reset(), getPlannerSurface, requestVODecisionSpace, getOwnship: twinOwnship,
   }) : null;
   const videoFrameIntervals = [];
@@ -227,13 +240,20 @@ export function createDeploymentTwinViewport({
         if (at >= 0) pointerHubs[type].splice(at, 1);
       } else video?.removeEventListener?.(type, fn);
     },
+    // 原生 DOM 方法以 Object.create 包装器为 receiver 会抛 Illegal invocation
+    // (20261016 追随左键平移失灵真根因:down 的 setPointerCapture 与 move 平移分支
+    // 的 getBoundingClientRect 双双抛出——左键全死,中/右键(旋转/缩放)不碰这两
+    // 调用故正常;Node 测试桩无这些方法,?. 跳过=测试全绿测不出)。闭包直转真 video。
+    setPointerCapture(id) { video.setPointerCapture?.(id); },
+    releasePointerCapture(id) { video.releasePointerCapture?.(id); },
+    getBoundingClientRect() { return video.getBoundingClientRect?.(); },
   }) : video;
 
   const cameraControls = createTwinCameraControls({
     video: controlsVideo, scheduler,
     getClient: () => streamCtl?.client,
     enabled: () => !destroyed && !linkOn && syncBridgeLookPreset() !== 'bridge'
-      && (streamCtl?.client?.lastState?.landscape || situation?.landscape)?.ready !== false,
+      && landscapeIsDisplayable(streamCtl?.client?.lastState?.landscape || situation?.landscape),
     getCameraPose: () => situation?.cameraPose || streamCtl?.client?.lastState?.camera_pose,
     getOwnship: twinOwnship,
     onSend: pose => {
@@ -327,6 +347,7 @@ export function createDeploymentTwinViewport({
     if (title) title.textContent = runtimeStarting ? '正在启动数字孪生' : health.title;
     if (detail) detail.textContent = runtimeStarting
       ? '正在启动数字孪生并建立数据流连接…'
+      : staticRegion && landscape ? '正在准备青岛海岸、地形与真实影像，完成后显示视景。'
       : landscape?.detail || '正在连接数字孪生数据流，连接恢复后自动显示。';
     healthEl.dataset.level = health.level;
     healthEl.hidden = false;
@@ -359,25 +380,40 @@ export function createDeploymentTwinViewport({
 
   // Contract §2 live semantics: hello → attach(mode live) and NOTHING else —
   // the backend owns the clock, so no ReplayClock and no clock messages ever.
-  function attachLiveWhenReady(timeoutMs = 15000) {
+  // Attach watchdog (2026-10-21): the player echoes `attached`, but the first
+  // hello/attach races the player-side channel wiring (~100 ms window — three
+  // Qingdao outages today: black terrain, then 6 fps + frozen LOD). Re-send the
+  // idempotent trio until the echo lands or the confirm budget runs out.
+  function attachLiveWhenReady(timeoutMs = 15000, confirmBudgetMs = 45000) {
     for (const pending of attachTimers) clearAttachTimer(pending);
     const gen = generation;
-    const deadline = Date.now() + timeoutMs;
+    const readyDeadline = now() + timeoutMs;
+    const confirmDeadline = now() + confirmBudgetMs;
+    let lastSend = 0;
+    let announced = false;
     const timer = scheduler.setInterval(() => {
       const client = streamCtl?.client;
       if (destroyed || gen !== generation || sessionId() !== runtimeRunId) { clearAttachTimer(timer); return; }
+      if (client?.attached) { clearAttachTimer(timer); return; }
       if (client?.ready) {
-        clearAttachTimer(timer);
-        client.sendAttach({ runId: runtimeRunId, backendBase, mode: 'live' });
-        const theme = themeValue(documentRef?.documentElement?.getAttribute?.('data-obc-theme'));
-        if (theme) client.sendTheme(theme);
-        // P3-S2 (spec #90): §5 realignment — the current sensor mode rides along.
-        const sensorActive = sensorGroup?.querySelector('[data-twin-sensor].active');
-        client.sendSensorMode(sensorActive?.dataset.twinSensor ?? TWIN_SENSOR_MODE_DEFAULT);
-        updateViewportProfile();
-        sendStreamProfile();
+        if (!lastSend || now() - lastSend >= 3000) {
+          lastSend = Date.now();
+          client.sendHello?.();
+          client.sendAttach({ runId: runtimeRunId, backendBase, mode: staticRegion ? 'static' : 'live' });
+          const theme = themeValue(documentRef?.documentElement?.getAttribute?.('data-obc-theme'));
+          if (theme) client.sendTheme(theme);
+          // P3-S2 (spec #90): §5 realignment — the current sensor mode rides along
+          // (P2: tracked value carries the IR polarity; dataset only says 'ir').
+          client.sendSensorMode(currentSensorMode);
+        }
+        if (!announced) {
+          announced = true;
+          updateViewportProfile();
+          sendStreamProfile();
+        }
         publishDebug();
-      } else if (Date.now() > deadline) {
+        if (now() > confirmDeadline) clearAttachTimer(timer);
+      } else if (now() > readyDeadline) {
         clearAttachTimer(timer);
       }
     }, 100);
@@ -561,6 +597,11 @@ export function createDeploymentTwinViewport({
     const width = measuredVideo?.width || video?.videoWidth;
     const height = measuredVideo?.height || video?.videoHeight;
     statusEl.textContent = `${hud.signal.toUpperCase()} · ${width && height ? `${width}×${height}` : '—'} · ${measuredVideo?.fps == null ? '—' : measuredVideo.fps.toFixed(0)} FPS · ${measuredVideo?.bitrateMbps == null ? '—' : measuredVideo.bitrateMbps.toFixed(1)} Mb/s${streamCtl?.client?.lastState?.presentation_buffering ? ' · 缓冲中' : ''}`;
+    const landscapeInfo = streamCtl?.client?.lastState?.landscape;
+    if (staticRegion && landscapeInfo?.displayable && landscapeInfo.state === 'failed')
+      statusEl.textContent += ' · 地形服务不可用 · 本地地形';
+    else if (staticRegion && (landscapeInfo?.refining || (landscapeInfo?.displayable && !landscapeInfo.ready)))
+      statusEl.textContent += ` · 细节加载 ${Math.round(landscapeInfo.progress)}%`;
     // dt-yolo:左上 HUD 拼 YOLO 状态(在算=ON 绿字;勾了没数据=OFF;未勾=无后缀)。
     const yoloSuffix = situation?.yoloStatus?.() ?? '';
     if (yoloSuffix) {
@@ -577,6 +618,15 @@ export function createDeploymentTwinViewport({
       `解码 ${ms(measuredVideo?.decodeMs)}；缓冲 ${ms(measuredVideo?.jitterBufferMs)}；接收至解码完成 ${ms(measuredVideo?.processingMs)}`,
       `主线程长任务 ${longTasks} 次；最长 ${ms(longTaskMaxMs)}；地形加载 ${ms(landscapeReadyMs)}`,
     ].join('\n');
+    if (staticRegion && landscapeInfo) {
+      const mib = bytes => Number.isFinite(bytes) ? (bytes / 1048576).toFixed(1) + ' MiB' : '—';
+      statusEl.title += '\n' + [
+        `区域 ${(landscapeInfo.extent_m / 1000).toFixed(0)} × ${(landscapeInfo.extent_m / 1000).toFixed(0)} km`,
+        `瓦片缓存预算 ${mib(landscapeInfo.cache_budget_bytes)}（非实际占用）`,
+        `Unity 网格 ${mib(landscapeInfo.mesh_memory_bytes)}；纹理 ${mib(landscapeInfo.texture_memory_bytes)}（不含 SDK 全部原生缓存）`,
+        `Unity 进程内存 ${mib(landscapeInfo.process_rss_bytes)}；驻留网格 ${landscapeInfo.meshes_resident}`,
+      ].join('\n');
+    }
     if (video?.dataset) {
       video.dataset.receivedFps = measuredVideo?.fps == null ? '' : measuredVideo.fps.toFixed(2);
       video.dataset.bitrateMbps = measuredVideo?.bitrateMbps == null ? '' : measuredVideo.bitrateMbps.toFixed(3);
@@ -588,7 +638,7 @@ export function createDeploymentTwinViewport({
       video.dataset.presentationBuffering = String(Boolean(streamCtl?.client?.lastState?.presentation_buffering));
       const landscape = streamCtl?.client?.lastState?.landscape || situation?.landscape;
       if (landscapeReadyMs === null && landscape?.ready && video?.readyState >= 2) landscapeReadyMs = now() - viewportOpenedAt;
-      if (video.style) video.style.visibility = !streamCtl?.client?.lastState || landscape?.ready === false ? 'hidden' : '';
+      if (video.style) video.style.visibility = !streamCtl?.client?.lastState || !landscapeIsDisplayable(landscape) ? 'hidden' : '';
       if (landscape) video.dataset.landscape = JSON.stringify(landscape);
       const cameraPose = streamCtl?.client?.lastState?.camera_pose;
       if (cameraPose) video.dataset.unityCameraPose = JSON.stringify(cameraPose);
@@ -602,10 +652,26 @@ export function createDeploymentTwinViewport({
     ));
     // P3-S2 (spec #90): state echo is the authority for the sensor mode UI.
     // dt-yolo 收编轮:左下"SENSOR EO"角标移除(右上 EO/IR/LD 按钮已表意)。
-    const mode = projectSensorMode(streamCtl?.client?.lastState);
+    // P2: IR 单键承载极性家族——ir/ir_whitehot/ir_blackhot 均点亮 IR 键；
+    // pick 护窗内与 pick 不一致的 stale echo 被忽略（race fix），护窗超时或
+    // echo 追上 pick 后恢复 echo 权威（Unity 拒值时自愈）。
+    // P2 评审修复（极性竞态，与 twin-view.js 同款）：无 echo（§5 重连轮询窗口
+    // 新 client 的 lastState=null）≠ 'eo' echo——不折回，保住极性 pick 供
+    // attachLiveWhenReady 的重发；真 echo 仍恢复权威。
+    if (streamCtl?.client?.lastState) {
+      const echoed = projectSensorMode(streamCtl.client.lastState);
+      if (sensorEchoGuard.value !== null && echoed !== sensorEchoGuard.value && now() < sensorEchoGuard.until) {
+        // stale pre-pick echo — keep the optimistic pick.
+      } else {
+        sensorEchoGuard = { value: null, until: 0 };
+        currentSensorMode = echoed;
+      }
+    }
+    const mode = currentSensorMode;
     if (sensorGroup) {
       sensorGroup.querySelectorAll('[data-twin-sensor]').forEach(button => {
-        const on = button.dataset.twinSensor === mode;
+        const value = button.dataset.twinSensor;
+        const on = value === 'ir' ? TWIN_SENSOR_IR_MODES.includes(mode) : value === mode;
         button.classList.toggle('active', on);
         button.setAttribute('aria-pressed', String(on));
       });
@@ -616,15 +682,19 @@ export function createDeploymentTwinViewport({
   function bind() {
     linkToggle?.addEventListener('change', onLinkToggle);
     // P3-S2 (spec #90): sensor-mode buttons — optimistic pick + send; the ~1Hz
-    // state echo reasserts the authoritative mode (renderHud).
+    // state echo reasserts the authoritative mode (renderHud). P2: IR 键再点
+    // 循环白热/黑热（nextSensorMode 展开极性家族）。
     sensorGroup?.querySelectorAll('[data-twin-sensor]').forEach(button => {
       button.addEventListener('click', () => {
-        const value = button.dataset.twinSensor;
+        const value = nextSensorMode(currentSensorMode, button.dataset.twinSensor);
         if (!TWIN_SENSOR_MODES.includes(value)) return;
         const mode = value;
+        currentSensorMode = mode;
+        sensorEchoGuard = { value: mode, until: now() + TWIN_SENSOR_ECHO_GUARD_MS }; // P2 race fix
         if (sensorGroup) {
           sensorGroup.querySelectorAll('[data-twin-sensor]').forEach(other => {
-            const on = other.dataset.twinSensor === mode;
+            const otherValue = other.dataset.twinSensor;
+            const on = otherValue === 'ir' ? TWIN_SENSOR_IR_MODES.includes(mode) : otherValue === mode;
             other.classList.toggle('active', on);
             other.setAttribute('aria-pressed', String(on));
           });
@@ -724,7 +794,8 @@ export function createDeploymentTwinViewport({
       runtimeStarting = true;
       renderHealthCard({ visible: true, level: 'starting' });
       try {
-        const response = await fetchRef(`${backendBase}/api/sessions/${encodeURIComponent(runId)}/twin/start`, {
+        const startPath = staticRegion ? '/api/geography/qingdao/twin/start' : `/api/sessions/${encodeURIComponent(runId)}/twin/start`;
+        const response = await fetchRef(`${backendBase}${startPath}`, {
           method: 'POST', signal,
         });
         const result = await response.json();

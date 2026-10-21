@@ -53,6 +53,22 @@ def project_scans(scans: list, reference: Callable[[dict], dict]) -> list:
     return result
 
 
+def project_compact_scans(scans: list, reference: Callable[[dict], dict]) -> list:
+    """Checkpoint-reference-only projection for the compact-v1 frame (Unity spoke channel).
+
+    Same content-addressed checkpoint reference as project_scans, plus the
+    per-tick ``chunk`` raster is dropped: the compact frame carries no inline
+    raster at all (WS 1 MiB frame cap; Unity pulls rasters via checkpoint REST).
+    """
+    result = []
+    for scan in project_scans(scans, reference):
+        video = scan.get("shadow_video")
+        if isinstance(video, dict) and "chunk" in video:
+            scan = {**scan, "shadow_video": {key: value for key, value in video.items() if key != "chunk"}}
+        result.append(scan)
+    return result
+
+
 def project_radar_window(document: dict) -> dict:
     """Transmit each checkpoint once per bounded replay window."""
     checkpoints = {}

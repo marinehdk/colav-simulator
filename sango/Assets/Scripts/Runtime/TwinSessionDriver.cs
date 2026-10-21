@@ -60,6 +60,13 @@ namespace Sango
         public UnityEngine.Rendering.HighDefinition.WaterSurface water;
         public NorwayTerrain geography;
 
+        /// <summary>外部地理覆盖（青岛域 live 会话）：QingdaoStaticScene.Open 注入。
+        /// 锚 = ENC 中心原点（零登记平移，船位直落青岛地文本地系）；空 = 挪威链默认。</summary>
+        public TwinAnchor? externalGeographyAnchor;
+
+        /// <summary>外部高程采样（青岛 Unity Terrain）；空 = 挪威地形/M6 常数。</summary>
+        public Func<Vector3, float> externalElevationAt;
+
         /// <summary>队列积压上限：主线程长期不取用时丢最旧（DetectionResultConsumer 同款）。</summary>
         const int QueueCap = 64;
 
@@ -97,6 +104,11 @@ namespace Sango
         string m_WeatherSignature;
         CameraRig m_CameraRig; // 槽位视觉接线用（TopDown 矢量隐藏语义）；查找一次缓存
 
+        // P0 雷达 spoke 通道（00-REPORT §2.2/§6）：envelope radar_scans 转发到
+        // RadarSpokeStream（checkpoint 拉取/解码/环形广播）。惰性建——首帧带雷达
+        // 数据才落地，无雷达会话零分配；backend 基址与 WS 同源（本组件字段）。
+        RadarSpokeStream m_RadarStream;
+
         // P3-12 地理配准观测面：接受帧船位的场景坐标包络（±x/±z 极值，锚点变换后）
         // → M6TwinGeo.ClassifyFit 出 geo_fit。观测驱动（ENC 设计域 live 侧不可知）。
         Vector2 m_SceneMin, m_SceneMax;
@@ -108,11 +120,12 @@ namespace Sango
         long m_RxCount;
         int m_AcceptedCount, m_DuplicateCount, m_RebuildCount, m_MalformedCount, m_UnslottedCount;
 
-        // 目标船视觉档位（20261015 用户裁决）：null = truth.length 最近匹配（原行为）；
-        // 指定型 = 目标船统一显示该型（默认 Medium 60m，检测链小目标观感需要；
-        // 本船 id=0 不受影响——EnsureSlot 只对 ship.id != 0 应用档位）。仅显示层，
-        // 物理/尺寸语义仍按 truth。--twin-target-visual &lt;class|truth&gt; 覆盖。
-        VesselClass? m_TargetVisualClass = VesselClass.Medium;
+        // 目标船视觉档位：null = truth.length 最近匹配（原行为）；指定型 = 目标船统一
+        // 显示该型（20261015 裁决曾默认 Kenney Medium 60m；20261020 改默认 BulkCarrier
+        // 180 m 散货船——真实船型且更大，检测链观感/海事权重更贴；本船 id=0 不受影响
+        // ——EnsureSlot 只对 ship.id != 0 应用档位）。仅显示层，物理/尺寸语义仍按 truth。
+        // --twin-target-visual &lt;class|truth&gt; 覆盖。
+        VesselClass? m_TargetVisualClass = VesselClass.BulkCarrier;
         public string targetVisualOverride
         {
             set => m_TargetVisualClass = TwinShipFactory.ParseVisualOverride(value, m_TargetVisualClass);
@@ -151,6 +164,10 @@ namespace Sango
 
         /// <summary>首帧锚定原点（bridge attached.anchor 用；未锚定 null）。</summary>
         public TwinAnchor? Anchor => m_Anchor;
+
+        /// <summary>渲染钟（P1 桅顶天线扫掠等表现件注入用——RadarAntennaSpin.clock
+        /// 的装配源；同一 TwinClock 实例 = 扫掠相位与位姿插值/盘扫线同源 sim_time）。</summary>
+        public TwinClock RenderClock => m_Clock;
 
         /// <summary>
         /// geo_fit 词汇（P3-12，twin-bridge-v1 §3/§8；bridge state.geo_fit 用）：
@@ -256,6 +273,7 @@ namespace Sango
             m_LastSeq = -1;
             m_CanInterpolate = false;
             ResetGeoFit();
+            TeardownRadarStream(); // P0 雷达通道：随会话终结拆除
         }
 
         void OnDisable() => StopTwin();
@@ -291,7 +309,8 @@ namespace Sango
             {
                 if (ship == null) return "";
                 var position = TwinPose.ScenePosition(ship, m_Anchor.Value);
-                float elevation = geography != null ? geography.ElevationAt(position) : M6TwinGeo.ElevationAt(position);
+                float elevation = externalElevationAt != null ? externalElevationAt(position)
+                    : geography != null ? geography.ElevationAt(position) : M6TwinGeo.ElevationAt(position);
                 string elevSegment = float.IsNaN(elevation) ? "" : $",e{elevation:0.0}m";
                 return $"id{ship.id}=({position.x:0.0},{position.z:0.0}m,ψ{TwinPose.YawDegrees(ship.psi):0}°{elevSegment})";
             }));
@@ -402,6 +421,11 @@ namespace Sango
                             if (json == null) break; // 服务端关闭 / 停止取消
                             var frame = ColavTelemetry.FromJson(json);
                             if (!TwinEnvelope.IsValidCompact(frame)) { m_MalformedCount++; continue; }
+                            // P1 盲区可视化：blind_sectors_deg 嵌套数组 JsonUtility 不支持——
+                            // 后台线程从信封原文解析（纯 CPU，IndexOf 快速路径），附着帧上
+                            // 进 inbox（主线程 OnEnvelopeFrame 值比较去重广播）。
+                            if (frame.radar_ppi != null)
+                                frame.radarPpiBlindSectors = RadarOverlayMath.ParseBlindSectors(json);
                             Interlocked.Increment(ref m_RxCount);
                             while (inbox.Count >= QueueCap && inbox.TryDequeue(out _)) { }
                             inbox.Enqueue(frame);
@@ -469,6 +493,7 @@ namespace Sango
                     m_LastSeq = -1;
                     m_CanInterpolate = false;
                     ResetGeoFit();
+                    m_RadarStream?.OnSessionRebuilt(); // P0 雷达通道：清环/清去重，等新会话 checkpoint
                     Debug.LogWarning($"[Sango.Twin] seq regression {regressedFrom} -> {frame.seq}; session rebuilt");
                 }
                 ColavTelemetry previous = m_Latest;
@@ -479,10 +504,40 @@ namespace Sango
                 m_Prev = m_CanInterpolate ? previous : null;
                 m_Latest = frame;
                 m_LastSeq = frame.seq;
-                if (!m_Anchor.HasValue) m_Anchor = geography != null ? geography.Anchor : TwinAnchor.FromShip(frame.truth[0]);
+                if (!m_Anchor.HasValue)
+                    m_Anchor = externalGeographyAnchor ?? (geography != null ? geography.Anchor : TwinAnchor.FromShip(frame.truth[0]));
                 AccumulateExtent(frame);
                 m_AcceptedCount++;
+                ForwardRadarSpokes(frame); // P0 雷达通道 hook：见方法注（仅雷达帧有开销）
             }
+        }
+
+        /// <summary>
+        /// P0 雷达 spoke 通道 hook（00-REPORT §2.2/§6）：接受的 envelope 帧带雷达
+        /// 键（radar_scans/radar_ppi）时转发 RadarSpokeStream（首帧惰性建组件，挂本
+        /// 对象下）。无雷达键的帧一次 null 检查即返回——S1 行为零变化。
+        /// </summary>
+        void ForwardRadarSpokes(ColavTelemetry frame)
+        {
+            if ((frame.radar_scans == null || frame.radar_scans.Length == 0) && frame.radar_ppi == null) return;
+            if (m_RadarStream == null)
+            {
+                var host = new GameObject("Twin radar spoke stream");
+                host.transform.SetParent(transform, false);
+                m_RadarStream = host.AddComponent<RadarSpokeStream>();
+                m_RadarStream.backendBase = backendBase; // 基址复用本组件配置源（TwinWs 同源）
+                Debug.Log("[Sango.Twin] radar spoke stream attached (P0 channel)");
+            }
+            m_RadarStream.OnEnvelopeFrame(frame);
+        }
+
+        /// <summary>雷达 spoke 流拆除（会话终结/重建共用；worker 线程随 OnDisable 收口）。</summary>
+        void TeardownRadarStream()
+        {
+            if (m_RadarStream == null) return;
+            if (Application.isPlaying) Destroy(m_RadarStream.gameObject);
+            else DestroyImmediate(m_RadarStream.gameObject);
+            m_RadarStream = null;
         }
 
         void ApplyPoses(double now)
@@ -582,6 +637,35 @@ namespace Sango
             waterlineOffsetY = slot.Entry.waterlineOffsetY;
             bowYawDeg = slot.Entry.bowYawDeg;
             lossyScale = slot.Ship.transform.lossyScale.x;
+            return true;
+        }
+
+        /// <summary>
+        /// P1 本船水线角点（dt-ownship-mask）：truth[0] 槽位的物理 LOA（slot.LengthMeters）
+        /// × beam（slot.BeamMeters）水线矩形四角，世界系，顺序恒
+        /// [艏左舷, 艏右舷, 艉右舷, 艉左舷]。规范船体系（+Z 艏/+X 右舷）→ ship-local
+        /// 变换与 CameraViews.BridgeEyeMount 同源（Euler(0,-bowYawDeg)·canonical/lossyScale，
+        /// TransformPoint 还原）；水线高度 = -Entry.waterlineOffsetY（canonical y=0 即水面）。
+        /// 本船未挂槽/无 truth 返 false（消费端按"无掩膜"处理）。
+        /// </summary>
+        public bool TryGetOwnShipWaterline(
+            out Vector3 bowPort, out Vector3 bowStarboard, out Vector3 sternStarboard, out Vector3 sternPort)
+        {
+            bowPort = bowStarboard = sternStarboard = sternPort = Vector3.zero;
+            if (m_Latest?.truth == null || m_Latest.truth.Length == 0
+                || !m_Slots.TryGetValue(m_Latest.truth[0].id, out var slot) || slot.Ship == null)
+                return false;
+            var ship = slot.Ship.transform;
+            float scale = Mathf.Max(ship.lossyScale.x, 1e-3f);
+            var bowYaw = Quaternion.Euler(0f, -slot.Entry.bowYawDeg, 0f);
+            float halfLength = Mathf.Max(slot.LengthMeters, 6f) * 0.5f;
+            float halfBeam = Mathf.Max(slot.BeamMeters, 1f) * 0.5f;
+            Vector3 Local(float sideMeters, float alongMeters) =>
+                ship.TransformPoint(bowYaw * new Vector3(sideMeters, -slot.Entry.waterlineOffsetY, alongMeters) / scale);
+            bowPort = Local(-halfBeam, halfLength);
+            bowStarboard = Local(halfBeam, halfLength);
+            sternStarboard = Local(halfBeam, -halfLength);
+            sternPort = Local(-halfBeam, -halfLength);
             return true;
         }
 
