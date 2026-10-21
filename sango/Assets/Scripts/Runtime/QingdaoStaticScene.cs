@@ -207,6 +207,16 @@ namespace Sango
                 }
             }
             ApplyShoreWaterTuning();
+            // Static-view frame clock (2026-10-21): Application.targetFrameRate is
+            // owned by the Norwegian landscape's idle governor, but this scene
+            // disables that component on entry — a player that idle-shed to 5 fps
+            // would stay there forever (the governor's attach-based unshed never
+            // runs while disabled). The static view IS the active consumer: lock
+            // the TwinStreamQuality 30 while open; Clear sheds back to the idle 5
+            // exactly like the Norwegian governor would after a detach.
+            int previousFrameRate = Application.targetFrameRate;
+            Application.targetFrameRate = 30;
+            Debug.Log($"[Sango.Qingdao] static view frame clock 30 (was {previousFrameRate})");
             Camera("overlook");
             onReady?.Invoke(new Frame { origin_e=Geography.origin_e, origin_n=Geography.origin_n });
         }
@@ -1059,6 +1069,9 @@ namespace Sango
             // hide the rig; the retained objects are reused by the next entry.
             ReleaseShoreFoamRegion();
             RestoreShoreWaterTuning();
+            // Static view closed: shed to the idle frame rate like the Norwegian
+            // governor does after a detach (static-view frame clock, 2026-10-21).
+            Application.targetFrameRate = 5;
             if(m_ShoreFoamRoot!=null) m_ShoreFoamRoot.SetActive(false);
             // P1-A: shore volumes hide with the rest of the retained rig.
             if(m_ShoreworkRoot!=null) m_ShoreworkRoot.SetActive(false);
