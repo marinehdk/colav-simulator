@@ -695,16 +695,22 @@ class Sender:
 
     @staticmethod
     def _decode_marker_row(buffer, width, row) -> int | None:
-        """marker 单行解码:32 格心采样,歧义窗即本行弃权;魔数/校验和不过返
-        None(行拖影下位串几乎不可能碰巧通过双重校验)。"""
+        """marker 单行解码:**行内自适应阈值**分类 32 格(相对序),魔数/校验和不过
+        返 None。20261021 泄漏帧实锤:快速转视角时本船白色上层建筑泛光把黑格
+        从 ~20 均匀抬到 49-177(多格落 80-175 歧义窗)→ 固定窗口解码全行弃权
+        (all_rows_failed 占 23%)→ 近邻兜底错盖邻帧 id=泄漏;而泛光不改变黑白
+        相对序,取 (min+max)/2 分界即免疫;条带无对比(<60)或位串未过双重
+        校验仍 fail-closed。"""
         strip = buffer.extract_dup(width * 4 * row, 256 * 4)
+        levels = [sum(strip[(index * 8 + 4) * 4:(index * 8 + 4) * 4 + 3]) / 3
+                  for index in range(32)]
+        lo, hi = min(levels), max(levels)
+        if hi - lo < 60:
+            return None
+        threshold = (lo + hi) / 2
         bits = 0
-        for index in range(32):
-            offset = (index * 8 + 4) * 4
-            level = sum(strip[offset:offset + 3]) / 3
-            if 80 < level < 175:
-                return None
-            bits = (bits << 1) | int(level >= 175)
+        for level in levels:
+            bits = (bits << 1) | int(level >= threshold)
         frame_id = (bits >> 8) & 65535
         if bits >> 24 != 0xd3 or bits & 255 != ((frame_id >> 8) ^ frame_id ^ 0x5a) & 255:
             return None

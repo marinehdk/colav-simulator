@@ -209,6 +209,21 @@ class SenderBridgeTests(unittest.TestCase):
                           '全行拖影:fail-closed 返 None')
         self.assertEqual(self.sender._marker_decode_fails, 1)
 
+    def test_decode_marker_survives_bloom(self):
+        """四期回归锁(20261021 泄漏帧实锤):本船白色上层建筑泛光把黑格均匀抬进
+        歧义窗(黑~150/白~210,固定窗口解码 all_rows_failed 23%);行内自适应阈值
+        按相对序照常解出,魔数+校验和门控保持 fail-closed。"""
+        gst = sender_module.Gst
+        pad = SimpleNamespace(
+            get_current_caps=lambda: gst.Caps.from_string('video/x-raw,format=BGRx,width=2560,height=1440'))
+        bits = (0xd3 << 24) | (4242 << 8) | (((4242 >> 8) ^ 4242 ^ 0x5a) & 255)
+        bloomed = b''.join(bytes([210 if bits & (1 << (31 - i)) else 150] * 3 + [255]) * 8 for i in range(32))
+        capture = gst.Buffer.new_allocate(None, 2560 * 4 * 16, None)
+        for r in sender_module.Sender.MARKER_SAMPLE_ROWS:
+            capture.fill(2560 * 4 * r, bloomed)
+        self.assertEqual(self.sender._decode_marker_pad(pad, SimpleNamespace(get_buffer=lambda: capture)), 4242,
+                         '均匀泛光抬升黑格:自适应阈值按相对序解出')
+
     def test_decode_marker_majority_beats_single_adversarial_row(self):
         """单行碰巧通过魔数+校验和的对抗位串不得劫持票选:多数行赢。"""
         gst = sender_module.Gst
