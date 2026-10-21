@@ -142,6 +142,11 @@ def _spawn_player() -> int:
         CURL_CA_BUNDLE="/etc/ssl/certs/ca-certificates.crt",
         REQUESTS_CA_BUNDLE="/etc/ssl/certs/ca-certificates.crt",
     )
+    # 代理 env 剥除(2026-10-21):player 出网只依赖 Cesium ion;启动 shell 带的本机
+    # clash 7897 半死(TLS unexpected eof)时 Unity 全走死代理 → terrain=0% 黑屏
+    # 不自愈(空闲卸载后瓦片重流式全失败)。a4000 直连出网已验通,player 永远直连。
+    for key in [k for k in env if k.lower() in ("http_proxy", "https_proxy", "all_proxy")]:
+        env.pop(key)
     w, h = _player_window()
     args = [
         str(ROOT / "player/sango.x86_64"),
