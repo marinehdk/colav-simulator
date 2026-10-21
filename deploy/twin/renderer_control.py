@@ -142,11 +142,9 @@ def _spawn_player() -> int:
         CURL_CA_BUNDLE="/etc/ssl/certs/ca-certificates.crt",
         REQUESTS_CA_BUNDLE="/etc/ssl/certs/ca-certificates.crt",
     )
-    # 代理 env 剥除(2026-10-21):player 出网只依赖 Cesium ion;启动 shell 带的本机
-    # clash 7897 半死(TLS unexpected eof)时 Unity 全走死代理 → terrain=0% 黑屏
-    # 不自愈(空闲卸载后瓦片重流式全失败)。a4000 直连出网已验通,player 永远直连。
-    for key in [k for k in env if k.lower() in ("http_proxy", "https_proxy", "all_proxy")]:
-        env.pop(key)
+    # ⚠️ 勿剥 proxy env(2026-10-21 教训):地形瓦片源 tile.googleapis.com 直连被墙,
+    # player 必须经启动 shell 的本机 clash 代理出网;clash 上游死 → terrain=0%
+    # 黑屏(需修 clash 而非剥 env——cesium.com 直连可通会误判"剥代理即好")。
     w, h = _player_window()
     args = [
         str(ROOT / "player/sango.x86_64"),
