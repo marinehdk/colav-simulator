@@ -25,7 +25,10 @@ def chart_point_hazards(enc: object, minimum_depth_m: float) -> dict[str, tuple[
         return {}
     cache = getattr(enc, "_colav_point_hazards", None)
     if cache is None:
-        target_crs = pyproj.CRS.from_epsg(25800 + int(enc.utm_zone))
+        zone = int(enc.utm_zone)
+        # ETRS89 UTM only exists for European zones; elsewhere (Qingdao
+        # UTM 51N) the ENC coordinates are WGS84-based.
+        target_crs = pyproj.CRS.from_epsg(25800 + zone if 25 <= zone <= 33 else 32600 + zone)
         bounds = tuple(map(float, enc.bbox))
         records: dict[str, list[tuple[BaseGeometry, float | None]]] = {}
         for name in scope.files:

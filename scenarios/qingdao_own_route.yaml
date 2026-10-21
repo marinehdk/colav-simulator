@@ -1,0 +1,203 @@
+# Qingdao Port own-ship planned route (SINGLE SHIP preview).
+# Route: OWN_PLANNED_SAFE_22 (34.5 km 安全航线) from
+# 34.5km安全航线与112艘船舶航迹_合并.csv rows 1-22 — WGS84 lon/lat converted to
+# UTM 51N. Speed plan = planner per-waypoint target speeds (turn slowdowns at
+# points 3/5/7 included; segment speed = starting waypoint's speed, matching the
+# CSV time_elapsed profile). Target-ship import (112 AIS tracks) intentionally
+# deferred — user optimizes before importing.
+# ENC: Qingdao_utm51.gpkg (built by tools/terrain/build_qingdao_gdb.py from the
+# static-terrain S-57 chart.json; 18 km data core, window widened to keep the
+# full eastbound route on-chart).
+name: qingdao_own_route
+save_scenario: false
+t_start: 0.0
+t_end: 3600.0
+dt_sim: 0.5
+utm_zone: 51
+map_size:
+- 18000.0
+- 18000.0
+map_origin_enu:
+- 247315.0
+- 3983326.0
+map_data_files:
+- Qingdao_utm51.gpkg
+map_tolerance: 2
+map_buffer: 0
+new_load_of_map_data: true
+type: SS
+n_random_ships: 0
+n_episodes: 1
+ship_list:
+- id: 0
+  mmsi: 100
+  csog_state:
+  - 3997133.5
+  - 252110.9
+  - 7.0
+  - 142.1
+  waypoints:
+  - - 3997133.5
+    - 3996263.0
+    - 3995392.6
+    - 3993799.0
+    - 3992205.2
+    - 3991329.6
+    - 3990454.1
+    - 3989985.5
+    - 3989516.8
+    - 3989048.1
+    - 3988579.5
+    - 3988110.9
+  - - 252110.9
+    - 252750.6
+    - 253390.4
+    - 253062.3
+    - 252734.1
+    - 254159.2
+    - 255584.3
+    - 257353.9
+    - 259123.5
+    - 260893.1
+    - 262662.6
+    - 264432.1
+  speed_plan:
+  - 7.0
+  - 7.0
+  - 3.96
+  - 7.0
+  - 1.85
+  - 7.0
+  - 6.69
+  - 7.0
+  - 7.0
+  - 7.0
+  - 7.0
+  - 7.0
+  goal_csog_state:
+  - 3988110.9
+  - 264432.1
+  - 7.0
+  - 103.3
+  random_generated: false
+  tracker:
+    kf:
+      P_0:
+      - 49.1
+      - 49.1
+      - 0.11
+      - 0.11
+      q: 0.1
+  sensors:
+  - radar_x: {}
+  - radar:
+      max_range: 2000.0
+      measurement_rate: 1.0
+      R_ne:
+      - 30.0
+      - 30.0
+      R_ne_true:
+      - 25.0
+      - 25.0
+      R_polar_true:
+      - 64.0
+      - 0.0003
+      generate_clutter: false
+      clutter_cardinality_expectation: 5
+      detection_probability: 0.95
+      include_polar_meas_noise: false
+  guidance:
+    los:
+      pass_angle_threshold: 80.0
+      R_a: 25.0
+      K_p: 0.03
+      K_i: 0.0005
+      max_cross_track_error_int: 1000.0
+      cross_track_error_int_threshold: 30.0
+  controller:
+    flsc:
+      K_p_u: 3.0
+      K_i_u: 0.3
+      K_p_chi: 2.5
+      K_d_chi: 3.0
+      K_i_chi: 0.1
+      max_speed_error_int: 4.0
+      speed_error_int_threshold: 0.5
+      max_chi_error_int: 90.0
+      chi_error_int_threshold: 20.0
+  model:
+    viknes: ''
+  ship_modules:
+    preset: legacy_equivalent
+    modules:
+      plant:
+        identity: fcb45_roll_4dof_plant
+        parameters:
+          mass_kg: 220000.0
+          i_x_kgm2: 20000000.0
+          i_z_kgm2: 27000000.0
+          x_dot_u_kg: -22000.0
+          y_dot_v_kg: -160000.0
+          n_dot_r_kgm2: -9500000.0
+          y_dot_r_kgm: -1000000.0
+          n_dot_v_kgm: -1000000.0
+          d_u: 3500.0
+          d_uu: 280.0
+          d_v: 390000.0
+          d_vv: 547560.0
+          d_r: 1600000.0
+          d_rr: 3000000.0
+          d_vr: -60000.0
+          d_rv: 600000.0
+          restoring_k_phi: 3237300.0
+      guidance:
+        identity: pass_through_guidance
+        parameters: {}
+      controller:
+        identity: fcb45_marine_pid
+        parameters:
+          kp:
+          - 11492.0
+          - 7000.0
+          - 2826560.0
+          ki:
+          - 1149.2
+          - 700.0
+          - 145744.5
+          kd:
+          - 0.0
+          - 0.0
+          - 9872000.0
+          tau_d:
+          - 0.1
+          - 0.1
+          - 0.1
+          antiwindup_gain:
+          - 1.0
+          - 1.0
+          - 0.05
+          min_output:
+          - -200000.0
+          - -40000.0
+          - -960000.0
+          max_output:
+          - 200000.0
+          - 40000.0
+          - 960000.0
+          feedforward_gain:
+          - 0.0
+          - 0.0
+          - 0.0
+          integral_limit:
+          - 200000.0
+          - 40000.0
+          - 960000.0
+          allow_ideal_passthrough: true
+          reference_shaper_enable: true
+          heading_rate_limit_rad_s: 0.05
+          heading_accel_limit_rad_s2: 0.02
+          yaw_rate_ff_gain: 9400000.0
+          yaw_accel_ff_gain: 36500000.0
+          yaw_limit_base_n_m: 360000.0
+          yaw_limit_speed_coeff: 2500.0
+          yaw_limit_cap_n_m: 960000.0

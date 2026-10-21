@@ -153,8 +153,10 @@ def local2latlon(
         from_zone = 6172  # ETRS89 / UTM zone 32 + NN54 height Møre og Romsdal
     elif utm_zone == 33:
         from_zone = 6173  # ETRS89 / UTM zone 33 + NN54 height
+    elif 1 <= utm_zone <= 60:
+        from_zone = 32600 + utm_zone  # WGS 84 / UTM zone N (e.g. 51 = Qingdao)
     else:
-        raise ValueError('Input "utm_zone" is not correct. Supported zones sofar are 32 and 33.')
+        raise ValueError('Input "utm_zone" is not correct. Supported zones sofar are 1-60.')
 
     src = osr.SpatialReference()
     src.ImportFromEPSG(from_zone)
@@ -193,8 +195,10 @@ def latlon2local(
         to_zone = 6172  # ETRS89 / UTM zone 32 + NN54 height Møre og Romsdal
     elif utm_zone == 33:
         to_zone = 6173  # ETRS89 / UTM zone 33 + NN54 height
+    elif 1 <= utm_zone <= 60:
+        to_zone = 32600 + utm_zone  # WGS 84 / UTM zone N (e.g. 51 = Qingdao)
     else:
-        raise ValueError('Input "utm_zone" is not correct. Supported zones sofar are 32 and 33.')
+        raise ValueError('Input "utm_zone" is not correct. Supported zones sofar are 1-60.')
 
     src = osr.SpatialReference()
     src.ImportFromEPSG(from_zone)

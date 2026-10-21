@@ -94,6 +94,13 @@ SCENARIOS: dict[str, Capability] = {
         ("dynamic", "enc"),
         "Experimental 16-ship acceptance scene; raw G3 promotion is pending.",
     ),
+    "qingdao_own_route": Capability(
+        "G2",
+        ("multiship",),
+        ("qingdao_own_route",),
+        ("dynamic", "enc"),
+        "Qingdao Port single-ship planned-route preview; AIS target import pending.",
+    ),
     "romsdal_busy_water_80_stress": Capability(
         "G2",
         ("multiship",),
@@ -796,6 +803,24 @@ EXPERIMENTAL_COMBINATIONS: dict[tuple[str, str, str, str], dict[str, Any]] = {
 }
 EXPERIMENTAL_COMBINATIONS[("multiship", "romsdal_busy_water_16", "mid_mpc_ipopt", "god")] = dict(
     _BUSY_WATER_EVIDENCE["romsdal_busy_water_16"]
+)
+
+# Qingdao Port own-route preview (2026-10-21 scene-setup session): single ship
+# on the CSV planned safe route, UTM 51N ENC. The 112 AIS target-ship import is
+# deliberately deferred, so encounter evidence does not exist yet — preview
+# tuples stay experimental and are not G3-eligible.
+_QINGDAO_OWN_ROUTE_EVIDENCE = {
+    "seed": 0,
+    "evidence_role": "experimental_geography_preview",
+    "readiness_grade": "G2",
+    "promotion_status": "NOT_ELIGIBLE_FOR_G3",
+    "scope": "qingdao_single_ship_route_preview",
+}
+EXPERIMENTAL_COMBINATIONS.update(
+    {
+        ("multiship", "qingdao_own_route", algorithm_id, "god"): dict(_QINGDAO_OWN_ROUTE_EVIDENCE)
+        for algorithm_id in _BUSY_WATER_ALGORITHMS
+    }
 )
 
 # Historical AIS scene: VO/Fan-MPC/Mid-MPC remain experimental after full-window
