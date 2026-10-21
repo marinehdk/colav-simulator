@@ -40,9 +40,11 @@ MIN_RING_AREA_M2 = 50.0  # sliver floor for exported mask rings (polygons and ho
 WET_BAND_M = 50.0
 # Seaward growth of the Clipping rings (phase-1 waterline softening, 2026-10-21):
 # the imagery cut edge is pushed past the DEM zero-crossing so it lands below the
-# HDRP water surface instead of baring DEM slope pixels along the shore; covers
-# the ENC ZOC B ±50 m horizontal band plus the 1025-grid cell (视觉修整、非实测).
-CLIP_EXTENSION_M = 60.0
+# HDRP water surface instead of baring DEM slope pixels along the shore. 30 m
+# covers the TIN COALNE-constrained zero-crossing band (grid cell ~17.6 m) plus
+# slope run-out; 60 m proved too wide — satellite shallow-water pixels surfaced
+# above the waterline as a green strip (视觉修整、非实测).
+CLIP_EXTENSION_M = 30.0
 CATSLC_NAMES = {  # S-57 CATSLC enumeration, GDAL s57expectedinput.csv attribute 60
     1: "breakwater", 2: "groyne", 3: "mole", 4: "pier", 5: "promenade_pier",
     6: "wharf", 7: "training_wall", 8: "riprap", 9: "revetment", 10: "sea_wall",

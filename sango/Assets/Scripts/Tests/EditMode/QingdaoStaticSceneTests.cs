@@ -280,6 +280,37 @@ namespace Sango.Tests
         }
 
         [Test]
+        public void ShoreWaterAbsorptionTunesOnEntryAndRestoresOnClear()
+        {
+            var root=new GameObject("Qingdao water tuning");root.SetActive(false);
+            var scene=root.AddComponent(Scene);
+            var waterGo=new GameObject("Qingdao water tuning surface");
+            var waterType=System.Type.GetType("UnityEngine.Rendering.HighDefinition.WaterSurface,Unity.RenderPipelines.HighDefinition.Runtime");
+            Assert.That(waterType,Is.Not.Null,"HDRP WaterSurface type must resolve");
+            var water=waterGo.AddComponent(waterType);
+            var absorption=waterType.GetField("absorptionDistance");
+            absorption.SetValue(water,5f); // serialized SangoTwin value
+            var flags=BindingFlags.Instance|BindingFlags.NonPublic;
+            Environment.SetEnvironmentVariable("TWIN_QINGDAO_WATER_ABSORPTION","16");
+            try {
+                Scene.GetMethod("ApplyShoreWaterTuning",flags).Invoke(scene,null);
+                Assert.That((float)absorption.GetValue(water),Is.EqualTo(16f).Within(0.01f),
+                    "entry retunes absorption so the shallow imagery band fades into deep water");
+                Assert.That((float)Scene.GetField("m_PreviousWaterAbsorption",flags).GetValue(scene),Is.EqualTo(5f).Within(0.001f));
+                Scene.GetMethod("ApplyShoreWaterTuning",flags).Invoke(scene,null);
+                Assert.That((float)absorption.GetValue(water),Is.EqualTo(16f).Within(0.01f),"re-entry while in charge keeps the tuned value");
+                Scene.GetMethod("RestoreShoreWaterTuning",flags).Invoke(scene,null);
+                Assert.That((float)absorption.GetValue(water),Is.EqualTo(5f).Within(0.001f),
+                    "clear restores the serialized value (the Norwegian link shares this surface)");
+            }
+            finally {
+                Environment.SetEnvironmentVariable("TWIN_QINGDAO_WATER_ABSORPTION",null);
+                UnityEngine.Object.DestroyImmediate(waterGo);
+                UnityEngine.Object.DestroyImmediate(root);
+            }
+        }
+
+        [Test]
         public void ClearHidesShoreworksAndReentryReshowsThem()
         {
             var root=new GameObject("Qingdao shorework lifecycle");root.SetActive(false);

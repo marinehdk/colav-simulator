@@ -114,6 +114,15 @@ namespace Sango
         // the baked table, parented to m_Root in the LocalPosition UTM frame.
         GameObject m_ShoreworkRoot;
         bool m_ShoreworksEnabled = false; // phase-1 satellite-first: opt-in via TWIN_QINGDAO_SHOREWORKS=1
+        // Phase-1 waterline softening (2026-10-21): the shared serialized water
+        // surface absorbs in 5 m, so the buffered shallow imagery band shows as a
+        // green strip against the deep-blue plane. Entry retunes absorption for
+        // the Norway-grade near-shallow/far-deep gradient while Qingdao is in
+        // charge; Clear restores the serialized value so the Norwegian link is
+        // untouched. TWIN_QINGDAO_WATER_ABSORPTION overrides the metres
+        // (<=0 skips the retune — A/B back to the serialized 5 m).
+        float m_PreviousWaterAbsorption = -1f;
+        const float k_DefaultWaterAbsorptionM = 16f;
         // Steady-state frame-budget guard (2026-10-19 P0-A), copied from the
         // Norwegian TwinCesiumLandscape precedent: cap per-frame tile
         // reprojection by time, not tile count, so load bursts during camera
@@ -197,6 +206,7 @@ namespace Sango
                     }
                 }
             }
+            ApplyShoreWaterTuning();
             Camera("overlook");
             onReady?.Invoke(new Frame { origin_e=Geography.origin_e, origin_n=Geography.origin_n });
         }
@@ -744,6 +754,37 @@ namespace Sango
             m_ShoreWater=null;
         }
 
+        void ApplyShoreWaterTuning()
+        {
+            if(m_PreviousWaterAbsorption>=0f) return; // already in charge
+            var water=m_Driver!=null ? m_Driver.water : null;
+            if(water==null) water=FindFirstObjectByType<UnityEngine.Rendering.HighDefinition.WaterSurface>();
+            if(water==null) return;
+            float metres=k_DefaultWaterAbsorptionM;
+            string env=Environment.GetEnvironmentVariable("TWIN_QINGDAO_WATER_ABSORPTION");
+            if(!string.IsNullOrWhiteSpace(env))
+            {
+                if(!float.TryParse(env,NumberStyles.Float,CultureInfo.InvariantCulture,out float parsed) || parsed<=0f)
+                {
+                    Debug.Log("[Sango.Qingdao] water absorption retune skipped (TWIN_QINGDAO_WATER_ABSORPTION<=0 or unparseable; serialized value stays)");
+                    return;
+                }
+                metres=parsed;
+            }
+            m_PreviousWaterAbsorption=water.absorptionDistance;
+            water.absorptionDistance=metres;
+            Debug.Log($"[Sango.Qingdao] water absorption {m_PreviousWaterAbsorption:F0} -> {metres:F0} m (shallow imagery band fades into deep water)");
+        }
+
+        void RestoreShoreWaterTuning()
+        {
+            if(m_PreviousWaterAbsorption<0f) return;
+            var water=m_Driver!=null ? m_Driver.water : null;
+            if(water==null) water=FindFirstObjectByType<UnityEngine.Rendering.HighDefinition.WaterSurface>();
+            if(water!=null) water.absorptionDistance=m_PreviousWaterAbsorption;
+            m_PreviousWaterAbsorption=-1f;
+        }
+
         public enum ImagerySource { Ion, Tianditu, Arcgis }
 
         /// <summary>TWIN_QINGDAO_IMAGERY selects the imagery source: unset,
@@ -1017,6 +1058,7 @@ namespace Sango
             // P0-C: release the water decal region back to the pre-attach state and
             // hide the rig; the retained objects are reused by the next entry.
             ReleaseShoreFoamRegion();
+            RestoreShoreWaterTuning();
             if(m_ShoreFoamRoot!=null) m_ShoreFoamRoot.SetActive(false);
             // P1-A: shore volumes hide with the rest of the retained rig.
             if(m_ShoreworkRoot!=null) m_ShoreworkRoot.SetActive(false);
@@ -1027,6 +1069,7 @@ namespace Sango
             Cesium3DTileset.OnCesium3DTilesetLoadFailure-=LoadFailed;
             CesiumRasterOverlay.OnCesiumRasterOverlayLoadFailure-=ImageryLoadFailed;
             ReleaseShoreFoamRegion();
+            RestoreShoreWaterTuning();
             // P1-A: runtime-built shorework meshes outlive their GameObjects
             // unless destroyed explicitly.
             if(m_ShoreworkRoot!=null)
