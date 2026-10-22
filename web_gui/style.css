@@ -3367,9 +3367,28 @@ canvas#simCanvas.route-pick-mode { cursor: crosshair; }
   align-items: center;
   justify-content: space-between;
   gap: var(--s-3);
-  min-height: 38px;
-  padding: 4px var(--s-2) 4px var(--s-3);
+  min-height: 26px;
+  padding: 1px var(--s-2) 1px var(--s-3);
   border-bottom: 1px solid var(--ob-border);
+}
+
+/* 关闭钮原生 48px 撑高头部——换 24px 原生钮 */
+.chart-display-close {
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  color: var(--ob-text);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+.chart-display-close:hover { background: color-mix(in srgb, var(--ob-border) 60%, transparent); }
   background: color-mix(in srgb, var(--ob-surface) 48%, transparent);
 }
 
@@ -3451,6 +3470,15 @@ canvas#simCanvas.route-pick-mode { cursor: crosshair; }
   border-color: var(--ob-border);
   border-radius: var(--radius);
   gap: 3px;
+}
+
+/* 避碰预测组：整行铺满 + 三项横排（末组恒为它） */
+.chart-display-popover .layer-controls fieldset:last-child {
+  grid-column: 1 / -1;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.chart-display-popover .layer-controls fieldset:last-child legend {
+  grid-column: 1 / -1;
 }
 
 .chart-display-popover .layer-controls legend {
