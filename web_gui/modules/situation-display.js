@@ -48,6 +48,8 @@ const MOTION_TICK_SECONDS = 10;
 const PREDICTION_MARKER_SECONDS = 10;
 const PREDICTION_LABEL_SECONDS = 60;
 export const RADAR_DETECTION_RANGE_M = 2000;
+// Radar 圈内侧的 Lidar 范围圈：VLP-16 量程 100 m（与 Unity LidarCore 型谱同源）
+export const LIDAR_DETECTION_RANGE_M = 100;
 const BUSY_WATER_SCENARIO_ID = 'romsdal_busy_water_16';
 const HISTORICAL_AIS_SCENARIO_PREFIX = 'hais_romsdal_';
 const HISTORICAL_OWN_SHIP_SPAN_M = 6 * 1852;
@@ -115,6 +117,9 @@ const DEFAULT_LAYERS = {
   history: true,
   motionVectors: true,
   radarRange: true,
+  lidarRange: true,
+  // plans.target_prediction_horizons 的目标航线外推（原恒绘，P2 图标说明分栏后入开关）
+  targetPredictions: true,
   responseRange: true,
   prediction: true,
   previousPrediction: false,
@@ -142,6 +147,7 @@ const PALETTE_DEFAULTS = {
   '--situation-track': '#37c995',
   '--situation-track-label': '#c9f3e3',
   '--situation-radar-range': 'rgba(245,165,36,0.72)',
+  '--situation-lidar-range': 'rgba(96,211,148,0.72)',
   '--situation-response-range': 'rgba(255,77,90,0.82)',
 };
 
@@ -1108,9 +1114,11 @@ export function createSituationDisplay(options) {
     // Push 'targetPredictions' only when at least one horizon actually drew
     // (a horizon shorter than 2 points draws nothing).
     let drewTargetHorizon = false;
-    (plans.target_prediction_horizons || []).forEach((horizon, index) => {
-      if (drawTargetHorizon(horizon, targetThreat(data, data.obstacles?.[index]))) drewTargetHorizon = true;
-    });
+    if (visibleLayers.targetPredictions) {
+      (plans.target_prediction_horizons || []).forEach((horizon, index) => {
+        if (drawTargetHorizon(horizon, targetThreat(data, data.obstacles?.[index]))) drewTargetHorizon = true;
+      });
+    }
     if (drewTargetHorizon) drawSequence.push('targetPredictions');
     if (visibleLayers.prediction && plans.prediction_horizon?.length > 0)
       drawHorizon(plans.prediction_horizon, false, data.planner);
@@ -1820,6 +1828,15 @@ export function createSituationDisplay(options) {
       ctx.stroke();
       drew = true;
     }
+    if (visibleLayers.lidarRange) {
+      ctx.beginPath();
+      ctx.arc(center.x, center.y, LIDAR_DETECTION_RANGE_M * viewScale, 0, Math.PI * 2);
+      ctx.strokeStyle = palette['--situation-lidar-range'];
+      ctx.lineWidth = 1.1;
+      ctx.setLineDash([6, 6]);
+      ctx.stroke();
+      drew = true;
+    }
     const responseRange = getResponseRange();
     if (visibleLayers.responseRange && responseRange) {
       ctx.beginPath();
@@ -2063,6 +2080,8 @@ export function createSituationDisplay(options) {
   function updateLayerAvailability(data, navigationArea) {
     layerAvailability.safeWater = normalizePolygons(navigationArea?.safe_water?.polygons).length > 0;
     layerAvailability.radarRange = true;
+    layerAvailability.lidarRange = true;
+    layerAvailability.targetPredictions = (data.plans?.target_prediction_horizons || []).length > 0;
     layerAvailability.responseRange = Boolean(getResponseRange());
     // P3-S4 (spec #90): the AIS layer is available when the transport
     // carries at least one backend AIS target object this frame.

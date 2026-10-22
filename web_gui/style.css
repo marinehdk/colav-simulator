@@ -1018,6 +1018,15 @@ obc-clock:not(:defined),
   border: 1px dashed rgba(245,165,36,0.9);
   border-radius: 50%;
 }
+.color-box.lidar-range {
+  background: rgba(96,211,148,0.08);
+  border: 1px dashed rgba(96,211,148,0.9);
+  border-radius: 50%;
+}
+.color-box.waypoint { background: #f4d34e; }
+.color-box.target-prediction { background: #6bd5e1; }
+/* 图标说明分栏后的固定行容器：一行 = 一组并列图标 */
+.legend-row { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 4px; }
 .color-box.response-range {
   background: rgba(255,77,90,0.08);
   border: 1px dashed rgba(255,77,90,0.9);

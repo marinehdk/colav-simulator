@@ -256,10 +256,13 @@ deploymentView = createDeploymentView({
     twinButton.classList.toggle('active', twin);
     twinButton.setAttribute('aria-busy', String(state.loading));
     if (state.lastEntryMs !== null) twinButton.dataset.entryMs = state.lastEntryMs.toFixed(1);
-    document.querySelectorAll('[data-map-orientation]').forEach(item => {
-      const pressed = !active && item.dataset.mapOrientation === state.orientation;
-      item.setAttribute('aria-pressed', String(pressed)); item.classList.toggle('active', pressed);
-    });
+    // 2D/3D/DT 平级视角排：2D = 二维海图态（北上），3D/DT 激活时自动弹起
+    const chart2dButton = document.getElementById('chart2dBtn');
+    if (chart2dButton) {
+      const pressed = !active && !twin;
+      chart2dButton.setAttribute('aria-pressed', String(pressed));
+      chart2dButton.classList.toggle('active', pressed);
+    }
     document.getElementById('chartScaleInput').disabled = active || twin;
     document.querySelectorAll('[data-chart-only]').forEach(item => { item.disabled = active || twin || (item.dataset.layer && situationDisplay.getLayerState()[item.dataset.layer]?.available === false); });
     if (active || twin) hideVesselPlacard();
@@ -825,7 +828,18 @@ function setupChartDisplayPopover() {
 }
 
 setupChartDisplayPopover();
-document.getElementById('recenterChartBtn')?.addEventListener('click', () => deploymentView.recenter());
+document.getElementById('chart2dBtn')?.addEventListener('click', () => {
+  // 从 3D/DT 退回二维海图；顺带把旧会话遗留的 heading 朝向归位北上
+  const before = deploymentView.state();
+  if (before.mode === '3d') {
+    document.getElementById('scene3dError').hidden = true;
+    deploymentView.toggle();
+  } else if (before.mode === 'twin') {
+    document.getElementById('deploymentTwinError').hidden = true;
+    deploymentView.toggleTwin();
+  }
+  if (deploymentView.state().orientation !== 'north') deploymentView.orientation('north');
+});
 document.getElementById('scene3dBtn')?.addEventListener('click', () => {
   document.getElementById('scene3dError').hidden = true;
   deploymentView.toggle();
@@ -833,9 +847,6 @@ document.getElementById('scene3dBtn')?.addEventListener('click', () => {
 document.getElementById('twinViewportBtn')?.addEventListener('click', () => {
   document.getElementById('deploymentTwinError').hidden = true;
   deploymentView.toggleTwin();
-});
-document.querySelectorAll('[data-map-orientation]').forEach(btn => {
-  btn.addEventListener('click', () => deploymentView.orientation(btn.dataset.mapOrientation));
 });
 document.querySelectorAll('[data-layer]').forEach(input => {
   input.addEventListener('change', () => {

@@ -216,21 +216,37 @@ test('EVENT LIST uses OpenBridge event-list with projected timeline data', () =>
   assert.doesNotMatch(app, /eventList\.innerHTML/);
 });
 
-test('海图显示 restores the pre-OpenBridge legend and layer controls in an OpenBridge popover', () => {
+test('海图显示 popover 分三栏：图标说明 / 态势展示 / 本船展示', () => {
   assert.match(html, /id="chartLayersBtn"[^>]*aria-label="海图显示"[^>]*aria-controls="chartDisplayPopover"/);
   assert.match(html, /<section[^>]*class="chart-display-popover"[^>]*id="chartDisplayPopover"[^>]*role="dialog"/);
   assert.doesNotMatch(html, /id="toggleENC"/);
   assert.match(html, /id="closeChartDisplayBtn"/);
-  assert.match(html, /data-legend-group="perception"[\s\S]*data-legend-group="risk"/);
-  assert.match(html, /data-legend-group="risk"[\s\S]*<span class="legend-category-title">目标<\/span>/);
-  assert.doesNotMatch(html, /<span class="legend-category-title">目标状态<\/span>/);
-  assert.match(html, /<legend>感知<\/legend>[\s\S]*<legend>算法<\/legend>/);
-  assert.doesNotMatch(html, /<legend>感知调试<\/legend>/);
-  assert.match(html, />探测圈<\/span>/);
+  // 三栏标题依序
+  const sections = [
+    'id="chartLegendHeading">图标说明',
+    'id="chartSituationHeading">态势展示',
+    'id="chartOwnshipHeading">本船展示',
+  ];
+  sections.reduce((previousIndex, token) => {
+    const index = html.indexOf(token);
+    assert.ok(index > previousIndex, `${token} follows the preceding section`);
+    return index;
+  }, -1);
+  // 图标说明 = 航行导航 + 感知预测 两组、四行图标
+  assert.match(html, /data-legend-group="navigation"[\s\S]*<span class="legend-category-title">航行导航<\/span>/);
+  assert.match(html, /data-legend-group="perception"[\s\S]*<span class="legend-category-title">感知预测<\/span>/);
+  assert.match(html, />本船图标<\/span>/);
+  assert.match(html, /data-legend-layer="waypoints"[^>]*>\s*<span class="color-box waypoint"><\/span>初始航点/);
+  assert.match(html, /data-legend-layer="radarRange"[^>]*>\s*<span class="color-box radar-range"><\/span>Radar 范围/);
+  assert.match(html, /data-legend-layer="lidarRange"[^>]*>\s*<span class="color-box lidar-range"><\/span>Lidar 范围/);
+  assert.match(html, /data-legend-layer="motionVectors"[^>]*>\s*<span class="color-box motion"><\/span>航行向量/);
+  assert.match(html, /data-legend-layer="prediction"[^>]*>\s*<span class="color-box horizon"><\/span>航线预测/);
+  assert.match(html, /data-legend-layer="targetPredictions"[^>]*>\s*<span class="color-box target-prediction"><\/span>目标预测/);
+  // 目标风险图标随态势展示栏
+  assert.match(html, /chartSituationHeading[\s\S]*data-legend-group="risk"[\s\S]*<span class="legend-category-title">目标<\/span>/);
   assert.match(html, /id="response-range-legend-label">安全区</);
   assert.match(html, /id="response-range-control-label">安全区</);
-  assert.doesNotMatch(html, /雷达探测圈（2 km）|雷达探测圈 2 km/);
-  for (const layer of ['safeWater', 'ships', 'route', 'motionVectors', 'prediction', 'previousPrediction', 'radarRange', 'responseRange']) {
+  for (const layer of ['safeWater', 'aisTargets', 'truth', 'measurements', 'tracks', 'covariance', 'radarRange', 'lidarRange', 'detections', 'responseRange', 'prediction', 'targetPredictions', 'previousPrediction', 'executionPoint', 'ships', 'route', 'waypoints', 'history', 'motionVectors']) {
     assert.match(html, new RegExp(`data-layer="${layer}"`));
   }
   assert.match(app, /function setupChartDisplayPopover\(/);
@@ -240,31 +256,33 @@ test('海图显示 restores the pre-OpenBridge legend and layer controls in an O
   assert.match(styles, /bottom: calc\(100% \+ var\(--s-2\) \+ var\(--s-3\)\)/);
   assert.match(styles, /var\(--ob-surface\) 74%, transparent/);
   assert.match(styles, /grid-template-rows: 16px repeat\(2, minmax\(20px, 1fr\)\)/);
+  assert.match(styles, /\.legend-row\s*\{ display: flex/);
 });
 
-test('chart view control combines heading, north, ownship-centre and 3D actions as H N C 3D', () => {
+test('chart view control is a flat 2D / 3D / DT row (H N C removed)', () => {
   const start = html.indexOf('<div class="map-mode-control" aria-label="海图视角">');
   assert.ok(start >= 0, 'chart view control exists');
   const end = html.indexOf('</div>', start);
   const control = html.slice(start, end);
   const controls = [
-    'data-map-orientation="heading"',
-    'data-map-orientation="north"',
-    'id="recenterChartBtn"',
+    'id="chart2dBtn"',
     'id="scene3dBtn"',
+    'id="twinViewportBtn"',
   ];
   controls.reduce((previousIndex, token) => {
     const index = control.indexOf(token);
     assert.ok(index > previousIndex, `${token} follows the preceding view action`);
     return index;
   }, -1);
-  assert.match(control, /aria-label="Heading Up"[^>]*>H<\/button>/);
-  assert.match(control, /aria-label="North Up"[^>]*>N<\/button>/);
-  assert.doesNotMatch(control, /fitTrafficBtn/);
-  assert.match(control, /aria-label="Centre on Ownship"[^>]*>C<\/button>/);
-  assert.doesNotMatch(html, />FIT<\/button>|>OS<\/button>/);
-  assert.match(control, /id="scene3dBtn"/);
-  assert.match(app, /recenterChartBtn'\)\?\.addEventListener\('click', \(\) => deploymentView\.recenter\(\)\)/);
+  assert.match(control, /aria-label="二维海图"[^>]*>2D<\/button>/);
+  assert.doesNotMatch(control, /data-map-orientation/);
+  assert.doesNotMatch(control, /recenterChartBtn/);
+  assert.doesNotMatch(control, />H<\/button>/);
+  assert.doesNotMatch(control, /aria-label="Centre on Ownship"/);
+  assert.match(app, /chart2dBtn'\)\?\.addEventListener\('click'/);
+  assert.match(app, /deploymentView\.toggleTwin\(\)/);
+  assert.doesNotMatch(app, /recenterChartBtn/);
+  assert.doesNotMatch(app, /\[data-map-orientation\]/);
 });
 
 test('situation display uses black target motion vectors and risk-driven ship outlines', () => {
