@@ -6,7 +6,7 @@
   <title>综合避碰仿真器</title>
   <meta name="description" content="NTNU autonomous ship COLAV & MPC route planning algorithm verification console with real-time COLREGs risk assessment." />
   <link id="openbridgeStyles" rel="stylesheet" href="/static/vendor/openbridge/openbridge.css?v=20260827-vessel-placard-v1" onerror="this.dataset.failed='true'" />
-  <link rel="stylesheet" href="/static/style.css?v=20261022-view2d-v4" />
+  <link rel="stylesheet" href="/static/style.css?v=20261022-view2d-v5" />
 </head>
 <body>
   <div class="app-container">
@@ -629,10 +629,7 @@
                             <span class="legend-item" data-legend-layer="radarRange"><span class="color-box radar-range"></span>Radar 范围</span>
                             <span class="legend-item" data-legend-layer="lidarRange"><span class="color-box lidar-range"></span>Lidar 范围</span>
                             <span class="legend-item" data-legend-layer="motionVectors"><span class="color-box motion"></span>航行向量</span>
-                          </div>
-                          <div class="legend-row">
                             <span class="legend-item" data-legend-layer="prediction"><span class="color-box horizon"></span>航线预测</span>
-                            <span class="legend-item" data-legend-layer="targetPredictions"><span class="color-box target-prediction"></span>目标预测</span>
                           </div>
                           <div class="legend-row legend-row--aux">
                             <span class="legend-item" data-legend-layer="previousPrediction"><span class="color-box previous"></span>上次预测</span>
@@ -642,7 +639,6 @@
                             <span class="legend-item" data-legend-layer="tracks" hidden=""><span class="color-box track-conf-dim"></span>存在概率 &lt;0.5</span>
                             <span class="legend-item" data-legend-layer="measurements" hidden=""><span class="color-box measurement"></span>量测</span>
                             <span class="legend-item" data-legend-layer="covariance" hidden=""><span class="color-box covariance"></span>协方差</span>
-                            <span class="legend-item" data-legend-layer="responseRange"><span class="color-box response-range"></span><span id="response-range-legend-label">安全区</span></span>
                           </div>
                         </div>
                       </div>

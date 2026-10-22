@@ -880,7 +880,6 @@ function updateUI(proj) {
 
   const responseRangeLabel = plannerResponseRange()?.label || '安全区';
   setText('response-range-control-label', responseRangeLabel);
-  setText('response-range-legend-label', responseRangeLabel);
 
   // Deployment Display & Playback
   updateDeploymentDisplay(proj);

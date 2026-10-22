@@ -241,11 +241,12 @@ test('海图显示 popover 分三栏：图标说明 / 态势展示 / 本船展�
   assert.match(html, /data-legend-layer="lidarRange"[^>]*>\s*<span class="color-box lidar-range"><\/span>Lidar 范围/);
   assert.match(html, /data-legend-layer="motionVectors"[^>]*>\s*<span class="color-box motion"><\/span>航行向量/);
   assert.match(html, /data-legend-layer="prediction"[^>]*>\s*<span class="color-box horizon"><\/span>航线预测/);
-  assert.match(html, /data-legend-layer="targetPredictions"[^>]*>\s*<span class="color-box target-prediction"><\/span>目标预测/);
+  // 感知预测图例固定四项一行：目标预测/安全区图例项已删（图层开关保留在态势展示栏）
+  assert.doesNotMatch(html, /data-legend-layer="targetPredictions"/);
+  assert.doesNotMatch(html, /id="response-range-legend-label"/);
   // 目标威胁图标随态势展示栏（无栏标题）
   assert.doesNotMatch(html, /<h3 id="chartSituationHeading">态势展示<\/h3>/);
   assert.match(html, /data-legend-group="risk"[\s\S]*<span class="legend-category-title">目标威胁<\/span>/);
-  assert.match(html, /id="response-range-legend-label">安全区</);
   assert.match(html, /id="response-range-control-label">安全区</);
   for (const layer of ['safeWater', 'aisTargets', 'truth', 'measurements', 'tracks', 'covariance', 'radarRange', 'lidarRange', 'detections', 'responseRange', 'prediction', 'targetPredictions', 'previousPrediction', 'executionPoint', 'ships', 'route', 'waypoints', 'history', 'motionVectors']) {
     assert.match(html, new RegExp(`data-layer="${layer}"`));
