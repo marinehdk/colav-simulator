@@ -448,8 +448,13 @@ function renderScenarioDetail(snapshot) {
   const scenario = selectedCatalogItem(snapshot, 'scenarios', snapshot.draft.scenario_id);
   const chart = scenarioChartId(snapshot.draft.scenario_id);
   renderChoiceCarousel('scenario', scenariosToDisplay, snapshot.draft.scenario_id, snapshot.readOnly || snapshot.creating);
-  renderChoiceCarousel('enc', [{ id: chart.toLowerCase(), name: chart, desc: 'Derived reference', grade: 'ENC' },
-    ...(currentRuleId === 'multiship' ? [{ id: 'qingdao', name: 'QingDao', desc: 'Qingdao Port · S-57', grade: 'ENC' }] : [])], chart.toLowerCase(), snapshot.readOnly || snapshot.creating);
+  // multiship 下 chart 本身是 Qingdao 时，派生参考卡与港口 S-57 卡同 id 'qingdao'，会渲染成两张重复选中卡
+  const derivedEnc = { id: chart.toLowerCase(), name: chart, desc: 'Derived reference', grade: 'ENC' };
+  const qingdaoPortEnc = { id: 'qingdao', name: 'QingDao', desc: 'Qingdao Port · S-57', grade: 'ENC' };
+  const encChoices = currentRuleId !== 'multiship' ? [derivedEnc]
+    : chart.toLowerCase() === 'qingdao' ? [qingdaoPortEnc]
+    : [derivedEnc, qingdaoPortEnc];
+  renderChoiceCarousel('enc', encChoices, chart.toLowerCase(), snapshot.readOnly || snapshot.creating);
   const historical = scenario?.historical_ais;
   const factRows = [
     ['Scenario ID', snapshot.draft.scenario_id],

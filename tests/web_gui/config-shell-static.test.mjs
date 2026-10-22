@@ -28,6 +28,10 @@ test('AIS historical scenario label avoids repeating its Romsdal ENC region', ()
   assert.doesNotMatch(shell, /AIS Romsdal \(Historical\)/);
 });
 
+test('multiship ENC choices collapse to one QingDao card when the scenario chart is Qingdao', () => {
+  assert.match(shell, /chart\.toLowerCase\(\) === 'qingdao' \? \[qingdaoPortEnc\]/);
+});
+
 test('OpenBridge fallback is empty until failure and clears after a successful bundle load', () => {
   assert.match(html, /<div class="openbridge-load-error" id="openbridgeLoadError" role="alert" hidden><\/div>/);
   assert.match(shell, /openbridgeLoadError/);
