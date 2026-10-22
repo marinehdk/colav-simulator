@@ -1,4 +1,4 @@
-import { SCENARIO_LABELS, ALGORITHM_LABELS } from './config-labels.js';
+import { SCENARIO_LABELS, ALGORITHM_LABELS } from './config-labels.js?v=20261022-route-label-v1';
 import { presetBinding, presetStackId } from './gnc-presets.js?v=20260914-gnc-replay-v3';
 import { createValidationAssembly } from './validation-assembly.js?v=20261009-dt-environment-v1';
 import { activeSessionRuntime, telemetryProjection } from './session-runtime-instance.js?v=20260908-buffered-motion-v2';
@@ -406,6 +406,12 @@ function renderScenarioDetail(snapshot) {
   const currentRuleId = snapshot.draft.validation_rule_id || 'rule14';
   document.getElementById('validationScenarioOverlayCanvas').hidden = false;
   if (currentRuleId !== 'multiship') { selectedEncRegion = null; qingdaoScenarioSelected = false; }
+  // 重载/会话同步把 draft 停在 Qingdao 场景而 selectedEncRegion 归位时，自动进入 AIS 分支，
+  // 否则场景卡被过滤 + ENC 收敛会产生"Romsdal 场景 × 单张 QingDao ENC"的错位态
+  if (currentRuleId === 'multiship' && selectedEncRegion === null && scenarioChartId(snapshot.draft.scenario_id) === 'Qingdao') {
+    selectedEncRegion = 'qingdao';
+    qingdaoScenarioSelected = true;
+  }
   if (selectedEncRegion === 'qingdao') {
     renderChoiceCarousel('scenario', [{ id: 'qingdao-ais', name: 'AIS', desc: 'Own-ship route', grade: 'G2' }], qingdaoScenarioSelected ? 'qingdao-ais' : null, snapshot.readOnly || snapshot.creating);
     renderChoiceCarousel('enc', [{ id: 'romsdal', name: 'Romsdal', desc: 'Derived reference', grade: 'ENC' }, { id: 'qingdao', name: 'QingDao', desc: 'Qingdao Port · S-57', grade: 'ENC' }], 'qingdao', snapshot.readOnly || snapshot.creating);
@@ -449,12 +455,12 @@ function renderScenarioDetail(snapshot) {
   const scenario = selectedCatalogItem(snapshot, 'scenarios', snapshot.draft.scenario_id);
   const chart = scenarioChartId(snapshot.draft.scenario_id);
   renderChoiceCarousel('scenario', scenariosToDisplay, snapshot.draft.scenario_id, snapshot.readOnly || snapshot.creating);
-  // multiship 下 chart 本身是 Qingdao 时，派生参考卡与港口 S-57 卡同 id 'qingdao'，会渲染成两张重复选中卡
+  // multiship 的 ENC 栏恒为 Romsdal 派生 + QingDao 港口两张（与 AIS 分支一致）；draft 场景命中哪个就按下哪个
   const derivedEnc = { id: chart.toLowerCase(), name: chart, desc: 'Derived reference', grade: 'ENC' };
   const qingdaoPortEnc = { id: 'qingdao', name: 'QingDao', desc: 'Qingdao Port · S-57', grade: 'ENC' };
-  const encChoices = currentRuleId !== 'multiship' ? [derivedEnc]
-    : chart.toLowerCase() === 'qingdao' ? [qingdaoPortEnc]
-    : [derivedEnc, qingdaoPortEnc];
+  const encChoices = currentRuleId === 'multiship'
+    ? [{ id: 'romsdal', name: 'Romsdal', desc: 'Derived reference', grade: 'ENC' }, qingdaoPortEnc]
+    : [derivedEnc];
   renderChoiceCarousel('enc', encChoices, chart.toLowerCase(), snapshot.readOnly || snapshot.creating);
   const historical = scenario?.historical_ais;
   const factRows = [

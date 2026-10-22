@@ -20,7 +20,7 @@ const ruleGuides = await Promise.all([
 ].map((name) => readFile(new URL(`../../web_gui/assets/openbridge/${name}`, import.meta.url), 'utf8')));
 
 test('Config imports the display labels shared with Replay', () => {
-  assert.match(shell, /import \{ SCENARIO_LABELS, ALGORITHM_LABELS \} from '.\/config-labels.js'/);
+  assert.match(shell, /import \{ SCENARIO_LABELS, ALGORITHM_LABELS \} from '.\/config-labels\.js\?v=[^']+'/);
 });
 
 test('AIS historical scenario label avoids repeating its Romsdal ENC region', () => {
@@ -28,8 +28,12 @@ test('AIS historical scenario label avoids repeating its Romsdal ENC region', ()
   assert.doesNotMatch(shell, /AIS Romsdal \(Historical\)/);
 });
 
-test('multiship ENC choices collapse to one QingDao card when the scenario chart is Qingdao', () => {
-  assert.match(shell, /chart\.toLowerCase\(\) === 'qingdao' \? \[qingdaoPortEnc\]/);
+test('multiship ENC column is always the Romsdal + QingDao pair regardless of the draft chart', () => {
+  assert.match(shell, /\? \[\{ id: 'romsdal', name: 'Romsdal', desc: 'Derived reference', grade: 'ENC' \}, qingdaoPortEnc\]/);
+});
+
+test('a draft parked on a Qingdao scenario auto-engages the AIS branch instead of a mismatched filter', () => {
+  assert.match(shell, /selectedEncRegion === null && scenarioChartId\(snapshot\.draft\.scenario_id\) === 'Qingdao'/);
 });
 
 test('Qingdao AIS card routes Create to a real qingdao_own_route session, not the static geography page', () => {

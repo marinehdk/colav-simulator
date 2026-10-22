@@ -1,5 +1,5 @@
 /** Replay catalog and recorded-run deletion; never changes the Active Session. */
-import { SCENARIO_LABELS, ALGORITHM_LABELS } from './config-labels.js';
+import { SCENARIO_LABELS, ALGORITHM_LABELS } from './config-labels.js?v=20261022-route-label-v1';
 import { presetBinding } from './gnc-presets.js?v=20260914-gnc-replay-v3';
 
 const GNC_LABELS = {

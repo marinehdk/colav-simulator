@@ -9,6 +9,7 @@ export const SCENARIO_LABELS = {
   romsdal_busy_water_16: 'Multiship-10 Fixed',
   paper_ccta2023_head_on: 'Head-on (Paper)',
   hais_romsdal_20260701_120007_121007: 'AIS Historical',
+  qingdao_own_route: 'Qingdao Route',
 };
 
 export const ALGORITHM_LABELS = {
