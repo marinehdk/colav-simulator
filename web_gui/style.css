@@ -1035,7 +1035,7 @@ obc-clock:not(:defined),
   row-gap: 4px;
   margin-top: 4px;
 }
-.legend-row .legend-item { justify-self: start; }
+.legend-row .legend-item { justify-self: start; white-space: nowrap; }
 .color-box.response-range {
   background: rgba(255,77,90,0.08);
   border: 1px dashed rgba(255,77,90,0.9);

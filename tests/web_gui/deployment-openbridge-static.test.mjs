@@ -257,7 +257,7 @@ test('海图显示 popover 分三栏：图标说明 / 态势展示 / 本船展�
   assert.match(styles, /bottom: calc\(100% \+ var\(--s-2\) \+ var\(--s-3\)\)/);
   assert.match(styles, /var\(--ob-surface\) 74%, transparent/);
   assert.match(styles, /\.legend-row\s*\{[\s\S]*?grid-template-columns: repeat\(4, minmax\(0, 1fr\)\)/);
-  assert.match(styles, /\.legend-row \.legend-item\s*\{ justify-self: start; \}/);
+  assert.match(styles, /\.legend-row \.legend-item\s*\{ justify-self: start; white-space: nowrap; \}/);
   assert.match(styles, /\.chart-display-popover \.canvas-legend\s*\{[\s\S]*?grid-template-columns: minmax\(0, 1fr\)/);
   assert.doesNotMatch(styles, /grid-template-rows: 16px repeat\(2, minmax\(20px, 1fr\)\)/);
 });
