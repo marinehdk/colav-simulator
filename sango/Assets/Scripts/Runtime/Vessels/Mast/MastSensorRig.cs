@@ -11,6 +11,9 @@ namespace Sango.Vessels.Mast
     /// enabled (rendering into its target texture for the FramePublisher YOLO
     /// feed); the remaining mounts are attitude carriers (disabled cameras, no
     /// render cost) ready for per-mount publishing (IR 第二端口留后续段).
+    /// P1 桅顶雷达天线实体 (00-REPORT §3) rides the same attach:
+    /// <see cref="RadarAntennaSpin"/> 挂 FCB45 桅顶节点（平行表
+    /// <see cref="RadarAntennaMount"/>，不进相机标定表）。
     /// EditMode-testable math lives in <see cref="MastCameraTable"/>; this class
     /// is the engine-thin shell (CameraRig 工艺).
     /// </summary>
@@ -25,6 +28,8 @@ namespace Sango.Vessels.Mast
         private readonly Dictionary<string, Camera> _cameras = new Dictionary<string, Camera>();
         private RenderTexture _feedTarget;
         private bool _feedRenderingEnabled;
+        private GameObject _radarAntennaHolder;
+        private RadarAntennaSpin _radarAntenna;
 
         /// <summary>Feed-mount camera (null until <see cref="Attach"/> succeeds).</summary>
         public Camera FeedCamera { get; private set; }
@@ -74,6 +79,7 @@ namespace Sango.Vessels.Mast
             transform.localPosition = Vector3.zero;
             transform.localRotation = Quaternion.identity;
             foreach (var mount in MastCameraTable.Mounts) BuildMount(mount);
+            BuildRadarAntenna();
             bool feedOk = TryGetCamera(feedMountId, out var feedCamera);
             FeedCamera = feedOk ? feedCamera : null;
             return FeedCamera != null && ConfigureFeedTarget();
@@ -96,6 +102,15 @@ namespace Sango.Vessels.Mast
                     else DestroyImmediate(holder);
                 }
             _cameras.Clear();
+            // P1: 桅顶天线实体与 mount holder 同生命周期（holder 在桅顶节点子树内，
+            // 不在 rig transform 下 — Detach 的"只毁自建物"语义同样适用）。
+            if (_radarAntennaHolder != null)
+            {
+                if (Application.isPlaying) Destroy(_radarAntennaHolder);
+                else DestroyImmediate(_radarAntennaHolder);
+                _radarAntennaHolder = null;
+                _radarAntenna = null;
+            }
             if (_feedTarget != null)
             {
                 _feedTarget.Release();
@@ -151,6 +166,46 @@ namespace Sango.Vessels.Mast
             FeedCamera.targetTexture = _feedTarget;
             SetFeedRenderingEnabled(false); // consumers opt in via the root-assembly probe
             return true;
+        }
+
+        /// <summary>桅顶天线实体（P1，00-REPORT §3；null = 未装配/Detach 后）。</summary>
+        public RadarAntennaSpin RadarAntenna => _radarAntenna;
+
+        /// <summary>
+        /// 桅顶天线实体可见性（P1 门控，twin-bridge-v1 §2：radar_view overlay 位含
+        /// 桅顶天线实体、off=雷达表现全关默认）。装配侧（TwinBridgeService.
+        /// ApplyRadarView）施加；本组件不持 radar_view 词汇知识（asmdef 边界同 clock）。
+        /// </summary>
+        public void SetRadarAntennaVisible(bool visible)
+        {
+            if (_radarAntennaHolder != null) _radarAntennaHolder.SetActive(visible);
+        }
+
+        /// <summary>
+        /// Builds the mast-top X-band antenna entity: holder anchored by the
+        /// ship-local pure math (<see cref="RadarAntennaMount.LocalPosition"/> in
+        /// the vessel-root frame), then parented under the FCB45 mast mesh node
+        /// (world-position-keeping — the FBX node carries its own transform).
+        /// 非 FCB45 船（槽位厂按 LOA 选型）回退 vessel root，挂点数学不变。
+        /// </summary>
+        private void BuildRadarAntenna()
+        {
+            var parent = FindMastNode() ?? vesselRoot;
+            _radarAntennaHolder = new GameObject(RadarAntennaMount.MountId);
+            _radarAntennaHolder.transform.SetPositionAndRotation(
+                vesselRoot.TransformPoint(RadarAntennaMount.LocalPosition), vesselRoot.rotation);
+            _radarAntennaHolder.transform.SetParent(parent, worldPositionStays: true);
+            _radarAntenna = _radarAntennaHolder.AddComponent<RadarAntennaSpin>();
+            _radarAntenna.BuildRadome();
+        }
+
+        /// <summary>FCB45 桅杆+传感器一体网格节点（FBX 节点名；找不到 = 非 FCB45 船）。</summary>
+        private Transform FindMastNode()
+        {
+            foreach (var candidate in vesselRoot.GetComponentsInChildren<Transform>(true))
+                if (candidate.name == "FCB45_MastAndSensors")
+                    return candidate;
+            return null;
         }
 
         /// <summary>

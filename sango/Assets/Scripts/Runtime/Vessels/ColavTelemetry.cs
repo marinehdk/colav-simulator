@@ -40,6 +40,20 @@ namespace Sango
         public Playback playback;
         public TwinEnvironment environment;
 
+        // ── P0 雷达 spoke 通道（00-REPORT §2.2/§6，2026-10-21）────────────────────
+        // radar_scans = compact 投影后的 checkpoint 引用形状（gui_server/radar_transport.py
+        // project_compact_scans：无 chunk 内联）；radar_ppi = 表现层参数描述子
+        // （envelope 顶层键，存活于全部 transports）。DTO 声明在 RadarSpokeStream.cs（同程序集）。
+        public RadarScanEntry[] radar_scans;
+        public RadarPpiDescriptor radar_ppi;
+
+        /// <summary>radar_ppi.blind_sectors_deg 的原文解析产物（P1 盲区可视化）：嵌套
+        /// 数组 JsonUtility 不支持，ReceiveLoop 后台线程经 RadarOverlayMath.
+        /// ParseBlindSectors 从信封原文解析后经本字段携带，主线程
+        /// RadarSpokeStream.OnEnvelopeFrame 值比较去重广播。NonSerialized = 不参与
+        /// 信封反序列化（FromJson 跳过），纯运行期附着面。</summary>
+        [NonSerialized] public float[][] radarPpiBlindSectors;
+
         [Serializable]
         public class Transport
         {

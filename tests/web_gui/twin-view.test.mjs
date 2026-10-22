@@ -12,7 +12,7 @@ import {
   projectTwinHud,
   themeValue,
   twinReplayRange,
-} from '../../web_gui/modules/twin-view.js?v=20261015-dt-yolo-tv-v1';
+} from '../../web_gui/modules/twin-view.js?v=20261016-shard-tv-v1';
 
 const html = await readFile(new URL('../../web_gui/index.html', import.meta.url), 'utf8');
 const styles = await readFile(new URL('../../web_gui/style.css', import.meta.url), 'utf8');
@@ -171,15 +171,61 @@ test('bridge client control messages: camera/theme/detection/detach match contra
 /* ── P3-S0 sensor_mode（契约 §8 演进，spec #90；EditMode TwinBridgeMessageTests 同源对拍） ── */
 
 test('sensor_mode message matches the frozen contract §8 literal (只加 type 演进)', () => {
-  assert.deepEqual(TWIN_SENSOR_MODES, ['eo', 'ir', 'lidar']);
+  // P2 IR realism：词汇只加不减——ir_whitehot/ir_blackhot 并入（Unity 侧
+  // TwinBridge.SensorModes 同源对拍；ir 保留为白热别名）。
+  assert.deepEqual(TWIN_SENSOR_MODES, ['eo', 'ir', 'ir_whitehot', 'ir_blackhot', 'lidar']);
   const channel = recordingChannel();
   const client = createTwinBridgeClient({ channel });
   assert.equal(client.sendSensorMode('ir'), '{"type":"sensor_mode","value":"ir"}');
   assert.equal(client.sendSensorMode('eo'), '{"type":"sensor_mode","value":"eo"}');
   assert.equal(client.sendSensorMode('lidar'), '{"type":"sensor_mode","value":"lidar"}');
+  assert.equal(client.sendSensorMode('ir_whitehot'), '{"type":"sensor_mode","value":"ir_whitehot"}', 'P2 显式白热');
+  assert.equal(client.sendSensorMode('ir_blackhot'), '{"type":"sensor_mode","value":"ir_blackhot"}', 'P2 黑热极性');
   // Closed channel no-op, like every other message.
   const closed = createTwinBridgeClient({ channel: { ...recordingChannel(), isOpen: () => false } });
   assert.equal(closed.sendSensorMode('ir'), null);
+});
+
+/* ── P1 radar_view（契约 §2/§8 演进，2026-10-21；Unity TwinBridge.RadarViewValues 同源对拍） ── */
+
+test('radar_view message matches the contract: mode field, four-state vocabulary', async () => {
+  const { TWIN_RADAR_VIEWS, TWIN_RADAR_VIEW_DEFAULT } = await import(
+    '../../web_gui/modules/twin-view.js?v=20261016-shard-tv-v1'
+  );
+  assert.deepEqual(TWIN_RADAR_VIEWS, ['off', 'overlay', 'ppi', 'both']);
+  assert.equal(TWIN_RADAR_VIEW_DEFAULT, 'off', '契约 §2:旧 web 不发本命令即 off 态');
+  const channel = recordingChannel();
+  const client = createTwinBridgeClient({ channel });
+  assert.equal(client.sendRadarView('overlay'), '{"type":"radar_view","mode":"overlay"}',
+    '命令字段面 = mode(契约 §2,区别 sensor_mode 的 value)');
+  assert.equal(client.sendRadarView('off'), '{"type":"radar_view","mode":"off"}');
+  assert.equal(client.sendRadarView('ppi'), '{"type":"radar_view","mode":"ppi"}');
+  assert.equal(client.sendRadarView('both'), '{"type":"radar_view","mode":"both"}');
+  assert.throws(() => client.sendRadarView('thermal'), /Unsupported radar view/, '词汇外拒发');
+  const closed = createTwinBridgeClient({ channel: { ...recordingChannel(), isOpen: () => false } });
+  assert.equal(closed.sendRadarView('overlay'), null, 'closed channel no-op');
+});
+
+test('radarViewItems/projectRadarView: button group projection + state echo authority (pure)', async () => {
+  const { radarViewItems, projectRadarView } = await import(
+    '../../web_gui/modules/twin-view.js?v=20261016-shard-tv-v1'
+  );
+  assert.deepEqual(radarViewItems('overlay').map(item => [item.value, item.active]), [
+    ['off', false],
+    ['overlay', true],
+    ['ppi', false],
+    ['both', false],
+  ], '四态直通,无极性循环家族');
+  assert.equal(radarViewItems('both').find(item => item.value === 'both').active, true);
+  assert.equal(radarViewItems('bogus').find(item => item.active).value, 'off', 'unknown falls back to default');
+  assert.equal(projectRadarView({ radar_view: 'both' }), 'both', 'state echo is the authority');
+  assert.equal(projectRadarView({}), 'off', 'old Unity build (missing field) = default off');
+  assert.equal(projectRadarView({ radar_view: 'on' }), 'off', 'out-of-vocabulary echo = default');
+  // Shell wiring:按钮组 + HUD chip 宿主在 index.html
+  assert.match(html, /id="twinRadarGroup"/, 'radar_view 按钮组宿主存在');
+  assert.match(html, /data-twin-radar="both"/, '四态按钮齐');
+  assert.match(html, /id="twinRadarView"/, 'RADAR chip 宿主存在');
+  assert.match(moduleSource, /sendRadarView\(currentRadarView\)/, '§5 重连重发携带 radar_view');
 });
 
 test('bridge client clock: ~10Hz throttle while PLAYING, transitions always sent, force bypasses', () => {
@@ -343,7 +389,7 @@ test('themeValue maps the OpenBridge theme attribute onto the contract vocabular
 
 /* ── P2-S4：camera_free（契约 §8 演进记录）+ cameraFreePose 折算 + 流客户端抽取 ── */
 
-import { cameraFreePose, createTwinStreamClient, TWIN_LINK_CHANGE_PERCENT } from '../../web_gui/modules/twin-view.js?v=20261015-dt-yolo-tv-v1';
+import { cameraFreePose, createTwinStreamClient, TWIN_LINK_CHANGE_PERCENT } from '../../web_gui/modules/twin-view.js?v=20261016-shard-tv-v1';
 
 test('camera_free message matches the frozen contract §8 literal (只加字段演进)', () => {
   const channel = recordingChannel();
@@ -429,11 +475,12 @@ test('twin runs table paginates with the same footer controls and page sizes as 
 
 /* ── P3-S2 sensor_mode 按钮组（spec #90；contract §2/§8；Deployment twin 侧见 deployment-twin.test.mjs） ── */
 
-test('sensorModeItems projects the frozen vocabulary; S3 un-pends lidar (pure)', async () => {
-  const { sensorModeItems, TWIN_SENSOR_MODE_DEFAULT, projectSensorMode } = await import(
-    '../../web_gui/modules/twin-view.js?v=20261015-dt-yolo-tv-v1'
+test('sensorModeItems projects the frozen vocabulary; IR button owns the polarity family (pure)', async () => {
+  const { sensorModeItems, TWIN_SENSOR_MODE_DEFAULT, projectSensorMode,
+    nextSensorMode, irPolarityTag, TWIN_SENSOR_IR_MODES, TWIN_SENSOR_ECHO_GUARD_MS } = await import(
+    '../../web_gui/modules/twin-view.js?v=20261016-shard-tv-v1'
   );
-  assert.deepEqual(TWIN_SENSOR_MODES, ['eo', 'ir', 'lidar']);
+  assert.deepEqual(TWIN_SENSOR_MODES, ['eo', 'ir', 'ir_whitehot', 'ir_blackhot', 'lidar']);
   assert.equal(TWIN_SENSOR_MODE_DEFAULT, 'eo');
   const items = sensorModeItems('ir');
   assert.deepEqual(items.map(item => [item.value, item.active]), [
@@ -442,12 +489,29 @@ test('sensorModeItems projects the frozen vocabulary; S3 un-pends lidar (pure)',
     ['lidar', false],
   ], 'ir active; S3 起 lidar 无 pending 徽标（契约 §8 台账）');
   assert.equal(items.find(item => item.value === 'ir').label, 'IR');
+  assert.equal(items.find(item => item.value === 'ir').polarity, 'WH', 'P2：白热极性角标');
+  assert.equal(sensorModeItems('ir_blackhot').find(item => item.value === 'ir').polarity, 'BH', '黑热角标');
+  assert.equal(sensorModeItems('ir_blackhot').find(item => item.value === 'ir').active, true, 'IR 单键点亮整个极性家族');
+  assert.equal(sensorModeItems('ir_whitehot').find(item => item.value === 'lidar').active, false);
   assert.equal(items.find(item => item.value === 'lidar').label, 'LiDAR', 'S2 的 "LiDAR·S3" 徽标移除（真实现）');
   assert.equal(items.find(item => item.value === 'lidar').pending, undefined, 'pending 字段不复存在');
   assert.deepEqual(sensorModeItems('bogus').find(item => item.active).value, 'eo', 'unknown mode falls back to the contract default');
   assert.equal(projectSensorMode({ sensor_mode: 'ir' }), 'ir', 'state echo is the authority');
+  assert.equal(projectSensorMode({ sensor_mode: 'ir_blackhot' }), 'ir_blackhot', 'P2：极性回显原样透传');
   assert.equal(projectSensorMode({}), 'eo', 'old Unity build (missing field) = default');
   assert.equal(projectSensorMode({ sensor_mode: 'thermal' }), 'eo', 'out-of-vocabulary echo = default');
+  // P2 IR 键再点循环：非 IR → ir_whitehot；白热 → 黑热 → 白热。
+  assert.equal(nextSensorMode('eo', 'ir'), 'ir_whitehot');
+  assert.equal(nextSensorMode('ir', 'ir'), 'ir_blackhot', 'ir 别名视作白热');
+  assert.equal(nextSensorMode('ir_whitehot', 'ir'), 'ir_blackhot');
+  assert.equal(nextSensorMode('ir_blackhot', 'ir'), 'ir_whitehot', '再点切回白热');
+  assert.equal(nextSensorMode('ir', 'eo'), 'eo', '非 IR 键原样直通');
+  assert.equal(nextSensorMode('ir', 'lidar'), 'lidar');
+  assert.equal(irPolarityTag('ir'), 'WH');
+  assert.equal(irPolarityTag('ir_whitehot'), 'WH');
+  assert.equal(irPolarityTag('ir_blackhot'), 'BH');
+  assert.deepEqual(TWIN_SENSOR_IR_MODES, ['ir', 'ir_whitehot', 'ir_blackhot']);
+  assert.equal(TWIN_SENSOR_ECHO_GUARD_MS, 2000, 'P2 race fix: pick 后 stale-echo 护窗常量');
 });
 
 test('Evaluation twin footer wires the sensor-mode group, chip and echo path', () => {
@@ -459,8 +523,25 @@ test('Evaluation twin footer wires the sensor-mode group, chip and echo path', (
   assert.match(group, /data-twin-sensor="lidar"/);
   assert.match(html, /<span class="deployment-control-state" id="twinSensorMode"[^>]*>SENSOR EO<\/span>/);
   assert.match(moduleSource, /requireClient\(\)\?\.sendSensorMode\(value\)/, 'click path sends the contract message');
-  assert.match(moduleSource, /applySensorMode\(projectSensorMode\(client\?\.lastState\)\)/, 'HUD reasserts the authoritative echo');
-  assert.match(moduleSource, /bridge\.sendSensorMode\(sensorActive\?\.dataset\.twinSensor \?\? TWIN_SENSOR_MODE_DEFAULT\)/,
-    '§5 reconnect realignment re-sends the current mode');
+  assert.match(moduleSource, /nextSensorMode\(currentSensorMode, button\.dataset\.twinSensor\)/, 'P2: IR 键再点循环白热/黑热');
+  assert.match(moduleSource, /applySensorMode\(value, \{ optimistic: true \}\)/, 'P2 race fix: click 臂起 stale-echo 护窗');
+  assert.match(moduleSource, /TWIN_SENSOR_ECHO_GUARD_MS/, 'P2 race fix: 护窗常量在位');
+  assert.match(moduleSource, /SENSOR \$\{item \? item\.label \+ \(item\.polarity \? `·\$\{item\.polarity\}` : ''\)/,
+    'P2: HUD chip appends the polarity tag (SENSOR IR·WH / IR·BH)');
+  assert.match(moduleSource, /if \(client\?\.lastState\) applySensorMode\(projectSensorMode\(client\.lastState\)\)/,
+    'HUD reasserts the authoritative echo — guarded: an absent echo (reconnect null lastState) never folds');
+  assert.match(moduleSource, /bridge\.sendSensorMode\(currentSensorMode\)/,
+    '§5 reconnect realignment re-sends the current mode (polarity-carrying)');
   assert.match(moduleSource, /debug\.sensorMode = client\?\.lastState\?\.sensor_mode \?\? null/, 'probe debug seam carries the echo');
+});
+
+test('P2 review fix: §5 reconnect window never folds the polarity pick from an absent echo', () => {
+  // 评审竞态根因修复：100ms 轮询等 ready 期间 renderHud(250ms) 读到新 client 的
+  // lastState=null → projectSensorMode 折回 'eo' 覆盖 currentSensorMode，随后
+  // sendCurrentControls 把 'eo' 发给仍处于 ir_blackhot 的 Unity。修复语义 =
+  // 无 echo ≠ 'eo' echo（真 echo 仍权威，不引入重连后 2s 权威黑洞）。
+  assert.match(moduleSource, /if \(client\?\.lastState\) applySensorMode\(projectSensorMode\(client\.lastState\)\)/,
+    'absent echo（重连 null lastState）不折回——极性 pick 存活到 §5 重发');
+  assert.match(moduleSource, /bridge\.sendSensorMode\(currentSensorMode\)/,
+    'ready 后 sendCurrentControls 重发携带极性的当前模式（非折回的 \'eo\'）');
 });

@@ -30,7 +30,7 @@ web 侧：`web_gui/modules/twin-view.js` + `web_gui/vendor/urs/`（URS 官方 re
 | type | 字段 | 语义 |
 |---|---|---|
 | `hello` | `protocol:"twin-bridge@1"`, `page` (nonce 字符串) | 握手；Unity 回 `ready` |
-| `attach` | `run_id`, `mode:"live"\|"replay"`, `backend_base`, `replay:{t_start,t_end,trusted_t_end}`（replay 必带，秒） | Unity 自连后端取数；新 attach 替换旧（幂等重挂，同 run 重挂 = 重置数据面） |
+| `attach` | `run_id`, `mode:"live"\|"replay"\|"static"`, `backend_base`, `replay:{t_start,t_end,trusted_t_end}`（replay 必带，秒） | Unity 自连后端取数；static 地理环境语义见下文演进说明；新 attach 替换旧 |
 | `detach` | — | 断开数据面，回空场景态（船清空、泵停、流状态 down→idle） |
 | `clock` | `playhead_s`, `rate`, `state:"PLAYING"\|"PAUSED"\|"ENDED"` | **仅 replay 模式**：PLAYING 时 ~10Hz；PAUSED/ENDED 状态切换时至少发一条；Unity 软对齐渲染钟（与 compact-v1 同哲学）；live 模式时钟权威在后端，web 不发此消息 |
 | `camera` | `preset:"bridge"\|"bow"\|"chase"\|"top"\|"overlook"` | 预设词汇统一表 → `CameraView.{Bridge,Bow,Chase,TopDown,Overlook}`（00-REPORT §5.3） |
@@ -38,7 +38,8 @@ web 侧：`web_gui/modules/twin-view.js` + `web_gui/vendor/urs/`（URS 官方 re
 | `theme` | `value:"day"\|"night"\|"dusk"` | 映射 Unity 时刻档：`day=12h, dusk=17.5h, night=0h`（`WeatherGUI.k_TimePresets` 同源） |
 | `stream_profile` | `value:"1080p"\|"1440p"` | WEB 捕获档：1920×1080 / 2560×1440，30 fps，码率范围 6–14 / 10–24 Mbps；相机 TAA。只改变视频捕获与编码；不影响仿真/回放时钟。仅 `ready.video_profiles` 明确支持时发送。 |
 | `detection` | `enabled`, `source:"yolo"\|"truth"` | `enabled=false` = overlay 关；`truth` = 地面真值路径（`requireLive=false`）；`yolo` = live 优先路径（`requireLive=true`，无新鲜结果按 DetectionFreshness 既有规则回退）。复用 M9 `DetectionOverlay` |
-| `sensor_mode` | `value:"eo"\|"ir"\|"lidar"` | **P3-S0 演进新增（§8，spec #90）**：主孪生视口传感器模式——eo=可见光（默认，驾驶舱视角）/ ir=黑白热像 / lidar=点云视角；雷达 PPI/AIS 为 web 面板态不经此桥。词汇 = `TwinBridge.SensorModes` / web `TWIN_SENSOR_MODES`；视口按钮组接线属 S2 |
+| `sensor_mode` | `value:"eo"\|"ir"\|"ir_whitehot"\|"ir_blackhot"\|"lidar"` | **P3-S0 演进新增（§8，spec #90）**：主孪生视口传感器模式——eo=可见光（默认，驾驶舱视角）/ ir=黑白热像（白热别名）/ ir_whitehot/ir_blackhot=显式极性（**P2 IR realism 只加**，§8 台账 2026-10-19；黑热=同一 IR pass 显示映射反转，web IR 键再点循环）/ lidar=点云视角；雷达数据面不经此桥——Unity 直连后端，消费 WS compact-v1 envelope 顶层键 `radar_scans`（已有）+ 内容寻址 checkpoint REST（已有），与 web 同源一份；Unity 雷达表现层开关经同表 `radar_view` 命令（2026-10-21 演进，§8）；AIS 无独立桥命令（数据面 `ais_reports` 顶层键同源消费）。词汇 = `TwinBridge.SensorModes` / web `TWIN_SENSOR_MODES` |
+| `radar_view` | `mode:"off"\|"overlay"\|"ppi"\|"both"` | **2026-10-21 演进新增（§8）**：雷达表现层开关（数据面见上行 `sensor_mode` 注，本命令只控 Unity 渲染呈现）——off=雷达表现全关（**默认**；旧 web 不发本命令即此态）/ overlay=3D 探测表现（水面 spoke 余辉盘+检测/未检测目标区分+盲区可视化+桅顶天线实体）/ ppi=独立雷达屏（全要素 PPI，数据与 web 屏同源 checkpoint，逐 spoke 可对拍）/ both=两者同开。ack 惯例镜像 `sensor_mode`：无专用 ack 帧，未知 `mode` 词汇 Unity 回 `BAD_MESSAGE`（§4，非致命，连接保持），合法词汇接受即生效 |
 
 时钟节流：web 端以 `ReplayClock` 驱动，10Hz 定时器对 `playhead_s` 采样发送；`rate` 变更即时补发。
 Unity 渲染钟把 `rate` 写进所喂帧的 `playback.effective_multiplier`（S1 管线零改动消费）。
@@ -47,7 +48,7 @@ Unity 渲染钟把 `rate` 写进所喂帧的 `playback.effective_multiplier`（S
 
 | type | 字段 | 语义 |
 |---|---|---|
-| `ready` | `protocol`, `build`, `scene`, `modes_supported[]`, `video_profiles[]` | 对 `hello` 的应答；`modes_supported` ⊆ `["live","replay"]`；`video_profiles` 缺失或为空 = 不支持画质协商。 |
+| `ready` | `protocol`, `build`, `scene`, `modes_supported[]`, `video_profiles[]` | 对 `hello` 的应答；`modes_supported` ⊆ `["live","replay","static"]`；`video_profiles` 缺失或为空 = 不支持画质协商。 |
 | `attached` | `run_id`, `mode`, `anchor:{east,north}`（全域 UTM 米）, `ships`（int，已挂槽位数）, `camera`（当前预设名） | 数据面就绪：replay = context（ENC 原点）取到后发；live = 首帧锚定后发。**数据面重连恢复后重发**（§5） |
 | `state` | `fps`, `frame_seq`, `sim_time`, `clock_skew_ms`, `stream:{state:"ok"\|"degraded"\|"down", latency_ms}`, `detection:{source,enabled,live}`, `camera`, `sensor_mode`, `geo_fit` | ~1Hz 心跳。`sim_time` = Unity 渲染插值钟；`clock_skew_ms` = 渲染钟 − web playhead（ms）；`stream`：replay = 帧泵健康（帧前进 ok / 停滞 degraded / 取数失败 down），live = WS 连接态；`latency_ms` = \|clock_skew\|；未知为 0；`detection.enabled` = web 既有开关态回显（P3 演进只加字段，§8）；`sensor_mode` = 当前主视口传感器模式回显，默认 `"eo"`（P3-S0 演进只加字段，§8，spec #90）；`geo_fit` = M6 场景覆盖度判定回显 `"inside"\|"partial"\|"outside"`，空串 = 尚无数据面帧（P3-12 演进只加字段，§8，spec #91） |
 | `error` | `code`, `message` | 码表见 §4 |
@@ -117,6 +118,8 @@ Unity 渲染钟把 `rate` 写进所喂帧的 `playback.effective_multiplier`（S
 | 2026-10-02 | P3-12 | `state` 新增 `geo_fit` 回显字段（词汇 `inside\|partial\|outside`，空串 = 尚无数据面帧；§3/§6 同步）。**只加字段**：既有消息形状零改动（web `JSON.parse` 宽松消费，旧 web 侧 undefined 已测兼容）。语义：M6 孪生场景地理配准（`scenePos = (NE − anchor) + 登记平移 (17000,−4800)`，会话 NE 域为后端合成域、与场景 EPSG:32648 域纯平移对应）的覆盖度判定——inside = 会话观测包络 ≥98% 水面且 DEM 覆盖内 / partial = 混入陆域 / outside = DEM 覆盖外开阔海面；常量与 provenance = `M6TwinGeo` + `M6WaterMask`（tools/m6_water_mask.py 烘焙） | spec #91 批 1 台账 P3-12；Unity = `TwinBridgeState.geo_fit`/`TwinSessionDriver.GeoFit`，web 宽松消费无需改动 |
 
 | 2026-10-08 | WEB 画质适配 | 新增 stream_profile 命令和 ready.video_profiles 协商字段，1080p/1440p 两档 30 fps；旧 Unity 缺字段时 web 不发新命令。Deployment 使用接收端 RTP 计数计量视频 fps/码率，既有 state.fps 与 clock 字段语义不变。 | DT 清晰度修复 |
+| 2026-10-19 | P2 IR realism | `sensor_mode` 词汇**只加** `ir_whitehot`/`ir_blackhot`（显式极性，调研 docs/research/2026-10-19-sitaw-ir-latency-realism-survey.md §4 #1；`ir` 保留为白热别名，旧 web/Unity 互通零影响）。Unity：`SensorModeEffect` 加第三出参 `blackHot`（ir_blackhot = 同一 IR pass 显示映射反转）；渲染质感并入 `IrWhiteHot.shader`（640×512 像元栅格量化+轻模糊、NETD 时域噪声、FPN 固定图案、AGC 呼吸、热源饱和白晕、地平线冷天空渐变）+ 温度表加 `Land` 档（Land≈0.2；环境岸线建筑/地形/桥经共享 Cesium 地景材质 `_baseColorFactor` 注册，热标签极性无关）。web：IR 单键再点循环白热/黑热（`nextSensorMode` 纯函数），HUD chip 角标 `SENSOR IR·WH`/`IR·BH`，§5 重连重发带极性的当前模式 | P2 视觉档；词汇 = `TwinBridge.SensorModes` ⊇ web `TWIN_SENSOR_MODES`，门控 = `SensorModeEffect` → `IrViewPass.SetActive(active, cam, blackHot)` |
+| 2026-10-21 | Unity X 波段雷达 P0 | web→Unity 新增 `radar_view` 消息（§2 表，`mode` 字段面 `off\|overlay\|ppi\|both`，ack 惯例镜像 `sensor_mode`）；§2 `sensor_mode` 行「雷达 PPI/AIS 为 web 面板态不经此桥」条款改写为新语义：雷达数据面 = WS compact-v1 envelope 顶层键 `radar_scans`（已有，`gui_server/main.py:2121`）+ 内容寻址 checkpoint REST（已有，`gui_server/radar_transport.py:33`），Unity 直连后端、与 web 同源一份；Unity 表现层（3D 探测盘/独立雷达屏）开关 = `radar_view` 命令；AIS 无独立桥命令（数据面 `ais_reports` 顶层键已有，`gui_server/main.py:2122`）。动机：Unity 数字孪生船载 X 波段雷达——00-REPORT §2.2 裁决 A（后端权威 spoke 流 + Unity 表现层，真相单一），本条为 P0 通道打通的契约面。**只加 type + 条款改写**：既有消息形状与 `sensor_mode` 行为零改动，数据面零新增传输（复用既有键与端点）；旧 Unity 收 `radar_view` 按 §4 未知 type → `BAD_MESSAGE`（非致命，连接保持），旧 web 不发即零影响。本行覆盖 2026-10-02 P3-S0 行同名语义边界记载（历史行保留原貌）；§6 序列化样例与 `state` 回显字段随实现段台账跟进 | docs/research/2026-10-21-unity-xband-radar/00-REPORT.md §2.2/§3/§6；30-repo-current-state.md §3；dispatch 挂点 = `TwinBridgeService.cs:488` |
 
 ### 2026-10-08 DT direct camera and live presentation
 
@@ -206,3 +209,55 @@ may arrive in either order. Reattach/detach clear projection and pick caches.
 Threat appearance and CPA availability come from the same scene-target.js
 presentation used by Cesium. The Unity display does not calculate threat levels.
 This display protocol does not create, start, reset or replace an Active Session.
+
+## Geographic static rendering (2026-10-16 additive evolution)
+
+`mode:"static", run_id:"geography-qingdao"` attaches the reusable Qingdao
+Geographic Landscape. This identity is not an Active Session or a recorded run.
+No vessels, telemetry stream, replay clock, tracking, or planning are attached.
+`attached.ships` is zero; `state.sim_time` remains zero. `state.landscape` reports
+real terrain/imagery loading. Its additive `displayable` flag is true when the
+open Qingdao landscape already has local terrain to present. The viewport may
+show this geographic preview and accept camera input while `ready` is false;
+loading progress remains visible in the HUD. `ready` still means warmup completed,
+not merely that a preview exists. Further camera refinement never blacks out an
+already available landscape. Older renderers without `displayable` retain their
+existing readiness gate. A provider failure is shown in the HUD over local terrain.
+`camera` and `camera_free` operate on the EPSG:32651 geographic frame; free camera
+positions retain the absolute east/north convention. Detach hides the Qingdao
+landscape and suspends tile selection while retaining its geographic resources.
+The next static attachment reuses them. Live and replay semantics are unchanged.
+
+## DT own-ship mask polygon (2026-10-19 P1, additive evolution)
+
+`situation_frame` gains an additive `ownship_polygon` array (0 or 4 corners of
+`{x, y, depth, in_frame}`): the own-ship waterline rectangle — physical LOA ×
+beam from the truth[0] slot, waterline height from the catalog entry — projected
+through the same `WorldToViewportPoint` math as the frame's targets. Coordinates
+share the `TwinScreenPoint` domain (normalized, origin top-left, y downwards)
+and MAY leave [0,1]: a partially out-of-frame hull still reports all corners in
+the fixed order [bow-port, bow-starboard, stern-starboard, stern-port], with
+out-of-frame corners flagged `in_frame:false` and left unclamped so consumers
+(fillPoly / convex hull) clip themselves. Corners behind the near plane are
+dropped; fewer than 3 in front of the camera — own ship unresolvable, or the
+bridge-eye view where the hull sits behind the camera — yields `[]`. `[]` (and
+the field absent on old renderers) means **no mask**; consumers must skip
+gracefully, never treat it as an error.
+
+Because `situation_frame` only reaches the browser over the bridge DataChannel
+(it is invisible to the :8010 backend), the same (frame_id → polygon) records
+are relayed to the backend over the data plane's own HTTP base:
+`POST /api/viewport-ownship-polygon` with a frozen
+`viewport_ownship_polygon@1` body (`{schema, run_id, sim_time, camera_pose,
+frames:[{frame_id, polygon}]}`), batched at ≤10 Hz and a few hundred bytes to
+~1 KB per batch. POST failures silently drop the batch (the detector degrades
+to "no polygon, skip mask"); the backend keeps a 512-entry insertion-ordered
+ring keyed by frame_id plus the latest camera pose and server timestamp, served
+by `GET /api/viewport-ownship-polygon` (`frames: []` when nothing was posted).
+The detector (`tools/sango_detector_service.py --ownship-polygon-url`) decodes
+the 256×16 FRAME_MARKER pixel row in each tapped frame, matches the decoded
+frame_id against that cache **exactly**, and fills the polygon with flat sea
+grey (~0.45 luminance plus light per-channel noise) before SAHI slicing. A
+missing/corrupt marker, a cache miss, or an empty polygon skips the mask for
+that frame; leaving `--ownship-polygon-url` empty keeps the detector's behavior
+byte-identical to before.

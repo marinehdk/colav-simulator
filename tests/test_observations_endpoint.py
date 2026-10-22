@@ -28,13 +28,25 @@ from colav_simulator.core.mast_cameras import (
     FEED_MOUNT_ID,
     MAST_MOUNTS,
     MAST_MOUNTS_BY_ID,
+    RADAR_ANTENNA_FORWARD_M,
+    RADAR_ANTENNA_HEIGHT_M,
+    RADAR_ANTENNA_STARBOARD_M,
+    RADAR_MOUNT_ID,
+    RADAR_RADOME_DIAMETER_M,
+    RADAR_RADOME_HEIGHT_M,
+    RADAR_SCAN_RPM,
     SENSOR_ID_EO,
     SENSOR_ID_IR,
     SENSOR_ID_LIDAR,
     focal_px,
     georeference_box,
+    radar_scan_period_s,
 )
-from colav_simulator.core.sensing import ExternalCameraSensor
+from colav_simulator.core.sensing import (
+    MOUNT_ID_RADAR_X_DEFAULT,
+    ExternalCameraSensor,
+    RadarXParams,
+)
 from colav_simulator.core.tracking.trackers import KF, KFParams
 from colav_simulator.experiment.contracts import SessionState
 from colav_simulator.schemas.observations_v1 import ObservationFrame
@@ -153,6 +165,37 @@ class TestMastMountTable:
                 hi = (mount.azimuth_deg + half) % 360.0
                 if lo < hi:
                     assert not (lo <= 0.0 <= hi), "no ring camera may own dead ahead (PTZ role)"
+
+
+class TestRadarAntennaMount:
+    """P1 主桅顶 X 波段雷达天线挂点（00-REPORT §3 A案定案）。
+
+    后端字面量与 Unity ``RadarAntennaMount.cs`` 平行表互钉（相机表保持纯相机 —
+    雷达行会破坏 sensor_id {2,3,4} parity 词汇，故走单行平行表工艺）。
+    """
+
+    def test_mount_id_is_the_frozen_radar_vocabulary(self) -> None:
+        assert RADAR_MOUNT_ID == "mast_top_xband", "sensor-model-v1 §3 冻结词汇"
+        assert RADAR_MOUNT_ID == MOUNT_ID_RADAR_X_DEFAULT, "RadarXParams.mount_id 默认值同串"
+        assert RadarXParams().mount_id == RADAR_MOUNT_ID
+
+    def test_camera_table_stays_camera_only(self) -> None:
+        ids = {m.mount_id for m in MAST_MOUNTS}
+        assert RADAR_MOUNT_ID not in ids, "雷达行走自己的平行表，不进相机标定族（parity 枚举守护）"
+        assert len(ids) == len(MAST_MOUNTS), "相机表行 id 唯一性不被雷达登记扰动"
+
+    def test_position_anchors_on_fbx_mast_top(self) -> None:
+        assert RADAR_ANTENNA_HEIGHT_M == pytest.approx(12.98), "FBX 实测空气干舷工程口径（FBX 属性 12.9）"
+        assert RADAR_ANTENNA_FORWARD_M == pytest.approx(2.1), "桅中心线舯前 +2.1 m"
+        assert RADAR_ANTENNA_STARBOARD_M == pytest.approx(0.0), "桅中心线"
+
+    def test_radome_envelope_is_the_halo24_24in_dome(self) -> None:
+        assert RADAR_RADOME_DIAMETER_M == pytest.approx(0.610), "HALO24 24 寸罩 Ø610 mm（手册 988-12307-003）"
+        assert RADAR_RADOME_HEIGHT_M == pytest.approx(0.225), "罩高 225 mm"
+
+    def test_default_rotation_matches_radarx_default(self) -> None:
+        assert RADAR_SCAN_RPM == pytest.approx(RadarXParams().rpm), "与后端 RadarXBand 默认转速同源"
+        assert radar_scan_period_s(RADAR_SCAN_RPM) == pytest.approx(2.5), "24 rpm ⇒ 2.5 s/圈（web sweepAzimuthRad 同周期）"
 
 
 # ── georef numeric chain ──────────────────────────────────────────────────────

@@ -26,13 +26,48 @@ export const TWIN_THEMES = ['day', 'dusk', 'night'];
 export const TWIN_REPLAY_RATES = [0.5, 1, 5, 20];
 // P3-S0 sensor_mode 词汇（契约 §2/§8 演进，spec #90）：主视口 eo=可见光（默认）/ ir=黑白热像 /
 // lidar=点云视角；雷达 PPI/AIS 为 web 面板态不经此桥。
-export const TWIN_SENSOR_MODES = ['eo', 'ir', 'lidar'];
+// P2 IR realism（survey 2026-10-19-sitaw-ir-latency §4 #1，契约只加不减）：ir_whitehot/
+// ir_blackhot 显式极性（ir 保留为白热别名；Unity 侧 TwinBridge.SensorModes 同源对齐）。
+export const TWIN_SENSOR_MODES = ['eo', 'ir', 'ir_whitehot', 'ir_blackhot', 'lidar'];
 export const TWIN_SENSOR_MODE_DEFAULT = 'eo';
+export const TWIN_SENSOR_IR_MODES = ['ir', 'ir_whitehot', 'ir_blackhot'];
 // P3-S3 按钮组标签（spec #90）：lidar 自 S3 起为真实现（Unity LidarViewPass 点云视角），
 // S2 的 "LiDAR·S3" pending 徽标移除——三键均可用（契约 §8 台账）。
 export const TWIN_SENSOR_MODE_LABELS = { eo: 'EO', ir: 'IR', lidar: 'LiDAR' };
 // P2-S4 联动 spike（契约 §8）：Cesium 相机变更上报阈值（camera.changed percentageChanged）。
 export const TWIN_LINK_CHANGE_PERCENT = 0.01;
+// P1 radar_view 词汇（契约 §2/§8 演进，2026-10-21）：off=雷达表现全关（默认）/
+// overlay=3D 探测表现（水面盘+盲区+目标标记+扫掠楔+桅顶天线实体）/ ppi=独立雷达屏 /
+// both=两者同开。Unity 侧 TwinBridge.RadarViewValues 同源对齐；命令字段面 = mode
+// （契约 §2，区别于 sensor_mode 的 value）。只控 Unity 渲染呈现，数据面恒活正交。
+export const TWIN_RADAR_VIEWS = ['off', 'overlay', 'ppi', 'both'];
+export const TWIN_RADAR_VIEW_DEFAULT = 'off';
+export const TWIN_RADAR_VIEW_LABELS = { off: 'OFF', overlay: 'OVL', ppi: 'PPI', both: 'BOTH' };
+
+/**
+ * P2 IR realism pure seam: what a sensor button sends when clicked given the
+ * current mode — IR 键再点循环（non-IR → ir_whitehot; 白热 → 黑热 → 白热…）；
+ * 其他键原样直通。
+ */
+export function nextSensorMode(current, picked) {
+  if (picked !== 'ir') return picked;
+  return current === 'ir' || current === 'ir_whitehot' ? 'ir_blackhot' : 'ir_whitehot';
+}
+
+/** P2: IR 模式极性角标（ir/ir_whitehot=WH, ir_blackhot=BH）。 */
+export function irPolarityTag(mode) {
+  return mode === 'ir_blackhot' ? 'BH' : 'WH';
+}
+
+/**
+ * P2 race fix: after an optimistic pick, a stale Unity state echo (~1Hz, may
+ * predate the pick) must not reset the polarity-cycle base — a second IR
+ * click inside this window would re-send ir_whitehot instead of advancing to
+ * ir_blackhot. Echoes differing from the pick are ignored for this long;
+ * an echo matching the pick (or the window lapsing) re-arms echo authority
+ * (self-heals if Unity rejects the value).
+ */
+export const TWIN_SENSOR_ECHO_GUARD_MS = 2000;
 
 // Stream-entry timeout (spec #91 前置批 B): the official URS receiver's start()
 // retries a dead signaling forever — the viewport must surface the health card
@@ -101,16 +136,47 @@ export function projectSensorMode(state) {
 }
 
 /**
+ * P1 radar_view (contract §2/§8, 2026-10-21): authoritative view from a Unity
+ * `state` echo. Unknown/missing field (old Unity build) falls back to the
+ * contract default (off — 表现全关).
+ */
+export function projectRadarView(state) {
+  const echo = state?.radar_view;
+  return TWIN_RADAR_VIEWS.includes(echo) ? echo : TWIN_RADAR_VIEW_DEFAULT;
+}
+
+/**
+ * P1 radar_view button group projection (contract §2). `active` = the
+ * authoritative view (state echo, or the optimistic local pick before Unity
+ * answers). No polarity cycling — four plain states (sensor_mode 同款投影面，
+ * IR 家族展开所无).
+ */
+export function radarViewItems(active = TWIN_RADAR_VIEW_DEFAULT) {
+  const view = TWIN_RADAR_VIEWS.includes(active) ? active : TWIN_RADAR_VIEW_DEFAULT;
+  return TWIN_RADAR_VIEWS.map(value => ({
+    value,
+    label: TWIN_RADAR_VIEW_LABELS[value] ?? value.toUpperCase(),
+    active: value === view,
+  }));
+}
+
+/**
  * P3-S2 (spec #90) sensor-mode button group projection; P3-S3 un-pends lidar
  * (真实现 — contract §8 台账). `active` = the authoritative mode (state echo,
- * or the optimistic local pick before Unity answers).
+ * or the optimistic local pick before Unity answers). P2 IR realism: the IR
+ * button stays a single button but owns the whole ir/ir_whitehot/ir_blackhot
+ * family — `polarity` carries the current display polarity tag (WH/BH) for
+ * the chip/label suffix.
  */
 export function sensorModeItems(active = TWIN_SENSOR_MODE_DEFAULT) {
   const mode = TWIN_SENSOR_MODES.includes(active) ? active : TWIN_SENSOR_MODE_DEFAULT;
-  return TWIN_SENSOR_MODES.map(value => ({
+  return ['eo', 'ir', 'lidar'].map(value => ({
     value,
     label: TWIN_SENSOR_MODE_LABELS[value] ?? value.toUpperCase(),
-    active: value === mode,
+    active: value === 'eo' ? mode === 'eo'
+      : value === 'lidar' ? mode === 'lidar'
+      : TWIN_SENSOR_IR_MODES.includes(mode),
+    polarity: value === 'ir' && TWIN_SENSOR_IR_MODES.includes(mode) ? irPolarityTag(mode) : undefined,
   }));
 }
 
@@ -302,7 +368,15 @@ export function createTwinBridgeClient({ channel = null, now = () => Date.now(),
 
     sendPresentation(presentation) {
       if (situationSync !== 'frame-marker@1') return null;
-      return send({ type: 'presentation', presentation });
+      const inner = JSON.stringify(presentation);
+      // 数据通道消息有界(gst webrtcbin 侧 ~64KB,超限断链——20261016 VO 决策盘+
+      // hazard 三角整包 123KB 实证):超限拆 presentation_shard,Unity 按 (run,seq) 重组。
+      if (inner.length <= 46000) return send({ type: 'presentation', presentation });
+      const total = Math.ceil(inner.length / 46000);
+      for (let index = 0; index < total; index++)
+        if (!send({ type: 'presentation_shard', run_id: presentation.run_id, seq: presentation.seq,
+          index, total, part: inner.slice(index * 46000, (index + 1) * 46000) })) return null;
+      return inner;
     },
 
     sendPick(runId, frameId, x, y) {
@@ -361,6 +435,16 @@ export function createTwinBridgeClient({ channel = null, now = () => Date.now(),
      */
     sendSensorMode(value) {
       return send({ type: 'sensor_mode', value });
+    },
+
+    /**
+     * P1 演进（契约 §8，只加 type；2026-10-21）：雷达表现层开关。词汇 =
+     * TWIN_RADAR_VIEWS（off/overlay/ppi/both）；命令字段面 = mode（契约 §2，
+     * 区别 sensor_mode 的 value）；Unity 侧 state.radar_view 回显（默认 off）。
+     */
+    sendRadarView(mode) {
+      if (!TWIN_RADAR_VIEWS.includes(mode)) throw new Error('Unsupported radar view');
+      return send({ type: 'radar_view', mode });
     },
 
     sendStreamProfile(value) {
@@ -692,6 +776,15 @@ export function createTwinViewController({
   let range = null;
   let generation = 0;
   let debug = null;
+  // P2 IR realism: 当前 sensor_mode（含极性值 ir_whitehot/ir_blackhot）——IR 键
+  // 再点循环的循环基，§5 重连重发也用它（按钮 dataset 只有 'ir' 不含极性）。
+  let currentSensorMode = TWIN_SENSOR_MODE_DEFAULT;
+  // P2 race fix: pick 后的 stale-echo 护窗（见 TWIN_SENSOR_ECHO_GUARD_MS）。
+  let sensorEchoGuard = { value: null, until: 0 };
+  // P1 radar_view（契约 §2/§8，2026-10-21）：当前雷达表现层开关——§5 重连重发用；
+  // pick vs ~1Hz state echo 的 stale-echo 护窗与 sensor_mode 同机制（窗口常量共用）。
+  let currentRadarView = TWIN_RADAR_VIEW_DEFAULT;
+  let radarEchoGuard = { value: null, until: 0 };
   // spec #91 前置批 B: stream health watchdog (Evaluation twin viewer) — 状态卡
   // 双处之一（Deployment live twin 在 deployment-twin.js）。onRetry = 真·重连。
   const healthMonitor = createTwinStreamHealthMonitor({
@@ -829,31 +922,100 @@ export function createTwinViewController({
     else bridge.sendDetection(false, 'truth');
     const active = el('twinCameraGroup')?.querySelector('[data-twin-camera].active');
     if (active) bridge.sendCamera(active.dataset.twinCamera);
-    // P3-S2 (spec #90): sensor_mode rides the §5 reconnect realignment too.
-    const sensorActive = el('twinSensorGroup')?.querySelector('[data-twin-sensor].active');
-    bridge.sendSensorMode(sensorActive?.dataset.twinSensor ?? TWIN_SENSOR_MODE_DEFAULT);
+    // P3-S2 (spec #90): sensor_mode rides the §5 reconnect realignment too —
+    // P2: the tracked mode carries the IR polarity (the active button's
+    // dataset is only 'ir').
+    bridge.sendSensorMode(currentSensorMode);
+    // P1 radar_view（契约 §5 重连重对齐）：雷达表现层开关随重连重发——
+    // Unity 侧 attach 语义不丢当前态（off 默认态不重发也无副作用，统一重发简单）。
+    bridge.sendRadarView(currentRadarView);
   }
 
   // ── P3-S2 sensor-mode button group (spec #90; contract §2/§8) ─────────────
 
   /**
-   * Reflects a mode onto the button group + HUD chip. The state echo is the
-   * authority (renderHud); the click handler calls this optimistically with
-   * the picked value so the UI answers immediately.
+   * P2: 武装 stale-echo 护窗到给定 pick（点击 optimistic 路径用）。§5 重连窗口
+   * 的极性竞态不靠武装、由 renderHud 的 absent-echo 不折回语义关闭（见
+   * renderHud 内注释）——武装法会把 attach 后 2s 内的真 echo 也吞掉（回归实测）。
    */
-  function applySensorMode(mode, { chipEl } = {}) {
+  function armSensorEchoGuard(mode = currentSensorMode) {
+    sensorEchoGuard = { value: mode, until: nowFn() + TWIN_SENSOR_ECHO_GUARD_MS };
+  }
+
+  /**
+   * Reflects a mode onto the button group + HUD chip. The state echo is the
+   * authority (renderHud); the click handler calls this optimistically with the
+   * picked value so the UI answers immediately. P2: IR is one button for the
+   * whole polarity family — active for ir/ir_whitehot/ir_blackhot and the
+   * chip appends the polarity tag (SENSOR IR·WH / IR·BH). `optimistic` arms
+   * the stale-echo guard; echo calls inside the window that disagree with the
+   * pick are ignored (race fix, TWIN_SENSOR_ECHO_GUARD_MS).
+   */
+  function applySensorMode(mode, { chipEl, optimistic = false } = {}) {
+    if (!TWIN_SENSOR_MODES.includes(mode)) mode = TWIN_SENSOR_MODE_DEFAULT;
+    if (optimistic) {
+      armSensorEchoGuard(mode);
+    } else if (sensorEchoGuard.value !== null && mode !== sensorEchoGuard.value && nowFn() < sensorEchoGuard.until) {
+      mode = sensorEchoGuard.value; // pick 前的 stale echo——保持本地 pick
+    } else {
+      sensorEchoGuard = { value: null, until: 0 }; // echo 追上 pick 或护窗超时——echo 恢复权威
+    }
+    currentSensorMode = mode;
+    const items = sensorModeItems(mode);
     const group = el('twinSensorGroup');
     if (group) {
       group.querySelectorAll('[data-twin-sensor]').forEach(button => {
-        const on = button.dataset.twinSensor === mode;
+        const item = items.find(entry => entry.value === button.dataset.twinSensor);
+        const on = Boolean(item?.active);
         button.classList.toggle('active', on);
         button.setAttribute('aria-pressed', String(on));
+        if (item?.value === 'ir' && item.polarity) button.title = `IR（热像，再点切换白热/黑热：当前${item.polarity === 'BH' ? '黑热' : '白热'}）`;
       });
     }
     const chip = chipEl ?? el('twinSensorMode');
     if (chip) {
-      const item = sensorModeItems(mode).find(entry => entry.value === mode);
-      chip.textContent = `SENSOR ${item?.label ?? mode.toUpperCase()}`;
+      const item = items.find(entry => entry.active);
+      chip.textContent = `SENSOR ${item ? item.label + (item.polarity ? `·${item.polarity}` : '') : mode.toUpperCase()}`;
+    }
+  }
+
+  // ── P1 radar_view button group (contract §2/§8, 2026-10-21) ───────────────
+
+  /** P1: 武装 radar_view stale-echo 护窗（applySensorMode 同机制，独立守卫值）。 */
+  function armRadarEchoGuard(mode = currentRadarView) {
+    radarEchoGuard = { value: mode, until: nowFn() + TWIN_SENSOR_ECHO_GUARD_MS };
+  }
+
+  /**
+   * P1: Reflects a radar_view onto the button group + HUD chip. State echo is
+   * the authority (renderHud); the click handler calls this optimistically.
+   * `optimistic` arms the stale-echo guard — echo calls inside the window
+   * that disagree with the pick are ignored (applySensorMode 同款竞态面)。
+   */
+  function applyRadarView(mode, { chipEl, optimistic = false } = {}) {
+    if (!TWIN_RADAR_VIEWS.includes(mode)) mode = TWIN_RADAR_VIEW_DEFAULT;
+    if (optimistic) {
+      armRadarEchoGuard(mode);
+    } else if (radarEchoGuard.value !== null && mode !== radarEchoGuard.value && nowFn() < radarEchoGuard.until) {
+      mode = radarEchoGuard.value; // pick 前的 stale echo——保持本地 pick
+    } else {
+      radarEchoGuard = { value: null, until: 0 }; // echo 追上 pick 或护窗超时——echo 恢复权威
+    }
+    currentRadarView = mode;
+    const items = radarViewItems(mode);
+    const group = el('twinRadarGroup');
+    if (group) {
+      group.querySelectorAll('[data-twin-radar]').forEach(button => {
+        const item = items.find(entry => entry.value === button.dataset.twinRadar);
+        const on = Boolean(item?.active);
+        button.classList.toggle('active', on);
+        button.setAttribute('aria-pressed', String(on));
+      });
+    }
+    const chip = chipEl ?? el('twinRadarView');
+    if (chip) {
+      const item = items.find(entry => entry.active);
+      chip.textContent = `RADAR ${item ? item.label : mode.toUpperCase()}`;
     }
   }
 
@@ -1043,7 +1205,13 @@ export function createTwinViewController({
     // spec #91 前置批 B: health watchdog tick (viewer-open only; the card hides itself).
     if (runId) healthMonitor.tick(videoConnectedNow());
     // P3-S2 (spec #90): state echo is the authority for the sensor mode UI.
-    applySensorMode(projectSensorMode(client?.lastState));
+    // P2 评审修复（极性竞态）：无 echo（§5 重连后新 client 的 lastState=null，
+    // 100ms 轮询等 ready 期间 250ms 的本 tick）≠ 'eo' echo——不折回，保住极性
+    // pick 供 sendCurrentControls 重发；真 echo（含缺 sensor_mode 字段的旧
+    // Unity=默认）仍恢复权威。
+    if (client?.lastState) applySensorMode(projectSensorMode(client.lastState));
+    // P1 radar_view: state.radar_view 回显权威化（Unity TwinBridgeMessage state 镜像）。
+    if (client?.lastState) applyRadarView(projectRadarView(client.lastState));
     const simSlot = el('twinTimeCurrent');
     if (simSlot && hud.simTime !== null && hud.simTime !== undefined) simSlot.textContent = `${formatTime(hud.simTime)} s`;
     if (clock) {
@@ -1090,13 +1258,25 @@ export function createTwinViewController({
       });
     });
     // P3-S2 (spec #90): sensor-mode buttons — optimistic pick + send; the ~1Hz
-    // state echo reasserts the authoritative mode (renderHud).
+    // state echo reasserts the authoritative mode (renderHud). P2: IR 键再点
+    // 循环白热/黑热（nextSensorMode 展开按钮家族）。
     el('twinSensorGroup')?.querySelectorAll('[data-twin-sensor]').forEach(button => {
       button.addEventListener('click', () => {
-        const value = button.dataset.twinSensor;
+        const value = nextSensorMode(currentSensorMode, button.dataset.twinSensor);
         if (!TWIN_SENSOR_MODES.includes(value)) return;
-        applySensorMode(value);
+        applySensorMode(value, { optimistic: true });
         requireClient()?.sendSensorMode(value);
+        publishDebug();
+      });
+    });
+    // P1 radar_view buttons (contract §2/§8): optimistic pick + send; the ~1Hz
+    // state echo reasserts the authoritative view (renderHud)。四态直通（无循环家族）。
+    el('twinRadarGroup')?.querySelectorAll('[data-twin-radar]').forEach(button => {
+      button.addEventListener('click', () => {
+        const value = button.dataset.twinRadar;
+        if (!TWIN_RADAR_VIEWS.includes(value)) return;
+        applyRadarView(value, { optimistic: true });
+        requireClient()?.sendRadarView(value);
         publishDebug();
       });
     });
