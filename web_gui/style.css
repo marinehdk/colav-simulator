@@ -2934,6 +2934,12 @@ canvas#simCanvas.route-pick-mode { cursor: crosshair; }
   max-width: 100%;
   height: 320px;
   flex: 0 0 320px;
+}
+
+/* 2026-10-22 雷达屏 Q2 瘦身后：雷达卡随内容收缩（其余传感器卡保持 320px 定高） */
+.ownship-sensor-page > .sensor-card[data-od-id='live-radar-card'] {
+  height: auto;
+  flex: 0 0 auto;
   justify-self: stretch;
   --border-outline-color: var(--ob-border);
 }
@@ -2943,7 +2949,7 @@ canvas#simCanvas.route-pick-mode { cursor: crosshair; }
 .ownship-sensor-page > [data-od-id="live-speed-card"],
 .ownship-sensor-page > [data-replay-od-id="live-speed-card"] { height: 282px; flex: 0 0 282px; }
 .ownship-sensor-page > [data-od-id="live-radar-card"],
-.ownship-sensor-page > [data-replay-od-id="live-radar-card"] { height: max-content; min-height: 470px; flex: 0 0 auto; padding-bottom: 6px; }
+.ownship-sensor-page > [data-replay-od-id="live-radar-card"] { height: max-content; min-height: 0; flex: 0 0 auto; padding-bottom: 6px; }
 .ownship-sensor-page > [data-od-id="live-depth-actual-card"],
 .ownship-sensor-page > [data-replay-od-id="live-depth-actual-card"] { height: 282px; }
 
