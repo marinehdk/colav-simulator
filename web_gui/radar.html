@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>FAR-2xxx RADAR — Colav Simulator</title>
+  <link rel="stylesheet" href="./radar-screen.css">
+</head>
+<body>
+  <!-- 古野 FAR-2xx8 风格独立雷达屏（决策档 Q1/Q3/Q10/Q12/Q13/Q14）：
+       左 InstantAccess bar / 中 PPI+功能框 / 右信息栏。 -->
+  <main class="rs-root" id="rsRoot" data-palette="night-gry">
+
+    <!-- ── ① InstantAccess bar（9 钮位）── -->
+    <nav class="rs-instant" aria-label="InstantAccess 工具条">
+      <button class="rs-ia-btn" id="rsTx" type="button" aria-pressed="false" aria-label="雷达待机 STBY，点击发射">
+        <span class="rs-tx-ring" id="rsTxRing" data-state="standby" aria-hidden="true"></span>
+        <span class="rs-ia-label" id="rsTxLabel">STBY</span>
+      </button>
+      <button class="rs-ia-btn" id="rsBtnGain" type="button" aria-haspopup="true" aria-expanded="false" aria-label="GAIN 增益调节">
+        <span class="rs-bars-glyph" aria-hidden="true"><span></span><span></span><span></span></span>
+        <span class="rs-ia-label">GAIN</span>
+      </button>
+      <button class="rs-ia-btn" id="rsBtnSea" type="button" aria-haspopup="true" aria-expanded="false" aria-label="SEA 海杂波抑制调节">
+        <span class="rs-bars-glyph" aria-hidden="true"><span></span><span></span><span></span></span>
+        <span class="rs-ia-label">SEA</span>
+      </button>
+      <button class="rs-ia-btn" id="rsBtnRain" type="button" aria-haspopup="true" aria-expanded="false" aria-label="RAIN 雨杂波抑制调节">
+        <span class="rs-bars-glyph" aria-hidden="true"><span></span><span></span><span></span></span>
+        <span class="rs-ia-label">RAIN</span>
+      </button>
+      <button class="rs-ia-btn" id="rsBtnTrails" type="button" data-value="OFF" aria-label="TRAILS 余辉 OFF，点击切换">
+        <span class="rs-ia-value" id="rsTrailsValue" data-trails-value>OFF</span>
+        <span class="rs-ia-label">TRAILS</span>
+      </button>
+      <button class="rs-ia-btn" id="rsBtnHl" type="button" aria-pressed="false" aria-label="HL OFF：按住隐藏艏线/量程圈/本船符号">
+        <span class="rs-ia-value">HL</span>
+        <span class="rs-ia-label">按住 OFF</span>
+      </button>
+      <button class="rs-ia-btn" id="rsBtnReset" type="button" aria-label="CU/TM RESET 回中">
+        <span class="rs-ia-value">⌂</span>
+        <span class="rs-ia-label">CU/TM RESET</span>
+      </button>
+      <button class="rs-ia-btn" id="rsBtnMarks" type="button" aria-pressed="false" aria-label="EBL/VRM 标记开关">
+        <span class="rs-ia-value">＋</span>
+        <span class="rs-ia-label">EBL/VRM</span>
+      </button>
+      <button class="rs-ia-btn" id="rsBtnBrill" type="button" data-value="night-gry" aria-label="BRILL 调色板 NIGHT-GRY，点击切换">
+        <span class="rs-ia-value" id="rsBrillValue" data-brill-value>N-G</span>
+        <span class="rs-ia-label">BRILL</span>
+      </button>
+      <!-- GAIN/SEA/RAIN 滑条 flyout（古野 `40SEA MAN` 式） -->
+      <div class="rs-adjust-panel" id="rsAdjustPanel" hidden>
+        <div class="rs-adjust-head">
+          <span class="rs-adjust-title" id="rsAdjustTitle">GAIN</span>
+          <span class="rs-adjust-value" id="rsAdjustValue">0GAIN</span>
+          <button class="rs-adjust-close" id="rsAdjustClose" type="button" aria-label="关闭调节面板">×</button>
+        </div>
+        <input class="rs-adjust-slider" id="rsAdjustSlider" type="range" min="-20" max="20" step="1" value="0" aria-label="GAIN 调节（-20..20）">
+      </div>
+    </nav>
+
+    <!-- ── ② PPI 主区 + 功能框 ── -->
+    <section class="rs-ppi-zone" aria-label="PPI 显示区">
+      <div class="rs-ppi-stage">
+        <canvas id="rsPpi" aria-label="船载雷达 PPI">需要支持 Canvas 的浏览器</canvas>
+        <div class="rs-stby-overlay" id="rsStbyOverlay" hidden>RADAR STBY</div>
+
+        <div class="rs-box rs-mode-box">
+          <button class="rs-mode-button" id="rsModeButton" type="button" aria-label="PRESENTATION MODE，点击切换 HEAD UP RM / COURSE UP RM / NORTH UP RM / NORTH UP TM">
+            <span id="rsModeLabel">NORTH UP RM</span>
+          </button>
+        </div>
+        <div class="rs-box rs-range-box" role="group" aria-label="量程（古野 17 档）">
+          <button class="rs-range-step" id="rsRangeDown" type="button" aria-label="量程减小，当前 6 海里">−</button>
+          <span class="rs-range-label" id="rsRangeLabel">6 NM 1NM</span>
+          <button class="rs-range-step" id="rsRangeUp" type="button" aria-label="量程增大，当前 6 海里">＋</button>
+        </div>
+        <div class="rs-box rs-echo-box" role="group" aria-label="ECHO ADJUST 回波调整">
+          <span class="rs-echo-title">[ECHO ADJUST]</span>
+          <span class="rs-echo-name">GAIN</span>
+          <span class="rs-echo-bar" id="rsEchoGainBar" aria-hidden="true"></span>
+          <span class="rs-echo-value" id="rsEchoGainValue">0</span>
+          <span class="rs-echo-name">SEA</span>
+          <span class="rs-echo-bar" id="rsEchoSeaBar" aria-hidden="true"></span>
+          <span class="rs-echo-value" id="rsEchoSeaValue">0</span>
+          <span class="rs-echo-name">RAIN</span>
+          <span class="rs-echo-bar" id="rsEchoRainBar" aria-hidden="true"></span>
+          <span class="rs-echo-value" id="rsEchoRainValue">0</span>
+        </div>
+        <div class="rs-box rs-cursor-box" id="rsCursorBox" role="status" aria-label="光标位置">
+          <span id="rsCursorText">--</span>
+        </div>
+        <div class="rs-box rs-ebl-row" role="group" aria-label="EBL 读数">
+          <span class="rs-readout-title">EBL</span>
+          <button class="rs-readout" id="rsEbl1" type="button" aria-pressed="false" aria-label="EBL1 关闭，点击激活">---</button>
+          <button class="rs-readout" id="rsEbl2" type="button" aria-pressed="false" aria-label="EBL2 关闭，点击激活">---</button>
+          <button class="rs-nudge" id="rsEblNudgeL" type="button" aria-label="活动 EBL 减小 0.5 度">‹</button>
+          <button class="rs-nudge" id="rsEblNudgeR" type="button" aria-label="活动 EBL 增大 0.5 度">›</button>
+        </div>
+        <div class="rs-box rs-vrm-row" role="group" aria-label="VRM 读数">
+          <button class="rs-nudge" id="rsVrmNudgeL" type="button" aria-label="活动 VRM 减小">‹</button>
+          <button class="rs-nudge" id="rsVrmNudgeR" type="button" aria-label="活动 VRM 增大">›</button>
+          <button class="rs-readout" id="rsVrm1" type="button" aria-pressed="false" aria-label="VRM1 关闭，点击激活">---</button>
+          <button class="rs-readout" id="rsVrm2" type="button" aria-pressed="false" aria-label="VRM2 关闭，点击激活">---</button>
+          <span class="rs-readout-title">VRM</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── ③ 右侧信息栏（六块，Q12）── -->
+    <aside class="rs-info" aria-label="信息与设置区">
+      <section class="rs-block" aria-label="日期时间">
+        <h2 class="rs-block-title">DATE / TIME (UTC)</h2>
+        <p class="rs-datetime" id="rsDateTime">---</p>
+      </section>
+
+      <section class="rs-block" aria-label="本船信息">
+        <h2 class="rs-block-title">OWN SHIP</h2>
+        <div class="rs-value-row"><span class="rs-value-name">HDG</span><span class="rs-value" id="rsOsHdg">---</span></div>
+        <div class="rs-value-row"><span class="rs-value-name">COG</span><span class="rs-value" id="rsOsCog">---</span></div>
+        <div class="rs-value-row"><span class="rs-value-name">SOG</span><span class="rs-value" id="rsOsSog">---</span></div>
+        <div class="rs-value-row"><span class="rs-value-name">POSN</span><span class="rs-value" id="rsOsPosn">---</span></div>
+      </section>
+
+      <section class="rs-block" aria-label="目标数据">
+        <h2 class="rs-block-title">TARGET DATA</h2>
+        <div id="rsTargetBox"><p class="rs-target-empty">点击 PPI 目标显示数据</p></div>
+      </section>
+
+      <section class="rs-block" aria-label="TT AIS 设置">
+        <h2 class="rs-block-title">TT / AIS</h2>
+        <div class="rs-setting-row">
+          <span class="rs-setting-name">CPA</span>
+          <span class="rs-stepper">
+            <button class="rs-nudge" id="rsCpaDown" type="button" aria-label="CPA 阈值减小 0.5 海里">−</button>
+            <span class="rs-setting-value" id="rsCpaValue">1.0NM</span>
+            <button class="rs-nudge" id="rsCpaUp" type="button" aria-label="CPA 阈值增大 0.5 海里">＋</button>
+          </span>
+        </div>
+        <div class="rs-setting-row">
+          <span class="rs-setting-name">TCPA</span>
+          <span class="rs-stepper">
+            <button class="rs-nudge" id="rsTcpaDown" type="button" aria-label="TCPA 阈值减小 1 分钟">−</button>
+            <span class="rs-setting-value" id="rsTcpaValue">12MIN</span>
+            <button class="rs-nudge" id="rsTcpaUp" type="button" aria-label="TCPA 阈值增大 1 分钟">＋</button>
+          </span>
+        </div>
+        <div class="rs-setting-row">
+          <span class="rs-setting-name">VECTOR TIME</span>
+          <button class="rs-setting-value" id="rsVecTime" type="button" aria-label="矢量时间，点击切换 0.5 / 1 / 3 / 6 分钟">3MIN</button>
+        </div>
+        <div class="rs-setting-row">
+          <span class="rs-setting-name">VECTOR MODE</span>
+          <button class="rs-setting-value" id="rsVecMode" type="button" aria-label="矢量基准，点击切换 TRUE-G / REL">TRUE-G</button>
+        </div>
+      </section>
+
+      <section class="rs-block" aria-label="报警">
+        <h2 class="rs-block-title">[ALERT] <span class="rs-alert-count" id="rsAlertCount">0</span></h2>
+        <div id="rsAlertList"><p class="rs-alert-empty">NO ACTIVE ALERTS</p></div>
+      </section>
+
+      <section class="rs-block" aria-label="操作提示">
+        <h2 class="rs-block-title">GUIDANCE</h2>
+        <p class="rs-guidance" id="rsGuidance">连接遥测流…</p>
+      </section>
+    </aside>
+  </main>
+
+  <script type="module" src="./modules/radar-screen.js?v=20261022-radar-screen-v1"></script>
+</body>
+</html>

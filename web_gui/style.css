@@ -3507,6 +3507,9 @@ canvas#simCanvas.route-pick-mode { cursor: crosshair; }
 :root { --ppi-surface: #04140F; --ppi-grid: #1E4D3A; --ppi-text: #9FB8AD; --ppi-accent: #39D98A; }
 .ppi-panel { display: flex; flex-direction: column; gap: 6px; }
 .ppi-panel-header { display: flex; align-items: center; gap: 8px; }
+/* 2026-10-22 雷达屏 Q2：卡片瘦身——弹出钮开独立雷达屏(/radar) */
+.ppi-panel-header .ppi-expand-button { margin-left: auto; width: 22px; height: 22px; padding: 0; border: 1px solid var(--ob-border); border-radius: 4px; background: transparent; color: var(--ppi-text); font: 600 11px var(--font-mono); cursor: pointer; }
+.ppi-panel-header .ppi-expand-button:hover { border-color: var(--ppi-accent); color: var(--ppi-accent); }
 .ppi-range-control { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 2px; padding: 0 4px; }
 .ppi-range-button { min-width: 30px; height: 22px; padding: 0 5px; border: 1px solid var(--ob-border); border-radius: 4px; background: transparent; color: var(--ppi-text); font: 600 10px var(--font-mono); cursor: pointer; }
 .ppi-range-button.active { background: rgba(57, 217, 138, 0.18); border-color: var(--ppi-accent); color: var(--ppi-accent); }

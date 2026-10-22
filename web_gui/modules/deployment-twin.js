@@ -32,7 +32,7 @@ import {
   TWIN_SENSOR_MODES,
   TWIN_SENSOR_IR_MODES,
   TWIN_SENSOR_ECHO_GUARD_MS,
-} from './twin-view.js?v=20261016-shard-tv-v1';
+} from './twin-view.js?v=20261022-radar-screen-v1';
 import { createGeography } from './scene-geography.js?v=20261016-qingdao-v2';
 import { chooseTwinStreamProfile, sampleTwinVideoStats } from './twin-stream-quality.js?v=20261013-dt-diagnostics-v11';
 

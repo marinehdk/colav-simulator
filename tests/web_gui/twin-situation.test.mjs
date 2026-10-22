@@ -11,7 +11,7 @@ import { decodeFrameMarker, containedVideoRect, matchedSituationFrame, buildTwin
   foldViewportTracks, viewportTracksFresh, viewportTrackBlocks, viewportTrackData, associateViewportTrack,
   VIEWPORT_TRACKS_FRESH_S, VIEWPORT_TRACK_MAX_AGE_S }
   from '../../web_gui/modules/twin-situation.js?v=20261019-p3-trk-v2';
-import { createTwinBridgeClient } from '../../web_gui/modules/twin-view.js?v=20261016-shard-tv-v1';
+import { createTwinBridgeClient } from '../../web_gui/modules/twin-view.js?v=20261022-radar-screen-v1';
 
 function marker(frame) {
   const value = frame & 65535, check = ((value >>> 8) ^ value ^ 0x5a) & 255;

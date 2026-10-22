@@ -19,7 +19,7 @@ import {
   rangeRingsM,
   snrProxyDb,
   sweepAzimuthRad,
-} from '../../web_gui/modules/radar-ppi.js?v=20261002-ppi-v1';
+} from '../../web_gui/modules/radar-ppi.js?v=20261022-radar-screen-v1';
 
 test('mulberry32 is deterministic per seed and uniform enough', () => {
   const a = mulberry32(42);
@@ -259,25 +259,24 @@ test('PPI factory draws panels, toggles visibility and switches range scales', a
   ppi.destroy();
 });
 
-test('PPI replaces the SENSOR radar card with range scales and no chart toolbar entry', async () => {
+test('SENSOR radar card is slim (mini PPI + status + expand) with no in-card controls', async () => {
   const { readFileSync } = await import('node:fs');
   const root = new URL('../../', import.meta.url);
   const html = readFileSync(new URL('web_gui/index.html', root), 'utf8');
   const app = readFileSync(new URL('web_gui/app.js', root), 'utf8');
   const sensorPage = html.slice(html.indexOf('id="ownshipSensorPage"'), html.indexOf('id="ownshipBalancePage"'));
+  // 2026-10-22 雷达屏 Q2：卡片瘦身——量程/显示控制/调节件全部移独立雷达屏。
   assert.match(sensorPage, /id="ppiPanel" data-od-id="radar-ppi-panel"/);
-  assert.doesNotMatch(html, /id="ppiBtn"|id="ppiCloseBtn"|id="liveRadarMiniMap"/);
   assert.equal((html.match(/id="ppiCanvas"/g) || []).length, 1);
-  for (const nm of ['0.75', '1.5', '3', '6', '12', '24']) {
-    assert.match(html, new RegExp(`data-ppi-range="${nm}"`), `range scale button ${nm} nm`);
-  }
-  assert.match(html, /id="ppiCanvas"/);
-  // Live and paused frames use the same envelope-driven model.
+  assert.match(sensorPage, /id="ppiExpandButton"/);
+  assert.doesNotMatch(sensorPage, /data-ppi-range=|data-radar-heading=|data-radar-layer=|data-radar-adjust=/);
+  assert.doesNotMatch(html, /id="ppiBtn"|id="ppiCloseBtn"|id="liveRadarMiniMap"/);
+  assert.match(sensorPage, /ppi-panel-header live-detail-title">\s*<strong>X-BAND RADAR<\/strong>/);
+  // Live and paused frames use the same envelope-driven model; Q9 真联动量程跟随 descriptor。
   assert.match(app, /import \{ buildPpiModel, createRadarPpi \} from '\.\/modules\/radar-ppi\.js\?v=/);
   assert.match(app, /createRadarPpi\(\{ canvas: document\.getElementById\('ppiCanvas'\), onState:/);
-  assert.match(sensorPage, /live-detail-title"><strong>X-BAND RADAR<\/strong>/);
-  assert.ok(sensorPage.indexOf('id="ppiCanvas"') < sensorPage.indexOf('class="ppi-range-control"'), 'range buttons follow radar image');
   assert.match(app, /radarPpi\.setDescriptor\(data\?\.radar_ppi\)/);
   assert.match(app, /renderRadarPpi\(data\)/);
-  assert.match(app, /renderRadarPpi\(currentData\)/);
+  assert.match(app, /operator_controls\?\.standby/);
+  assert.match(app, /window\.open\(sessionId \? `\/radar\?session=/);
 });

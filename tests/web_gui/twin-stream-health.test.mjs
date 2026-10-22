@@ -8,7 +8,7 @@ import {
   projectTwinStreamHealth,
   probeSignalingReachable,
   signalingHttpUrl,
-} from '../../web_gui/modules/twin-view.js?v=20261016-shard-tv-v1';
+} from '../../web_gui/modules/twin-view.js?v=20261022-radar-screen-v1';
 
 const html = await readFile(new URL('../../web_gui/index.html', import.meta.url), 'utf8');
 const styles = await readFile(new URL('../../web_gui/style.css', import.meta.url), 'utf8');

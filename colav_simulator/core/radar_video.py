@@ -194,7 +194,11 @@ class RadarVideo:
         sea_factor = 10 ** (0.1 * sensor.params.clutter_db_per_beaufort * (sensor.params.sea_state_beaufort - 3))
         texture = np.exp(0.5 * np.sin(angles[:, None] * 3 + ranges[None, :] / 700 + times[:, None] / 4))
         sea_mean = sea_factor * np.minimum(20.0, (800 / np.maximum(ranges, 40)) ** 2)
-        power = speckle * (1 + texture * sea_mean + profile.rain_mm_h * 0.1)
+        # A/C SEA/RAIN（RadarOperatorControls）：杂波功率衰减，不改环境参数。
+        controls = getattr(sensor, "operator_controls", None)
+        sea_attn = 10 ** (0.1 * controls.attenuation_db(controls.sea_suppression)) if controls else 1.0
+        rain_attn = 10 ** (0.1 * controls.attenuation_db(controls.rain_suppression)) if controls else 1.0
+        power = speckle * (1 + sea_attn * texture * sea_mean + rain_attn * profile.rain_mm_h * 0.1)
         terrain_coverage = None
         grid = sensor._shadow_terrain_grid or sensor._occlusion_grid
         if grid is not None and len(rows):
@@ -226,7 +230,10 @@ class RadarVideo:
         power: np.ndarray,
     ) -> None:
         profile = self.profile
-        for _, state_values, length, width in targets:
+        # GAIN（RadarOperatorControls）：目标回波幅度灵敏度（背景噪声不动，CFAR 真反应）。
+        controls = getattr(sensor, "operator_controls", None)
+        gain_linear = 10 ** (0.1 * controls.gain_db) if controls else 1.0
+        for do_idx, state_values, length, width in targets:
             state = np.asarray(state_values, dtype=float)
             if not np.isfinite(state[:4]).all():
                 continue
@@ -262,9 +269,12 @@ class RadarVideo:
                 elevation -= np.radians(sensor.params.shadow_video_pitch_deg) * np.cos(relative_bearing)
                 elevation -= np.radians(sensor.params.shadow_video_roll_deg) * np.sin(relative_bearing)
                 vertical = np.exp(-8 * np.log(2) * (elevation / np.radians(profile.vertical_beamwidth_deg)) ** 2)
-                snr = np.array([sensor.snr_db(r, sensor.rcs_m2(length, width) * aspect / 3) for r in rr])
+                snr = np.array([
+                    sensor.snr_db(r, sensor.params.rcs_overrides_m2.get(do_idx, sensor.rcs_m2(length, width)) * aspect / 3)
+                    for r in rr
+                ])
                 # Weather loss is an engineering attenuation model, not HALO firmware.
-                amplitude = 10 ** (np.clip(snr - profile.rain_mm_h * rr / 100000, -30, 70) / 10)
+                amplitude = gain_linear * 10 ** (np.clip(snr - profile.rain_mm_h * rr / 100000, -30, 70) / 10)
                 radial = np.exp(-4 * np.log(2) * ((ranges[None, :] - rr[:, None]) / profile.range_psf_fwhm_m) ** 2)
                 power += amplitude[:, None] * beam_power[:, None] * vertical[:, None] * radial
 

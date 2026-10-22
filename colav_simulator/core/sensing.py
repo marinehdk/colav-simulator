@@ -12,7 +12,7 @@ import json
 import threading
 from abc import ABC, abstractmethod
 from collections import deque
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 from enum import Enum
 from math import radians
 
@@ -449,7 +449,12 @@ class AIS(ISensor):
 
 
 N_METERS_PER_NM = 1852.0
-RANGE_SCALES_NM_DEFAULT = (0.75, 1.5, 3.0, 6.0, 12.0, 24.0)
+# 古野 FAR-2xx8 量程档表（OME36520T p76-77；2026-10-22 雷达屏 Q9 裁决：真联动
+# 档表。旧 6 档 ⊂ 本表，存量配置零破坏；圈距表见契约 20-API-CONTRACT）。
+RANGE_SCALES_NM_DEFAULT = (
+    0.125, 0.25, 0.5, 0.75, 1.0, 1.5, 2.0, 3.0, 4.0, 6.0,
+    8.0, 12.0, 16.0, 24.0, 32.0, 48.0, 96.0,
+)
 MOUNT_ID_RADAR_X_DEFAULT = "mast_top_xband"
 #: Marcum-Q erfc-domain approximation offset calibrated against Albersheim's
 #: formula (SNR @ PD=0.9, Pfa=1e-4, single pulse ≈ 11.7 dB, ±0.2 dB accuracy).
@@ -486,6 +491,36 @@ def detection_probability_swerling0(snr_db: float | np.ndarray, pfa: float = 1e-
     snr_lin = np.power(10.0, np.asarray(snr_db, dtype=float) / 10.0)
     pd = 0.5 * erfc(np.sqrt(-np.log(pfa)) - np.sqrt(snr_lin + PD_ERFC_OFFSET))
     return np.clip(pd, 0.0, 1.0)
+
+
+@dataclass(frozen=True)
+class RadarOperatorControls:
+    """真机操作员控制 (2026-10-22 雷达屏 Q5/Q11 裁决; 古野接收机语义).
+
+    旋钮只动接收链，不改环境参数（sea_state_beaufort / rain_rate_mm_h 属场景）：
+    gain_db = 目标回波灵敏度偏置（检测 SNR + spoke 视频幅度同升）；sea/rain_suppression
+    = A/C SEA/RAIN 杂波功率衰减行程；standby = STBY 停发射（无测量/无 spoke 视频，
+    融合失去雷达腿——真机行为）。
+    """
+
+    gain_db: float = 0.0
+    sea_suppression: float = 0.0
+    rain_suppression: float = 0.0
+    standby: bool = False
+
+    @staticmethod
+    def attenuation_db(suppression_pct: float) -> float:
+        """杂波抑制行程 0-100 → 0..-20 dB 功率衰减 (古野 A/C 旋钮全行程)."""
+        return -20.0 * float(np.clip(suppression_pct, 0.0, 100.0)) / 100.0
+
+    def as_dict(self) -> dict:
+        """Descriptor echo projection (gui_server radar_controls 回读同形)."""
+        return {
+            "gain_db": float(self.gain_db),
+            "sea_suppression": float(self.sea_suppression),
+            "rain_suppression": float(self.rain_suppression),
+            "standby": bool(self.standby),
+        }
 
 
 @dataclass
@@ -545,6 +580,9 @@ class RadarXParams:
     shadow_video_mount_starboard_m: float = 0.0
     shadow_video_pitch_deg: float = 0.0
     shadow_video_roll_deg: float = 0.0
+    # RCS 覆盖 seam（2026-10-22 契约 20-API-CONTRACT）：do_idx → 基准 RCS m²，
+    # 用户后续给分角度 RCS 属性表前先用每船基准覆盖；缺省回退尺寸公式。
+    rcs_overrides_m2: dict = field(default_factory=dict)
 
     def __post_init__(self) -> None:  # noqa: D105 (dataclass validation hook)
         if self.range_scale_nm not in self.range_scales_nm:
@@ -634,6 +672,7 @@ class RadarXBand(ISensor):
         self._shadow_video: RadarVideo | None = None
         self._shadow_document: dict | None = None
         self._shadow_terrain_grid: TerrainGrid | None = None
+        self.operator_controls = RadarOperatorControls()
         r_mid = 0.5 * self.active_range_m
         cross_range_var = (r_mid * self._params.sigma_azimuth_rad) ** 2
         radial_var = self._params.sigma_range_m**2
@@ -655,6 +694,49 @@ class RadarXBand(ISensor):
     def set_shadow_terrain(self, grid: TerrainGrid | None) -> None:
         """Bind ENC terrain to shadow video only; legacy detections are unchanged."""
         self._shadow_terrain_grid = grid
+
+    def apply_operator_controls(
+        self,
+        *,
+        gain_db: float | None = None,
+        sea_suppression: float | None = None,
+        rain_suppression: float | None = None,
+        standby: bool | None = None,
+        range_scale_nm: float | None = None,
+    ) -> dict:
+        """Hot-apply operator controls (gui_server radar_controls 唯一入口; 契约 20-API-CONTRACT).
+
+        PATCH 语义：None/缺省字段不改。量程变化重验档表并刷新方位平均噪声缓存
+        （r_mid 随量程）；其余为纯接收链参数，无派生态。返回 controls 投影。
+        """
+        updates: dict = {}
+        if gain_db is not None:
+            if not np.isfinite(gain_db) or not -20.0 <= gain_db <= 20.0:
+                msg = f"gain_db must be within [-20, 20], got {gain_db!r}"
+                raise ValueError(msg)
+            updates["gain_db"] = float(gain_db)
+        for name, value in (("sea_suppression", sea_suppression), ("rain_suppression", rain_suppression)):
+            if value is not None:
+                if not np.isfinite(value) or not 0.0 <= value <= 100.0:
+                    msg = f"{name} must be within [0, 100], got {value!r}"
+                    raise ValueError(msg)
+                updates[name] = float(value)
+        if standby is not None:
+            updates["standby"] = bool(standby)
+        new_range: float | None = None
+        if range_scale_nm is not None:
+            new_range = float(range_scale_nm)
+            if new_range not in self._params.range_scales_nm:
+                msg = f"range_scale_nm {new_range} must be one of {self._params.range_scales_nm}"
+                raise ValueError(msg)
+        if updates:
+            self.operator_controls = replace(self.operator_controls, **updates)
+        if new_range is not None:
+            self._params.range_scale_nm = new_range
+            r_mid = 0.5 * self.active_range_m
+            sigma2 = 0.5 * (self._params.sigma_range_m**2 + (r_mid * self._params.sigma_azimuth_rad) ** 2)
+            self._R_ne = np.diag([sigma2, sigma2])
+        return self.operator_controls.as_dict()
 
     def seed(self, seed: int | None) -> None:
         self._seed = seed
@@ -768,6 +850,8 @@ class RadarXBand(ISensor):
         if not np.isfinite(t) or t < 0:
             raise ValueError("radar sample time must be finite and non-negative")
         own = np.asarray(ownship_state, dtype=float)
+        if self.operator_controls.standby:
+            return self._standby_records(t, own)
         key = (
             float(t), own.tobytes(),
             tuple((i, np.asarray(s).tobytes(), length, width) for i, s, length, width in targets),
@@ -826,6 +910,23 @@ class RadarXBand(ISensor):
                 }
         self._sample_key = key
         self._sample_records = records, clutter, swept
+        return self._sample_records
+
+    def _standby_records(self, t: float, own: np.ndarray) -> tuple:
+        """STBY 停发射记录: 无测量/无 spoke 视频 (真机行为); 恢复 TX 后首转全量扫掠."""
+        yaw = self._mount_yaw
+        if yaw is None:
+            yaw = float(np.arctan2(own[3], own[2])) if np.linalg.norm(own[2:4]) > 0.1 else 0.0
+        self._sample_seq += 1
+        self.last_scan = RadarScanPacket(
+            self._params.mount_id, self._sample_seq, int(t // self.scan_period_s),
+            float(self._prev_t), float(t), (float(own[0]), float(own[1])), yaw,
+            json.dumps(self.ppi_descriptor(), sort_keys=True), (), (), "STANDBY",
+        )
+        self._shadow_document = None
+        self._display_returns = ()
+        self._sample_key = None
+        self._sample_records = [], [], 0.0
         return self._sample_records
 
     def scan_document(self) -> dict | None:
@@ -916,8 +1017,9 @@ class RadarXBand(ISensor):
         fluctuation_db = self.rcs_aspect_gain_db(aspect) + self.sw1_fluctuation_db(
             int(t_cross // self.scan_period_s), do_idx
         )
-        rcs = max(p.rcs_min_m2, self.rcs_m2(do_length, do_width) * 10.0 ** (0.1 * fluctuation_db))
-        snr_db = self.snr_db(distance, rcs) - self.rain_attenuation_db(distance)
+        base_rcs = p.rcs_overrides_m2.get(do_idx, self.rcs_m2(do_length, do_width))
+        rcs = max(p.rcs_min_m2, base_rcs * 10.0 ** (0.1 * fluctuation_db))
+        snr_db = self.snr_db(distance, rcs) - self.rain_attenuation_db(distance) + self.operator_controls.gain_db
         pd = float(detection_probability_swerling0(snr_db, p.pfa))
         if self._rng.random() > pd:
             return None
@@ -993,6 +1095,7 @@ class RadarXBand(ISensor):
         texture = self._rng.wald(1.0, max(self.clutter_texture_shape(), 1e-6), size=count)
         power = texture * self._rng.exponential(1.0, size=count)
         snr_db = p.clutter_snr_ref_db + 10.0 * np.log10(np.maximum(power, 1e-12))
+        snr_db = snr_db + self.operator_controls.attenuation_db(self.operator_controls.sea_suppression)
         confidence = np.clip(detection_probability_swerling0(snr_db, p.pfa), 0.0, 1.0)
         clutter = []
         for i in range(count):
@@ -1111,6 +1214,7 @@ class RadarXBand(ISensor):
                 "decay_db_per_decade": float(p.snr_decay_db_per_decade),
                 "pfa": float(p.pfa),
             },
+            "operator_controls": self.operator_controls.as_dict(),
             "occlusion": self._occlusion_grid is not None,
         }
 

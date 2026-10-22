@@ -12,7 +12,7 @@ import {
   projectTwinHud,
   themeValue,
   twinReplayRange,
-} from '../../web_gui/modules/twin-view.js?v=20261016-shard-tv-v1';
+} from '../../web_gui/modules/twin-view.js?v=20261022-radar-screen-v1';
 
 const html = await readFile(new URL('../../web_gui/index.html', import.meta.url), 'utf8');
 const styles = await readFile(new URL('../../web_gui/style.css', import.meta.url), 'utf8');
@@ -190,7 +190,7 @@ test('sensor_mode message matches the frozen contract §8 literal (只加 type �
 
 test('radar_view message matches the contract: mode field, four-state vocabulary', async () => {
   const { TWIN_RADAR_VIEWS, TWIN_RADAR_VIEW_DEFAULT } = await import(
-    '../../web_gui/modules/twin-view.js?v=20261016-shard-tv-v1'
+    '../../web_gui/modules/twin-view.js?v=20261022-radar-screen-v1'
   );
   assert.deepEqual(TWIN_RADAR_VIEWS, ['off', 'overlay', 'ppi', 'both']);
   assert.equal(TWIN_RADAR_VIEW_DEFAULT, 'off', '契约 §2:旧 web 不发本命令即 off 态');
@@ -208,7 +208,7 @@ test('radar_view message matches the contract: mode field, four-state vocabulary
 
 test('radarViewItems/projectRadarView: button group projection + state echo authority (pure)', async () => {
   const { radarViewItems, projectRadarView } = await import(
-    '../../web_gui/modules/twin-view.js?v=20261016-shard-tv-v1'
+    '../../web_gui/modules/twin-view.js?v=20261022-radar-screen-v1'
   );
   assert.deepEqual(radarViewItems('overlay').map(item => [item.value, item.active]), [
     ['off', false],
@@ -389,7 +389,7 @@ test('themeValue maps the OpenBridge theme attribute onto the contract vocabular
 
 /* ── P2-S4：camera_free（契约 §8 演进记录）+ cameraFreePose 折算 + 流客户端抽取 ── */
 
-import { cameraFreePose, createTwinStreamClient, TWIN_LINK_CHANGE_PERCENT } from '../../web_gui/modules/twin-view.js?v=20261016-shard-tv-v1';
+import { cameraFreePose, createTwinStreamClient, TWIN_LINK_CHANGE_PERCENT } from '../../web_gui/modules/twin-view.js?v=20261022-radar-screen-v1';
 
 test('camera_free message matches the frozen contract §8 literal (只加字段演进)', () => {
   const channel = recordingChannel();
@@ -478,7 +478,7 @@ test('twin runs table paginates with the same footer controls and page sizes as 
 test('sensorModeItems projects the frozen vocabulary; IR button owns the polarity family (pure)', async () => {
   const { sensorModeItems, TWIN_SENSOR_MODE_DEFAULT, projectSensorMode,
     nextSensorMode, irPolarityTag, TWIN_SENSOR_IR_MODES, TWIN_SENSOR_ECHO_GUARD_MS } = await import(
-    '../../web_gui/modules/twin-view.js?v=20261016-shard-tv-v1'
+    '../../web_gui/modules/twin-view.js?v=20261022-radar-screen-v1'
   );
   assert.deepEqual(TWIN_SENSOR_MODES, ['eo', 'ir', 'ir_whitehot', 'ir_blackhot', 'lidar']);
   assert.equal(TWIN_SENSOR_MODE_DEFAULT, 'eo');

@@ -970,6 +970,30 @@ class WebSessionManager:
             self._publish_playback_status()
             return self._playback_status()
 
+    def set_radar_controls(self, session_id: str, payload: dict[str, Any]) -> dict[str, Any]:
+        """Hot-apply radar operator controls (2026-10-22 契约 20-API-CONTRACT; 古野接收机语义).
+
+        会话态 PATCH：None/缺省字段不改；控制随会话终结不持久化。鸭子类型 seam
+        与 ``_radar_ppi_descriptor`` 同源（首个暴露 apply_operator_controls 的
+        本船传感器 = radar_x）。
+        """
+        with self.lock:
+            self._require(session_id)
+            ships = getattr(getattr(self.prepared, "session", None), "ship_list", None) or []
+            sensors = getattr(ships[0], "sensors", None) if ships else None
+            for sensor in sensors or []:
+                apply = getattr(sensor, "apply_operator_controls", None)
+                if callable(apply):
+                    apply(
+                        gain_db=payload.get("gain_db"),
+                        sea_suppression=payload.get("sea_suppression"),
+                        rain_suppression=payload.get("rain_suppression"),
+                        standby=payload.get("standby"),
+                        range_scale_nm=payload.get("range_nm"),
+                    )
+                    return {"radar_ppi": jsonable(sensor.ppi_descriptor())}
+            raise RuntimeError("session has no radar_x sensor to control")
+
     def playback_clock(self) -> dict[str, Any]:
         with self.lock:
             if not self.prepared:
@@ -3007,6 +3031,37 @@ def api_session_replay(session_id: str) -> dict[str, Any]:
         raise HTTPException(status_code=404, detail="Session not found") from exc
     except RuntimeError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+class RadarControlsRequest(BaseModel):
+    """Radar operator controls request body (契约 20-API-CONTRACT; 全字段可选 = PATCH)."""
+
+    gain_db: float | None = None
+    sea_suppression: float | None = None
+    rain_suppression: float | None = None
+    standby: bool | None = None
+    range_nm: float | None = None
+
+
+@app.post("/api/sessions/{session_id}/radar_controls")
+def api_session_radar_controls(session_id: str, request: RadarControlsRequest) -> dict[str, Any]:
+    try:
+        return manager.set_radar_controls(session_id, request.model_dump())
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="Session not found") from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@app.get("/radar")
+def radar_screen() -> FileResponse:
+    """独立雷达屏别名路由 (实文件在 /static/radar.html, web_gui 静态挂载)."""
+    path = GUI_DIR / "radar.html"
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="radar.html not built yet")
+    return FileResponse(path)
 
 
 @app.get("/api/sessions/{session_id}/result")

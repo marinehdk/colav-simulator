@@ -22,7 +22,7 @@ import {
   matchAisAssociations,
   trackExistenceForTarget,
 } from './modules/ais-display.js';
-import { buildPpiModel, createRadarPpi } from './modules/radar-ppi.js?v=20261013-visible-v2';
+import { buildPpiModel, createRadarPpi } from './modules/radar-ppi.js?v=20261022-radar-screen-v1';
 import { bindRadarControls } from './modules/radar-video.js?v=20261008-radar-v1';
 import { routeLegs, routeProgress } from './modules/route-progress.js?v=20260901-route-card-v1';
 
@@ -160,21 +160,22 @@ radarPpi.setVisible(true);
 bindRadarControls(radarPpiPanel, radarPpi);
 function renderRadarPpi(data) {
   radarPpi.setDescriptor(data?.radar_ppi);
+  // Q9 真联动：卡片量程跟随 descriptor（后端权威），本地档位不再由卡片 UI 设置。
+  const descriptorRange = Number(data?.radar_ppi?.range_scale_nm);
+  if (Number.isFinite(descriptorRange) && descriptorRange > 0 && radarPpi.options().rangeScaleNm !== descriptorRange) {
+    radarPpi.setRangeScale(descriptorRange);
+  }
   radarPpi.render(buildPpiModel(data?.radar_ppi ? data : null, radarPpi.options()));
   const video = data?.radar_scans?.[0]?.shadow_video;
-  setText('ppiStatus', video ? `HALO24 · SHADOW${video.status ? ` · ${video.status}` : ''}` : '当前会话无扫描证据');
+  const standby = data?.radar_ppi?.operator_controls?.standby === true;
+  setText('ppiStatus', standby ? 'RADAR STBY'
+    : video ? `HALO24 · SHADOW${video.status ? ` · ${video.status}` : ''}`
+      : '当前会话无扫描证据');
   document.getElementById('ppiStatus').hidden = false;
-  radarPpiPanel.querySelectorAll('[data-ppi-range]').forEach(button => {
-    const selected = Number(button.dataset.ppiRange) === radarPpi.options().rangeScaleNm;
-    button.classList.toggle('active', selected);
-    button.setAttribute('aria-pressed', String(selected));
-  });
 }
-radarPpiPanel.querySelectorAll('[data-ppi-range]').forEach(btn => {
-  btn.addEventListener('click', () => {
-    radarPpi.setRangeScale(Number(btn.dataset.ppiRange));
-    renderRadarPpi(currentData);
-  });
+document.getElementById('ppiExpandButton')?.addEventListener('click', () => {
+  const sessionId = currentRunId();
+  window.open(sessionId ? `/radar?session=${encodeURIComponent(sessionId)}` : '/radar', '_blank', 'noopener');
 });
 
 deploymentView = createDeploymentView({

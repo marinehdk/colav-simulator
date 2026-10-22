@@ -784,6 +784,8 @@ export function createTwinViewController({
   // P1 radar_view（契约 §2/§8，2026-10-21）：当前雷达表现层开关——§5 重连重发用；
   // pick vs ~1Hz state echo 的 stale-echo 护窗与 sensor_mode 同机制（窗口常量共用）。
   let currentRadarView = TWIN_RADAR_VIEW_DEFAULT;
+  // Q16：RD 主钮再点恢复上次非 off 模式（echo/子排选择都会刷新它）。
+  let lastRadarMode = null;
   let radarEchoGuard = { value: null, until: 0 };
   // spec #91 前置批 B: stream health watchdog (Evaluation twin viewer) — 状态卡
   // 双处之一（Deployment live twin 在 deployment-twin.js）。onRetry = 真·重连。
@@ -1002,6 +1004,7 @@ export function createTwinViewController({
       radarEchoGuard = { value: null, until: 0 }; // echo 追上 pick 或护窗超时——echo 恢复权威
     }
     currentRadarView = mode;
+    if (mode !== 'off') lastRadarMode = mode;
     const items = radarViewItems(mode);
     const group = el('twinRadarGroup');
     if (group) {
@@ -1011,11 +1014,19 @@ export function createTwinViewController({
         button.classList.toggle('active', on);
         button.setAttribute('aria-pressed', String(on));
       });
+      // Q15/16：RD 并入传感器栏——OFF 由 RD 未选中表达；子排仅激活态显示。
+      group.hidden = mode === 'off';
+    }
+    const toggle = el('twinRadarToggle');
+    if (toggle) {
+      const on = mode !== 'off';
+      toggle.classList.toggle('active', on);
+      toggle.setAttribute('aria-pressed', String(on));
     }
     const chip = chipEl ?? el('twinRadarView');
     if (chip) {
       const item = items.find(entry => entry.active);
-      chip.textContent = `RADAR ${item ? item.label : mode.toUpperCase()}`;
+      chip.textContent = item && item.value !== 'off' ? `RADAR ${item.label}` : 'RADAR STBY';
     }
   }
 
@@ -1270,7 +1281,7 @@ export function createTwinViewController({
       });
     });
     // P1 radar_view buttons (contract §2/§8): optimistic pick + send; the ~1Hz
-    // state echo reasserts the authoritative view (renderHud)。四态直通（无循环家族）。
+    // state echo reasserts the authoritative view (renderHud)。三态子排（OVL/PPI/BOTH）。
     el('twinRadarGroup')?.querySelectorAll('[data-twin-radar]').forEach(button => {
       button.addEventListener('click', () => {
         const value = button.dataset.twinRadar;
@@ -1279,6 +1290,14 @@ export function createTwinViewController({
         requireClient()?.sendRadarView(value);
         publishDebug();
       });
+    });
+    // Q15/16：RD 主钮（传感器栏内）——开=恢复上次模式(默认 OVL)，再点=关（chip 显 STBY）。
+    el('twinRadarToggle')?.addEventListener('click', () => {
+      const next = currentRadarView === 'off' ? (lastRadarMode ?? 'overlay') : 'off';
+      if (next !== 'off') lastRadarMode = next;
+      applyRadarView(next, { optimistic: true });
+      requireClient()?.sendRadarView(next);
+      publishDebug();
     });
     el('twinDetectionSelect')?.addEventListener('change', event => {
       const value = event?.target?.value ?? 'truth';
