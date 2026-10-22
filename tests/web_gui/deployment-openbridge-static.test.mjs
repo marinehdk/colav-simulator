@@ -221,10 +221,9 @@ test('海图显示 popover 分三栏：图标说明 / 态势展示 / 本船展�
   assert.match(html, /<section[^>]*class="chart-display-popover"[^>]*id="chartDisplayPopover"[^>]*role="dialog"/);
   assert.doesNotMatch(html, /id="toggleENC"/);
   assert.match(html, /id="closeChartDisplayBtn"/);
-  // 三栏标题依序
+  // 两栏带标题（态势展示栏无标题，直接目标威胁图例+图层）
   const sections = [
     'id="chartLegendHeading">图标说明',
-    'id="chartSituationHeading">态势展示',
     'id="chartOwnshipHeading">本船展示',
   ];
   sections.reduce((previousIndex, token) => {
@@ -232,6 +231,7 @@ test('海图显示 popover 分三栏：图标说明 / 态势展示 / 本船展�
     assert.ok(index > previousIndex, `${token} follows the preceding section`);
     return index;
   }, -1);
+  assert.doesNotMatch(html, /chartSituationHeading/);
   // 图标说明 = 航行导航 + 感知预测 两组、四行图标
   assert.match(html, /data-legend-group="navigation"[\s\S]*<span class="legend-category-title">航行导航<\/span>/);
   assert.match(html, /data-legend-group="perception"[\s\S]*<span class="legend-category-title">感知预测<\/span>/);
@@ -242,8 +242,9 @@ test('海图显示 popover 分三栏：图标说明 / 态势展示 / 本船展�
   assert.match(html, /data-legend-layer="motionVectors"[^>]*>\s*<span class="color-box motion"><\/span>航行向量/);
   assert.match(html, /data-legend-layer="prediction"[^>]*>\s*<span class="color-box horizon"><\/span>航线预测/);
   assert.match(html, /data-legend-layer="targetPredictions"[^>]*>\s*<span class="color-box target-prediction"><\/span>目标预测/);
-  // 目标风险图标随态势展示栏
-  assert.match(html, /chartSituationHeading[\s\S]*data-legend-group="risk"[\s\S]*<span class="legend-category-title">目标<\/span>/);
+  // 目标威胁图标随态势展示栏（无栏标题）
+  assert.doesNotMatch(html, /<h3 id="chartSituationHeading">态势展示<\/h3>/);
+  assert.match(html, /data-legend-group="risk"[\s\S]*<span class="legend-category-title">目标威胁<\/span>/);
   assert.match(html, /id="response-range-legend-label">安全区</);
   assert.match(html, /id="response-range-control-label">安全区</);
   for (const layer of ['safeWater', 'aisTargets', 'truth', 'measurements', 'tracks', 'covariance', 'radarRange', 'lidarRange', 'detections', 'responseRange', 'prediction', 'targetPredictions', 'previousPrediction', 'executionPoint', 'ships', 'route', 'waypoints', 'history', 'motionVectors']) {
@@ -255,7 +256,8 @@ test('海图显示 popover 分三栏：图标说明 / 态势展示 / 本船展�
   assert.match(styles, /width: min\(360px, calc\(100vw - 24px\)\)/);
   assert.match(styles, /bottom: calc\(100% \+ var\(--s-2\) \+ var\(--s-3\)\)/);
   assert.match(styles, /var\(--ob-surface\) 74%, transparent/);
-  assert.match(styles, /\.legend-row\s*\{[\s\S]*?grid-template-columns: repeat\(4, minmax\(0, auto\)\)/);
+  assert.match(styles, /\.legend-row\s*\{[\s\S]*?grid-template-columns: repeat\(4, minmax\(0, 1fr\)\)/);
+  assert.match(styles, /\.legend-row \.legend-item\s*\{ justify-self: start; \}/);
   assert.match(styles, /\.chart-display-popover \.canvas-legend\s*\{[\s\S]*?grid-template-columns: minmax\(0, 1fr\)/);
   assert.doesNotMatch(styles, /grid-template-rows: 16px repeat\(2, minmax\(20px, 1fr\)\)/);
 });

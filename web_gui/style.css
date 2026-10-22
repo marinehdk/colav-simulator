@@ -1025,16 +1025,17 @@ obc-clock:not(:defined),
 }
 .color-box.waypoint { background: #f4d34e; }
 .color-box.target-prediction { background: #6bd5e1; }
-/* 图标说明分栏后的固定行容器：模块内一行最多 4 项、逐项左对齐 */
+/* 图标说明行容器：固定 4 等分列（跨行/跨模块同列位），字段在格内左对齐，整行撑满模块宽 */
 .legend-row {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, auto));
-  justify-content: start;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  justify-content: stretch;
   align-items: center;
-  column-gap: 14px;
+  column-gap: 8px;
   row-gap: 4px;
   margin-top: 4px;
 }
+.legend-row .legend-item { justify-self: start; }
 .color-box.response-range {
   background: rgba(255,77,90,0.08);
   border: 1px dashed rgba(255,77,90,0.9);

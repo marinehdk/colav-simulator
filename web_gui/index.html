@@ -6,7 +6,7 @@
   <title>综合避碰仿真器</title>
   <meta name="description" content="NTNU autonomous ship COLAV & MPC route planning algorithm verification console with real-time COLREGs risk assessment." />
   <link id="openbridgeStyles" rel="stylesheet" href="/static/vendor/openbridge/openbridge.css?v=20260827-vessel-placard-v1" onerror="this.dataset.failed='true'" />
-  <link rel="stylesheet" href="/static/style.css?v=20261022-view2d-v2" />
+  <link rel="stylesheet" href="/static/style.css?v=20261022-view2d-v3" />
 </head>
 <body>
   <div class="app-container">
@@ -647,11 +647,10 @@
                         </div>
                       </div>
                     </section>
-                    <section class="chart-display-section" aria-labelledby="chartSituationHeading">
-                      <h3 id="chartSituationHeading">态势展示</h3>
+                    <section class="chart-display-section" aria-label="态势展示">
                       <div class="canvas-legend" aria-label="目标态势图标">
                         <div class="legend-category" data-legend-group="risk">
-                          <span class="legend-category-title">目标</span>
+                          <span class="legend-category-title">目标威胁</span>
                           <div class="legend-row">
                             <span class="legend-item" data-legend-layer="ships"><span class="color-box clear"></span>探测圈外</span>
                             <span class="legend-item" data-legend-layer="ships"><span class="color-box low"></span>雷达监控</span>
