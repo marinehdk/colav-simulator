@@ -18,8 +18,6 @@ let lastRuntimeSyncKey = null;
 let validationAuthorityRefreshPending = false;
 let selectedEncRegion = null;
 let qingdaoScenarioSelected = false;
-let qingdaoCreating = false;
-let qingdaoOpened = false;
 
 class ApiError extends Error {
   constructor(response, detail) {
@@ -407,10 +405,10 @@ function renderScenarioDetail(snapshot) {
   if (!snapshot.draft) return;
   const currentRuleId = snapshot.draft.validation_rule_id || 'rule14';
   document.getElementById('validationScenarioOverlayCanvas').hidden = false;
-  if (currentRuleId !== 'multiship') selectedEncRegion = null;
+  if (currentRuleId !== 'multiship') { selectedEncRegion = null; qingdaoScenarioSelected = false; }
   if (selectedEncRegion === 'qingdao') {
-    renderChoiceCarousel('scenario', [{ id: 'qingdao-ais', name: 'AIS', desc: 'Geographic environment', grade: 'STATIC' }], qingdaoScenarioSelected ? 'qingdao-ais' : null, snapshot.readOnly || qingdaoCreating);
-    renderChoiceCarousel('enc', [{ id: 'romsdal', name: 'Romsdal', desc: 'Derived reference', grade: 'ENC' }, { id: 'qingdao', name: 'QingDao', desc: 'Qingdao Port · S-57', grade: 'ENC' }], 'qingdao', snapshot.readOnly || qingdaoCreating);
+    renderChoiceCarousel('scenario', [{ id: 'qingdao-ais', name: 'AIS', desc: 'Own-ship route', grade: 'G2' }], qingdaoScenarioSelected ? 'qingdao-ais' : null, snapshot.readOnly || snapshot.creating);
+    renderChoiceCarousel('enc', [{ id: 'romsdal', name: 'Romsdal', desc: 'Derived reference', grade: 'ENC' }, { id: 'qingdao', name: 'QingDao', desc: 'Qingdao Port · S-57', grade: 'ENC' }], 'qingdao', snapshot.readOnly || snapshot.creating);
     const image = document.getElementById('validationScenarioImage');
     image.src = '/api/geography/qingdao/chart.png';
     image.alt = 'QingDao S-57 ENC reference';
@@ -418,10 +416,11 @@ function renderScenarioDetail(snapshot) {
     const placeholder = document.getElementById('validationScenarioPlaceholder');
     placeholder.hidden = true;
     replaceDefinitionRows(document.getElementById('validationScenarioFacts'), [
-      ['Region', 'QingDao'], ['Content', 'ENC and geographic landscape'],
+      ['Region', 'QingDao'], ['Scenario', 'qingdao_own_route'],
+      ['Content', 'Own-ship route · AIS target replay pending'],
       ['Source', 'Qingdao S-57 · GLO-30 · Cesium imagery'],
     ]);
-    document.getElementById('validationScenarioPreview').textContent = 'QingDao · ENC and geographic landscape.';
+    document.getElementById('validationScenarioPreview').textContent = 'QingDao · own-ship route scenario; AIS target replay pending.';
     scenarioPreviewDisplay?.clearSession?.();
     document.getElementById('validationScenarioOverlayCanvas').hidden = true;
     return;
@@ -443,7 +442,9 @@ function renderScenarioDetail(snapshot) {
   const ruleScenarios = allScenarios.filter(
     (item) => supportedScenarioIds.size === 0 || supportedScenarioIds.has(item.id)
   );
-  const scenariosToDisplay = ruleScenarios.length > 0 ? ruleScenarios : allScenarios.filter((item) => item.enabled !== false);
+  const scenariosToDisplay = (ruleScenarios.length > 0 ? ruleScenarios : allScenarios.filter((item) => item.enabled !== false))
+    // Qingdao 场景只经 QingDao ENC 卡入口（AIS 分支），ENC=Romsdal 常规列表不展示
+    .filter((item) => scenarioChartId(item.id) !== 'Qingdao');
 
   const scenario = selectedCatalogItem(snapshot, 'scenarios', snapshot.draft.scenario_id);
   const chart = scenarioChartId(snapshot.draft.scenario_id);
@@ -1091,30 +1092,6 @@ function render() {
     ? snapshot.readOnly
     : ![null, 'experimental-confirmation'].includes(snapshot.createBlock);
   create.title = cleanMatch ? 'Draft matches the active session · jump to Deployment' : createStatusText(snapshot);
-  if (selectedEncRegion === 'qingdao') {
-    if (classification) {
-      classification.className = 'classification-card';
-      classification.textContent = 'Static inspection · algorithms and trackers not executed';
-    }
-    assemblyStatus.textContent = qingdaoOpened ? 'CREATED' : qingdaoScenarioSelected ? 'READY' : 'DRAFT';
-    assemblyStatus.dataset.ready = String(qingdaoScenarioSelected);
-    assemblyStatus.dataset.created = String(qingdaoOpened);
-    document.getElementById('validationSummary').replaceChildren();
-    replaceDefinitionRows(document.getElementById('validationSummary'), [
-      ['COLREGS', 'Multiship'], ['Scenario', 'AIS'], ['ENC', 'QingDao'],
-      ['Content', 'Chart and terrain'],
-    ]);
-    document.getElementById('validationContract').textContent = 'mode: GEOGRAPHIC_STATIC\nregion: QingDao\ncontent: ENC + terrain';
-    document.getElementById('configStepScenariosState').textContent = 'QingDao · AIS';
-    document.getElementById('validationTupleStateTitle').textContent = 'Geographic environment';
-    document.querySelectorAll('#validationSummary > div').forEach(row => row.className = 'summary-row');
-    document.getElementById('validationNotices').textContent = '';
-    create.dataset.mode = 'static-scene';
-    create.textContent = qingdaoCreating ? 'CREATING' : qingdaoOpened ? 'Open' : 'Create';
-    create.disabled = !qingdaoScenarioSelected || qingdaoCreating || snapshot.readOnly
-      || ['active-running', 'runtime-pending', 'current-session-loading', 'current-session-unknown'].includes(snapshot.createBlock);
-    create.title = 'Open QingDao chart and terrain';
-  }
 }
 
 function edit(field, value) {
@@ -1161,13 +1138,27 @@ function bindControls() {
   document.getElementById('validationScenarioChoices').addEventListener('click', (event) => {
     const card = event.target.closest('[data-choice-id]');
     if (!card || card.disabled) return;
-    if (card.dataset.choiceId === 'qingdao-ais') { qingdaoScenarioSelected = true; render(); return; }
+    if (card.dataset.choiceId === 'qingdao-ais') {
+      qingdaoScenarioSelected = true;
+      // AIS 卡 = 青岛本船航线场景：套 qingdao_own_route 元组（catalog selectable），Create 走真会话
+      assembly.edit('scenario_id', 'qingdao_own_route');
+      if (!['vo', 'potocnik_colreg_fan_mpc'].includes(assembly.snapshot().draft.algorithm_id)) assembly.edit('algorithm_id', 'vo');
+      if (!['god', 'vimmjipda'].includes(assembly.snapshot().draft.tracker_id)) assembly.edit('tracker_id', 'vimmjipda');
+      render();
+      return;
+    }
     edit('scenario_id', card.dataset.choiceId);
   });
   document.getElementById('validationEncChoices').addEventListener('click', (event) => {
     const card = event.target.closest('[data-choice-id]');
     if (!card || card.disabled) return;
+    const wasQingdao = selectedEncRegion === 'qingdao';
     selectedEncRegion = card.dataset.choiceId === 'qingdao' ? 'qingdao' : null;
+    // 退出 QingDao 分支时复位 AIS 选择；draft 若停在 Qingdao 场景则退回 multiship 默认场景，避免选中卡被过滤后 Create 挂在隐藏场景上
+    if (!selectedEncRegion && wasQingdao && qingdaoScenarioSelected) {
+      qingdaoScenarioSelected = false;
+      if (scenarioChartId(assembly.snapshot().draft.scenario_id) === 'Qingdao') assembly.edit('scenario_id', 'paper_ccta2023_multiship');
+    }
     render();
   });
   document.getElementById('validationAlgorithmChoices').addEventListener('click', (event) => {
@@ -1201,12 +1192,11 @@ function bindControls() {
   });
   document.getElementById('validationDefault').addEventListener('click', () => {
     selectedEncRegion = null;
-    qingdaoScenarioSelected = qingdaoOpened = false;
+    qingdaoScenarioSelected = false;
     assembly.resetDefault();
     render();
   });
   document.getElementById('validationCreate').addEventListener('click', () => {
-    if (selectedEncRegion === 'qingdao') { void openQingdaoStaticScene(); return; }
     window.dispatchEvent(new Event('colav:geography-close'));
     if (document.getElementById('validationCreate').dataset.mode === 'open-deployment') {
       switchWorkface('deployment');
@@ -1214,19 +1204,6 @@ function bindControls() {
     }
     createSessionFromDraft();
   });
-}
-
-async function openQingdaoStaticScene() {
-  if (!qingdaoScenarioSelected || qingdaoCreating) return;
-  qingdaoCreating = true; render();
-  try {
-    const info = await fetchJson('/api/geography/qingdao/create', { method: 'POST' });
-    window.dispatchEvent(new CustomEvent('colav:geography-open', { detail: info }));
-    qingdaoOpened = true;
-    switchWorkface('deployment');
-  } catch (error) {
-    document.getElementById('validationNotices').textContent = error.message;
-  } finally { qingdaoCreating = false; render(); }
 }
 
 function syncRuntimeAuthority(runtimeSnapshot, reason = 'runtime-sync') {

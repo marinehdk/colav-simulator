@@ -32,6 +32,16 @@ test('multiship ENC choices collapse to one QingDao card when the scenario chart
   assert.match(shell, /chart\.toLowerCase\(\) === 'qingdao' \? \[qingdaoPortEnc\]/);
 });
 
+test('Qingdao AIS card routes Create to a real qingdao_own_route session, not the static geography page', () => {
+  assert.match(shell, /assembly\.edit\('scenario_id', 'qingdao_own_route'\)/);
+  assert.doesNotMatch(shell, /openQingdaoStaticScene/);
+  assert.doesNotMatch(shell, /static-scene/);
+});
+
+test('Romsdal ENC list hides Qingdao-chart scenario cards', () => {
+  assert.match(shell, /scenarioChartId\(item\.id\) !== 'Qingdao'/);
+});
+
 test('OpenBridge fallback is empty until failure and clears after a successful bundle load', () => {
   assert.match(html, /<div class="openbridge-load-error" id="openbridgeLoadError" role="alert" hidden><\/div>/);
   assert.match(shell, /openbridgeLoadError/);
