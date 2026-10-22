@@ -596,7 +596,10 @@ export function createDeploymentTwinViewport({
     const hud = projectTwinHud({ connection: streamCtl?.connectionState ?? 'idle', client: streamCtl?.client ?? null, playhead: null, nowMs: now() });
     const width = measuredVideo?.width || video?.videoWidth;
     const height = measuredVideo?.height || video?.videoHeight;
-    statusEl.textContent = `${hud.signal.toUpperCase()} · ${width && height ? `${width}×${height}` : '—'} · ${measuredVideo?.fps == null ? '—' : measuredVideo.fps.toFixed(0)} FPS · ${measuredVideo?.bitrateMbps == null ? '—' : measuredVideo.bitrateMbps.toFixed(1)} Mb/s${streamCtl?.client?.lastState?.presentation_buffering ? ' · 缓冲中' : ''}`;
+    const presentationBuffering = Boolean(streamCtl?.client?.lastState?.presentation_buffering);
+    // 流在出帧时 presentation_buffering 只剩"仿真未开始"一种来源（CREATED 会话 sim_time 不动，player 端 Buffering 恒真）——如实标注待启动，不误导为网络缓冲
+    const bufferingLabel = !presentationBuffering ? '' : (measuredVideo?.fps ?? 0) > 0 ? ' · 待启动' : ' · 缓冲中';
+    statusEl.textContent = `${hud.signal.toUpperCase()} · ${width && height ? `${width}×${height}` : '—'} · ${measuredVideo?.fps == null ? '—' : measuredVideo.fps.toFixed(0)} FPS · ${measuredVideo?.bitrateMbps == null ? '—' : measuredVideo.bitrateMbps.toFixed(1)} Mb/s${bufferingLabel}`;
     const landscapeInfo = streamCtl?.client?.lastState?.landscape;
     if (staticRegion && landscapeInfo?.displayable && landscapeInfo.state === 'failed')
       statusEl.textContent += ' · 地形服务不可用 · 本地地形';

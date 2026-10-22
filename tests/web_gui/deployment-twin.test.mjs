@@ -729,3 +729,8 @@ test('chase left-drag repairs: video drag guard + box pass-through + one-row top
   const toolbarRule = css.match(/\.deployment-twin-host \.scene3d-toolbar \{[^}]+\}/)?.[0] ?? '';
   assert.match(toolbarRule, /top: 12px; right: 191px/, 'view presets continue the row leftward');
 });
+
+test('HUD 缓冲中 only when no frames flow; CREATED sessions report 待启动 instead', async () => {
+  const src = await readFile(new URL('../../web_gui/modules/deployment-twin.js', import.meta.url), 'utf8');
+  assert.match(src, /bufferingLabel = !presentationBuffering \? '' : \(measuredVideo\?\.fps \?\? 0\) > 0 \? ' · 待启动' : ' · 缓冲中'/);
+});
