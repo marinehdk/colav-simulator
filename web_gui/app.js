@@ -878,9 +878,6 @@ function updateUI(proj) {
   }
   lastRuntimeState = proj.state || lastRuntimeState;
 
-  const responseRangeLabel = plannerResponseRange()?.label || '安全区';
-  setText('response-range-control-label', responseRangeLabel);
-
   // Deployment Display & Playback
   updateDeploymentDisplay(proj);
 

@@ -115,20 +115,20 @@ const DEFAULT_LAYERS = {
   route: true,
   waypoints: true,
   history: true,
-  motionVectors: true,
+  // 航行说明(2026-10-22 用户裁定)新默认:AIS 数据/航行向量/航线预测/执行航点/目标预测默认关
+  motionVectors: false,
   radarRange: true,
   lidarRange: true,
-  // plans.target_prediction_horizons 的目标航线外推（原恒绘，P2 图标说明分栏后入开关）
-  targetPredictions: true,
+  targetPredictions: false,
   responseRange: true,
-  prediction: true,
+  prediction: false,
   previousPrediction: false,
-  executionPoint: true,
+  executionPoint: false,
   truth: false,
   measurements: false,
   tracks: false,
   covariance: false,
-  aisTargets: true,
+  aisTargets: false,
   // DT 像素流 YOLO 检测叠加层（dt-sensor-overlay 契约 §6.5）：默认关，
   // 有 georef 检测下发时经 updateLayerAvailability 置可用。
   detections: false,

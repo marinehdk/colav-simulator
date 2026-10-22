@@ -6,7 +6,7 @@
   <title>综合避碰仿真器</title>
   <meta name="description" content="NTNU autonomous ship COLAV & MPC route planning algorithm verification console with real-time COLREGs risk assessment." />
   <link id="openbridgeStyles" rel="stylesheet" href="/static/vendor/openbridge/openbridge.css?v=20260827-vessel-placard-v1" onerror="this.dataset.failed='true'" />
-  <link rel="stylesheet" href="/static/style.css?v=20261022-view2d-v5" />
+  <link rel="stylesheet" href="/static/style.css?v=20261022-view2d-v6" />
 </head>
 <body>
   <div class="app-container">
@@ -641,10 +641,6 @@
                             <span class="legend-item" data-legend-layer="covariance" hidden=""><span class="color-box covariance"></span>协方差</span>
                           </div>
                         </div>
-                      </div>
-                    </section>
-                    <section class="chart-display-section" aria-label="态势展示">
-                      <div class="canvas-legend" aria-label="目标态势图标">
                         <div class="legend-category" data-legend-group="risk">
                           <span class="legend-category-title">目标威胁</span>
                           <div class="legend-row">
@@ -655,42 +651,34 @@
                           </div>
                         </div>
                       </div>
-                      <div class="layer-controls" aria-label="态势图层">
+                    </section>
+                    <section class="chart-display-section" aria-labelledby="chartSailingHeading">
+                      <h3 id="chartSailingHeading">航行说明</h3>
+                      <div class="layer-controls" aria-label="航行图层">
                         <fieldset>
-                          <legend>基础</legend>
-                          <label><input type="checkbox" data-layer="safeWater" data-chart-only title="仅用于二维海图" checked> 安全海域 <span class="layer-state" data-layer-state="safeWater">数据未提供</span></label>
-                          <label><input type="checkbox" data-layer="aisTargets" checked> AIS 目标</label>
+                          <legend>航行安全</legend>
+                          <label><input type="checkbox" data-layer="ships" checked> 本船图标</label>
+                          <label><input type="checkbox" data-layer="route" checked> 初始航线</label>
+                          <label><input type="checkbox" data-layer="waypoints" title="显示航点" checked> 初始航点</label>
+                          <label><input type="checkbox" data-layer="history" checked> 历史航迹</label>
+                          <label><input type="checkbox" data-layer="aisTargets"> AIS 数据</label>
+                          <label><input type="checkbox" data-layer="safeWater" data-chart-only title="仅用于二维海图" checked> 安全海域 <span class="layer-state available" data-layer-state="safeWater">可用</span></label>
+                          <label><input type="checkbox" data-layer="motionVectors" data-chart-only title="仅用于二维海图"> 航行向量</label>
                         </fieldset>
                         <fieldset>
-                          <legend>感知</legend>
-                          <label><input type="checkbox" data-layer="truth" data-chart-only title="真值对照层仅用于二维海图"> 真值</label>
-                          <label><input type="checkbox" data-layer="measurements" data-chart-only title="仅用于二维海图"> 量测</label>
-                          <label><input type="checkbox" data-layer="tracks" data-chart-only title="仅用于二维海图"> Track ID</label>
-                          <label><input type="checkbox" data-layer="covariance" data-chart-only title="仅用于二维海图"> 协方差</label>
+                          <legend>态势感知</legend>
                           <label><input type="checkbox" data-layer="radarRange" title="显示 Radar 范围圈" checked> Radar 范围</label>
                           <label><input type="checkbox" data-layer="lidarRange" title="显示 Lidar 范围圈" checked> Lidar 范围</label>
-                          <label><input type="checkbox" data-layer="detections" title="DT 视角 YOLO 可见光检测叠加"> YOLO 检测 <span class="layer-state" data-layer-state="detections">数据未提供</span></label>
-                          <label><input type="checkbox" data-layer="responseRange" data-chart-only title="仅用于二维海图" checked> <span id="response-range-control-label">安全区</span> <span class="layer-state" data-layer-state="responseRange">数据未提供</span></label>
+                          <label><input type="checkbox" data-layer="detections" title="DT 视角 YOLO 可见光检测叠加"> YOLO 检测 <span class="layer-state available" data-layer-state="detections">可用</span></label>
+                          <label><input type="checkbox" data-layer="truth" data-chart-only title="真值对照层仅用于二维海图"> 目标真值</label>
+                          <label><input type="checkbox" data-layer="measurements" data-chart-only title="仅用于二维海图"> 目标量测</label>
+                          <label><input type="checkbox" data-layer="tracks" data-chart-only title="仅用于二维海图"> Track ID</label>
                         </fieldset>
                         <fieldset>
-                          <legend>算法</legend>
-                          <label><input type="checkbox" data-layer="prediction" checked> 航线预测</label>
-                          <label><input type="checkbox" data-layer="targetPredictions" checked> 目标预测</label>
-                          <label><input type="checkbox" data-layer="previousPrediction"> 上次预测</label>
-                          <label><input type="checkbox" data-layer="executionPoint" data-chart-only title="仅用于二维海图" checked> 执行点</label>
-                        </fieldset>
-                      </div>
-                    </section>
-                    <section class="chart-display-section" aria-labelledby="chartOwnshipHeading">
-                      <h3 id="chartOwnshipHeading">本船展示</h3>
-                      <div class="layer-controls" aria-label="本船图层">
-                        <fieldset>
-                          <legend>本船航行</legend>
-                          <label><input type="checkbox" data-layer="ships" checked> 船舶</label>
-                          <label><input type="checkbox" data-layer="route" checked> 初始航线</label>
-                          <label><input type="checkbox" data-layer="waypoints" title="显示航点" checked> 航点</label>
-                          <label><input type="checkbox" data-layer="history" checked> 历史航迹</label>
-                          <label><input type="checkbox" data-layer="motionVectors" data-chart-only title="仅用于二维海图" checked> 航行向量</label>
+                          <legend>避碰预测</legend>
+                          <label><input type="checkbox" data-layer="prediction"> 航线预测</label>
+                          <label><input type="checkbox" data-layer="executionPoint" data-chart-only title="仅用于二维海图"> 执行航点</label>
+                          <label><input type="checkbox" data-layer="targetPredictions" disabled title="功能未实现"> 目标预测</label>
                         </fieldset>
                       </div>
                     </section>

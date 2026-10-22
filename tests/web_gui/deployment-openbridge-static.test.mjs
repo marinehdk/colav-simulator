@@ -221,17 +221,17 @@ test('海图显示 popover 分三栏：图标说明 / 态势展示 / 本船展�
   assert.match(html, /<section[^>]*class="chart-display-popover"[^>]*id="chartDisplayPopover"[^>]*role="dialog"/);
   assert.doesNotMatch(html, /id="toggleENC"/);
   assert.match(html, /id="closeChartDisplayBtn"/);
-  // 两栏带标题（态势展示栏无标题，直接目标威胁图例+图层）
+  // 两大模块依序：图标说明（三子模块）→ 航行说明（三子模块勾选）
   const sections = [
     'id="chartLegendHeading">图标说明',
-    'id="chartOwnshipHeading">本船展示',
+    'id="chartSailingHeading">航行说明',
   ];
   sections.reduce((previousIndex, token) => {
     const index = html.indexOf(token);
     assert.ok(index > previousIndex, `${token} follows the preceding section`);
     return index;
   }, -1);
-  assert.doesNotMatch(html, /chartSituationHeading/);
+  assert.doesNotMatch(html, /chartSituationHeading|chartOwnshipHeading/);
   // 图标说明 = 航行导航 + 感知预测 两组、四行图标
   assert.match(html, /data-legend-group="navigation"[\s\S]*<span class="legend-category-title">航行导航<\/span>/);
   assert.match(html, /data-legend-group="perception"[\s\S]*<span class="legend-category-title">感知预测<\/span>/);
@@ -244,13 +244,33 @@ test('海图显示 popover 分三栏：图标说明 / 态势展示 / 本船展�
   // 感知预测图例固定四项一行：目标预测/安全区图例项已删（图层开关保留在态势展示栏）
   assert.doesNotMatch(html, /data-legend-layer="targetPredictions"/);
   assert.doesNotMatch(html, /id="response-range-legend-label"/);
-  // 目标威胁图标随态势展示栏（无栏标题）
-  assert.doesNotMatch(html, /<h3 id="chartSituationHeading">态势展示<\/h3>/);
-  assert.match(html, /data-legend-group="risk"[\s\S]*<span class="legend-category-title">目标威胁<\/span>/);
-  assert.match(html, /id="response-range-control-label">安全区</);
-  for (const layer of ['safeWater', 'aisTargets', 'truth', 'measurements', 'tracks', 'covariance', 'radarRange', 'lidarRange', 'detections', 'responseRange', 'prediction', 'targetPredictions', 'previousPrediction', 'executionPoint', 'ships', 'route', 'waypoints', 'history', 'motionVectors']) {
+  // 图标说明三子模块（目标威胁回归图标说明栏），航行说明三子模块勾选组
+  assert.match(html, /chartLegendHeading[\s\S]*data-legend-group="risk"[\s\S]*<span class="legend-category-title">目标威胁<\/span>/);
+  const fieldsets = ['<legend>航行安全</legend>', '<legend>态势感知</legend>', '<legend>避碰预测</legend>'];
+  fieldsets.reduce((previousIndex, token) => {
+    const index = html.indexOf(token);
+    assert.ok(index > previousIndex, `${token} follows the preceding fieldset`);
+    return index;
+  }, -1);
+  assert.doesNotMatch(html, /id="response-range-control-label"|id="response-range-legend-label"/);
+  assert.doesNotMatch(html, /id="response-range-control-label"/);
+  // 航行说明图层清单与新默认态（2026-10-22 裁定）
+  for (const layer of ['safeWater', 'aisTargets', 'truth', 'measurements', 'tracks', 'radarRange', 'lidarRange', 'detections', 'prediction', 'targetPredictions', 'executionPoint', 'ships', 'route', 'waypoints', 'history', 'motionVectors']) {
     assert.match(html, new RegExp(`data-layer="${layer}"`));
   }
+  for (const gone of ['covariance', 'previousPrediction', 'responseRange']) {
+    assert.doesNotMatch(html, new RegExp(`data-layer="${gone}"`));
+  }
+  // 默认勾选
+  for (const on of ['ships', 'route', 'waypoints', 'history', 'safeWater', 'radarRange', 'lidarRange']) {
+    assert.match(html, new RegExp(`data-layer="${on}"[^>]*checked`));
+  }
+  // 默认不勾
+  for (const off of ['aisTargets', 'motionVectors', 'truth', 'measurements', 'tracks', 'detections', 'prediction', 'executionPoint']) {
+    assert.doesNotMatch(html, new RegExp(`data-layer="${off}"[^>]*checked`));
+  }
+  // 目标预测=功能未实现不可勾选
+  assert.match(html, /data-layer="targetPredictions"[^>]*disabled/);
   assert.match(app, /function setupChartDisplayPopover\(/);
   assert.match(app, /chartDisplayPopover/);
   assert.match(styles, /\.chart-display-popover\s*\{/);
