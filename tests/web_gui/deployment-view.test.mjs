@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createDeploymentView } from '../../web_gui/modules/deployment-view.js?v=20261004-token-cleanup-v1';
+import { createDeploymentView } from '../../web_gui/modules/deployment-view.js?v=20261016-qingdao-v2';
 
 const info = { ready: true, run_id: 'a', utm_zone: 33, horizontal_crs: 'EPSG:25833', hemisphere: 'north', display_height_reference: 'ellipsoid-zero-visual-only', origin_e: 39000, origin_n: 6956450, width: 6000, height: 6000 };
 function harness(factory, twinFactory = null) {
@@ -178,4 +178,20 @@ test('late twin resolution after exit is destroyed instead of adopted', async ()
   assert.equal(h.destroyedTwins.length, 1, 'late viewer destroyed');
   assert.equal(h.view.state().mode, '2d');
   assert.equal(h.errors.length, 0);
+});
+
+test('geographic inspection enters DT without inventing an ownship', async () => {
+  let attached = 0;
+  const chart = { getEncInfo: () => info, getOrientation: () => 'north', renderFrame() {},
+    captureView: () => ({}), restoreView() {}, getSelectedTargetId: () => null };
+  const view = createDeploymentView({ chart, createTwin: async () => {
+    attached++; return { render(value) { assert.equal(value.raw.os, null); }, destroy() {} };
+  } });
+  view.beginSession('a');
+  view.render({ raw: { run_id: 'a', scene_mode: 'GEOGRAPHIC_STATIC', os: null, truth: [] } });
+  assert.equal(view.state().unavailable, null);
+  await view.toggleTwin();
+  assert.equal(view.state().mode, 'twin');
+  assert.equal(attached, 1);
+  view.destroy();
 });

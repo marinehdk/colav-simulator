@@ -56,6 +56,13 @@ namespace Sango
             SendJson(backendBase, relativePath, null);
         }
 
+        /// <summary>带 JSON 体的 POST（P1 ownship polygon 中继等低频批量写；
+        /// 同步阻塞 15s 上限，仅后台线程调用——主线程禁用，同本类其余方法）。</summary>
+        public static string PostJson(string backendBase, string relativePath, string jsonBody)
+        {
+            return SendJson(backendBase, relativePath, jsonBody);
+        }
+
         static string SendJson(string backendBase, string path, string jsonBody)
         {
             using (var client = MakeClient())

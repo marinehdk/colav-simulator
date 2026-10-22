@@ -27,6 +27,10 @@ FrameMetadata（`Vessels/FramePublisherCore.cs`）：
 
 - `frame_seq`：发布器内从 0 单调递增（`DetectionResult.frame_seq` 与之对齐）。
 - `frame_time_s`：`Time.timeAsDouble`（秒）。
+- `frame_id`（可选，2026-10-20 增补）：twin-bridge 视口的 FRAME_MARKER 帧标识
+  （u16）。gst sender detect-tap 支路在缩放前全分辨率侧解码后随本字段直供
+  （720p 分流帧像素条缩半后不可解码，见 ownship-mask-v1.md §8）；Unity
+  FramePublisher 直连路径不带本字段，消费方自行解码像素条。
 - 图像：`CameraCaptureBridge` 提供主相机后处理输出，在 ScreenSpaceOverlay/IMGUI 合成前复制到三槽 RenderTexture，异步 GPU 回读与后台 JPEG 编码（quality=60）。尺寸保持玩家窗口像素域，图像不包含 GUI 或旧检测框。
 - PUB 慢加入语义照旧：SUB 连上前发的帧丢弃——探针持续收帧，无需握手。
 

@@ -32,8 +32,15 @@ namespace Sango.Editor
         // 历史：1=首版（8 船入库，Houbei hero 白壳绿装+轮胎护舷）；
         //       2=归一化补偿从根位姿改烘进子节点（F1 加固：根位姿补偿被放置层覆盖抹除，
         //         M5FleetPlacementPoseTests 实测 13 断言红后修复重导）；
-        //       3=FCB45 真主角入库（第 9 档，用户自建 Blender 交付，调色板材质模式）。
-        public const int k_PipelineVersion = 3;
+        //       3=FCB45 真主角入库（第 9 档，用户自建 Blender 交付，调色板材质模式）；
+        //       4=20261020 用户收集海事船 3 档入库（BulkCarrier/HarborTug/CruiseFerry，
+        //         GLB 经 trimesh 转 OBJ+MTL+独立贴图；tug_66 减面 92.7 万→13.9 万三角）；
+        //       5=OBJ 面改 f v/vt（v2 面不引 UV，Unity 采样落 (0,0) 图集角=整船黑，
+        //         20261020 DT 视口观感实锤）重导三船；
+        //       6=OBJ 改 blender 原生导出（unpack 贴图落盘+map_Kd 补 textures/ 前缀；
+        //         trimesh 手写 writer 的顶点/UV 重排在图集上错位=贴图混乱观感）；
+        //         bulk 吃水 draftFraction 0.25→0.13（180m 档 ~6m 吃水，观感裁决）。
+        public const int k_PipelineVersion = 6;
 
         /// <summary>Houbei 占位涂装：白壳 + 绿装（flat 调色板，替换原蓝迷彩贴图；无 AI 工序）。</summary>
         static readonly Color k_FcbHullWhite = new Color(0.93f, 0.94f, 0.92f);
@@ -102,6 +109,17 @@ namespace Sango.Editor
             // 钉值：包围盒含护舷外伸 45.29 m → scale≈0.9936，船体本体 44.7 m（README 明示勿再
             // 放大护舷模型，0.6% 内缩接受）。Blender 出货件：bakeAxisConversion/preserveHierarchy
             // 沿交付方 FCB45Import.cs 导入设置（其余 8 档默认 false 不动）。
+            // ── 20261020 用户收集海事船（艏向证据 = 侧视标记球渲染 + 端宽切片双证；盒形
+            //    商船端宽证据弱以目检钉值；OBJ 保持 glTF 轴=Unity 轴）──
+            new FleetSpec { vesselClass = VesselClass.BulkCarrier, prefabName = "VesselBulkCarrier",
+                modelPath = RootDir + "/bulk-carrier/source/model.obj", targetLoa = 180f, draftFraction = 0.13f,
+                materialMode = MaterialMode.Remap, bowYawDeg = 180f }, // −Z 艏（侧视红球=+Z=艉证据；切片同向 28.9/31.8）
+            new FleetSpec { vesselClass = VesselClass.HarborTug, prefabName = "VesselHarborTug",
+                modelPath = RootDir + "/tug-hd/source/model.obj", targetLoa = 32f, draftFraction = 0.24f,
+                materialMode = MaterialMode.Remap, bowYawDeg = 180f }, // −Z 艏（侧视证据；拖轮护舷外扩使端宽证据反号，以目检钉）
+            new FleetSpec { vesselClass = VesselClass.CruiseFerry, prefabName = "VesselCruiseFerry",
+                modelPath = RootDir + "/cruise-ferry/source/model.obj", targetLoa = 195f, draftFraction = 0.15f,
+                materialMode = MaterialMode.Remap, bowYawDeg = 0f }, // +Z 艏（web 侧已归一化转 +Z 艏后转 OBJ）
         };
 
         /// <summary>M5 船型艏向查表口（VesselAssetPipeline.BowYawDeg 的转查落点）。</summary>

@@ -1,5 +1,5 @@
-import { targetsForDisplay } from './situation-display.js?v=20261015-dt-yolo-sd-v2';
-import { geographyProblem, frameIdentity, targetKey } from './scene-geography.js?v=20261004-token-cleanup-v1';
+import { targetsForDisplay } from './situation-display.js?v=20261016-qingdao-v2';
+import { geographyProblem, frameIdentity, targetKey } from './scene-geography.js?v=20261016-qingdao-v2';
 
 // One display boundary. No session control, network telemetry or physics clock lives here.
 // P2-S4: three display states — '2d' chart, '3d' Cesium scene, 'twin' live pixel-stream
@@ -13,7 +13,8 @@ export function createDeploymentView({ chart, createScene, createTwin = null, on
   let lastEntryMs = null, loadingController = null;
   let loading = false, savedView = null, camera = 'chase', destroyed = false;
   function reason() {
-    if (!projection?.raw?.os || ![projection.raw.os.x, projection.raw.os.y, projection.raw.os.psi].every(Number.isFinite)) return '等待有效本船状态';
+    if (projection?.raw?.scene_mode !== 'GEOGRAPHIC_STATIC'
+      && (!projection?.raw?.os || ![projection.raw.os.x, projection.raw.os.y, projection.raw.os.psi].every(Number.isFinite))) return '等待有效本船状态';
     return geographyProblem(chart.getEncInfo(), runId);
   }
   function state() { return { mode, loading, camera, lastEntryMs, unavailable: reason(), orientation: chart.getOrientation(), frame: projection ? frameIdentity(projection.raw) : null }; }

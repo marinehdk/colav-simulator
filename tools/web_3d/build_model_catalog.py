@@ -26,7 +26,9 @@ for item in manifest["assets"]:
         "centerZ": (low[2] + high[2]) / 2,
         "waterlineY": low[1] + measured["size"][2] * 0.035,
         "waterlineNote": "estimated display waterline",
-        "forward": "+z",
+        # bow direction per model (side-profile marker-render evidence 2026-10-20);
+        # kenney-era default "+z" stays for entries without an explicit value
+        "forward": item.get("forward", "+z"),
         "license": item["license"],
         "sha256": item["sha256"],
         "source": item["source_page"],

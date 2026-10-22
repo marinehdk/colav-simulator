@@ -1,0 +1,10 @@
+{
+  "scene_id": "qingdao",
+  "crs": "EPSG:32651",
+  "origin_e": 256315,
+  "origin_n": 3992326,
+  "size_m": 18000,
+  "longitude": 120.295,
+  "latitude": 36.045,
+  "source": "Qingdao Port S-57: CN436122, CN436123, CN436134"
+}

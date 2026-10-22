@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createGeography, geographyProblem, riskForTarget, poiState, targetKey } from '../../web_gui/modules/scene-geography.js?v=20261004-token-cleanup-v1';
+import { createGeography, geographyProblem, riskForTarget, poiState, targetKey } from '../../web_gui/modules/scene-geography.js?v=20261016-qingdao-v2';
 import { readFileSync } from 'node:fs';
 const fixture = JSON.parse(readFileSync(new URL('./fixtures/scene-geography.json', import.meta.url)));
 
@@ -41,7 +41,7 @@ test('AR uses canonical class, generation and unavailable semantics rather than 
 });
 
 test('prediction timestamps come from plan evidence, never invented from display frame rate', async () => {
-  const { predictionMarkers } = await import('../../web_gui/modules/scene-geography.js?v=20261004-token-cleanup-v1');
+  const { predictionMarkers } = await import('../../web_gui/modules/scene-geography.js?v=20261016-qingdao-v2');
   const data = { plans: { prediction_horizon: [[0,0],[1,1],[2,2],[3,3]] } };
   assert.deepEqual(predictionMarkers(data), []);
   data.planner = {horizon_dt_s:60};
@@ -54,19 +54,35 @@ test('prediction timestamps come from plan evidence, never invented from display
 });
 
 test('offscreen hints use the projected nearest edge, including above and below', async () => {
- const {offscreenDirection} = await import('../../web_gui/modules/scene-geography.js?v=20261004-token-cleanup-v1');
+ const {offscreenDirection} = await import('../../web_gui/modules/scene-geography.js?v=20261016-qingdao-v2');
  for(const [point,edge] of [[{x:500,y:-10},'up'],[{x:500,y:900},'down'],[{x:-30,y:400},'left'],[{x:1200,y:400},'right']])
   assert.equal(offscreenDirection(point,1000,800,true,true).edge,edge);
  assert.match(offscreenDirection(null,1000,800,false,true).arrow,/后方/);
 });
 
 test('visual asset choices never infer AIS facts or change authoritative dimensions', async () => {
- const {chooseVesselAsset,VESSEL_ASSETS}=await import('../../web_gui/modules/vessel-models.js?v=20260921-fcb-v1');
+ const {chooseVesselAsset,VESSEL_ASSETS}=await import('../../web_gui/modules/vessel-models.js?v=20261020-bulk');
  const ship=Object.freeze({id:1,length:12,width:3});
- assert.equal(chooseVesselAsset(ship,'tug').asset.id,'tug');
- assert.match(chooseVesselAsset(ship,'tug').reason,/手动/);
- assert.equal(chooseVesselAsset(ship).asset.id,'rib');
+ assert.equal(chooseVesselAsset(ship,'tug_hd').asset.id,'tug_hd');
+ assert.match(chooseVesselAsset(ship,'tug_hd').reason,/手动/);
+ // 20261020 用户裁决：目标船（不分船型）统一散货船示意
+ assert.equal(chooseVesselAsset(ship).asset.id,'bulk_carrier');
+ assert.equal(chooseVesselAsset({id:2,length:180,width:30,vessel_type:'tanker'}).asset.id,'bulk_carrier');
  assert.equal(ship.length,12);
  assert.equal(VESSEL_ASSETS.ferry_roro,undefined);
+ assert.equal(VESSEL_ASSETS.merchant_large_proxy,undefined);
  assert.equal(chooseVesselAsset({id:0,length:45,width:8}).asset.id,'fcb45');
+});
+
+test('Qingdao WGS84 UTM51 stays separate from Norway ETRS89', () => {
+  const info = { ready: true, run_id: 'qingdao', utm_zone: 51, horizontal_crs: 'EPSG:32651',
+    hemisphere: 'north', display_height_reference: 'ellipsoid-zero-visual-only',
+    origin_e: 247315, origin_n: 3983326, width: 18000, height: 18000 };
+  const geography = createGeography(info);
+  const [longitude, latitude] = geography.lonLat(9000, 9000);
+  assert.ok(Math.abs(longitude - 120.295) < 0.00001);
+  assert.ok(Math.abs(latitude - 36.045) < 0.00001);
+  const [east, north] = geography.eastNorth(longitude, latitude);
+  assert.ok(Math.abs(east - 256315) < 0.001);
+  assert.ok(Math.abs(north - 3992326) < 0.001);
 });

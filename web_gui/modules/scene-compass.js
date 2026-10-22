@@ -1,5 +1,5 @@
-import { targetsForDisplay, RADAR_DETECTION_RANGE_M } from './situation-display.js?v=20261015-dt-yolo-sd-v2';
-import { targetAlert, targetKey } from './scene-geography.js?v=20261004-token-cleanup-v1';
+import { targetsForDisplay, RADAR_DETECTION_RANGE_M } from './situation-display.js?v=20261016-qingdao-v2';
+import { targetAlert, targetKey } from './scene-geography.js?v=20261016-qingdao-v2';
 
 const DEG = 180 / Math.PI;
 const normalize = value => ((value % 360) + 360) % 360;

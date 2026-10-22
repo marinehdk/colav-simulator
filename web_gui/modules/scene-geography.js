@@ -1,12 +1,14 @@
 import proj4 from '../vendor/proj4/proj4.mjs';
-import { TARGET_RISK_STYLES, RADAR_DETECTION_RANGE_M } from './situation-display.js?v=20261015-dt-yolo-sd-v2';
+import { TARGET_RISK_STYLES, RADAR_DETECTION_RANGE_M } from './situation-display.js?v=20261016-qingdao-v2';
 
 export const NM = 1852;
 const finite = Number.isFinite;
 
 export function geographyProblem(info, runId) {
   if (!info?.ready || info.run_id !== runId) return '等待当前会话的海图基准';
-  if (![32, 33].includes(info.utm_zone) || info.horizontal_crs !== `EPSG:${25800 + info.utm_zone}`
+  const supported = [32,33].includes(info.utm_zone) && info.horizontal_crs === `EPSG:${25800+info.utm_zone}`
+    || info.utm_zone === 51 && info.horizontal_crs === 'EPSG:32651';
+  if (!supported
     || info.hemisphere !== 'north') return '不支持或缺失水平 CRS';
   if (![info.origin_e, info.origin_n, info.width, info.height].every(finite)
     || info.width <= 0 || info.height <= 0) return '海图原点或范围无效';
@@ -17,7 +19,7 @@ export function geographyProblem(info, runId) {
 export function createGeography(info) {
   const problem = geographyProblem(info, info?.run_id);
   if (problem) throw new Error(problem);
-  const convert = proj4(`+proj=utm +zone=${info.utm_zone} +ellps=GRS80 +units=m +no_defs`, 'EPSG:4326');
+  const convert = proj4(`+proj=utm +zone=${info.utm_zone} +ellps=${info.horizontal_crs === 'EPSG:32651' ? 'WGS84' : 'GRS80'} +units=m +no_defs`, 'EPSG:4326');
   function lonLat(north, east) {
     if (![north, east].every(finite)) throw new Error('无效场景坐标');
     return convert.forward([info.origin_e + east, info.origin_n + north]);

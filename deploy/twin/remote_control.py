@@ -38,6 +38,12 @@ def remote(action: str) -> subprocess.CompletedProcess[str]:
             env_prefix.append("TWIN_GST_DETECT_TAP=1")
             if CFG.get("detect_rate"):
                 env_prefix.append(f"TWIN_GST_DETECT_RATE={CFG['detect_rate']}")
+        # P1-B 影像源切换(2026-10-21):key 只住未入库的 remote-runtime.json,
+        # 永不进仓库;两字段缺省=播放器代码默认(ArcGIS World_Imagery)。
+        if CFG.get("qingdao_imagery"):
+            env_prefix.append(f"TWIN_QINGDAO_IMAGERY={CFG['qingdao_imagery']}")
+        if CFG.get("qingdao_tianditu_token"):
+            env_prefix.append(f"TWIN_QINGDAO_TIANDITU_TOKEN={CFG['qingdao_tianditu_token']}")
     cmd = env_prefix + cmd
     command = shlex.join(cmd)
     return call([*BASE, "-S", str(SOCKET), HOST, command])

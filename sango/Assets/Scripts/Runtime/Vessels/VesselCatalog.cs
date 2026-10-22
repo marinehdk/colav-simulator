@@ -28,6 +28,12 @@ namespace Sango
 
         // ── FCB45 真主角（用户自建 Blender 交付，Art/Purchased/fcb45/；provenance 见该目录）──
         Fcb45,          // 45 m Fast Crew Boat，LOA 45 m / 型宽 8 m / 设计吃水 1.55 m（M6 海峡场景 hero）
+
+        // ── 20261020 用户收集海事模型（web_gui/assets/models/targets/3dassets 同源 GLB 经
+        //     trimesh 转 OBJ+MTL+贴图；license 未核验=仅显示件；container_ship 因损坏暂缺）──
+        BulkCarrier,    // bulk_carrier 散货船，LOA 归一化 180 m（DT 视口目标船默认视觉）
+        HarborTug,      // tug_66 高模拖轮（92.7 万→13.9 万三角减面），LOA 32 m
+        CruiseFerry,    // viking_line 客滚船（Z 长/米制归一化后转 FBX），LOA 195 m
     }
 
     /// <summary>

@@ -341,7 +341,9 @@ namespace Sango.Tests
                 // rig, so simulate the TWIN_QINGDAO_SHOREWORKS=1 opt-in state.
                 Scene.GetField("m_ShoreworksEnabled",instanceFlags).SetValue(scene,true);
                 var driverType=TestReflection.FindAssemblyCSharpType("Sango.TwinSessionDriver");
-                Scene.GetMethod("Open").Invoke(scene,new object[]{driverGo.AddComponent(driverType),null});
+                // Open(driver, camera, bool staticView = true):反射 Invoke 不走默认参填充,
+                // 第 3 参用 Type.Missing 让 binder 取默认值(phase-1 演进加参,签名 3 参)。
+                Scene.GetMethod("Open").Invoke(scene,new object[]{driverGo.AddComponent(driverType),null,Type.Missing});
                 Assert.That(shoreRoot.activeSelf,Is.True,"re-entry must re-show the retained shore volumes");
                 Assert.That(volume.GetComponent<MeshRenderer>().enabled,Is.True);
             }

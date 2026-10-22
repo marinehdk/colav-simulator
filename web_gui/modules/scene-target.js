@@ -1,4 +1,4 @@
-import { NM, riskForTarget, targetAlert } from './scene-geography.js?v=20261004-token-cleanup-v1';
+import { NM, riskForTarget, targetAlert } from './scene-geography.js?v=20261016-qingdao-v2';
 import {
   AIS_STATE_LABELS,
   aisSymbolState,

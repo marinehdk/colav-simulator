@@ -1,6 +1,6 @@
-import { targetsForDisplay, RADAR_DETECTION_RANGE_M, drawVODecisionDisc, trackConfidenceColor } from './situation-display.js?v=20261015-dt-yolo-sd-v2';
+import { targetsForDisplay, RADAR_DETECTION_RANGE_M, drawVODecisionDisc, trackConfidenceColor } from './situation-display.js?v=20261016-qingdao-v2';
 import { routeRibbonQuads } from './route-3d.js?v=20260921-route-ar-v1';
-import { predictionMarkers, targetKey, offscreenDirection } from './scene-geography.js?v=20261016-dt-labels-v1';
+import { predictionMarkers, targetKey, offscreenDirection, NM } from './scene-geography.js?v=20261016-qingdao-v2';
 import { targetPresentation, updateTargetPoi, applyTargetAppearance, renderTargetCard } from './scene-target.js?v=20260923-follow-v1';
 import { createSceneCompass } from './scene-compass.js?v=20261013-dt-frame-cost-v1';
 import { AIS_SYMBOL_ASSETS, AIS_SYMBOL_SIZES, aisSymbolState } from './ais-display.js';
@@ -214,51 +214,199 @@ export function viewportYoloHudSuffix(layerState, state, nowMs) {
   return viewportDetectionsFresh(state, nowMs) ? '· YOLO ON' : '· YOLO OFF';
 }
 
-// ── 本船框抑制（dt-yolo 第4轮）────────────────────────────────────────────
+// ── P3 viewport_tracks@1（telemetry WS 顶层 confirmed 航迹）──────────────────
+// 后端把视口检测 georef 进 observations/IPDA 装配（P1 中继 camera_pose），confirmed
+// 航迹（status/existence_prob/滤波后 brg/rng + 绝对 NE）随遥测广播。fold 留存
+// 最新一文档 + 本地接收时刻（乱序旧消息不覆盖，照 foldViewportDetections 模式）。
+export function foldViewportTracks(state, raw, nowMs) {
+  const doc = raw?.viewport_tracks;
+  if (!doc || typeof doc !== 'object' || !Array.isArray(doc.tracks)) return state ?? null;
+  const receivedAt = Number(doc.received_at), previous = Number(state?.doc?.received_at);
+  if (state && Number.isFinite(previous) && Number.isFinite(receivedAt) && receivedAt < previous) return state;
+  return { doc, at: nowMs };
+}
+
+// 新鲜窗与检测通道一致（检测断流 → 两键同缺省 → TRK 回退 DET 即时生效）。
+export const VIEWPORT_TRACKS_FRESH_S = VIEWPORT_DETECTIONS_FRESH_S;
+export function viewportTracksFresh(state, nowMs) {
+  if (!state || !Array.isArray(state.doc?.tracks)) return false;
+  const age = Number(state.doc.age_s);
+  if (Number.isFinite(age)) return age >= 0 && age < VIEWPORT_TRACKS_FRESH_S;
+  return Number.isFinite(state.at) && (nowMs - state.at) / 1000 < VIEWPORT_TRACKS_FRESH_S;
+}
+
+// track 数据块（真实延迟语义：brg/rng = 跟踪时刻滤波态，分钟级收敛，不追帧；
+// 框级锁帧由 P0 微跟踪器负责，两层解耦——sitaw 调研 §2.3）。行形状与
+// targetPresentation.blocks 同构（label/value/unit），CONF 行显示 existence。
+const trkMetric = (value, digits = 1) => Number.isFinite(value) ? value.toFixed(digits) : '—';
+export function viewportTrackBlocks(track) {
+  if (!track) return [];
+  const bearing = Number(track.bearing_rad), range = Number(track.range_m);
+  if (!Number.isFinite(bearing) || !Number.isFinite(range)) return [];
+  const existence = Number(track.existence_prob);
+  return [
+    { label: 'BRG', value: trkMetric((bearing * 180 / Math.PI + 360) % 360, 0), unit: 'DEG' },
+    { label: 'RNG', value: trkMetric(range / NM, 2), unit: 'NM' },
+    { label: 'CONF', value: trkMetric(existence, 3), unit: '' },
+  ];
+}
+
+// 数据源裁决：track 可用（产出有效数据块）→ TRK；缺席/无效 → 回退裸检测
+// 数据块（DET，P0 前的 truth 关联来源不变）。返回 { source, blocks }。
+export function viewportTrackData(track, fallbackBlocks) {
+  const blocks = viewportTrackBlocks(track);
+  return blocks.length ? { source: 'TRK', blocks } : { source: 'DET', blocks: fallbackBlocks || [] };
+}
+
+// 绿框 ↔ track 关联：track 绝对 NE 经当帧相机位姿投影（水线高 0），与锁帧框
+// 心最近邻（归一化域 < VIEWPORT_ASSOCIATION_RADIUS）。仅用于“哪个框挂哪条
+// 航迹”的显示配对——数据块数值仍取航迹自身滤波态，不对齐到当前帧。
+export function associateViewportTrack(tracks, locked, pose, aspect = 16 / 9) {
+  if (!locked || !Array.isArray(tracks) || !pose) return null;
+  let best = null, bestDistance = VIEWPORT_ASSOCIATION_RADIUS;
+  for (const track of tracks) {
+    const north = Number(track?.north_m), east = Number(track?.east_m);
+    const point = projectViewportPoint(pose, east, north, 0, aspect);
+    if (!point) continue;
+    const distance = Math.hypot(point.x - locked.cx, point.y - locked.cy);
+    if (distance < bestDistance) { bestDistance = distance; best = track; }
+  }
+  return best;
+}
+
+// ── 本船框抑制（dt-yolo 第4轮 → P0 水线多边形升级）────────────────────────
 // 追随/俯仰视角里本船自身是画面主体,COCO boat 检出它属真实检测但无情报价值;
-// 用 situation 帧 camera_pose 把本船水线中心正向投影到视口,落在投影圈内的框
-// 即本船框,渲染前剔除。桥视角本船在相机身后(深度≤近轴)→ 无投影点 → 不抑制。
+// 显示层在渲染前把落在本船水线投影区内的框剔除(纯过滤,不改数据)。做法 = 把
+// 本船水线轮廓(沿船长 9 站:艏/艉中线点 + 舯站两舷)正投影到视口,画面内点集
+// 取凸包,再按 OWN_SHIP_GUARD_DILATION 外扩(继承旧圆圈 ×1.3 的船楼/框心抖动
+// 余量语义)作抑制区。堵旧实现两洞:艏点出画(陡俯视艏出顶/横转艏出侧)时整船
+// 放行、艏点出画而甲板中段仍入画时漏抑制。画面内点不足以成面时保留旧底带
+// floorY 规则兜底。桥视角本船在相机身后(各站深度≤近轴)→ 无投影点 → 不抑制。
 // 相机基与 CameraRig camera_free 语义同源:yaw 北向东顺时针,pitch 负=俯,
 // fov=垂直向度;水平向按 aspect(视口族恒 16:9,由调用方传入)。
-export function projectViewportPoint(pose, east, north, height, aspect = 16 / 9) {
-  if (!pose || ![pose.east, pose.north, pose.height_m, pose.yaw_deg, pose.pitch_deg, pose.fov_deg].every(Number.isFinite)) return null;
-  if (![east, north, height].every(Number.isFinite) || !(aspect > 0)) return null;
+// 相机正交基(yaw 北向东顺时针,pitch 负=俯):f 前/r 右/u 上,与 CameraRig
+// camera_free 语义同源——projectViewportPoint 与自转补偿共用,单一事实源。
+function cameraBasis(yawDeg, pitchDeg) {
   const radians = Math.PI / 180;
-  const yaw = pose.yaw_deg * radians, pitch = pose.pitch_deg * radians;
-  const de = east - pose.east, dn = north - pose.north, dh = height - pose.height_m;
+  const yaw = yawDeg * radians, pitch = pitchDeg * radians;
   const f = [Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), Math.cos(yaw) * Math.cos(pitch)];
   const r = [Math.cos(yaw), 0, -Math.sin(yaw)];
   const u = [f[1] * r[2] - f[2] * r[1], f[2] * r[0] - f[0] * r[2], f[0] * r[1] - f[1] * r[0]];
-  const depth = de * f[0] + dh * f[1] + dn * f[2];
-  if (depth <= 1) return null; // 本船在相机身后/脚下近轴外
-  const px = de * r[0] + dh * r[1] + dn * r[2];
-  const py = de * u[0] + dh * u[1] + dn * u[2];
-  const tv = Math.tan(pose.fov_deg * radians / 2);
-  const x = px / (2 * depth * tv * aspect) + 0.5;
-  const y = 0.5 - py / (2 * depth * tv);
-  if (x < -0.1 || x > 1.1 || y < -0.1 || y > 1.1) return null; // 视口外(留越界容差)
-  return { x, y, depth };
+  return { f, r, u };
 }
 
-// 抑制圈(20261015 验收轮扩展):两条几何规则,无屏幕魔法数——
-// ① 追随/俯仰:本船水线中心可投影 → 圆圈(半长在该深度的屏幕占比 ×1.3,下限保底);
-// ② 舰桥眼位:船中在相机身后投影不出,艏点在前方 → 艏点以下的底半平面(艏甲板/
-//    栏杆误检框恒在画面底带;水平线附近目标船 cy ≤ ~0.55 天然安全;瞭望抬头艏点
-//    移出下半区(y ≤ 0.5)则不抑制)。floorY/circles 任一命中即剔除。
-export function ownShipViewportGuard(pose, own, aspect = 16 / 9) {
-  const radians = Math.PI / 180;
-  const halfLength = Math.max(Number(own?.length) || 0, 12) / 2;
-  const psi = Number(own?.psi) || 0;
-  const center = projectViewportPoint(pose, Number(own?.east), Number(own?.north), 0, aspect);
-  if (center) {
-    const tv = Math.tan((Number(pose?.fov_deg) || 60) * radians / 2);
-    const radius = Math.max(halfLength / (2 * center.depth * tv * aspect), 0.04) * 1.3;
-    return { circles: [{ x: center.x, y: center.y, radius }], floorY: null };
+// 无界投影(深度>1 即返回,不做视口边界过滤)——ownShipViewportGuard 用:出画
+// 但在相机前方的站,坐标钳回画面边界参与凸包(船体穿越画面边沿的区段由此贴
+// 边覆盖,堵站间出画缝);projectViewportPoint 公共契约不变(容差界内才返回)。
+function projectUnclampedViewportPoint(pose, east, north, height, aspect) {
+  if (!pose || ![pose.east, pose.north, pose.height_m, pose.yaw_deg, pose.pitch_deg, pose.fov_deg].every(Number.isFinite)) return null;
+  if (![east, north, height].every(Number.isFinite) || !(aspect > 0)) return null;
+  const { f, r, u } = cameraBasis(pose.yaw_deg, pose.pitch_deg);
+  const de = east - pose.east, dn = north - pose.north, dh = height - pose.height_m;
+  const depth = de * f[0] + dh * f[1] + dn * f[2];
+  if (depth <= 1) return null;
+  const px = de * r[0] + dh * r[1] + dn * r[2];
+  const py = de * u[0] + dh * u[1] + dn * u[2];
+  const tv = Math.tan(pose.fov_deg * Math.PI / 180 / 2);
+  return { x: px / (2 * depth * tv * aspect) + 0.5, y: 0.5 - py / (2 * depth * tv), depth };
+}
+
+export function projectViewportPoint(pose, east, north, height, aspect = 16 / 9) {
+  const point = projectUnclampedViewportPoint(pose, east, north, height, aspect);
+  if (!point) return null;
+  if (point.x < -0.1 || point.x > 1.1 || point.y < -0.1 || point.y > 1.1) return null; // 视口外(留越界容差)
+  return point;
+}
+
+// 抑制区(20261015 验收轮底带 → P0 水线多边形 → 20261019 评审轮并集):艏/艉/
+// 两舷水线角点(9 站×3 点矩形网格)投影,画面内点集取凸包(×1.3 外扩)为本船
+// 抑制多边形;艏点(投影容差域内)在下半区时叠加底半平面 floorY——桥眼位近桥
+// 栏杆/甲板在水线站间出画的底带(y∈(艏点,1.0])不落在站的凸包内,单多边形对
+// 该带覆盖不全(20261019 评审密集扫描:27% 漏抑制),并集恢复旧规则 100% 覆盖;
+// 追随视角艏点在上半区(y≤0.5)自然不叠。画面内点不足以成面时退回纯 floorY
+// 底带。floorY/polygon/circles 任一命中即剔除(circles 仅向后兼容旧 guard
+// 形状,本实现不再产出)。
+const OWN_SHIP_HULL_STATIONS = [1, 0.75, 0.5, 0.25, 0, -0.25, -0.5, -0.75, -1];
+export const OWN_SHIP_GUARD_DILATION = 1.3;
+
+// Andrew 单调链凸包(≤25 水线点,显示层量级);共线点剔净(严格凸),输出逆时
+// 针序;退化(<3 点或全共线)返回不足 3 点,由调用方走兜底。
+function convexHull(points) {
+  const sorted = [...points].sort((a, b) => a.x - b.x || a.y - b.y);
+  if (sorted.length < 3) return sorted;
+  const cross = (o, a, b) => (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x);
+  const chain = source => {
+    const stack = [];
+    for (const point of source) {
+      while (stack.length >= 2 && cross(stack[stack.length - 2], stack[stack.length - 1], point) <= 0) stack.pop();
+      stack.push(point);
+    }
+    return stack;
+  };
+  const lower = chain(sorted), upper = chain(sorted.reverse());
+  lower.pop(); upper.pop();
+  return lower.concat(upper);
+}
+
+// 凸多边形含边界内判定(顶点逆时针序)。
+function inConvexPolygon(cx, cy, hull) {
+  for (let i = 0; i < hull.length; i++) {
+    const a = hull[i], b = hull[(i + 1) % hull.length];
+    if ((b.x - a.x) * (cy - a.y) - (b.y - a.y) * (cx - a.x) < 0) return false;
   }
-  const bow = projectViewportPoint(pose,
-    Number(own?.east) + Math.sin(psi) * halfLength,
-    Number(own?.north) + Math.cos(psi) * halfLength, 0, aspect);
-  if (bow && bow.y > 0.5) return { circles: [], floorY: bow.y - 0.06 };
+  return true;
+}
+
+export function ownShipViewportGuard(pose, own, aspect = 16 / 9) {
+  const halfLength = Math.max(Number(own?.length) || 0, 12) / 2;
+  const beam = Number(own?.beam);   // beam 缺省 length/4(船型常识比,无传感字段)
+  const halfBeam = ((Number.isFinite(beam) && beam > 0) ? beam : halfLength / 2) / 2;
+  const psi = Number(own?.psi) || 0;
+  const east0 = Number(own?.east), north0 = Number(own?.north);
+  const ahead = [Math.sin(psi), Math.cos(psi)], aside = [Math.cos(psi), -Math.sin(psi)];
+  const bow = projectViewportPoint(pose, east0 + ahead[0] * halfLength,
+    north0 + ahead[1] * halfLength, 0, aspect);
+  // 桥眼位叠加底带(20261020 二轮记录仪:2862 个泄漏框集中在 pitch +1~+3° 微仰
+  // ——凸包存在但盖不住底带,bow.y≤0.5 又令 floorY 失效;本船水线中心在相机
+  // 身后 → 俯/平/微仰(≤5°)时下方恒属本船甲板带,与凸包叠加而非二选一)。
+  const centerBehind = !projectUnclampedViewportPoint(pose, east0, north0, 0, aspect);
+  const pitchNow = Number(pose?.pitch_deg);
+  const bridgeBand = centerBehind && Number.isFinite(pitchNow) && pitchNow <= 5 ? 0.62 : null;
+  let floorY = bow && bow.y > 0.5 ? bow.y - 0.06 : null;
+  if (bridgeBand != null) floorY = Math.max(floorY ?? 0, bridgeBand);
+  // 矩形水线网格(艏艉站同样带两舷角点——密集扫描对拍口径,27 点 O(27) 可忽略)。
+  // 有站在画面内(船体真实穿越画面边沿)时,出画但在相机前方的站坐标钳回画面边
+  // 界入样——穿越区段贴边覆盖,堵站间出画缝(20261019 评审密集扫描的泄漏带);
+  // 无站在画面内(船体整体出画,如仰视)则不造面,走下方 floorY 兜底/放行;身后
+  // 站(深度≤近轴)恒弃。
+  const unclamped = [];
+  for (const station of OWN_SHIP_HULL_STATIONS) {
+    const along = station * halfLength;
+    for (const side of [-halfBeam, 0, halfBeam]) {
+      const point = projectUnclampedViewportPoint(pose, east0 + ahead[0] * along + aside[0] * side,
+        north0 + ahead[1] * along + aside[1] * side, 0, aspect);
+      if (point) unclamped.push(point);
+    }
+  }
+  const inFrame = unclamped.filter(p => p.x >= 0 && p.x <= 1 && p.y >= 0 && p.y <= 1);
+  const hull = convexHull(inFrame.length ? unclamped.map(p =>
+    ({ x: Math.max(0, Math.min(1, p.x)), y: Math.max(0, Math.min(1, p.y)) })) : inFrame);
+  if (hull.length >= 3) {
+    const cx = hull.reduce((sum, p) => sum + p.x, 0) / hull.length;
+    const cy = hull.reduce((sum, p) => sum + p.y, 0) / hull.length;
+    const polygon = hull.map(p =>
+      ({ x: cx + (p.x - cx) * OWN_SHIP_GUARD_DILATION, y: cy + (p.y - cy) * OWN_SHIP_GUARD_DILATION }));
+    return { circles: [], polygons: [polygon], floorY };
+  }
+  if (floorY != null) return { circles: [], polygons: [], floorY };
+  // 桥眼位近距兜底(20261020 记录仪:47% 快照 guard=null 且底带本船框泄漏——
+  // 艏部水线站投到画面底边以下 y>1,inFrame 空+bow.y>1 → poly/floorY 双缺席,
+  // 而本船甲板正铺满底带):俯/平视(pitch≤2°)且有站在底边以下时给保守底带。
+  const belowFrame = unclamped.some(p => p.y > 1.02 && p.x >= 0 && p.x <= 1);
+  const pitchDeg = Number(pose?.pitch_deg);
+  if (belowFrame && Number.isFinite(pitchDeg) && pitchDeg <= 2) {
+    return { circles: [], polygons: [], floorY: 0.62 };
+  }
   return null;
 }
 
@@ -266,15 +414,189 @@ export function suppressOwnShipBoxes(boxes, guard) {
   if (!guard) return boxes || [];
   return (boxes || []).filter(box =>
     !(guard.floorY != null && box.cy > guard.floorY)
-    && !guard.circles.some(g => Math.hypot(box.cx - g.x, box.cy - g.y) <= g.radius));
+    && !(guard.polygons || []).some(polygon => inConvexPolygon(box.cx, box.cy, polygon))
+    && !(guard.circles || []).some(g => Math.hypot(box.cx - g.x, box.cy - g.y) <= g.radius));
 }
 
-// 检测框显示位置(20261015 验收轮):检测链端到端 ~0.3-0.5s 时延,检测坐标画在
-// 实时视频帧上恒滞后/错位(相机跟随转动时尤甚)。已关联 track 的框改用 track
-// 实时投影包围盒(situation 帧与视频帧 marker 对齐,零滞后),检测框仅贡献类别
-// 标签+置信度;未关联(无 track 的真实检出)保持检测原坐标。
-export function viewportBoxPlacement(box, track, rectWidth, rectHeight) {
-  if (track && [track.left, track.top, track.width, track.height].every(Number.isFinite)
+// ── P0 检测框锁帧:web 微跟踪器 + 逐帧位姿自转补偿 ──────────────────────────
+// 检测链端到端 ~0.3-0.5s:检测坐标直接画在当前显示帧上,pan/tilt 下相机已转,
+// 框相对视频错位(sitaw 调研 §2.2/§3.2:链路延迟作用于整幅画面,不作用于框相对
+// 视频的几何;真实系统框与帧同源同传)。web 侧两层补偿:
+//   ① 自转补偿:检出时刻位姿 = 逐 situation 帧 camera_pose 历史(本地接收时刻
+//     轴)在采集时刻处插值;采集时刻 ≈ received_at − DETECTION_CAPTURE_INFERENCE_MS
+//     − DETECTION_CAPTURE_TAP_MS(gui_server 在 POST 收到时盖 time.time(),常量
+//     集中定义可调)。Δyaw/Δpitch × 焦距把框中心平移到显示帧位姿域。
+//   ② 匀速外推:检测文档间最近邻关联赋稳定 id,速度 EMA,外推到显示帧时刻。
+// 已关联 track 的框默认同走本路径;truth 投影吸附(situation 真值包围盒零滞后
+// 贴皮)降级为 debug 开关,默认关。
+export const DETECTION_CAPTURE_INFERENCE_MS = 150;  // YOLO 推理(a4000 实测 ~141ms)
+export const DETECTION_CAPTURE_TAP_MS = 120;        // 分流 tap/隧道/POST(20261020 记录仪校准:总延迟 ~270ms,原 130ms 低估致 pan 下补偿欠转)
+export const POSE_HISTORY_SPAN_S = 3;              // 位姿历史窗(秒)
+// 时钟轴假设(20261019 评审轮):位姿历史键 = 浏览器 Date.now()(twin-view 给
+// situation 帧盖 _receivedAt),doc.received_at = gui_server 同机 time.time()——
+// 本部署(gui_server 静态服务+遥测与浏览器同机)两钟同源无偏差。跨机无 NTP 时
+// 采集时刻会落出历史窗:越窗超出 POSE_HISTORY_MAX_SKEW_S 即弃补偿(返 null,
+// 退化为无补偿关联+匀速外推,误差有界不发散),不再静默 clamp 到错误位姿。
+export const POSE_HISTORY_MAX_SKEW_S = 1;
+export const VIEWPORT_TRACK_GATE_N = 0.15;         // 帧间最近邻关联门(归一化域)
+export const VIEWPORT_TRACK_MAX_MISSES = 5;        // 连续丢失容忍(10Hz×5=0.5s)
+export const VIEWPORT_TRACK_VELOCITY_ALPHA = 0.5;  // 速度 EMA 系数(新观测权重)
+export const VIEWPORT_EXTRAPOLATION_MAX_S = 0.8;   // 外推上限(断流防飞框)
+
+// 角差归一到 (−180, 180](yaw 插值/补偿跨 0°/360° 用)。
+function wrapDegDelta(deg) {
+  return ((deg + 180) % 360 + 360) % 360 - 180;
+}
+
+export function detectionCaptureTimeSec(receivedAtSec) {
+  const received = Number(receivedAtSec);
+  return Number.isFinite(received)
+    ? received - (DETECTION_CAPTURE_INFERENCE_MS + DETECTION_CAPTURE_TAP_MS) / 1000 : null;
+}
+
+// 位姿历史插值(east/north/height/fov 线性;yaw/pitch 最短角)。越界在
+// POSE_HISTORY_MAX_SKEW_S 容差内取最近端(3s 窗 >> 采集回看 ~0.5s,仅开局几帧
+// 会 clamp);超出即返 null(时钟轴偏移防护,见常量注释)。条目 = { tSec, pose }。
+export function poseAtCapture(poseHistory, tSec) {
+  const history = Array.isArray(poseHistory)
+    ? poseHistory.filter(sample => Number.isFinite(sample?.tSec) && sample?.pose) : [];
+  if (!history.length || !Number.isFinite(tSec)) return null;
+  const first = history[0], last = history[history.length - 1];
+  if (tSec <= first.tSec) return first.tSec - tSec > POSE_HISTORY_MAX_SKEW_S ? null : first.pose;
+  if (tSec >= last.tSec) return tSec - last.tSec > POSE_HISTORY_MAX_SKEW_S ? null : last.pose;
+  let upper = 1;
+  while (history[upper].tSec < tSec) upper++;
+  const a = history[upper - 1], b = history[upper];
+  const k = (tSec - a.tSec) / (b.tSec - a.tSec);
+  const lerp = (x, y) => x + (y - x) * k;
+  return { east: lerp(a.pose.east, b.pose.east), north: lerp(a.pose.north, b.pose.north),
+    height_m: lerp(a.pose.height_m, b.pose.height_m), fov_deg: lerp(a.pose.fov_deg, b.pose.fov_deg),
+    yaw_deg: a.pose.yaw_deg + wrapDegDelta(b.pose.yaw_deg - a.pose.yaw_deg) * k,
+    pitch_deg: a.pose.pitch_deg + wrapDegDelta(b.pose.pitch_deg - a.pose.pitch_deg) * k };
+}
+
+// 自转补偿:框中心从 fromPose 采集帧平移到 toPose 显示帧——"Δyaw/Δpitch × 焦
+// 距"的精确实现:把框心解回像面射线(fromPose 内参),经共享相机基旋转到
+// toPose 系再回投(toPose 内参)。相机不平移时任意角差精确(含 yaw/pitch 轴
+// 耦合与变焦);平移视差无深度不可补,属本显示层近似残余。射线转到 toPose
+// 前向背面(depth≤0)时放弃补偿,退回原坐标。
+export function compensateViewportShift(fromPose, toPose, cx, cy, aspect = 16 / 9) {
+  if (!fromPose || !toPose) return { cx, cy };
+  if (![fromPose.yaw_deg, fromPose.pitch_deg, fromPose.fov_deg,
+    toPose.yaw_deg, toPose.pitch_deg, toPose.fov_deg].every(Number.isFinite) || !(aspect > 0)) return { cx, cy };
+  const radians = Math.PI / 180;
+  const tvFrom = Math.tan(fromPose.fov_deg * radians / 2), tvTo = Math.tan(toPose.fov_deg * radians / 2);
+  if (!(tvFrom > 0) || !(tvTo > 0)) return { cx, cy };
+  const from = cameraBasis(fromPose.yaw_deg, fromPose.pitch_deg);
+  const to = cameraBasis(toPose.yaw_deg, toPose.pitch_deg);
+  const planeX = (cx - 0.5) * 2 * tvFrom * aspect, planeY = (0.5 - cy) * 2 * tvFrom;   // 焦距=1 像面坐标
+  const ray = [0, 1, 2].map(i => from.f[i] + from.r[i] * planeX + from.u[i] * planeY);
+  const depth = ray[0] * to.f[0] + ray[1] * to.f[1] + ray[2] * to.f[2];
+  if (!(depth > 1e-3)) return { cx, cy };
+  const px = ray[0] * to.r[0] + ray[1] * to.r[1] + ray[2] * to.r[2];
+  const py = ray[0] * to.u[0] + ray[1] * to.u[1] + ray[2] * to.u[2];
+  return { cx: 0.5 + px / (depth * 2 * tvTo * aspect), cy: 0.5 - py / (depth * 2 * tvTo) };
+}
+
+// 文档域归一化观测(供微跟踪器;viewportDetectionBoxes 是显示像素域,并存)。
+export function viewportDetectionObservations(doc) {
+  const w = Number(doc?.width), h = Number(doc?.height);
+  if (!(w > 0) || !(h > 0) || !Array.isArray(doc.detections)) return [];
+  return doc.detections.flatMap(det => {
+    const box = Array.isArray(det?.box_xyxy) ? det.box_xyxy.map(Number) : [];
+    if (!box.every(Number.isFinite) || box[2] <= box[0] || box[3] <= box[1]) return [];
+    return [{ cx: (box[0] + box[2]) / 2 / w, cy: (box[1] + box[3]) / 2 / h,
+      nw: (box[2] - box[0]) / w, nh: (box[3] - box[1]) / h,
+      className: String(det.class_name ?? ''),
+      confidence: Number.isFinite(Number(det.confidence)) ? Number(det.confidence) : 0 }];
+  });
+}
+
+// web 微跟踪器:检测文档(received_at 去重由调用方负责)间最近邻关联赋稳定 id;
+// 速度按“采集位姿补偿后的帧间位移”测EMA(剔除相机自转视差,只留目标自身运动),
+// 连续丢失 MAX_MISSES 个文档后丢弃。评审 Q4:misses 只在新文档到达时增长——
+// 长断流期间旧 track 不过期,恢复瞬间按旧速度关联会瞬跳/换 id;expire() 以
+// track.t 墙龄(与 update 同一 received_at 时间域)独立过期,渲染循环逐帧调用。
+export const VIEWPORT_TRACK_MAX_AGE_S = (VIEWPORT_TRACK_MAX_MISSES + 1) / 10;  // 10Hz 文档节拍 × misses 容忍
+export function createViewportDetectionTracker({
+  gate = VIEWPORT_TRACK_GATE_N, maxMisses = VIEWPORT_TRACK_MAX_MISSES,
+  velocityAlpha = VIEWPORT_TRACK_VELOCITY_ALPHA, maxAgeS = VIEWPORT_TRACK_MAX_AGE_S } = {}) {
+  let tracks = [], nextId = 1;
+  return {
+    get size() { return tracks.length; },
+    tracks() { return [...tracks]; },
+    reset() { tracks = []; nextId = 1; },
+    expire(nowSec) {
+      if (!Number.isFinite(nowSec)) return tracks.length;
+      tracks = tracks.filter(track => !Number.isFinite(track.t) || nowSec - track.t <= maxAgeS);
+      return tracks.length;
+    },
+    update(observations, tSec, capturePose) {
+      if (!Number.isFinite(tSec)) return;
+      const incoming = (observations || []).filter(o => Number.isFinite(o.cx) && Number.isFinite(o.cy));
+      const pairs = [];
+      tracks.forEach((track, ti) => {
+        if (!Number.isFinite(track.t) || tSec <= track.t) return;
+        const dt = tSec - track.t;
+        // 门限随文档间隔自适应:2Hz 文档 0.5s 间隔下目标位移大,固定 0.15 会翻新
+        // id(20261020 记录仪:315s 494 个 id)。按 dt/0.3 线性放大,上限 ×2.5。
+        const gateEff = gate * Math.min(Math.max(dt / 0.3, 1), 2.5);
+        const anchor = compensateViewportShift(track.pose, capturePose, track.cx, track.cy);
+        incoming.forEach((obs, oi) => {
+          const distance = Math.hypot(obs.cx - (anchor.cx + (track.vx || 0) * dt),
+            obs.cy - (anchor.cy + (track.vy || 0) * dt));
+          if (distance < gateEff) pairs.push({ ti, oi, distance, anchor, dt });
+        });
+      });
+      pairs.sort((a, b) => a.distance - b.distance);
+      const takenTracks = new Set(), takenObs = new Set(), matches = new Map();
+      for (const pair of pairs) {
+        if (takenTracks.has(pair.ti) || takenObs.has(pair.oi)) continue;
+        takenTracks.add(pair.ti); takenObs.add(pair.oi); matches.set(pair.ti, pair);
+      }
+      tracks = tracks.map((track, ti) => {
+        if (!takenTracks.has(ti)) return { ...track, misses: (track.misses || 0) + 1 };
+        const { oi, anchor, dt } = matches.get(ti), obs = incoming[oi];
+        const blend = (previous, inst) => Number.isFinite(previous)
+          ? (1 - velocityAlpha) * previous + velocityAlpha * inst : inst;
+        return { id: track.id, misses: 0, pose: capturePose, t: tSec,
+          cx: obs.cx, cy: obs.cy, nw: obs.nw, nh: obs.nh,
+          vx: blend(track.vx, (obs.cx - anchor.cx) / dt), vy: blend(track.vy, (obs.cy - anchor.cy) / dt),
+          className: obs.className ?? track.className, confidence: obs.confidence ?? track.confidence };
+      });
+      for (const [oi, obs] of incoming.entries()) {
+        if (takenObs.has(oi)) continue;
+        tracks.push({ id: 'vt' + nextId++, misses: 0, pose: capturePose, t: tSec,
+          cx: obs.cx, cy: obs.cy, nw: obs.nw, nh: obs.nh, vx: 0, vy: 0,
+          className: obs.className, confidence: obs.confidence });
+      }
+      tracks = tracks.filter(track => (track.misses || 0) <= maxMisses);
+    },
+  };
+}
+
+// 显示帧放置:自转补偿到显示位姿 + 匀速外推(上限 VIEWPORT_EXTRAPOLATION_MAX_S,
+// dt 负值/缺时刻钳 0)。返回归一化域 { cx, cy, nw, nh },由调用方乘 contained rect。
+export function viewportTrackPlacement(track, displayPose, displaySec, aspect = 16 / 9) {
+  if (!track || !Number.isFinite(track.cx) || !Number.isFinite(track.cy)) return null;
+  const shifted = compensateViewportShift(track.pose, displayPose, track.cx, track.cy, aspect);
+  const dt = Number.isFinite(displaySec) && Number.isFinite(track.t)
+    ? Math.min(Math.max(displaySec - track.t, 0), VIEWPORT_EXTRAPOLATION_MAX_S) : 0;
+  return { cx: shifted.cx + (track.vx || 0) * dt, cy: shifted.cy + (track.vy || 0) * dt,
+    nw: track.nw, nh: track.nh };
+}
+
+// truth 吸附 debug 开关(默认关):开 = 已关联 track 的框改用 situation 真值投影
+// 包围盒(零滞后,但属真值贴皮,非传感器语义)。
+let viewportTruthSnapDebug = false;
+export function setViewportTruthSnapDebug(enabled) { viewportTruthSnapDebug = enabled === true; }
+export function viewportTruthSnapDebugEnabled() { return viewportTruthSnapDebug; }
+
+// 检测框显示位置(P0 锁帧):默认 = 微跟踪器补偿/外推坐标(box 由调用方取
+// viewportTrackPlacement 乘 rect 构造);snap=true(debug)且 track 带有效投影
+// 包围盒时吸附 truth。
+export function viewportBoxPlacement(box, track, rectWidth, rectHeight, snap = false) {
+  if (snap && track && [track.left, track.top, track.width, track.height].every(Number.isFinite)
     && track.width > 0 && track.height > 0) {
     return { left: track.left * rectWidth, top: track.top * rectHeight,
       width: track.width * rectWidth, height: track.height * rectHeight, snapped: true };
@@ -323,8 +645,19 @@ export function buildTwinPresentation(projection, chart, info, vo = null, docume
       confidence: finite(o.confidence, 0), class_name: String(o.class_name ?? ''),
       sensor_id: finite(o.sensor_id, 0), key: String(o.det_id ?? ''), track_key: String(o.track_key ?? '') }))
     .filter(det => detectionsLayerOn || (det.track_key && yoloKeys?.has(det.track_key)));
+  // DT 红区 = 不安全水域补集三角(后端 shapely CDT 一次性算好,local [north,east]);
+  // 海图 safeWater 图层门控(2D 画布路径不消费 hazard_triangles,仅 DT 视景转发)。
+  // 传输形态 = 平铺绝对 [east,north]×0.1m 数组:hazard 量大,对象数组(全精度 UTM)
+  // 会把 presentation 推过 WebRTC 数据通道 ~256KB 消息上限并打死通道(20261016 实证)。
+  const hazardSource = Array.isArray(raw.enc_navigation_area?.hazard_triangles)
+    ? raw.enc_navigation_area.hazard_triangles : [];
+  const hazardVisible = visible('safeWater') && hazardSource.length > 0;
+  const hazardXy = hazardVisible
+    ? hazardSource.flat().flatMap(v => [Math.round((info.origin_e + v[1]) * 10) / 10,
+      Math.round((info.origin_n + v[0]) * 10) / 10]) : [];
   return { run_id: raw.run_id, seq: raw.seq, sim_time: raw.sim_time,
     ribbon: visible('route') ? routeRibbonQuads(route).flat().map(p => point(p.north, p.east)) : [],
+    hazard_xy: hazardXy, hazard_count: hazardVisible ? hazardSource.length : 0, hazard_visible: hazardVisible,
     waypoints: route[0].map((north, i) => point(north, route[1][i], 'WPT' + (i + 1))),
     waypoints_visible: visible('waypoints'), ships_visible: visible('ships'), lines, vo: disc,
     time_markers: visible('prediction') ? predictionMarkers(raw, { includeEndpoint: true }).map(m => point(...m.point, '+' + m.elapsed.toFixed(0) + 's')) : [],
@@ -372,8 +705,57 @@ export function createTwinSituationOverlay({ host, video, chart, info, client, o
   const viewportDetectionNodes = new Map();
   let latest = null, frame = null, frameId = null, selectedKey = null, disposed = false;
   // dt-yolo 视口检测：最新 viewport_detections 文档 + 本地接收时刻（fold 防乱序
-  // 回退）；全局三态样式与 per-run 清空照 yoloKeys 模式。
-  let viewportDetectionsState = null, viewportYoloRunId = null, viewportYoloStyle = 0;
+  // 回退）；全局三态样式与 per-run 清空照 yoloKeys 模式。P3 另存 viewport_tracks
+  // （confirmed 航迹，数据块优先挂它，缺席回退裸检测 + TRK/DET 角标）。
+  let viewportDetectionsState = null, viewportTracksState = null, viewportYoloRunId = null, viewportYoloStyle = 0;
+  // P0 锁帧:逐帧位姿历史({tSec,frameId,pose}) + 检测微跟踪器 + 已喂跟踪器的
+  // 文档 received_at(renderFrame 高频重入,按 received_at 去重喂一次)。
+  const poseHistory = [];
+  const detectionTracker = createViewportDetectionTracker();
+  // 验收诊断记录仪:逐帧采样渲染态(guard/track/DOM),15s 批量 POST
+  // /api/viewport-box-log;fetch/window 缺席(单测环境)时静默关闭。只读渲染态。
+  const vpBoxLog = [];
+  const vpKeepUntil = new Map();
+  let vpLastGuard = null, vpLastGuardAt = 0;
+  const noteVp = entry => { if (vpBoxLog.length < 6000) vpBoxLog.push({ t: Math.round(performance.now()), ...entry }); };
+  const flushVp = () => {
+    const lines = vpBoxLog.splice(0, vpBoxLog.length);
+    if (!lines.length) return;
+    fetch('/api/viewport-box-log', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ client: { href: typeof location !== 'undefined' ? location.href : '' }, lines }) })
+      .catch(() => { for (const line of lines.slice(-500)) if (vpBoxLog.length < 6000) vpBoxLog.push(line); });
+  };
+  if (typeof fetch === 'function' && typeof window !== 'undefined') {
+    noteVp({ boot: 1 });
+    let vpTicks = 0;
+    setInterval(() => {
+      vpTicks++;
+      if (vpBoxLog.length) flushVp();
+      else if (vpTicks % 4 === 0) vpBoxLog.push({ t: Math.round(performance.now()), beat: 1 });
+    }, 15000);
+    setTimeout(flushVp, 2000);   // boot 行 2s 即上报,端到端自证
+    window.addEventListener('pagehide', () => {   // 关页/切走兜底:sendBeacon 不怕页面卸载
+      if (!vpBoxLog.length || typeof navigator.sendBeacon !== 'function') return;
+      navigator.sendBeacon('/api/viewport-box-log', new Blob([JSON.stringify(
+        { client: { href: location.href, beacon: 1 }, lines: vpBoxLog.splice(0, vpBoxLog.length) })],
+        { type: 'application/json' }));
+    });
+    window.__dtVpLogInfo = () => ({ buffered: vpBoxLog.length, kept: vpKeepUntil.size });
+  }
+  // 检测文档 SSE(到达即推):全量文档车随仿真步 ~2Hz 重建、PAUSED 冻结(20261020
+  // 记录仪裁决);检测属显示层,独立通道 6-10Hz 直供,renderFrame 合并取新者。
+  let viewportDetectionsLive = null;
+  let vpEventSource = null;
+  if (typeof EventSource !== 'undefined') {
+    vpEventSource = new EventSource('/api/viewport-detections/stream');
+    vpEventSource.onmessage = event => {
+      try {
+        viewportDetectionsLive = foldViewportDetections(viewportDetectionsLive,
+          { viewport_detections: JSON.parse(event.data) }, performance.now());
+      } catch { /* 断流重连由 EventSource 自理 */ }
+    };
+  }
+  let trackedDetectionsReceivedAt;
   let lastSent = null, lastPick = null, lastVideoAt = 0, pointer = null, yoloRunId = null;
   let presentationClient = null, presentationAttachment = null;
   let matched = 0, unmatched = 0;
@@ -437,20 +819,39 @@ export function createTwinSituationOverlay({ host, video, chart, info, client, o
   function renderFrame() {
     const videoBox = video.getBoundingClientRect(), hostBox = host.getBoundingClientRect();
     const rect = containedVideoRect(videoBox.width, videoBox.height, video.videoWidth, video.videoHeight);
-    if (!rect) { root.hidden = true; return; }
+    if (!rect) { root.hidden = true; noteVp({ r: 'norect', hid: 1 }); return; }
     rect.left += videoBox.left - hostBox.left; rect.top += videoBox.top - hostBox.top;
     const projection = frame && models.get(frame.source_seq);
-    if (!projection || projection.raw.run_id !== frame.run_id) { root.hidden = true; return; }
+    if (!projection || projection.raw.run_id !== frame.run_id) { root.hidden = true; noteVp({ r: 'noproj', hid: 1 }); return; }
     Object.assign(root.style, { left: rect.left + 'px', top: rect.top + 'px', width: rect.width + 'px', height: rect.height + 'px' });
     if (frame.landscape?.ready === false) {
       // A heartbeat can release the video if hidden-video callbacks are throttled.
       if (!client()?.lastState?.landscape?.ready) video.style.visibility = 'hidden';
-      root.hidden = true; return;
+      root.hidden = true; noteVp({ r: 'landscape', hid: 1 }); return;
     }
     video.style.visibility = '';
     root.hidden = false;
     root.dataset.camera = frame.camera;
     if (frame.camera_pose) root.dataset.cameraPose = JSON.stringify(frame.camera_pose);
+    // P0 锁帧:位姿历史按 frame_id 去重追帧(renderFrame 可对同一帧重入),3s 窗
+    // 修剪;检测文档按 received_at 去重喂微跟踪器(采集位姿 = 历史插值)。
+    if (frame.camera_pose && Number.isFinite(frame._receivedAt)
+      && poseHistory[poseHistory.length - 1]?.frameId !== frame.frame_id) {
+      poseHistory.push({ tSec: frame._receivedAt / 1000, frameId: frame.frame_id, pose: frame.camera_pose });
+      const cutoff = frame._receivedAt / 1000 - POSE_HISTORY_SPAN_S;
+      while (poseHistory.length > 1 && poseHistory[0].tSec < cutoff) poseHistory.shift();
+    }
+    // 评审 Q4:断流期间 update 不再被调、misses 不增长——按 track.t 墙龄独立
+    // 过期(与 detectionCaptureTimeSec 同一 received_at 时间域),恢复瞬间旧
+    // track 已出窗,不再按陈旧速度关联/瞬跳。renderFrame 逐帧调用,开销 O(n)。
+    detectionTracker.expire(Date.now() / 1000);
+    const trackedDoc = viewportDetectionsState?.doc;
+    if (trackedDoc && trackedDoc.received_at !== trackedDetectionsReceivedAt) {
+      trackedDetectionsReceivedAt = trackedDoc.received_at;
+      const captureSec = detectionCaptureTimeSec(trackedDoc.received_at);
+      if (captureSec !== null) detectionTracker.update(viewportDetectionObservations(trackedDoc),
+        captureSec, poseAtCapture(poseHistory, captureSec));
+    }
     toolbar.querySelectorAll('button').forEach(button => {
       button.setAttribute('aria-pressed', String(button.dataset.camera === frame.camera));
     });
@@ -596,38 +997,99 @@ export function createTwinSituationOverlay({ host, video, chart, info, client, o
     // 与 POI 同源（targetPresentation.blocks），关联不到 track 的检测无导航数据。
     detectionsLayer.dataset.yoloStyle = String(viewportYoloStyle);
     const viewportWanted = new Set();
+    let vpSnap = null;
     if (yoloMode) {
-      // 本船框剔除(ownShipViewportGuard):框心落在本船投影圈内 = 本船自身检出。
-      const guard = ownShipViewportGuard(frame?.camera_pose, getOwnship(),
-        (frame?.width || 16) / (frame?.height || 9));
-      const boxes = suppressOwnShipBoxes(viewportDetectionBoxes(viewportDetectionsState.doc, rect.width, rect.height), guard);
-      const associated = associateViewportDetections(boxes, frame.targets || []);
-      for (let position = 0; position < boxes.length; position++) {
-        const box = boxes[position];   // associated 按过滤后 boxes 位置对齐（box.index 是文档原始序号）
-        const key = 'vp' + box.index;
+      // P0 锁帧渲染:跟踪器位置(自转补偿+匀速外推)× contained rect;本船抑制
+      // (水线多边形 guard)与 track↔导航数据关联都在渲染中心上判定(显示层
+      // 过滤);truth 吸附仅 debug 开关(默认关)。
+      const aspect = (frame?.width || 16) / (frame?.height || 9);
+      // guard 缓存:pose/ownship 瞬时缺席不再闪放本船框(0.5s 内复用上次 guard)。
+      let guard = ownShipViewportGuard(frame?.camera_pose, getOwnship(), aspect);
+      if (!guard && vpLastGuard && performance.now() - vpLastGuardAt < 500) guard = vpLastGuard;
+      else if (guard) { vpLastGuard = guard; vpLastGuardAt = performance.now(); }
+      const displaySec = Number.isFinite(frame?._receivedAt) ? frame._receivedAt / 1000 : null;
+      // 记录仪采样:guard 形态/pose/ownship/逐 track 放置与抑制判定。
+      vpSnap = { cam: frame.camera,
+        pose: frame.camera_pose ? [frame.camera_pose.yaw_deg, frame.camera_pose.pitch_deg, frame.camera_pose.fov_deg] : null,
+        own: getOwnship() ? 1 : 0,
+        guard: guard ? (guard.polygons?.length ? 'poly' : (guard.floorY != null ? 'floor' : 'none')) : 'null',
+        ds: Number.isFinite(displaySec) ? +displaySec.toFixed(3) : null,
+        doc: viewportDetectionsState?.doc
+          ? { n: (viewportDetectionsState.doc.detections || []).length, ra: viewportDetectionsState.doc.received_at,
+              om: viewportDetectionsState.doc.ownship_mask ?? null } : null,
+        tracks: [] };
+      // 渲染前重叠去重(20261020 二轮记录仪:同一目标多框并存——本船甲板多点
+      // 检出/目标结构双检/保活换帧交叠):IoU>0.4 或中心落入他框只留强者(置信
+      // 度优先,同置信留 id 较小=更早 track)。
+      const vpCandidates = [];
+      for (const track of detectionTracker.tracks()) {
+        const locked = viewportTrackPlacement(track, frame?.camera_pose, displaySec, aspect);
+        if (!locked || !Number.isFinite(locked.cx) || !Number.isFinite(locked.cy)) continue;
+        const suppressed = suppressOwnShipBoxes([{ cx: locked.cx, cy: locked.cy }], guard).length === 0;
+        vpSnap.tracks.push([track.id, +locked.cx.toFixed(3), +locked.cy.toFixed(3),
+          +(track.confidence || 0).toFixed(2), suppressed ? 1 : 0, +track.t.toFixed(3)]);
+        if (suppressed) continue;
+        vpCandidates.push({ track, locked });
+      }
+      vpCandidates.sort((a, b) => (b.track.confidence || 0) - (a.track.confidence || 0)
+        || a.track.id.localeCompare(b.track.id, undefined, { numeric: true }));
+      const vpAccepted = [];
+      const vpIou = (a, b) => {
+        const ix = Math.max(0, Math.min(a.cx + a.nw / 2, b.cx + b.nw / 2) - Math.max(a.cx - a.nw / 2, b.cx - b.nw / 2));
+        const iy = Math.max(0, Math.min(a.cy + a.nh / 2, b.cy + b.nh / 2) - Math.max(a.cy - a.nh / 2, b.cy - b.nh / 2));
+        const inter = ix * iy, uni = a.nw * a.nh + b.nw * b.nh - inter;
+        return uni > 0 ? inter / uni : 0;
+      };
+      for (const cand of vpCandidates) {
+        const dup = vpAccepted.some(acc => vpIou(acc.locked, cand.locked) > 0.4
+          || (cand.locked.cx > acc.locked.cx - acc.locked.nw / 2 && cand.locked.cx < acc.locked.cx + acc.locked.nw / 2
+            && cand.locked.cy > acc.locked.cy - acc.locked.nh / 2 && cand.locked.cy < acc.locked.cy + acc.locked.nh / 2));
+        if (dup) { vpSnap.dedup = (vpSnap.dedup || 0) + 1; continue; }
+        vpAccepted.push(cand);
+      }
+      for (const { track, locked } of vpAccepted) {
+        const key = track.id;
         viewportWanted.add(key);
         let node = viewportDetectionNodes.get(key);
         if (!node) {
           node = doc.createElement('button'); node.type = 'button'; node.className = 'twin-vp-detection';
           const tag = doc.createElement('span'); tag.className = 'twin-vp-detection-tag';
+          const src = doc.createElement('span'); src.className = 'twin-vp-detection-src';
           const data = doc.createElement('span'); data.className = 'twin-vp-detection-data';
-          node.append(tag, data);
+          node.append(tag, src, data);
           node.addEventListener('click', () => { viewportYoloStyle = cycleViewportYoloStyle(viewportYoloStyle); renderFrame(); });
           viewportDetectionNodes.set(key, node); detectionsLayer.append(node);
         }
-        const ship = byKey.get(associated[position] || '');
-        const blocks = ship ? targetPresentation(projection, ship, info).blocks : [];
-        node.hidden = viewportYoloStyle === 2 && blocks.length === 0;   // 无关联 track 的 style2 = 完全无标注
-        const placement = viewportBoxPlacement(box, ship, rect.width, rect.height);
+        const ship = byKey.get(associateViewportDetections([locked], frame.targets || [])[0] || '');
+        // P3 数据源裁决：viewport_tracks confirmed 航迹优先（滤波后 brg/rng/conf，
+        // 跟踪时刻冻结不追帧）；track 缺席/关联不上 → 回退裸检测数据块（truth
+        // 关联来源不变）；角标 TRK/DET 标示来源。
+        const vtrack = associateViewportTrack(
+          viewportTracksFresh(viewportTracksState, performance.now()) ? viewportTracksState.doc.tracks : null,
+          locked, frame?.camera_pose, aspect);
+        const { source, blocks } = viewportTrackData(vtrack, ship ? targetPresentation(projection, ship, info).blocks : []);
+        node.hidden = viewportYoloStyle === 2 && blocks.length === 0;   // 无导航数据的 style2 = 完全无标注
+        const placement = viewportBoxPlacement(
+          { left: (locked.cx - track.nw / 2) * rect.width, top: (locked.cy - track.nh / 2) * rect.height,
+            width: track.nw * rect.width, height: track.nh * rect.height },
+          ship, rect.width, rect.height, viewportTruthSnapDebug);
         node.style.left = placement.left + 'px'; node.style.top = placement.top + 'px';
         node.style.width = placement.width + 'px'; node.style.height = placement.height + 'px';
         node.querySelector('.twin-vp-detection-tag').textContent =
-          box.className + ' : ' + Math.round(box.confidence * 100) + '%';
+          track.className + ' : ' + Math.round((track.confidence || 0) * 100) + '%';
+        node.querySelector('.twin-vp-detection-src').textContent = source;
+        node.querySelector('.twin-vp-detection-src').classList.toggle('twin-vp-detection-src--trk', source === 'TRK');
         node.querySelector('.twin-vp-detection-data').textContent =
           blocks.map(block => [block.label, block.value, block.unit].filter(Boolean).join(' ')).join(' · ');
       }
     }
-    for (const [key, node] of viewportDetectionNodes) if (!viewportWanted.has(key)) { node.remove(); viewportDetectionNodes.delete(key); }
+    if (vpSnap) { vpSnap.dom = viewportDetectionNodes.size; noteVp(vpSnap); }
+    // 框保活 0.35s:抑制/放置的逐帧抖动不再即时删建 DOM(闪动来源),过期才真删。
+    const vpNowMs = performance.now();
+    for (const [key, node] of viewportDetectionNodes) {
+      if (viewportWanted.has(key)) { vpKeepUntil.set(key, vpNowMs + 350); continue; }
+      if (vpNowMs > (vpKeepUntil.get(key) || 0)) { node.remove(); viewportDetectionNodes.delete(key); vpKeepUntil.delete(key); }
+    }
     for (const [key, node] of badgeNodes) if (!badgeWanted.has(key)) { node.remove(); badgeNodes.delete(key); }
     edges.replaceChildren(...edgeRecords.map(({ p, model, edge, arrow }, index) => {
       const button = doc.createElement('button'); button.className = edge; button.textContent = arrow + ' TS' + p.id;
@@ -684,8 +1146,17 @@ export function createTwinSituationOverlay({ host, video, chart, info, client, o
       // dt-yolo：run 切换同样重置视口检测状态与全局样式（照 yoloKeys 清空模式）。
       if (projection.raw.run_id !== viewportYoloRunId) {
         viewportYoloRunId = projection.raw.run_id; viewportYoloStyle = 0; viewportDetectionsState = null;
+        viewportTracksState = null;   // P3:航迹与检测文档同 run 生命周期清场
+        // P0 锁帧:跨 run 位姿/检测不可延续,跟踪器与位姿历史一并清场。
+        poseHistory.length = 0; trackedDetectionsReceivedAt = undefined; detectionTracker.reset();
       }
       viewportDetectionsState = foldViewportDetections(viewportDetectionsState, projection.raw, performance.now());
+      // SSE 直供文档与全量文档车取新者(received_at 单调,fold 语义同源)。
+      if (viewportDetectionsLive?.doc && (!viewportDetectionsState?.doc
+        || Number(viewportDetectionsLive.doc.received_at) >= Number(viewportDetectionsState.doc.received_at))) {
+        viewportDetectionsState = viewportDetectionsLive;
+      }
+      viewportTracksState = foldViewportTracks(viewportTracksState, projection.raw, performance.now());
       const bridge = client();
       if (bridge !== presentationClient || bridge?.attached !== presentationAttachment) {
         lastSent = null; presentationClient = bridge; presentationAttachment = bridge?.attached;
@@ -735,7 +1206,8 @@ export function createTwinSituationOverlay({ host, video, chart, info, client, o
     reset() {
       lastSent = null; frame = null; frameId = null; root.hidden = true;
       models.clear(); yoloKeys.clear(); yoloRunId = null;
-      viewportDetectionsState = null; viewportYoloRunId = null; viewportYoloStyle = 0;
+      viewportDetectionsState = null; viewportTracksState = null; viewportYoloRunId = null; viewportYoloStyle = 0;
+      poseHistory.length = 0; trackedDetectionsReceivedAt = undefined; detectionTracker.reset();
       for (const node of detectionNodes.values()) node.remove(); detectionNodes.clear();
       for (const node of viewportDetectionNodes.values()) node.remove(); viewportDetectionNodes.clear();
       for (const node of badgeNodes.values()) node.remove(); badgeNodes.clear();
@@ -748,6 +1220,6 @@ export function createTwinSituationOverlay({ host, video, chart, info, client, o
     // dt-yolo:HUD 后缀(deployment-twin renderHud 消费)——'· YOLO ON'(绿,链路在算)/
     // '· YOLO OFF'(勾了但数据不新鲜:引擎启动中或链路断)/''(未勾选)。
     yoloStatus() { return viewportYoloHudSuffix(chart.getLayerState(), viewportDetectionsState, performance.now()); },
-    destroy() { disposed = true; video.style.visibility = ''; video.removeEventListener('pointerdown', down); video.removeEventListener('pointerup', up); video.removeEventListener('contextmenu', contextMenu); compass.destroy(); root.remove(); toolbar.remove(); },
+    destroy() { disposed = true; vpEventSource?.close(); video.style.visibility = ''; video.removeEventListener('pointerdown', down); video.removeEventListener('pointerup', up); video.removeEventListener('contextmenu', contextMenu); compass.destroy(); root.remove(); toolbar.remove(); },
   };
 }

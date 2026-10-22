@@ -28,6 +28,9 @@ namespace Sango.Tests
             new TestCaseData(VesselClass.FcbHoubei, 42f, 180f).SetName("FcbHoubei (Type 22 hero, LOA 42 m, yaw 180)"),
             new TestCaseData(VesselClass.FcbPc3, 55f, 180f).SetName("FcbPc3 (Hurricane, LOA 55 m, yaw 180)"),
             new TestCaseData(VesselClass.Fcb45, 45f, 0f).SetName("Fcb45 (45 m Fast Crew Boat hero, LOA 45 m, yaw 0)"),
+            new TestCaseData(VesselClass.BulkCarrier, 180f, 180f).SetName("BulkCarrier (bulk_carrier, LOA 180 m, yaw 180)"),
+            new TestCaseData(VesselClass.HarborTug, 32f, 180f).SetName("HarborTug (tug_66, LOA 32 m, yaw 180)"),
+            new TestCaseData(VesselClass.CruiseFerry, 195f, 0f).SetName("CruiseFerry (viking_line, LOA 195 m, yaw 0)"),
         };
 
         readonly List<Object> m_Spawned = new List<Object>();
@@ -85,7 +88,7 @@ namespace Sango.Tests
             {
                 Assert.That(catalog.GetEntry(kenney)?.prefab, Is.Not.Null, $"{kenney} 被 M5 构建抹掉");
             }
-            Assert.That(catalog.entries.Length, Is.EqualTo(12), "编目应 3 Kenney + 9 M5 共 12 条");
+            Assert.That(catalog.entries.Length, Is.EqualTo(15), "编目应 3 Kenney + 12 M5(含 20261020 海事 3 档)共 15 条");
         }
 
         [Test, TestCaseSource(nameof(k_FleetExpectations))]

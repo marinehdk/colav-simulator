@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildTwinPresentation, layoutTwinWaypoints } from '../../web_gui/modules/twin-situation.js';
+import { buildTwinPresentation, layoutTwinWaypoints } from '../../web_gui/modules/twin-situation.js?v=20261019-p3-trk-v2';
 
 const marker = (label, x = 0.6, y = 0.45) => ({ label, x, y, visible: true });
 const markers = [60, 120, 180, 240, 300, 360, 400].map(t => marker(`+${t}s`));

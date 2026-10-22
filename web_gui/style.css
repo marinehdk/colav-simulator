@@ -480,7 +480,7 @@ obc-clock:not(:defined),
 .scenario-carousel-controls obc-icon-button { width: 36px; height: 36px; }
 .scenario-scrollbar { display: block; width: 100%; height: 74px; min-height: 74px; overflow-x: auto; overflow-y: hidden; scroll-snap-type: x mandatory; --obc-scrollbar-overflow-x: auto; --obc-scrollbar-overflow-y: hidden; }
 .scenario-scrollbar::part(wrapper) { overflow-y: hidden !important; }
-#validationEncChoices .choice, #validationEncChoices .choice-card { pointer-events: none; }
+#validationEncChoices .choice[aria-disabled="true"], #validationEncChoices .choice-card:disabled { pointer-events: none; }
 .scenario-choice-grid { width: 100%; min-width: 100%; display: grid; grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: calc((100% - var(--s-2)) / 2); align-items: start; gap: var(--s-2); padding: 1px 1px 4px; scroll-snap-align: start; box-sizing: border-box; }
 /* Config step 04: ownship GNC stack — five axis ladders + Stack Evidence. */
 .gnc-stack-layout { height: 100%; min-height: 0; display: grid; grid-template-rows: minmax(0, 1fr); }
@@ -4009,6 +4009,15 @@ canvas#simCanvas.route-pick-mode { cursor: crosshair; }
   padding: 1px 6px; font: 500 12px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
 .twin-vp-detection-tag { bottom: calc(100% + 4px); pointer-events: auto; cursor: pointer; }
 .twin-vp-detection-data { display: none; bottom: calc(100% + 30px); }  /* 标签上方一行（标签高 22px + 间隙） */
+/* P3 TRK/DET 来源角标：数据块数值来源——TRK=viewport_tracks confirmed 航迹（滤波
+   后 brg/rng/conf），DET=裸检测（truth 关联回退）。仅三态 1/2（有数据块时）显示；
+   TRK 用蓝区分于检测绿。 */
+.twin-vp-detection-src { display: none; position: absolute; top: -10px; right: -2px; transform: translateY(-100%);
+  color: #22c55e; background: rgba(7, 18, 27, 0.78); border: 1px solid rgba(34, 197, 94, 0.45);
+  padding: 0 5px; font: 600 10px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+.twin-vp-detection-src--trk { color: #5badf3; border-color: rgba(91, 173, 243, 0.55); }
+.twin-detections[data-yolo-style="1"] .twin-vp-detection-src,
+.twin-detections[data-yolo-style="2"] .twin-vp-detection-src { display: block; }
 .twin-detections[data-yolo-style="1"] .twin-vp-detection-data,
 .twin-detections[data-yolo-style="2"] .twin-vp-detection-data { display: block; }
 .twin-detections[data-yolo-style="2"] .twin-vp-detection { border-color: transparent; }
@@ -4122,5 +4131,24 @@ canvas#simCanvas.route-pick-mode { cursor: crosshair; }
 .gnc-environment-settings legend { font-weight: 600; padding: 0 5px; }
 .gnc-environment-settings label { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 10px 0; }
 .gnc-environment-settings input[type="number"], .gnc-environment-settings select { width: 120px; min-height: 30px; border: 1px solid #c6cbd1; border-radius: 3px; background: var(--obc-container-background-color, #fff); color: inherit; padding: 4px 6px; }
+/* OpenBridge obc-checkbox(降水开关族):自定义元素非 input,不再被
+   .config-step-panel input 的整行规则拉大;密度用组件自己的触控目标变量
+   (默认 48)压到 32,与 number 行 30px 对齐;标签不换行。 */
+.gnc-environment-settings obc-checkbox { flex: 0 0 auto; display: inline-flex; --ui-components-checkbox-touch-target-size: 32px; }
+.gnc-environment-settings label > span { white-space: nowrap; }
 @media (max-width: 1500px) { .gnc-environment-settings { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 1000px) { .gnc-environment-settings { grid-template-columns: 1fr; } }
+
+/* Geographic inspection uses the existing chart and DT viewport, without vessel UI. */
+#liveView.geographic-static .live-layout { grid-template-columns: 0 minmax(0, 1fr) 0; }
+#liveView.geographic-static .live-info-sidebar,
+#liveView.geographic-static .live-operations-sidebar,
+#liveView.geographic-static .deployment-tool-zone--simulation,
+#liveView.geographic-static .deployment-tool-zone--tools,
+#liveView.geographic-static .vessel-marker-layer,
+#liveView.geographic-static #liveEmptyState,
+#liveView.geographic-static #twinLinkToggleWrap,
+#liveView.geographic-static #deploymentTwinSensorGroup { display: none; }
+#configWorkface.geography-config .tuple-state ul,
+#configWorkface.geography-config .assembly-contract-body .contract { display: none; }
+#liveView.geographic-static .live-chart-card { grid-column: 2; }

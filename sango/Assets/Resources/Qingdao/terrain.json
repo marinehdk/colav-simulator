@@ -1,0 +1,74 @@
+{
+  "schema": "qingdao-terrain.v1",
+  "longitude": 120.2949968072661,
+  "latitude": 36.04500104524274,
+  "cesium_scale": 1.000328760649243,
+  "cesium_yaw": 1.5924629537512613,
+  "sea_correction": [
+    4.396238379993443e-08,
+    -3.6678826103347887e-09,
+    7.825015164862066e-08,
+    1.915490348030886e-11,
+    7.859444311115284e-08
+  ],
+  "resolution": 1025,
+  "origin_e": 256315,
+  "origin_n": 3992326,
+  "size_m": 18000,
+  "base_y": -64.0,
+  "range_y": 256.0,
+  "min_height_m": -56.96595001220703,
+  "max_height_m": 172.36241149902344,
+  "crs": "EPSG:32651",
+  "source_resolution_m": 30,
+  "water_floor": {
+    "source": "ENC S-57 SOUNDG + DEPCNT (VALDCO 0/2/5/10/20/30/50 m) + COALNE 0 m, constrained TIN sampled onto this 1025\u00b2 grid; cells CN436122/CN436123/CN436134",
+    "vertical_datum": "ENC DSPM_VDAT=3 = mean sea level (DSPM_DUNI=1 metres) vs GLO-30 EGM2008; the display zero plane treats the two as equal without a measured offset",
+    "coverage": "sea cells beyond the ENC triangulation hold the nearest ENC edge value; no GEBCO outer tail in this bake",
+    "quality": "chart-generalised display interpolation (ZOC B: depth \u00b11 m + 2%, horizontal \u00b150 m); never navigation depth",
+    "spikes_removed": 0,
+    "depare_cells_clamped": 19341
+  },
+  "depth_grid": {
+    "file": "depths.bytes",
+    "base_m": 0.0,
+    "range_m": 64.0,
+    "value": "positive-down water depth in metres, uint16 flipped like heights.bytes; land and drying cells are 0"
+  },
+  "shoreworks": {
+    "file": "shoreworks.json",
+    "lines": 164,
+    "areas": 51,
+    "assumption": "\u89c6\u89c9\u4fee\u6574\u3001\u975e\u5b9e\u6d4b"
+  },
+  "shore_foam": {
+    "file": "shorefoam.json",
+    "decals": 3,
+    "region_size_m": 1408.0,
+    "assumption": "\u89c6\u89c9\u4fee\u6574\u3001\u975e\u5b9e\u6d4b",
+    "note": "open-sea COALNE chunks near the static camera presets only; quiet harbour/bay water intentionally unplaced; foam look unverified"
+  },
+  "sources": [
+    {
+      "file": "N35E120.tif",
+      "sha256": "a9a8ed5f6f0f1c49fcb1111acf8120421aad06554632755ee17902937b593950"
+    },
+    {
+      "file": "N36E120.tif",
+      "sha256": "5bc97f2fdbdc09aa07051543951be08812b4525e4f5985927871b5de7376cb48"
+    },
+    {
+      "file": "CN436122.000",
+      "sha256": "56e582859b8079c9eeccb8a3b2514f59c3b738568e4fd062c86511d9c649a8ad"
+    },
+    {
+      "file": "CN436123.000",
+      "sha256": "bc7d35b9d485548130265614ea89df600fe9397c4f61798c4b9a6317ab555fe8"
+    },
+    {
+      "file": "CN436134.000",
+      "sha256": "0148cc4493d24ab3a1ddd9513e09a0b463be1e7152f215441f81fb76449212e8"
+    }
+  ],
+  "credits": "Copernicus DEM GLO-30 (DSM), accessed 2026-10-16 via AWS Open Data; https://registry.opendata.aws/copernicus-dem/; \u00a9 DLR e.V. 2010-2014 and \u00a9 Airbus Defence and Space GmbH 2014-2018; provided under COPERNICUS by the European Union and ESA; all rights reserved."
+}

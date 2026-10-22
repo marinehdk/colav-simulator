@@ -238,7 +238,7 @@ namespace Sango.Tests
             var ready = new TwinBridgeReady { build = "1.0", scene = "SangoTwin" };
             Assert.That(ready.ToJson(), Does.Contain("\"type\":\"ready\""));
             Assert.That(ready.ToJson(), Does.Contain("\"protocol\":\"twin-bridge@1\""));
-            Assert.That(ready.ToJson(), Does.Contain("\"modes_supported\":[\"live\",\"replay\"]"));
+            Assert.That(ready.ToJson(), Does.Contain("\"modes_supported\":[\"live\",\"replay\",\"static\"]"));
 
             var error = new TwinBridgeError { code = TwinBridge.ErrorRunNotFound, message = "backend 404" };
             var round = TwinBridgeError.FromJson(error.ToJson());
@@ -280,6 +280,8 @@ namespace Sango.Tests
             Assert.That(TwinBridge.IsValidSensorMode("eo"), Is.True, "P3-S0 词汇（§2/§8）：eo/ir/lidar");
             Assert.That(TwinBridge.IsValidSensorMode("ir"), Is.True);
             Assert.That(TwinBridge.IsValidSensorMode("lidar"), Is.True);
+            Assert.That(TwinBridge.IsValidSensorMode("ir_whitehot"), Is.True, "P2 IR realism：显式极性（survey §4 #1，只加不减）");
+            Assert.That(TwinBridge.IsValidSensorMode("ir_blackhot"), Is.True);
             Assert.That(TwinBridge.IsValidSensorMode("radar"), Is.False, "雷达 PPI 为 web 面板态不经此桥");
             Assert.That(TwinBridge.DefaultSensorMode, Is.EqualTo("eo"));
         }

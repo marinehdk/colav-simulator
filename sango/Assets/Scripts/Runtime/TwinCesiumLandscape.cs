@@ -81,6 +81,17 @@ namespace Sango
         // over; only a genuinely different waterway does.
         const float k_RegionSwitchM = 5000f;
         const int k_ShrinkRounds = 30;
+        // GPU0 空闲卸载(20261020 用户裁决):无 twin 会话挂靠 10 min → tileset 缓存预算
+        // 收到 64MiB(驻留瓦片被逐出,VRAM 释放——k_ShrunkCacheBytes 区域交接同机制)
+        // + suspendUpdate + 帧率 30→5(空闲渲染热大头);会话挂靠即恢复预算/更新/
+        // 帧率,瓦片按需重新流式加载("待下次使用再加载到缓存中")。
+        const float k_IdleShedAfterS = 600f;
+        const long k_IdleCacheBytes = 64L * 1024 * 1024;
+        const int k_IdleFrameRate = 5;
+        const int k_ActiveFrameRate = 30; // TwinStreamQuality 渲染钟铁律:挂靠态锁 30
+        float m_LastActiveUnscaled = -1f;
+        bool m_IdleShed;
+        long m_TerrainBudgetBytes, m_BuildingsBudgetBytes;
 
         void Start()
         {
@@ -299,6 +310,59 @@ namespace Sango
             if (m_Buildings != null) m_Buildings.suspendUpdate = true;
         }
 
+        void UpdateIdleShed()
+        {
+            // 会话挂靠判据与 UpdateWarmup 同源(driver.Anchor = 船已按 truth 挂槽);
+            // PAUSED 算在用(观看者还在,帧率不动)。首帧把"最后活跃"记为启动时刻:
+            // 从未挂靠的播放器 10 min 后同样进入空闲卸载。
+            bool session = m_Driver != null && m_Driver.Anchor != null && m_Bridge != null && m_Bridge.AttachedRunId != null;
+            if (m_LastActiveUnscaled < 0f) m_LastActiveUnscaled = Time.unscaledTime;
+            if (session)
+            {
+                m_LastActiveUnscaled = Time.unscaledTime;
+                if (m_IdleShed) IdleUnshed();
+            }
+            else if (!m_IdleShed && Time.unscaledTime - m_LastActiveUnscaled > k_IdleShedAfterS)
+                IdleShed();
+        }
+
+        void IdleShed()
+        {
+            m_IdleShed = true;
+            if (m_Terrain != null)
+            {
+                m_TerrainBudgetBytes = m_Terrain.maximumCachedBytes;
+                m_Terrain.maximumCachedBytes = k_IdleCacheBytes;
+                m_Terrain.suspendUpdate = true;
+            }
+            if (m_Buildings != null)
+            {
+                m_BuildingsBudgetBytes = m_Buildings.maximumCachedBytes;
+                m_Buildings.maximumCachedBytes = k_IdleCacheBytes;
+                m_Buildings.suspendUpdate = true;
+            }
+            Application.targetFrameRate = k_IdleFrameRate;
+            Debug.Log($"[Sango.Cesium] idle {k_IdleShedAfterS / 60:0}min — cache budget -> {k_IdleCacheBytes / 1048576}MiB, "
+                      + $"suspendUpdate, frame rate {k_IdleFrameRate} (GPU0 空闲卸载,挂靠即恢复)");
+        }
+
+        void IdleUnshed()
+        {
+            m_IdleShed = false;
+            if (m_Terrain != null && m_TerrainBudgetBytes > 0)
+            {
+                m_Terrain.maximumCachedBytes = m_TerrainBudgetBytes;
+                m_Terrain.suspendUpdate = false;
+            }
+            if (m_Buildings != null && m_BuildingsBudgetBytes > 0)
+            {
+                m_Buildings.maximumCachedBytes = m_BuildingsBudgetBytes;
+                m_Buildings.suspendUpdate = false;
+            }
+            Application.targetFrameRate = k_ActiveFrameRate;
+            Debug.Log("[Sango.Cesium] session attached — cache budget resumed, tile updates on, frame rate 30");
+        }
+
         void UpdateWarmup()
         {
             var own = m_Driver?.OwnShipObject;
@@ -445,6 +509,7 @@ namespace Sango
                 if (pair.Key != null) ProjectTile(pair.Key, pair.Value);
                 if (System.Diagnostics.Stopwatch.GetTimestamp() - started >= budget) break;
             }
+            UpdateIdleShed();
             UpdateWarmup();
             if (m_Root == null || Time.unscaledTime < m_NextUpdate) return;
             m_NextUpdate = Time.unscaledTime + 2;

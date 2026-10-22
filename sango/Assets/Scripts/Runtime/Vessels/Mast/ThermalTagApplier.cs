@@ -13,17 +13,30 @@ namespace Sango.Vessels.Mast
     /// IR scene). Registration happens from TwinSessionDriver slot wiring —
     /// twin slots are ephemeral (rebuilt per attach), so registrations are
     /// keyed by renderer and dropped when the renderer dies.
+    /// P2 IR realism round: ambient land (岸线建筑/地形/桥 in the Cesium
+    /// satellite tiles — live TwinCesiumLandscape and static Qingdao share the
+    /// <see cref="AmbientLandscapeMaterialName"> material) is tagged through
+    /// that one shared material's _baseColorFactor, keyed to the Land tier by
+    /// material name; polarity (ir_blackhot) needs no extra tagging — the pass
+    /// inverts the display mapping.
     /// Scope note: material mutation is process-wide, but the tag applies only
-    /// while sensor_mode=ir is active (a twin-bridge control state); Demo-mode
+    /// while sensor_mode=ir* is active (a twin-bridge control state); Demo-mode
     /// *rendering code paths* are untouched and EO restores the exact colors.
     /// </summary>
     public static class ThermalTagApplier
     {
+        /// <summary>Shared Cesium tileset opaque material (land/terrain/shoreline imagery).</summary>
+        public const string AmbientLandscapeMaterialName = "TwinCesiumLandscapeMaterial";
+
         private static readonly List<Renderer> Registered = new List<Renderer>();
         private static readonly Dictionary<Renderer, List<Color>> Originals = new Dictionary<Renderer, List<Color>>();
         private static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
         private static readonly int EmissiveColorId = Shader.PropertyToID("_EmissiveColor");
         private static readonly int EmissiveIntensityId = Shader.PropertyToID("_EmissiveIntensity");
+        private static readonly int BaseColorFactorId = Shader.PropertyToID("_baseColorFactor");
+        private static Material s_AmbientMaterial;
+        private static Color s_AmbientOriginal = Color.white;
+        private static bool s_AmbientSnapshotTaken;
 
         /// <summary>Registers a vessel root (idempotent): every renderer under it is tagged.</summary>
         public static void Register(GameObject vesselRoot)
@@ -61,6 +74,7 @@ namespace Sango.Vessels.Mast
                 }
                 ApplyTierColors(renderer, materials, irOn: true);
             }
+            ApplyAmbient();
         }
 
         /// <summary>Restores the snapshotted colors (sensor_mode back to eo/lidar).</summary>
@@ -82,6 +96,38 @@ namespace Sango.Vessels.Mast
                 }
             }
             Originals.Clear();
+            RevertAmbient();
+        }
+
+        /// <summary>
+        /// Ambient land tagging (P2 IR realism): the shared Cesium tileset
+        /// material covers 岸线建筑/地形/桥 in BOTH landscapes (live
+        /// TwinCesiumLandscape + static Qingdao — QingdaoStaticScene.cs:166 and
+        /// TwinCesiumLandscape.cs:162 load the same Resources material), so one
+        /// _baseColorFactor drive tags every land pixel; name-keyed to the Land
+        /// tier ("…Landscape…" contains "land"). Ephemeral Cesium tile renderers
+        /// need no per-renderer registration this way.
+        /// </summary>
+        static void ApplyAmbient()
+        {
+            if (s_AmbientMaterial == null) s_AmbientMaterial = Resources.Load<Material>(AmbientLandscapeMaterialName);
+            var material = s_AmbientMaterial;
+            if (material == null || !material.HasProperty(BaseColorFactorId)) return;
+            if (!s_AmbientSnapshotTaken)
+            {
+                s_AmbientOriginal = material.GetColor(BaseColorFactorId);
+                s_AmbientSnapshotTaken = true;
+            }
+            float gray = IrTemperature.TierGray(IrTemperature.TierForMaterial(material.name));
+            material.SetColor(BaseColorFactorId, new Color(gray, gray, gray, 1f));
+        }
+
+        /// <summary>Restores the ambient landscape material factor (EO).</summary>
+        static void RevertAmbient()
+        {
+            if (s_AmbientMaterial == null || !s_AmbientSnapshotTaken) return;
+            if (s_AmbientMaterial.HasProperty(BaseColorFactorId)) s_AmbientMaterial.SetColor(BaseColorFactorId, s_AmbientOriginal);
+            s_AmbientSnapshotTaken = false;
         }
 
         /// <summary>EditMode-visible pure step: tier gray per material slot (stored originals feed Revert).</summary>

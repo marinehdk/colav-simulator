@@ -2,7 +2,11 @@ name: "head_on_camera1"
 save_scenario: False
 t_start: 0.0
 t_end: 1200.0
-dt_sim: 0.5
+# 评审 Q3(2026-10-19)频率对齐:上游 FramePublisher 最高 10Hz,原 dt_sim=0.5
+# (2Hz tick)每 tick 攒 ~5 帧一次性 drain——同目标 last-wins 静默丢 4/5、未关联
+# 记录 5×批量进同一杂波更新,IPDA 存在概率/杂波统计按单帧-per-tick 语义被偏置。
+# 0.1 与检测链 10Hz 匹配(一次性诊断场景专用;其余场景 dt_sim 各按需,不牵连)。
+dt_sim: 0.1
 utm_zone: 33
 map_size: [7000.0, 7000.0]
 map_origin_enu: [37000.0, 6955000.0]

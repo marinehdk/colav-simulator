@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: VesselCatalog
   m_EditorClassIdentifier: Sango.Vessels::Sango.VesselCatalog
   pipelineVersion: 3
-  fleetPipelineVersion: 3
+  fleetPipelineVersion: 6
   entries:
   - vesselClass: 8
     prefab: {fileID: 7745941666361840033, guid: 5319f3f963878423c9e83b3a4cc8b9d3, type: 3}
@@ -77,6 +77,27 @@ MonoBehaviour:
     waterlineOffsetY: -1.5446112
     bowEndWidth: 5.6580157
     sternEndWidth: 8.679844
+    bowYawDeg: 0
+  - vesselClass: 12
+    prefab: {fileID: 2284580692756330907, guid: be54d6f4324d04d96ade9c4c5fffc3f1, type: 3}
+    loaMeters: 180
+    waterlineOffsetY: -6.0352936
+    bowEndWidth: 12.060848
+    sternEndWidth: 13.257542
+    bowYawDeg: 180
+  - vesselClass: 13
+    prefab: {fileID: 2672775934094844151, guid: b3a52109951d941e8822bb848cae23b8, type: 3}
+    loaMeters: 32
+    waterlineOffsetY: -2.8414004
+    bowEndWidth: 1.8255779
+    sternEndWidth: 2.5839355
+    bowYawDeg: 180
+  - vesselClass: 14
+    prefab: {fileID: 1402471378753587643, guid: 5633f723556524f32834977978370291, type: 3}
+    loaMeters: 195
+    waterlineOffsetY: -6.243968
+    bowEndWidth: 28.45377
+    sternEndWidth: 31.76883
     bowYawDeg: 0
   - vesselClass: 0
     prefab: {fileID: 9163801143775574186, guid: 12f9ec1eab4e5436fa253881312756cf, type: 3}

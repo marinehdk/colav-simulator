@@ -30,9 +30,10 @@ namespace Sango
 
         /// <summary>
         /// 按型取编目条目（目标船视觉档位；查无此型返回 null 走 truth 匹配）。
-        /// 20261015 用户裁决：DT 视口目标船默认 Kenney Medium 60m——12m 真值渔船在
-        /// 2km 外仅 ~4px 低于 YOLO P3 检测下限，检测链观感需要更大视觉目标；
-        /// 物理仍按 truth.length，仅显示层换型（--twin-target-visual truth 可复原）。
+        /// 20261015 用户裁决：DT 视口目标船统一大视觉档（12m 真值渔船在 2km 外仅
+        /// ~4px 低于 YOLO P3 检测下限）；20261020 改默认 BulkCarrier 180m 散货船
+        /// （真实船型+更大目标）；物理仍按 truth.length，仅显示层换型
+        /// （--twin-target-visual truth 可复原）。
         /// </summary>
         public static VesselCatalog.Entry SelectByClass(VesselCatalog catalog, VesselClass vesselClass)
         {

@@ -29,6 +29,8 @@ namespace Sango
         Quaternion m_LineRotation;
         TwinSituationMessage m_Shown;
         public TwinSituationMessage CurrentPresentation => m_Shown;
+        /// <summary>本帧 marker 值（ownship-mask-v1:掩膜发布器同帧采此 id 对齐分流帧）。</summary>
+        public int CurrentFrameId => m_FrameId;
         string m_GeometrySignature;
         int m_FrameId;
 
@@ -116,6 +118,13 @@ namespace Sango
                 time_markers = ProjectPoints(camera, data.time_markers, driver.Anchor.Value, true),
                 detections = detections.ToArray(),
             };
+            // P1 本船水线多边形：与 marker/目标投影同帧同相机产出；本船不可解析或相机
+            // 前方角点<3（桥眼位本船在身后）→ 空数组=无掩膜，中继与 situation_frame 同源。
+            frame.ownship_polygon = driver.TryGetOwnShipWaterline(out var bowPort, out var bowStarboard,
+                out var sternStarboard, out var sternPort)
+                ? TwinSituationMath.OwnshipPolygon(camera, bowPort, bowStarboard, sternStarboard, sternPort)
+                : Array.Empty<TwinOwnshipCorner>();
+            bridge.OfferOwnshipPolygon(frame);
             m_Frames[m_FrameId] = frame; m_FrameOrder.Enqueue(m_FrameId);
             while (m_FrameOrder.Count > 120) m_Frames.Remove(m_FrameOrder.Dequeue());
             bridge.ActiveBridgeChannel.SendJson(frame.ToJson());
@@ -190,10 +199,12 @@ namespace Sango
         [Serializable] sealed class GeometryKey
         {
             public TwinDisplayPoint[] ribbon,waypoints;
+            public double[] hazard_xy;
+            public int hazard_count;
             public TwinDisplayLine[] lines;
             public TwinDisplayDisc vo;
-            public bool waypoints_visible;
-            public GeometryKey(TwinSituationMessage data) { ribbon=data.ribbon; waypoints=data.waypoints; lines=data.lines; vo=data.vo; waypoints_visible=data.waypoints_visible; }
+            public bool waypoints_visible, hazard_visible;
+            public GeometryKey(TwinSituationMessage data) { ribbon=data.ribbon; waypoints=data.waypoints; hazard_xy=data.hazard_xy; hazard_count=data.hazard_count; lines=data.lines; vo=data.vo; waypoints_visible=data.waypoints_visible; hazard_visible=data.hazard_visible; }
         }
         void RebuildGeometry(TwinSituationMessage data, TwinAnchor anchor)
         {
@@ -201,10 +212,28 @@ namespace Sango
             m_Geometry=new GameObject("DT situation geometry"); m_Geometry.transform.SetParent(transform,false);
             var vertices=new List<Vector3>(); var triangles=new List<int>();
             var ribbon=data.ribbon ?? Array.Empty<TwinDisplayPoint>();
-            Debug.Log($"[Sango.DT] geometry seq={data.seq} ribbon_quads={ribbon.Length/4} lines={data.lines?.Length ?? 0} waypoints={data.waypoints?.Length ?? 0}");
+            Debug.Log($"[Sango.DT] geometry seq={data.seq} ribbon_quads={ribbon.Length/4} hazard_tris={data.hazard_count} lines={data.lines?.Length ?? 0} waypoints={data.waypoints?.Length ?? 0}");
             for (int i=0;i+3<ribbon.Length;i+=4)
                 Quad(vertices,triangles,Local(ribbon[i],anchor,1.2f),Local(ribbon[i+1],anchor,1.2f),Local(ribbon[i+2],anchor,1.2f),Local(ribbon[i+3],anchor,1.2f));
             MeshObject("Mission route ribbon",vertices,triangles,new Color(0.467f,0.741f,1,0.3f));
+            // 不安全水域红区(OpenBridge 搁浅警示语义):平面低于 ribbon(1.0 vs 1.2),
+            // 航线恒在其上可见;地形/岛礁从红面穿出 = "从水面延伸到岛礁上"。
+            // hazard_xy = 平铺绝对 [east,north]×0.1m,6 数/三角形。
+            if (data.hazard_visible && data.hazard_xy != null)
+            {
+                vertices.Clear(); triangles.Clear();
+                int count=Mathf.Min(data.hazard_count,(data.hazard_xy.Length/6));
+                for (int t=0;t<count;t++)
+                {
+                    int o=t*6;
+                    int j=vertices.Count;
+                    for (int k=0;k<3;k++)
+                    { var local=anchor.ToLocal(data.hazard_xy[o+k*2],data.hazard_xy[o+k*2+1]);
+                        vertices.Add(new Vector3(local.x,1f,local.y)); }
+                    triangles.AddRange(new[]{j,j+1,j+2});
+                }
+                MeshObject("Unsafe water red zone",vertices,triangles,new Color(0.90f,0.22f,0.22f,0.30f));
+            }
             foreach(var line in data.lines ?? Array.Empty<TwinDisplayLine>())
             {
                 vertices.Clear(); triangles.Clear();

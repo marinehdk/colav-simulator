@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-import { createDeploymentTwinViewport, projectTwinLandscape } from '../../web_gui/modules/deployment-twin.js?v=20261015-dt-yolo-dt-v2';
+import { createDeploymentTwinViewport, projectTwinLandscape } from '../../web_gui/modules/deployment-twin.js?v=20261020-owmask-v6';
 
 const html = await readFile(new URL('../../web_gui/index.html', import.meta.url), 'utf8');
 const styles = await readFile(new URL('../../web_gui/style.css', import.meta.url), 'utf8');
@@ -137,6 +137,7 @@ function fakeCheckbox() {
 
 function viewportHarness({
   sessionId = () => 'sess-1',
+  sceneInfo = info,
   ready = true,
   attached = null,
   sensorGroup = null,
@@ -166,7 +167,7 @@ function viewportHarness({
     sensorGroup,
     sessionId,
     backendBase: 'http://127.0.0.1:8010',
-    info,
+    info: sceneInfo,
     scheduler,
     now,
     streamClientFactory: factory,
@@ -240,6 +241,26 @@ test('live attach carries mode=live for the active session and never a clock mes
   assert.equal('replay' in attach, false, 'live attach has no replay span');
   assert.equal(h.client.sent.filter(message => message.type === 'clock').length, 0,
     'clock authority is the backend: the deployment twin never sends clock (contract §2)');
+});
+
+test('attach watchdog re-sends until the player echoes attached (2026-10-21 race fix)', async () => {
+  let at = Date.now();
+  const h = viewportHarness({ now: () => at });
+  await h.viewport.attach();
+  h.scheduler.run(); // ready tick → first hello/attach burst
+  assert.equal(h.client.sent.filter(m => m.type === 'attach').length, 1);
+  h.scheduler.run(); // within the 3 s budget → no duplicate
+  assert.equal(h.client.sent.filter(m => m.type === 'attach').length, 1);
+  at += 3500;
+  h.scheduler.run(); // past the budget with no echo → re-send
+  assert.equal(h.client.sent.filter(m => m.type === 'attach').length, 2,
+    'lost attach (player-side channel race) is retried, not dropped');
+  h.client.attached = { run_id: 'sess-1', mode: 'live' };
+  at += 3500;
+  h.scheduler.run(); // echo landed → watchdog retires
+  assert.equal(h.client.sent.filter(m => m.type === 'attach').length, 2,
+    'no re-send after the player echoes attached');
+  h.viewport.destroy();
 });
 
 test('session replacement cannot attach an old viewer to the new session', async () => {
@@ -375,7 +396,7 @@ test('deployment twin shell exposes the sensor-mode button group with the frozen
   assert.match(app, /sensorGroup: document\.getElementById\('deploymentTwinSensorGroup'\)/);
 });
 
-test('sensor-mode click sends the contract literal; §5 realignment rides the attach', async () => {
+test('sensor-mode click sends the contract literal; IR re-click cycles polarity; §5 realignment rides the attach', async () => {
   const group = fakeSensorGroup({ initialActive: 'eo' });
   const h = viewportHarness({ sensorGroup: group });
   await h.viewport.attach();
@@ -385,10 +406,88 @@ test('sensor-mode click sends the contract literal; §5 realignment rides the at
     'attach realignment sends the current group pick (default eo)');
 
   group.of('ir').click();
-  const ir = h.client.sent.filter(message => message.type === 'sensor_mode').at(-1);
-  assert.deepEqual(ir, { type: 'sensor_mode', value: 'ir' }, 'click sends the frozen literal');
+  let ir = h.client.sent.filter(message => message.type === 'sensor_mode').at(-1);
+  assert.deepEqual(ir, { type: 'sensor_mode', value: 'ir_whitehot' }, 'P2: 非 IR 进 IR = 显式白热（survey §4 #1）');
   assert.equal(group.of('ir').activeState, true, 'optimistic pick flips the group');
   assert.equal(group.of('eo').activeState, false);
+
+  group.of('ir').click();
+  ir = h.client.sent.filter(message => message.type === 'sensor_mode').at(-1);
+  assert.deepEqual(ir, { type: 'sensor_mode', value: 'ir_blackhot' }, 'P2: IR 键再点 → 黑热极性');
+  assert.equal(group.of('ir').activeState, true, '极性循环仍点亮 IR 单键');
+
+  group.of('ir').click();
+  ir = h.client.sent.filter(message => message.type === 'sensor_mode').at(-1);
+  assert.deepEqual(ir, { type: 'sensor_mode', value: 'ir_whitehot' }, 'P2: 再点切回白热');
+
+  group.of('eo').click();
+  const eo = h.client.sent.filter(message => message.type === 'sensor_mode').at(-1);
+  assert.deepEqual(eo, { type: 'sensor_mode', value: 'eo' }, '非 IR 键原样直通');
+
+  h.viewport.destroy();
+});
+
+test('IR polarity cycle is not reset by a stale pre-pick state echo (P2 race fix)', async () => {
+  let at = Date.now();
+  const group = fakeSensorGroup({ initialActive: 'eo' });
+  const h = viewportHarness({ sensorGroup: group, now: () => at });
+  await h.viewport.attach();
+  h.scheduler.run();
+
+  group.of('ir').click();
+  assert.deepEqual(h.client.sent.filter(message => message.type === 'sensor_mode').at(-1),
+    { type: 'sensor_mode', value: 'ir_whitehot' });
+
+  // Stale echo still claiming 'eo' (state generated before the pick) lands on
+  // the next HUD tick — inside the 2s guard it must NOT reset the cycle base.
+  h.client.lastState = { _receivedAt: at, stream: { state: 'ok', latency_ms: 0 }, fps: 60, sensor_mode: 'eo' };
+  h.scheduler.run();
+
+  group.of('ir').click();
+  assert.deepEqual(h.client.sent.filter(message => message.type === 'sensor_mode').at(-1),
+    { type: 'sensor_mode', value: 'ir_blackhot' }, 'race fix: 护窗内二连点推进极性，而非重发 ir_whitehot');
+
+  // Guard window lapses → the echo reclaims authority (self-heal path: Unity
+  // rejected the pick / another client changed the mode).
+  at += 2100;
+  h.client.lastState = { _receivedAt: at, stream: { state: 'ok', latency_ms: 0 }, sensor_mode: 'eo' };
+  h.scheduler.run();
+  assert.equal(group.of('eo').activeState, true, '护窗超时后 echo 恢复权威（回 eo）');
+
+  group.of('ir').click();
+  assert.deepEqual(h.client.sent.filter(message => message.type === 'sensor_mode').at(-1),
+    { type: 'sensor_mode', value: 'ir_whitehot' }, '自愈后循环从白热重新进入');
+
+  h.viewport.destroy();
+});
+
+test('P2 review fix: §5 reconnect resend keeps the polarity pick through the null-echo poll window', async () => {
+  let at = Date.now();
+  const group = fakeSensorGroup({ initialActive: 'eo' });
+  const h = viewportHarness({ sensorGroup: group, now: () => at });
+  await h.viewport.attach();
+  h.scheduler.run(); // attach poll (ready) → initial realignment 'eo'
+
+  group.of('ir').click();
+  group.of('ir').click();
+  assert.deepEqual(h.client.sent.filter(message => message.type === 'sensor_mode').at(-1),
+    { type: 'sensor_mode', value: 'ir_blackhot' }, '二连点进黑热');
+
+  // 点击护窗已超时（真实竞态：pick 在前、重连在后，间隔 >2s——点击护窗救不了）。
+  at += 2100;
+
+  // §5 重连：新 client 尚未 ready、lastState=null；HUD tick(250ms) 的 null-echo
+  // 折回不再把极性 pick 覆盖成 'eo'（absent echo ≠ 'eo' echo）。
+  h.client.lastState = null;
+  h.client.ready = false;
+  await h.viewport.attach(); // onChannel 重开 → 重新轮询等 ready
+  h.scheduler.run(); // HUD fold tick + poll tick（未 ready）
+  assert.equal(group.of('ir').activeState, true, '轮询窗口内 IR 键保持点亮（未折回 eo）');
+
+  h.client.ready = true;
+  h.scheduler.run(); // ready tick → sendAttach + §5 realignment
+  assert.deepEqual(h.client.sent.filter(message => message.type === 'sensor_mode').at(-1),
+    { type: 'sensor_mode', value: 'ir_blackhot' }, '重发携带极性当前值，而非折回的 eo');
 
   h.viewport.destroy();
 });
@@ -404,6 +503,10 @@ test('state echo is the authority: buttons mirror sensor_mode, lidar is a real m
   h.client.lastState = { _receivedAt: Date.now(), stream: { state: 'ok', latency_ms: 0 }, sensor_mode: 'ir' };
   h.scheduler.run();
   assert.equal(group.of('ir').activeState, true);
+  h.client.lastState = { _receivedAt: Date.now(), stream: { state: 'ok', latency_ms: 0 }, sensor_mode: 'ir_blackhot' };
+  h.scheduler.run();
+  assert.equal(group.of('ir').activeState, true, 'P2: 极性回显仍点亮 IR 单键（黑热 = 同 pass 反转显示）');
+  assert.equal(group.of('eo').activeState, false);
   h.client.lastState = { _receivedAt: Date.now(), stream: { state: 'ok', latency_ms: 0 } };
   h.scheduler.run();
   assert.equal(group.of('eo').activeState, true, 'old Unity build (no field) falls back to the contract default');
@@ -575,6 +678,27 @@ test('terrain warmup shows progress, failures remain explicit and local terrain 
   assert.equal(projectTwinLandscape({ ready: false, state: 'failed', progress: 90 }).level, 'failed');
   assert.equal(projectTwinLandscape({ ready: true, state: 'offline-terrain' }), null);
   assert.equal(projectTwinLandscape(null), null, 'older renderer remains compatible');
+});
+
+test('available geographic preview stays visible and interactive while detail loads', async () => {
+  const video = pointerVideo(), h = viewportHarness({ video,
+    sceneInfo: { ...info, scene_mode: 'GEOGRAPHIC_STATIC' },
+    attached: { anchor: { east: 40000, north: 6957000 } } });
+  await h.viewport.attach();
+  h.client.lastState = {
+    camera_pose: { east: 40000, north: 6957000, height_m: 160, yaw_deg: 40, pitch_deg: -8, fov_deg: 65 },
+    landscape: { ready: false, displayable: true, state: 'warming', progress: 42 },
+  };
+  h.scheduler.run();
+  assert.equal(video.style.visibility, '', 'loaded geographic preview must not be blacked out');
+  assert.equal(projectTwinLandscape(h.client.lastState.landscape), null, 'no blocking warmup card over available terrain');
+  video.emit('wheel', { deltaY: -100 }); h.scheduler.run();
+  assert.equal(h.client.sent.filter(m => m.type === 'camera_free').length, 1);
+  assert.equal(h.client.lastState.landscape.ready, false, 'preview availability must not invent completed downloads');
+  h.client.lastState.landscape = { ready: false, displayable: false, state: 'waiting-session' };
+  h.scheduler.run();
+  assert.equal(video.style.visibility, 'hidden', 'availability must not leak across a released attachment');
+  h.viewport.destroy();
 });
 
 // dt-yolo:勾选"YOLO 检测"图层 = 拉起/停掉后端检测引擎(免会话,勾选即用)。

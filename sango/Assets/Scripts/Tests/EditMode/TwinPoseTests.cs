@@ -200,7 +200,7 @@ namespace Sango.Tests
             Assert.That(TwinShipFactory.Select(catalog, 10f), Is.Null, "空编目不脑补替身");
         }
 
-        // 20261015 目标船视觉档位：--twin-target-visual（默认 Medium 60m）按型直取。
+        // 目标船视觉档位：--twin-target-visual（默认 BulkCarrier 180m，20261020 裁决）按型直取。
         [Test]
         public void SelectByClass_ReturnsEntryOrNull()
         {

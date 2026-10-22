@@ -915,7 +915,7 @@ export function createSituationDisplay(options) {
     encPendingImage = null;
   }
 
-  async function initENC(sessionId) {
+  async function initENC(sessionId, suppliedInfo = null) {
     cancelENCLoad();
     const generation = encLoadGeneration;
     setEncStatus('loading');
@@ -923,9 +923,9 @@ export function createSituationDisplay(options) {
     const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
     encInfoController = controller;
     try {
-      const res = controller
+      const res = suppliedInfo || (controller
         ? await fetchInfo({ signal: controller.signal })
-        : await fetchInfo({});
+        : await fetchInfo({}));
       // Accept either a Response-like ({ json() }) or a pre-parsed info object.
       const info = typeof res?.json === 'function' ? await res.json() : res;
       if (generation !== encLoadGeneration || sessionId !== currentRunId()) return;
@@ -967,7 +967,7 @@ export function createSituationDisplay(options) {
           onLog('ENC PNG tile failed to load.', 'log-danger');
           resolve();
         };
-        setSpriteSrc(img, fetchTile());
+        setSpriteSrc(img, suppliedInfo ? info.tile_url : fetchTile());
       });
       rerender();
     } catch (error) {
@@ -1084,6 +1084,11 @@ export function createSituationDisplay(options) {
       drawGrid(W, H);
     }
 
+    if (data.scene_mode === 'GEOGRAPHIC_STATIC') {
+      markerSink?.([]); aisMarkerSink?.([]); syncAisBlinkTimer(null);
+      ctx.restore();
+      return;
+    }
     const route = updateFrozenRoute(missionRoutes, data);
     const navigationArea = data.enc_navigation_area;
     updateLayerAvailability(data, navigationArea);
@@ -2271,6 +2276,10 @@ export function createSituationDisplay(options) {
     },
     rerender,
     beginSession,
+    beginGeography(info) {
+      clearSession(); activeRunId = info.run_id; userAdjusted = false;
+      return initENC(activeRunId, info);
+    },
     clearSession,
     setLayerVisible,
     getLayerState,

@@ -11,7 +11,7 @@
  */
 
 import { interpolateVesselKinematics } from './kinematics.js';
-import { createGeography } from './scene-geography.js?v=20261004-token-cleanup-v1';
+import { createGeography } from './scene-geography.js?v=20261016-qingdao-v2';
 
 export const REPLAY_PRESENTATION_MODE = 'HISTORICAL_REPLAY';
 

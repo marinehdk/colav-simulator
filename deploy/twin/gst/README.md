@@ -150,7 +150,7 @@ scp deploy/twin/gst/sender/sender.py a4000:~/gst-spike/gst/sender/sender.py
 
 用户裁决:检测器部署 a4000 GPU(**GPU1 推理,Unity 渲染占 GPU0;不动驱动,marine 用户级安装**)。mac 后端以 `TWIN_VIEWPORT_DETECTOR_REMOTE=a4000` 启动时,engine 端点(`/api/viewport-detection-engine`)改走 ssh 托管:
 
-- a4000 侧(一次性,已完成):`~/twin-detector-venv`(torch 2.5.1+cu121/ultralytics/sahi/pyzmq)+ 脚本 `~/twin-detector/sango_detector_service.py`;权重 `yolov8s.pt` 首启自动下载。
+- a4000 侧(一次性,已完成):`~/twin-detector-venv`(torch 2.5.1+cu121/ultralytics/sahi/pyzmq)+ 脚本 `~/twin-detector/sango_detector_service.py`;权重由启动命令指定（生产 `yolov8s.pt` 首启自动下载；20261020 曾试同事海事单类 yolov18.pt 实测效果差已回退；船类过滤按权重 names 自适应，vessel/boat/ship 类名通吃）。
 - 引擎启动命令(常量在 `gui_server/main.py:_REMOTE_DETECT_CMD`):`CUDA_VISIBLE_DEVICES=1 … --device cuda:0 --model yolov8s.pt --slice-size 640 --pidfile detector.pid`——**SAHI 切片推理**(720p→640×640×6 片,小目标召回 +17%)。
 - 探活=远端 pidfile(`~/twin-detector/detector.pid`,serve 启动自写/退出自清);**不要用 pgrep -f 裸模式**(ssh/bash 包装进程自匹配假阳性)。
 - 结果回传走 `remote_control.py` 常驻反向隧道 `-R 127.0.0.1:18010:127.0.0.1:8010`(a4000:18010 → mac:8010):检测器 POST `http://127.0.0.1:18010/api/viewport-detections`。**渲染栈 stop 会拆隧道**(remote_control stop 语义),期间 POST 丢帧不致命,start 后自愈。

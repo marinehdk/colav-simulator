@@ -66,5 +66,14 @@ namespace Sango
 
         /// <summary>Twin 数据面后端基址（gui_server 本机常驻，00-REPORT.md §2.2）。</summary>
         public const string TwinBackendBase = "http://127.0.0.1:8010";
+
+        /// <summary>
+        /// 路线A 本船逐像素掩膜通道（ownship-mask-v1.md）：TwinOwnshipMaskPublisher PUB
+        /// 绑定端点（检测服务 SUB connect；5556/5557 为帧/检测既有占用）。
+        /// </summary>
+        public const string OwnshipMaskEndpoint = "tcp://127.0.0.1:5558";
+
+        /// <summary>掩膜消息第 1 段主题字符串（ZMQ PUB 订阅过滤用）。</summary>
+        public const string OwnshipMaskTopic = "sango.ownship_mask";
     }
 }

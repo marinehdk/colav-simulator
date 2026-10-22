@@ -86,9 +86,9 @@ test('composition root wires the runtime into the projection singleton and expor
 });
 
 test('Config assets retain GNC tags and load the updated runtime shell', () => {
-  const tag = '20261015-dt-yolo-v4';
+  const tag = '20261020-owmask-v6';
   assert.match(html, new RegExp(`/static/style\\.css\\?v=${tag}`));
-  assert.match(html, /\/static\/modules\/config-shell\.js\?v=20261009-dt-environment-v2/);
+  assert.match(html, /\/static\/modules\/config-shell\.js\?v=20261020-owmask-v6/);
   assert.match(shell, /validation-assembly\.js\?v=20261009-dt-environment-v1/);
 });
 

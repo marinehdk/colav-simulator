@@ -156,18 +156,30 @@ namespace Sango.Editor.TwinBridge
                 throw new System.InvalidOperationException("[Sango.TwinBridge] twin scene missing — run BuildTwinScene first");
             // Include HDRP alpha-test variants in the player. Enabling the keyword only
             // when a streamed tile appears is too late if that variant was stripped.
-            const string clippingPath = "Assets/Resources/TwinCesiumLandscapeMaterial.mat";
-            Directory.CreateDirectory("Assets/Resources");
-            var clippingMaterial = AssetDatabase.LoadAssetAtPath<Material>(clippingPath);
-            if (clippingMaterial == null)
+            // Both tileset materials walk this chain: the shared Norwegian material and
+            // the Qingdao clone with the WaterMask channel (plan P0-B).
+            var tilesetMaterials = new[]
             {
-                clippingMaterial = new Material(Resources.Load<Material>("CesiumUnlitTilesetMaterial"));
-                AssetDatabase.CreateAsset(clippingMaterial,clippingPath);
+                "Assets/Resources/TwinCesiumLandscapeMaterial.mat",
+                "Assets/Resources/Qingdao/QingdaoCesiumLandscapeMaterial.mat",
+            };
+            foreach (string materialPath in tilesetMaterials)
+            {
+                var material = AssetDatabase.LoadAssetAtPath<Material>(materialPath);
+                if (materialPath.EndsWith("TwinCesiumLandscapeMaterial.mat") && material == null)
+                {
+                    material = new Material(Resources.Load<Material>("CesiumUnlitTilesetMaterial"));
+                    AssetDatabase.CreateAsset(material, materialPath);
+                }
+                if (material == null)
+                    throw new System.InvalidOperationException(
+                        $"Tileset material missing — regenerate it (tools/terrain/build_qingdao_tileset_material.py): {materialPath}");
+                material.SetFloat("_AlphaCutoffEnable", 1);
+                UnityEngine.Rendering.HighDefinition.HDMaterial.ValidateMaterial(material);
+                material.EnableKeyword("_ALPHATEST_ON");
+                EditorUtility.SetDirty(material);
             }
-            clippingMaterial.SetFloat("_AlphaCutoffEnable",1);
-            UnityEngine.Rendering.HighDefinition.HDMaterial.ValidateMaterial(clippingMaterial);
-            clippingMaterial.EnableKeyword("_ALPHATEST_ON");
-            EditorUtility.SetDirty(clippingMaterial); AssetDatabase.SaveAssets();
+            AssetDatabase.SaveAssets();
             PlayerSettings.SetScriptingBackend(NamedBuildTarget.Standalone, ScriptingImplementation.Mono2x);
             PlayerSettings.SetApplicationIdentifier(NamedBuildTarget.Standalone, "com.colav.sango.twin");
             PlayerSettings.runInBackground = true;
@@ -195,6 +207,12 @@ namespace Sango.Editor.TwinBridge
             if (report.summary.result != UnityEditor.Build.Reporting.BuildResult.Succeeded)
                 throw new System.InvalidOperationException("Twin player build failed");
             if (linux) StageCesiumLinuxNative();
+            // Batch tail-spin guard (2026-10-21): after a successful build the
+            // editor can sit at ~100% CPU in post-build indexing for an hour+
+            // without quitting (seen repeatedly on this repo, local and deploy
+            // chain); an explicit batch-mode-only exit makes success deterministic.
+            // The failure path throws, and batchmode already exits non-zero on that.
+            if (UnityEngine.Application.isBatchMode) UnityEditor.EditorApplication.Exit(0);
         }
 
         public static void StageCesiumLinuxNative()
