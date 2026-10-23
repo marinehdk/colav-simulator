@@ -2941,7 +2941,8 @@ canvas#simCanvas.route-pick-mode { cursor: crosshair; }
 .ownship-sensor-page > [data-od-id="live-speed-card"],
 .ownship-sensor-page > [data-replay-od-id="live-speed-card"] { height: 282px; flex: 0 0 282px; }
 .ownship-sensor-page > [data-od-id="live-radar-card"],
-.ownship-sensor-page > [data-replay-od-id="live-radar-card"] { height: 314px; min-height: 314px; flex: 0 0 314px; padding-bottom: 6px; }
+/* 20261023: 346 = 314 + 显示模式行 26 + 面板 gap 6(North/Heading Up obc 组)。 */
+.ownship-sensor-page > [data-replay-od-id="live-radar-card"] { height: 346px; min-height: 346px; flex: 0 0 346px; padding-bottom: 6px; }
 .ownship-sensor-page > [data-od-id="live-depth-actual-card"],
 .ownship-sensor-page > [data-replay-od-id="live-depth-actual-card"] { height: 282px; }
 

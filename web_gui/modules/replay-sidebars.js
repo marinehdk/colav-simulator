@@ -1,7 +1,7 @@
 /** Recorded Replay sidebars. Reuse Deployment's card DOM and CSS, but bind only
  * sealed frame facts and the separate event journal at the current playhead. */
-import { buildPpiModel, createRadarPpi } from './radar-ppi.js?v=20261002-ppi-v1';
-import { bindRadarControls } from './radar-video.js?v=20261008-radar-v1';
+import { buildPpiModel, createRadarPpi } from './radar-ppi.js?v=20261023-radar-card-v4';
+import { bindRadarControls } from './radar-video.js?v=20261023-radar-card-v4';
 import { renderMonitorEventItems, visibleMonitorEvents } from './monitor-event-presentation.js?v=20260924-replay-events-v1';
 
 const NM = 1852;

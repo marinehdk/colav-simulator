@@ -1,10 +1,10 @@
-import { RadarVideoBuffer } from './radar-video.js?v=20261008-radar-v1';
+import { RadarVideoBuffer } from './radar-video.js?v=20261023-radar-card-v4';
 import {
   N_METERS_PER_NM,
   PPI_DESCRIPTOR_DEFAULT,
   clutterPoints,
   sweepAzimuthRad,
-} from './radar-ppi.js?v=20261022-radar-screen-v1';
+} from './radar-ppi.js?v=20261023-radar-card-v4';
 
 /**
  * Standalone Furuno FAR-2xx8 style shipborne radar screen (radar.html).

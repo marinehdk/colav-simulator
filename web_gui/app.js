@@ -22,8 +22,8 @@ import {
   matchAisAssociations,
   trackExistenceForTarget,
 } from './modules/ais-display.js';
-import { buildPpiModel, createRadarPpi } from './modules/radar-ppi.js?v=20261022-radar-screen-v1';
-import { bindRadarControls } from './modules/radar-video.js?v=20261008-radar-v1';
+import { buildPpiModel, createRadarPpi } from './modules/radar-ppi.js?v=20261023-radar-card-v4';
+import { bindRadarControls } from './modules/radar-video.js?v=20261023-radar-card-v4';
 import { routeLegs, routeProgress } from './modules/route-progress.js?v=20260901-route-card-v1';
 
 /**
@@ -158,12 +158,18 @@ const radarPpi = createRadarPpi({ canvas: document.getElementById('ppiCanvas'), 
 } });
 radarPpi.setVisible(true);
 bindRadarControls(radarPpiPanel, radarPpi);
+// Q9 跟随锚：记录已跟过的 descriptor 量程与 run，滚轮本地档(bindRadarControls)
+// 只在 descriptor 真变化或换会话时被覆盖，不被逐拍拉回。
+let radarRangeFollowRunId = null;
+let radarRangeFollowNm = null;
 function renderRadarPpi(data) {
   radarPpi.setDescriptor(data?.radar_ppi);
-  // Q9 真联动：卡片量程跟随 descriptor（后端权威），本地档位不再由卡片 UI 设置。
+  if (data?.run_id !== radarRangeFollowRunId) { radarRangeFollowRunId = data?.run_id; radarRangeFollowNm = null; }
+  // Q9 真联动：descriptor 量程变化(后端真控)时跟随；本地档位仅作视图缩放。
   const descriptorRange = Number(data?.radar_ppi?.range_scale_nm);
-  if (Number.isFinite(descriptorRange) && descriptorRange > 0 && radarPpi.options().rangeScaleNm !== descriptorRange) {
-    radarPpi.setRangeScale(descriptorRange);
+  if (Number.isFinite(descriptorRange) && descriptorRange > 0 && descriptorRange !== radarRangeFollowNm) {
+    radarRangeFollowNm = descriptorRange;
+    if (radarPpi.options().rangeScaleNm !== descriptorRange) radarPpi.setRangeScale(descriptorRange);
   }
   radarPpi.render(buildPpiModel(data?.radar_ppi ? data : null, radarPpi.options()));
   const video = data?.radar_scans?.[0]?.shadow_video;
@@ -192,7 +198,7 @@ deploymentView = createDeploymentView({
   // P2-S4 A：第三态 twin —— 中心视口换 live 像素流（复用 twin-view 的 URS/bridge 客户端），
   // attach mode=live 活动会话；无 ReplayClock（时钟权威=后端，契约 §2）；sidebar 不动。
   createTwin: async options => {
-    const { createDeploymentTwinViewport } = await import('./modules/deployment-twin.js?v=20261022-dt-buffering-v1');
+    const { createDeploymentTwinViewport } = await import('./modules/deployment-twin.js?v=20261023-wpt-thin-v1');
     const viewport = createDeploymentTwinViewport({
       ...options,
       host: document.getElementById('deploymentTwinHost'),
@@ -3125,7 +3131,8 @@ function setupDeploymentControls() {
   });
 
   const rateToggle = document.getElementById('livePlaybackRate');
-  rateToggle?.addEventListener('value-changed', async (event) => {
+  // obc toggle group 真实点击派发 "value"(非 "value-changed",20261023 同根因修复)。
+  rateToggle?.addEventListener('value', async (event) => {
     const rate = Number(event.detail?.value || rateToggle.value || 1);
     try {
       await activeSessionRuntime.setSpeed(rate);
@@ -3140,7 +3147,7 @@ function setupDeploymentControls() {
   });
 
   const compassMode = document.getElementById('compassMode');
-  compassMode?.addEventListener('value-changed', (event) => {
+  compassMode?.addEventListener('value', (event) => {
     const liveCompass = document.getElementById('liveCompass');
     if (liveCompass) {
       liveCompass.direction = event.detail?.value || 'northUp';

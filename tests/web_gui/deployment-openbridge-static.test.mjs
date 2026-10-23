@@ -9,6 +9,17 @@ const situationDisplay = await readFile(new URL('../../web_gui/modules/situation
 const lineGraph = await readFile(new URL('../../web_gui/modules/line-graph.js', import.meta.url), 'utf8');
 const vendorEntry = await readFile(new URL('../../web_gui/vendor/openbridge/entry-source.mjs', import.meta.url), 'utf8');
 const monitorEvents = await readFile(new URL('../../web_gui/modules/monitor-event-presentation.js', import.meta.url), 'utf8');
+const radarVideo = await readFile(new URL('../../web_gui/modules/radar-video.js', import.meta.url), 'utf8');
+
+// 2026-10-23 同根因修复：vendored obc toggle group 真实点击派发 "value"
+// (detail={value,previousValue});bundle 无 "value-changed" 事件,旧接线全聋。
+test('obc toggle groups listen to the vendored "value" event, never "value-changed"', () => {
+  assert.doesNotMatch(app, /addEventListener\('value-changed'/);
+  assert.doesNotMatch(radarVideo, /addEventListener\('value-changed'/);
+  assert.match(app, /rateToggle\?\.addEventListener\('value',/);
+  assert.match(app, /compassMode\?\.addEventListener\('value',/);
+  assert.match(radarVideo, /modeGroup\?\.addEventListener\('value',/);
+});
 
 test('simulation footer keeps rate controls stable and removes empty Cache status', () => {
   assert.match(html, /<span class="speed-status deployment-control-state" id="telemetryDelay"/);
@@ -105,6 +116,10 @@ test('SENSOR RADAR uses the X-band PPI instead of a truth-position mini map', ()
   assert.match(app, /buildPpiModel\(data\?\.radar_ppi \? data : null, radarPpi\.options\(\)\)/);
   assert.doesNotMatch(app, /createRadarMiniMap|buildRadarModel/);
   assert.match(styles, /\.ppi-canvas-wrapper {[^}]*width: min\(100%, 240px\);/s);
+  // 2026-10-23 卡片增补：显示模式 obc 组(与 COMPASS 同款)+ 滚轮量程。
+  assert.match(html, /<obc-toggle-button-group data-radar-mode value="northUp"[^>]*aria-label="雷达显示模式"/);
+  assert.match(app, /radarRangeFollowNm = descriptorRange/);
+  assert.match(styles, /\.ownship-sensor-page > \[data-replay-od-id="live-radar-card"\] \{ height: 346px;/);
 });
 
 test('ROUTE radius switches between metres and kilometres without ellipsis', () => {

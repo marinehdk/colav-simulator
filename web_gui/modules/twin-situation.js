@@ -108,19 +108,23 @@ export function layoutTwinLabels(items, width, topInset = 20) {
 }
 
 // Keep the prediction geometry intact; only thin its screen-space annotations.
+// 2026-10-23 初始航线航点照预测时间标注同模式抽稀:保起讫(出发/目的)优先,中段
+// 注记填满即止(上限 4 与预测一致);航带与水面航点圈是几何,不受此精简影响。
 export function layoutTwinWaypoints(waypoints, timeMarkers, width, height, topInset) {
   const result = new Map();
   const visible = points => points.filter(p => p.visible && Number.isFinite(p.x) && Number.isFinite(p.y)
     && p.x * width >= 36 && p.x * width <= width - 36
     && p.y * height >= topInset && p.y * height <= height - 16);
+  const endpointsFirst = points => points.length > 1 ? [points[0], points.at(-1), ...points.slice(1, -1)] : points;
   const times = visible(timeMarkers);
   // Projection order follows the real planner time axis. Reserve the nearest
   // sample and horizon endpoint before considering intermediate annotations.
-  const ordered = times.length > 1 ? [times[0], times.at(-1), ...times.slice(1, -1)] : times;
-  let timeCount = 0;
-  for (const p of [...visible(waypoints), ...ordered]) {
+  const ordered = endpointsFirst(times);
+  let timeCount = 0, waypointCount = 0;
+  for (const p of [...endpointsFirst(visible(waypoints)), ...ordered]) {
     const timed = p.label.startsWith('+');
     if (timed && timeCount >= 4) continue;
+    if (!timed && waypointCount >= 4) continue;
     const x = p.x * width, y = p.y * height;
     const halfWidth = Math.max(32, p.label.length * 4 + 8);
     let chosen = null;
@@ -137,7 +141,7 @@ export function layoutTwinWaypoints(waypoints, timeMarkers, width, height, topIn
     }
     if (!chosen) continue;
     result.set(p.label, chosen);
-    if (timed) timeCount++;
+    if (timed) timeCount++; else waypointCount++;
   }
   return result;
 }

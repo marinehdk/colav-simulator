@@ -1,4 +1,4 @@
-import { RadarVideoBuffer } from './radar-video.js?v=20261008-radar-v1';
+import { RadarVideoBuffer } from './radar-video.js?v=20261023-radar-card-v4';
 
 /**
  * Radar PPI panel (P3-S1, spec #90) — plan-position-indicator canvas for the
@@ -157,6 +157,20 @@ export function ppiProject(northRelM, eastRelM, rangeScaleM, sizePx) {
 export function rangeRingsM(rangeScaleM) {
   if (!(rangeScaleM > 0)) return [];
   return [rangeScaleM / 3, (2 * rangeScaleM) / 3, rangeScaleM];
+}
+
+/**
+ * Steps across a descriptor range-scale table (nm, ascending like
+ * FURUNO_RANGE_TABLE). direction +1 = next larger scale. Returns the stepped
+ * nm, or null when the table is unusable / the current value is off-table
+ * (the caller keeps its own scale rather than guessing).
+ */
+export function stepScaleNm(scales, currentNm, direction) {
+  const table = (Array.isArray(scales) ? scales : []).map(Number).filter(nm => nm > 0);
+  if (table.length < 2) return null;
+  const index = table.findIndex(nm => Math.abs(nm - Number(currentNm)) < 1e-9);
+  if (index < 0) return null;
+  return table[Math.max(0, Math.min(table.length - 1, index + Math.sign(direction)))];
 }
 
 /**
@@ -502,7 +516,18 @@ export function createRadarPpi({ canvas, onState = () => {} } = {}) {
     setRangeScale(nm) {
       const value = Number(nm);
       if (Number.isFinite(value) && value > 0) {
-        rangeScaleNm = value;
+        // 2026-10-23 卡片滚轮量程:量程变化时立即以新量程浅重建显示模型——
+        // draw 消费 lastModel.rangeScaleM,只改闭包量程要等下一遥测拍才生效,
+        // 暂停/无拍会话视图钉死。blips/clutter 存绝对 rangeM,按新量程重过滤;
+        // 构造期已被旧量程丢弃的目标待下一拍全量恢复(video 缓冲自缩放)。
+        // 同值调用仍 draw+onState(旧契约:状态恒上报)。
+        if (value !== rangeScaleNm) {
+          rangeScaleNm = value;
+          const scaleM = value * N_METERS_PER_NM;
+          const keep = list => (list ?? []).filter(p => p.rangeM >= lastModel.blindRingM && p.rangeM <= scaleM);
+          lastModel = { ...lastModel, rangeScaleNm: value, rangeScaleM: scaleM,
+            blips: keep(lastModel.blips), clutter: keep(lastModel.clutter) };
+        }
         draw();
         onState({ visible, rangeScaleNm, blips: lastModel.blips.length, clutter: lastModel.clutter.length });
       }

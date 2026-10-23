@@ -18,8 +18,10 @@ import {
   ppiProject,
   rangeRingsM,
   snrProxyDb,
+  stepScaleNm,
   sweepAzimuthRad,
-} from '../../web_gui/modules/radar-ppi.js?v=20261022-radar-screen-v1';
+} from '../../web_gui/modules/radar-ppi.js?v=20261023-radar-card-v4';
+import { bindRadarControls } from '../../web_gui/modules/radar-video.js?v=20261023-radar-card-v4';
 
 test('mulberry32 is deterministic per seed and uniform enough', () => {
   const a = mulberry32(42);
@@ -56,6 +58,58 @@ test('ppi projection maps north up, east right, ownship centered, flags outside'
 test('range rings are thirds of the active scale', () => {
   assert.deepEqual(rangeRingsM(3000), [1000, 2000, 3000]);
   assert.deepEqual(rangeRingsM(0), []);
+});
+
+test('stepScaleNm walks the descriptor table and refuses off-table inputs', () => {
+  const scales = [0.25, 0.5, 1, 3, 6, 12];
+  assert.equal(stepScaleNm(scales, 6, 1), 12);
+  assert.equal(stepScaleNm(scales, 6, -1), 3);
+  assert.equal(stepScaleNm(scales, 0.25, -1), 0.25); // clamp at the near end
+  assert.equal(stepScaleNm(scales, 12, 1), 12); // clamp at the far end
+  assert.equal(stepScaleNm(scales, 6, 0), 6); // zero step keeps the scale
+  assert.equal(stepScaleNm(scales, 7, 1), null); // off-table keeps the caller's scale
+  assert.equal(stepScaleNm([], 6, 1), null);
+  assert.equal(stepScaleNm(null, 6, 1), null);
+  assert.equal(stepScaleNm(['x', 6, 12], 6, 1), 12); // non-numeric entries are dropped
+});
+
+// 2026-10-23 卡片增补：North/Heading Up obc 组 + 滚轮量程步进(bindRadarControls)。
+test('bindRadarControls wires the card mode group and the wheel range stepper', () => {
+  const applied = [];
+  let currentNm = 6;
+  const radar = {
+    options: () => ({ descriptor: { range_scales_nm: [0.25, 0.5, 1, 3, 6, 12] }, rangeScaleNm: currentNm }),
+    configure: next => applied.push(next),
+    setRangeScale: nm => { currentNm = nm; applied.push(['range', nm]); },
+  };
+  const listeners = new Map();
+  const modeGroup = { value: 'northUp', getAttribute: () => 'northUp',
+    addEventListener: (type, fn) => listeners.set('mode:' + type, fn) };
+  const canvas = { addEventListener: (type, fn) => listeners.set('canvas:' + type, fn) };
+  const panel = { querySelector: selector => selector.endsWith('[data-radar-mode]') ? modeGroup : canvas,
+    querySelectorAll: () => [] };
+  bindRadarControls(panel, radar);
+  modeGroup.value = 'headingUp';
+  listeners.get('mode:value')({ detail: { value: 'headingUp' } });
+  assert.deepEqual(applied.at(-1), { headingUp: true });
+  modeGroup.value = 'northUp';
+  listeners.get('mode:value')({}); // falls back to the group property
+  assert.deepEqual(applied.at(-1), { headingUp: false });
+  const wheel = listeners.get('canvas:wheel');
+  let prevented = 0;
+  const event = deltaY => ({ deltaY, preventDefault: () => prevented++ });
+  wheel(event(-100)); // 上=拉近=更小量程
+  assert.deepEqual(applied.at(-1), ['range', 3]);
+  wheel(event(-100));
+  assert.deepEqual(applied.at(-1), ['range', 1]);
+  wheel(event(100)); // 下=推远=更大量程
+  assert.deepEqual(applied.at(-1), ['range', 3]);
+  const appliedCount = applied.length;
+  while (currentNm !== 12) wheel(event(100)); // 3 → 6 → 12: two more steps
+  assert.equal(currentNm, 12);
+  assert.equal(applied.length, appliedCount + 2);
+  wheel(event(100)); // already at the far end: clamped, no extra call
+  assert.ok(prevented >= 5, 'every wheel tick calls preventDefault');
 });
 
 test('shared SNR proxy decays with range and drives blip intensity', () => {
@@ -259,13 +313,14 @@ test('PPI factory draws panels, toggles visibility and switches range scales', a
   ppi.destroy();
 });
 
-test('SENSOR radar card is slim (mini PPI + status + expand) with no in-card controls', async () => {
+test('SENSOR radar card stays slim: no operational controls, only view mode + wheel zoom', async () => {
   const { readFileSync } = await import('node:fs');
   const root = new URL('../../', import.meta.url);
   const html = readFileSync(new URL('web_gui/index.html', root), 'utf8');
   const app = readFileSync(new URL('web_gui/app.js', root), 'utf8');
   const sensorPage = html.slice(html.indexOf('id="ownshipSensorPage"'), html.indexOf('id="ownshipBalancePage"'));
-  // 2026-10-22 雷达屏 Q2：卡片瘦身——量程/显示控制/调节件全部移独立雷达屏。
+  // 2026-10-22 雷达屏 Q2：操作控制(量程档/图层/调节件)全部移独立雷达屏;
+  // 2026-10-23 增补：显示模式 obc 组 + 滚轮量程=纯本地视图,不算操作控制。
   assert.match(sensorPage, /id="ppiPanel" data-od-id="radar-ppi-panel"/);
   assert.equal((html.match(/id="ppiCanvas"/g) || []).length, 1);
   assert.match(sensorPage, /id="ppiExpandButton"/);

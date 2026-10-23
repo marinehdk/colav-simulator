@@ -25,6 +25,32 @@ test('compressed 400-second horizon keeps near and terminal labels without a tow
   assertNoOverlap(layout, 1600, 900, 80);
 });
 
+// 2026-10-23 初始航线航点照预测时间标注同模式抽稀:保起讫优先、上限 4;
+// 航点与时间标注各自计数,互不挤占名额。
+const wptSpread = count => Array.from({ length: count }, (_, i) => marker('WPT' + (i + 1), 0.08 + i * 0.06));
+
+test('initial route waypoints thin to endpoints first then intermediates, capped at four', () => {
+  const layout = layoutTwinWaypoints(wptSpread(14), [], 1600, 900, 80);
+  assert.deepEqual([...layout.keys()], ['WPT1', 'WPT14', 'WPT2', 'WPT3']);
+  assertNoOverlap(layout, 1600, 900, 80);
+});
+
+test('short routes keep every waypoint annotation', () => {
+  assert.deepEqual([...layoutTwinWaypoints(wptSpread(2), [], 1600, 900, 80).keys()], ['WPT1', 'WPT2']);
+  assert.deepEqual([...layoutTwinWaypoints(wptSpread(4), [], 1600, 900, 80).keys()], ['WPT1', 'WPT4', 'WPT2', 'WPT3']);
+});
+
+test('waypoint and prediction annotations stay capped independently', () => {
+  // 分行排布:验证的是计数名额互不挤占,不是共线几何冲突下的放置。
+  const timed = markers.map((p, i) => ({ ...p, x: 0.1 + i * 0.12, y: 0.2 }));
+  const layout = layoutTwinWaypoints(wptSpread(10), timed, 1600, 900, 80);
+  assert.ok([...layout.keys()].filter(key => key.startsWith('WPT')).length <= 4);
+  assert.ok([...layout.keys()].filter(key => key.startsWith('+')).length <= 4);
+  assert.ok(layout.has('WPT1') && layout.has('WPT10'));
+  assert.ok(layout.has('+60s') && layout.has('+400s'));
+  assertNoOverlap(layout, 1600, 900, 80);
+});
+
 test('open view shows at most four labels and prioritizes near, endpoint, then next near', () => {
   const spread = markers.map((p, i) => ({ ...p, x: 0.1 + i * 0.12 }));
   const layout = layoutTwinWaypoints([], spread, 1600, 900, 80);

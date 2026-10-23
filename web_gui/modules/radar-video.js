@@ -1,3 +1,5 @@
+import { stepScaleNm } from './radar-ppi.js?v=20261023-radar-card-v4';
+
 /** Recorded/backend binary spokes only. No generated noise, targets, or clock. */
 export async function decodeRadarVideo(document) {
   const [rows, columns] = document?.shape ?? [];
@@ -116,6 +118,22 @@ export class RadarVideoBuffer {
 
 export function bindRadarControls(panel, radar) {
   if (!panel) return;
+  // 2026-10-23 卡片增补：显示模式 obc 组 + 滚轮量程步进(descriptor.
+  // range_scales_nm 档位表,上=拉近)——纯本地视图,接收机真控语义仍在独立
+  // 雷达屏;live 卡与回放克隆侧共用本绑定。事件名="value"(vendored obc
+  // toggle group 真实点击派发 detail={value,previousValue});"value-changed"
+  // 是假事件名(用户实测点击不生效定位,compassMode/rateToggle 同病同修)。
+  const modeGroup = panel.querySelector('obc-toggle-button-group[data-radar-mode]');
+  modeGroup?.addEventListener('value', event => {
+    const value = event?.detail?.value || modeGroup.value || modeGroup.getAttribute('value') || 'northUp';
+    radar.configure({ headingUp: value === 'headingUp' });
+  });
+  panel.querySelector('canvas')?.addEventListener('wheel', event => {
+    event.preventDefault();
+    const { descriptor, rangeScaleNm } = radar.options();
+    const next = stepScaleNm(descriptor?.range_scales_nm, rangeScaleNm, event.deltaY > 0 ? 1 : -1);
+    if (next !== null && next !== rangeScaleNm) radar.setRangeScale(next);
+  }, { passive: false });
   for (const button of panel.querySelectorAll('[data-radar-heading]')) {
     button.addEventListener('click', () => {
       radar.configure({ headingUp: button.dataset.radarHeading === 'heading', courseUp: button.dataset.radarHeading === 'course' });
