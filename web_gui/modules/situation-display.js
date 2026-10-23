@@ -12,8 +12,10 @@
  *   (c) layer visibility flags via setLayerVisible / getLayerState,
  *   (d) internally-owned view state.
  * It never imports the runtime/projection modules; telemetry-projection.js
- * stays decoupled (zero imports either way). The only import is the shared
- * pure kinematic math module (decision D5), which imports nothing.
+ * stays decoupled (zero imports either way). Beyond the shared pure kinematic
+ * math module (decision D5), the 2026-10-23 Simrad-style radar overlay adds
+ * chart-radar-overlay.js — a rendering asset consumer (radar video checkpoints
+ * via fetch) in the same spirit as the injected ENC tile fetchers.
  *
  * Render-order contract (ruling 8): LAYER_ORDER below is the single ordered
  * layer table. Every draw pass records the ids it actually drew; the sequence
@@ -21,6 +23,7 @@
  */
 
 import { interpolateAngle as sharedInterpolateAngle, interpolateVesselKinematics } from './kinematics.js';
+import { createChartRadarOverlay, N_METERS_PER_NM } from './chart-radar-overlay.js?v=20261023-radar-overlay-v3';
 import {
   AIS_BLINK_PERIOD_MS,
   AIS_STATE_COLORS,
@@ -650,6 +653,9 @@ export function createSituationDisplay(options) {
   let encRetryTimer = null;
   let encPendingImage = null;
   let encStatus = 'idle';
+
+  /* ── radar overlay (Simrad 语义,2026-10-23):与卡片 PPI 同源独立解码 ── */
+  const chartRadar = createChartRadarOverlay();
 
   /* ── view state (ruling 3/4) ── */
   let viewScale = 0.45;
@@ -1820,12 +1826,35 @@ export function createSituationDisplay(options) {
     let drew = false;
     ctx.save();
     if (visibleLayers.radarRange) {
+      // 2026-10-23 Simrad Radar overlay:勾选"Radar 范围"=北上 PPI 视频叠加
+      // (回波与海图物标对读),替代旧 2000m 常量虚线圈;量程=后端真量程,
+      // 无视频回退 descriptor 量程圈,再无 descriptor 才回 2000m 常量圈。
+      chartRadar.update(data);
+      const scanPeriodS = Number(data.radar_ppi?.scan_period_s) > 0 ? Number(data.radar_ppi.scan_period_s) : 2.5;
+      const overlay = chartRadar.drawVideo(ctx, center.x, center.y, viewScale,
+        Number.isFinite(data.os.north) ? Number(data.os.north) : Number(data.os.x),
+        Number.isFinite(data.os.east) ? Number(data.os.east) : Number(data.os.y),
+        Number.isFinite(Number(data.sim_time)) ? Number(data.sim_time) : 0, scanPeriodS);
+      const descriptorRangeM = Number(data.radar_ppi?.range_scale_nm) > 0
+        ? Number(data.radar_ppi.range_scale_nm) * N_METERS_PER_NM : 0;
+      const rangeM = overlay.drew ? overlay.rangeM : (descriptorRangeM || RADAR_DETECTION_RANGE_M);
       ctx.beginPath();
-      ctx.arc(center.x, center.y, RADAR_DETECTION_RANGE_M * viewScale, 0, Math.PI * 2);
+      ctx.arc(center.x, center.y, rangeM * viewScale, 0, Math.PI * 2);
       ctx.strokeStyle = palette['--situation-radar-range'];
       ctx.lineWidth = 1.4;
-      ctx.setLineDash([12, 8]);
+      ctx.setLineDash(overlay.drew ? [] : [12, 8]);
       ctx.stroke();
+      if (overlay.drew && Number.isFinite(overlay.sweepAzRad)) {
+        // 扫描线随真实扫描周期旋转(北上方位;heading 朝向由外层 ctx 旋转处理)。
+        const radius = overlay.rangeM * viewScale;
+        ctx.beginPath();
+        ctx.moveTo(center.x, center.y);
+        ctx.lineTo(center.x + Math.sin(overlay.sweepAzRad) * radius, center.y - Math.cos(overlay.sweepAzRad) * radius);
+        ctx.strokeStyle = palette['--situation-radar-range'];
+        ctx.lineWidth = 1.1;
+        ctx.setLineDash([]);
+        ctx.stroke();
+      }
       drew = true;
     }
     if (visibleLayers.lidarRange) {

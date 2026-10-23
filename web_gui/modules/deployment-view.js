@@ -1,5 +1,5 @@
-import { targetsForDisplay } from './situation-display.js?v=20261016-qingdao-v2';
-import { geographyProblem, frameIdentity, targetKey } from './scene-geography.js?v=20261016-qingdao-v2';
+import { targetsForDisplay } from './situation-display.js?v=20261023-radar-overlay-v3';
+import { geographyProblem, frameIdentity, targetKey } from './scene-geography.js?v=20261023-radar-overlay-v3';
 
 // One display boundary. No session control, network telemetry or physics clock lives here.
 // P2-S4: three display states — '2d' chart, '3d' Cesium scene, 'twin' live pixel-stream

@@ -1,4 +1,4 @@
-import { NM, riskForTarget, targetAlert } from './scene-geography.js?v=20261016-qingdao-v2';
+import { NM, riskForTarget, targetAlert } from './scene-geography.js?v=20261023-radar-overlay-v3';
 import {
   AIS_STATE_LABELS,
   aisSymbolState,

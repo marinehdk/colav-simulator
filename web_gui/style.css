@@ -4013,8 +4013,22 @@ canvas#simCanvas.route-pick-mode { cursor: crosshair; }
 .twin-situation-overlay .scene3d-pois, .twin-situation-overlay .scene3d-waypoints { inset: 0; }
 .twin-situation-overlay .scene3d-card { pointer-events: auto; top: 150px; max-height: calc(100% - 170px); overflow-y: auto; }
 .twin-situation-overlay .scene3d-card[data-risk="unchecked"] .scene3d-target-status { color: var(--element-active-color, #263746); }
-.twin-situation-overlay .scene3d-compass { top: 22px; }
+/* 20261023 DT HUD 顶栏：罗盘收窄至中央 50% 居中，左右各 1/4 留给信息展示。 */
+.twin-situation-overlay .scene3d-compass { top: 22px; left: 25%; right: 25%; }
 .twin-situation-overlay.twin-low-horizon .scene3d-compass { top: auto; bottom: 64px; }
+/* DT HUD 顶栏信息柱：左右各 1/4 的圆角矩形框（20261023 用户裁决梯形改圆角），
+   与罗盘条带同款半透明材质、内容居中。top 56px 让开顶部控件行（状态胶囊/
+   相机预设/EO-IR-LD/联动占 y12-50），两组分别贴罗盘左右缘（25%/75% 边界+8px 缝）。 */
+.twin-topbar-info { position: absolute; top: 56px; left: 0; right: 0; z-index: 6; pointer-events: none; }
+.twin-topbar-info[hidden] { display: none; }
+.twin-topbar-group { position: absolute; top: 0; display: flex; gap: 8px; }
+.twin-topbar-group--left { right: calc(75% + 8px); }
+.twin-topbar-group--right { left: calc(75% + 8px); }
+.twin-topbar-box { display: grid; justify-items: center; align-content: center; gap: 3px; min-width: 118px; padding: 7px 20px; box-sizing: border-box; color: #243847; background: linear-gradient(180deg, #f3f7fa8f 0%, #f3f7fa5e 100%); border-radius: 8px; }
+.twin-topbar-box-label { font: 600 10px/12px sans-serif; letter-spacing: 0.08em; color: #516473; }
+.twin-topbar-box-value { display: flex; align-items: baseline; gap: 4px; }
+.twin-topbar-box-number { font: 700 26px/28px sans-serif; font-variant-numeric: tabular-nums; color: #17293a; }
+.twin-topbar-box-unit { font: 600 12px/14px sans-serif; color: #516473; }
 /* dt-yolo 收编轮:相机预设迁出 overlay 根、挂 host——与"联动"同排右上角
    (联动宽 63px+right 12px,toolbar 从 right 83px 起排成一行)。 */
 .deployment-twin-host .scene3d-toolbar { pointer-events: auto; top: 12px; right: 191px; bottom: auto; left: auto; }

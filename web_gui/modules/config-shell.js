@@ -2,7 +2,7 @@ import { SCENARIO_LABELS, ALGORITHM_LABELS } from './config-labels.js?v=20261022
 import { presetBinding, presetStackId } from './gnc-presets.js?v=20260914-gnc-replay-v3';
 import { createValidationAssembly } from './validation-assembly.js?v=20261009-dt-environment-v1';
 import { activeSessionRuntime, telemetryProjection } from './session-runtime-instance.js?v=20260908-buffered-motion-v2';
-import { createSituationDisplay } from './situation-display.js?v=20261016-qingdao-v2';
+import { createSituationDisplay } from './situation-display.js?v=20261023-radar-overlay-v3';
 
 const OPENBRIDGE_VERSION = '1.0.1';
 const RULE_IMAGES = {

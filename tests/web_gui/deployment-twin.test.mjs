@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-import { createDeploymentTwinViewport, projectTwinLandscape } from '../../web_gui/modules/deployment-twin.js?v=20261020-owmask-v6';
+import { createDeploymentTwinViewport, projectTwinLandscape } from '../../web_gui/modules/deployment-twin.js?v=20261023-radar-overlay-v3';
 
 const html = await readFile(new URL('../../web_gui/index.html', import.meta.url), 'utf8');
 const styles = await readFile(new URL('../../web_gui/style.css', import.meta.url), 'utf8');

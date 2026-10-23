@@ -9,8 +9,8 @@ import { decodeFrameMarker, containedVideoRect, matchedSituationFrame, buildTwin
   viewportBoxPlacement, setViewportTruthSnapDebug, viewportTruthSnapDebugEnabled,
   DETECTION_CAPTURE_INFERENCE_MS, DETECTION_CAPTURE_TAP_MS, VIEWPORT_TRACK_GATE_N, VIEWPORT_TRACK_MAX_MISSES,
   foldViewportTracks, viewportTracksFresh, viewportTrackBlocks, viewportTrackData, associateViewportTrack,
-  VIEWPORT_TRACKS_FRESH_S, VIEWPORT_TRACK_MAX_AGE_S }
-  from '../../web_gui/modules/twin-situation.js?v=20261019-p3-trk-v2';
+  VIEWPORT_TRACKS_FRESH_S, VIEWPORT_TRACK_MAX_AGE_S, buildTwinTopbarReadouts }
+  from '../../web_gui/modules/twin-situation.js?v=20261023-dt-topbar-hud-v1';
 import { createTwinBridgeClient } from '../../web_gui/modules/twin-view.js?v=20261022-radar-screen-v1';
 
 function marker(frame) {
@@ -128,6 +128,19 @@ test('tracked positions keep tracker provenance instead of moving labels to trut
   assert.equal(value.targets[0].north, info.origin_n + 123);
   assert.equal(value.targets[0].east, info.origin_e + 456);
   assert.equal(value.targets[0].truth, false); assert.equal(value.targets[0].key, 'a:1:8');
+});
+
+test('DT topbar readouts mirror the sidebar OWN SHIP math from the same projection', () => {
+  const proj = { navigation: { psi: 0.92, cog: 0.905, sog: 4.11 },
+    raw: { os: { floor_depth_m: 26.8, has_roll: true, roll_rad: 0.0192 } } };
+  // STW=nav.sog*1.94384 toFixed(1)、COG=Math.round 归一化、DEPTH=floor 取整——
+  // 与 app.js#updateOwnshipTelemetry 同款；ROLL 优先 motion 回显，缺席回退 os。
+  assert.deepEqual(buildTwinTopbarReadouts(proj, null),
+    { stw: '8.0', cog: '052', depth: '27', roll: '+1.1' });
+  assert.equal(buildTwinTopbarReadouts(proj, { roll_deg: -2.34 }).roll, '-2.3');
+  // COG 缺席回退航向（左栏同款兜底）；整组缺失显示占位符。
+  assert.equal(buildTwinTopbarReadouts({ navigation: { psi: Math.PI }, raw: { os: {} } }, null).cog, '180');
+  assert.deepEqual(buildTwinTopbarReadouts(null, null), { stw: '—', cog: '—', depth: '—', roll: '—' });
 });
 
 /* ── dt-sensor-overlay：右键本地命中 / 模式循环 / 检测映射 ── */
@@ -308,7 +321,7 @@ test('single click cycles the three global viewport styles and wraps', () => {
 
 // dt-yolo 收编轮:HUD 后缀——勾选+新鲜=ON(在算,空集=没检测到);勾选+不新鲜=OFF(没在算);未勾=无。
 test('viewportYoloHudSuffix covers compute/no-compute/off states', async () => {
-  const { viewportYoloHudSuffix, foldViewportDetections } = await import('../../web_gui/modules/twin-situation.js?v=20261019-p3-trk-v2');
+  const { viewportYoloHudSuffix, foldViewportDetections } = await import('../../web_gui/modules/twin-situation.js?v=20261023-dt-topbar-hud-v1');
   const checked = { detections: { visible: true } };
   const unchecked = { detections: { visible: false } };
   const doc = { detections: [], received_at: 100, age_s: 0.1 };

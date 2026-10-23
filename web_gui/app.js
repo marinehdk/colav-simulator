@@ -1,5 +1,5 @@
 import { ENCOUNTER_LABELS, eventDisplayContent, visibleMonitorEvents, renderMonitorEventItems } from './modules/monitor-event-presentation.js?v=20260924-replay-events-v1';
-import { createDeploymentView } from './modules/deployment-view.js?v=20261016-qingdao-v2';
+import { createDeploymentView } from './modules/deployment-view.js?v=20261023-radar-overlay-v3';
 import { renderBalance, resetBalance } from './modules/gnc-balance.js?v=20260909-balance-v7';
 import { activeSessionRuntime, telemetryProjection } from './modules/session-runtime-instance.js?v=20260908-buffered-motion-v2';
 import './modules/line-graph.js?v=20260826-chart-view-control-v1';
@@ -10,7 +10,7 @@ import {
   voCandidateColor,
   drawVelocityArrow,
   simplifiedMpcFanGeometry,
-} from './modules/situation-display.js?v=20261016-qingdao-v2';
+} from './modules/situation-display.js?v=20261023-radar-overlay-v3';
 import {
   AIS_STATE_COLORS,
   AIS_STATE_LABELS,
@@ -187,7 +187,7 @@ document.getElementById('ppiExpandButton')?.addEventListener('click', () => {
 deploymentView = createDeploymentView({
   chart: situationDisplay,
   createScene: async options => {
-    const { createScene3D } = await import('./modules/scene-3d.js?v=20261020-bulk');
+    const { createScene3D } = await import('./modules/scene-3d.js?v=20261023-radar-overlay-v3');
     return createScene3D({ ...options, chart: situationDisplay,
       host: document.getElementById('scene3dHost'),
       onSelect: id => situationDisplay.selectTarget(id),
@@ -198,7 +198,7 @@ deploymentView = createDeploymentView({
   // P2-S4 A：第三态 twin —— 中心视口换 live 像素流（复用 twin-view 的 URS/bridge 客户端），
   // attach mode=live 活动会话；无 ReplayClock（时钟权威=后端，契约 §2）；sidebar 不动。
   createTwin: async options => {
-    const { createDeploymentTwinViewport } = await import('./modules/deployment-twin.js?v=20261023-wpt-thin-v1');
+    const { createDeploymentTwinViewport } = await import('./modules/deployment-twin.js?v=20261023-radar-overlay-v3');
     const viewport = createDeploymentTwinViewport({
       ...options,
       host: document.getElementById('deploymentTwinHost'),
@@ -218,7 +218,7 @@ deploymentView = createDeploymentView({
       requestVODecisionSpace: () => ensureVODecisionSpace(currentDiagnosticPlanner()),
       // P2-S4 C：联动 spike（默认关）——开 = 分屏从视口（Cesium 主）+ camera.changed 折算发 camera_free。
       createLinkScene: async ({ host, signal, onFailure, onCameraMoved }) => {
-        const { createScene3D } = await import('./modules/scene-3d.js?v=20261020-bulk');
+        const { createScene3D } = await import('./modules/scene-3d.js?v=20261023-radar-overlay-v3');
         return createScene3D({ ...options, chart: situationDisplay,
           host,
           signal,

@@ -1256,6 +1256,9 @@ export function createRadarScreen(root, options = {}) {
         const vctx = videoCanvas.getContext('2d');
         const raster = vctx.createImageData(pixels, pixels);
         raster.data.set(videoBuffer.raster(pixels, {
+          // hasOwnship 必带:raster 守卫 !model.hasOwnship 直接返回空白光栅
+          // (20261023 用户实测独立屏黑底无回波根因,d1909572 起漏带)。
+          hasOwnship: true,
           rangeScaleM: geometry.rangeM,
           ownshipNorth: geometry.ownNorth + geometry.ownToCenterN,
           ownshipEast: geometry.ownEast + geometry.ownToCenterE,

@@ -1,4 +1,4 @@
-import { routeCorridorBoundaries, validRoute, waypointLabel } from './situation-display.js?v=20261016-qingdao-v2';
+import { routeCorridorBoundaries, validRoute, waypointLabel } from './situation-display.js?v=20261023-radar-overlay-v3';
 
 export function routeRibbonQuads(route) {
   if (!validRoute(route) || !route[0].every(Number.isFinite) || !route[1].every(Number.isFinite)) return [];

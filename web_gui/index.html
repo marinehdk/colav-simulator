@@ -6,7 +6,7 @@
   <title>综合避碰仿真器</title>
   <meta name="description" content="NTNU autonomous ship COLAV & MPC route planning algorithm verification console with real-time COLREGs risk assessment." />
   <link id="openbridgeStyles" rel="stylesheet" href="/static/vendor/openbridge/openbridge.css?v=20260827-vessel-placard-v1" onerror="this.dataset.failed='true'" />
-  <link rel="stylesheet" href="/static/style.css?v=20261023-radar-card-v4" />
+  <link rel="stylesheet" href="/static/style.css?v=20261023-dt-topbar-hud-v2" />
 </head>
 <body>
   <div class="app-container">
@@ -654,7 +654,7 @@
                         </fieldset>
                         <fieldset>
                           <legend>态势感知</legend>
-                          <label><input type="checkbox" data-layer="radarRange" title="显示 Radar 范围圈" checked> Radar 范围</label>
+                          <label><input type="checkbox" data-layer="radarRange" title="海图叠加雷达 PPI 视频（北上，真实量程与扫描线）" checked> Radar 范围</label>
                           <label><input type="checkbox" data-layer="lidarRange" title="显示 Lidar 范围圈" checked> Lidar 范围</label>
                           <label><input type="checkbox" data-layer="detections" title="DT 视角 YOLO 可见光检测叠加"> YOLO 检测 <span class="layer-state available" data-layer-state="detections">可用</span></label>
                           <label><input type="checkbox" data-layer="truth" data-chart-only title="真值对照层仅用于二维海图"> 目标真值</label>
@@ -1152,11 +1152,11 @@
     <obc-brilliance-menu class="brilliance-menu-popover" id="brillianceMenu" variant="compact" aria-label="显示模式" hidden></obc-brilliance-menu>
   </div>
 
-  <script type="module" src="/static/app.js?v=20261023-radar-card-v4"></script>
-  <script type="module" src="/static/modules/config-shell.js?v=20261022-radar-screen-v5"></script>
+  <script type="module" src="/static/app.js?v=20261023-dt-topbar-hud-v2"></script>
+  <script type="module" src="/static/modules/config-shell.js?v=20261023-radar-overlay-v3"></script>
   <script type="module" src="/static/modules/historical-ais-workbench.js?v=20260923-vo-primitive-v1"></script>
   <script type="module" src="/static/modules/replay-runs.js?v=20260916-replay-layout-v4"></script>
-  <script type="module" src="/static/modules/evaluation-replay.js?v=20261008-sensor-ppi-v1"></script>
+  <script type="module" src="/static/modules/evaluation-replay.js?v=20261023-radar-overlay-v3"></script>
   <script type="module" src="/static/modules/twin-view.js?v=20261022-radar-screen-v1"></script>
 </body>
 </html>

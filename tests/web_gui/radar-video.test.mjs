@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { deflateSync } from 'node:zlib';
 import { createHash } from 'node:crypto';
-import { RadarVideoBuffer, decodeRadarVideo } from '../../web_gui/modules/radar-video.js?v=20261008-radar-v1';
+import { RadarVideoBuffer, decodeRadarVideo } from '../../web_gui/modules/radar-video.js?v=20261023-radar-card-v4';
 
 const encode = (bytes, shape) => ({ encoding: 'deflate-base64-u8', shape,
   data: deflateSync(bytes).toString('base64'), sha256: createHash('sha256').update(bytes).digest('hex') });
@@ -31,7 +31,18 @@ test('recorded checkpoint and spoke origin support motion compensation and headi
   assert.ok(northUp.some((v, i) => i % 4 === 1 && v > 0));
   const headingUp = buffer.raster(128, model, { headingUp: true });
   assert.notDeepEqual(headingUp, northUp);
+  // 契约钉子:raster 对缺 hasOwnship 的 model 返回空白——独立雷达屏
+  // (radar-screen.js) 曾因此黑底无回波,必须显式带 hasOwnship: true。
+  const noOwnship = buffer.raster(128, { ...model, hasOwnship: undefined });
+  assert.ok(noOwnship.every(v => v === 0), 'missing hasOwnship must yield a blank raster');
   buffer.clear();
   assert.equal(buffer.status, 'NO_VIDEO');
   assert.equal(buffer.data, null);
+});
+
+test('standalone radar screen passes hasOwnship to the video raster (black-disc regression)', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const screen = await readFile(new URL('../../web_gui/modules/radar-screen.js', import.meta.url), 'utf8');
+  const rasterCall = screen.slice(screen.indexOf('videoBuffer.raster('));
+  assert.match(rasterCall.slice(0, 400), /hasOwnship: true/);
 });

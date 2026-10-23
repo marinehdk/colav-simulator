@@ -130,7 +130,7 @@ test('legacy envelope without canonical threat facts stays explicitly unavailabl
 });
 
 test('canvas threat style reads explicit backend display class and never uses distance fallbacks', async () => {
-  const { targetThreatStyle } = await import('../../web_gui/modules/situation-display.js?v=20261016-qingdao-v2');
+  const { targetThreatStyle } = await import('../../web_gui/modules/situation-display.js?v=20261023-radar-overlay-v3');
   const target = { id: 1, generation: 1, x: 0, y: 0 };
   assert.equal(
     targetThreatStyle({

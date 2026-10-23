@@ -11,9 +11,21 @@ const vendorEntry = await readFile(new URL('../../web_gui/vendor/openbridge/entr
 const monitorEvents = await readFile(new URL('../../web_gui/modules/monitor-event-presentation.js', import.meta.url), 'utf8');
 const radarVideo = await readFile(new URL('../../web_gui/modules/radar-video.js', import.meta.url), 'utf8');
 
-// 2026-10-23 同根因修复：vendored obc toggle group 真实点击派发 "value"
-// (detail={value,previousValue});bundle 无 "value-changed" 事件,旧接线全聋。
+// 2026-10-23 Simrad Radar overlay:勾选"Radar 范围"=北上 PPI 视频叠加,量程
+// 圈降级链 视频→descriptor→2000m 常量;heading 朝向由外层 ctx 旋转统一处理。
+test('chart radarRange layer overlays the decoded PPI video with a real-range ring and sweep line', () => {
+  assert.match(situationDisplay, /from '\.\/chart-radar-overlay\.js\?v=/);
+  assert.match(situationDisplay, /const chartRadar = createChartRadarOverlay\(\)/);
+  assert.match(situationDisplay, /chartRadar\.update\(data\)/);
+  assert.match(situationDisplay, /chartRadar\.drawVideo\(ctx, center\.x, center\.y, viewScale/);
+  assert.match(situationDisplay, /overlay\.drew \? overlay\.rangeM : \(descriptorRangeM \|\| RADAR_DETECTION_RANGE_M\)/);
+  assert.match(situationDisplay, /overlay\.sweepAzRad\) \* radius/);
+  assert.match(html, /data-layer="radarRange" title="海图叠加雷达 PPI 视频/);
+});
+
 test('obc toggle groups listen to the vendored "value" event, never "value-changed"', () => {
+  // 2026-10-23 同根因修复:vendored obc toggle group 真实点击派发 "value"
+  // (detail={value,previousValue});bundle 无 "value-changed" 事件,旧接线全聋。
   assert.doesNotMatch(app, /addEventListener\('value-changed'/);
   assert.doesNotMatch(radarVideo, /addEventListener\('value-changed'/);
   assert.match(app, /rateToggle\?\.addEventListener\('value',/);

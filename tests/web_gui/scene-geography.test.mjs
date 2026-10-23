@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createGeography, geographyProblem, riskForTarget, poiState, targetKey } from '../../web_gui/modules/scene-geography.js?v=20261016-qingdao-v2';
+import { createGeography, geographyProblem, riskForTarget, poiState, targetKey } from '../../web_gui/modules/scene-geography.js?v=20261023-radar-overlay-v3';
 import { readFileSync } from 'node:fs';
 const fixture = JSON.parse(readFileSync(new URL('./fixtures/scene-geography.json', import.meta.url)));
 
@@ -41,7 +41,7 @@ test('AR uses canonical class, generation and unavailable semantics rather than 
 });
 
 test('prediction timestamps come from plan evidence, never invented from display frame rate', async () => {
-  const { predictionMarkers } = await import('../../web_gui/modules/scene-geography.js?v=20261016-qingdao-v2');
+  const { predictionMarkers } = await import('../../web_gui/modules/scene-geography.js?v=20261023-radar-overlay-v3');
   const data = { plans: { prediction_horizon: [[0,0],[1,1],[2,2],[3,3]] } };
   assert.deepEqual(predictionMarkers(data), []);
   data.planner = {horizon_dt_s:60};
@@ -54,7 +54,7 @@ test('prediction timestamps come from plan evidence, never invented from display
 });
 
 test('offscreen hints use the projected nearest edge, including above and below', async () => {
- const {offscreenDirection} = await import('../../web_gui/modules/scene-geography.js?v=20261016-qingdao-v2');
+ const {offscreenDirection} = await import('../../web_gui/modules/scene-geography.js?v=20261023-radar-overlay-v3');
  for(const [point,edge] of [[{x:500,y:-10},'up'],[{x:500,y:900},'down'],[{x:-30,y:400},'left'],[{x:1200,y:400},'right']])
   assert.equal(offscreenDirection(point,1000,800,true,true).edge,edge);
  assert.match(offscreenDirection(null,1000,800,false,true).arrow,/后方/);

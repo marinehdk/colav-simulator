@@ -227,6 +227,8 @@ test('flashing states dim while the blink phase is off', () => {
 
 test('aisTargets layer draws last, toggles off, and its symbols win the shared hit-test', () => {
   const { display } = createDisplay();
+  // a2f0ae09 产品默认:AIS 数据图层默认关——本组用例显式开启以覆盖绘制路径。
+  display.setLayerVisible('aisTargets', true);
   display.render(aisSnapshot());
   assert.equal(situation.LAYER_ORDER.at(-1), 'aisTargets');
   assert.equal(display.getDrawSequence().at(-1), 'aisTargets');
@@ -272,6 +274,7 @@ test('aisTargets layer draws last, toggles off, and its symbols win the shared h
 test('AIS DOM markers carry anchors, rotations and states for the deployment layer', () => {
   const sinks = [];
   const { display } = createDisplay({ onAisMarkersChange: markers => sinks.push(markers) });
+  display.setLayerVisible('aisTargets', true); // a2f0ae09 起默认关,显式开启
   display.render(aisSnapshot());
   const markers = sinks.at(-1);
   assert.equal(markers.length, 3);
@@ -303,6 +306,7 @@ test('dangerous/lost targets drive the blink timer and stop it when cleared', ()
   globalThis.clearTimeout = id => { delete timers[id - 1]; };
   try {
     const { display } = createDisplay();
+    display.setLayerVisible('aisTargets', true); // a2f0ae09 起默认关,显式开启
     display.render(aisSnapshot());
     assert.equal(timers.filter(Boolean).length, 1, 'lost target schedules the blink timer');
     display.render(aisSnapshot({ seq: 2 }));
@@ -331,8 +335,9 @@ test('shell, module and 3D scene wire the AIS layer end to end', async () => {
     readFile(new URL('../../web_gui/assets/ais-dangerous.svg', import.meta.url), 'utf8'),
     readFile(new URL('../../web_gui/assets/ais-lost.svg', import.meta.url), 'utf8'),
   ]);
-  // Chart display popover: layer switch coexisting with the ships layer.
-  assert.match(html, /<input type="checkbox" data-layer="aisTargets" checked> AIS 目标</);
+  // Chart display popover: layer switch coexisting with the ships layer
+  // (a2f0ae09 定版:默认不勾,文案"AIS 数据")。
+  assert.match(html, /<label><input type="checkbox" data-layer="aisTargets"> AIS 数据<\/label>/);
   assert.match(html, /data-legend-layer="aisTargets"[^<]*<span class="color-box ais-target"><\/span>AIS 目标/);
   // AIS target card placard.
   assert.match(html, /id="aisDetailPlacard"/);

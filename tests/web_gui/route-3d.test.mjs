@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { routeRibbonQuads } from '../../web_gui/modules/route-3d.js?v=20260921-route-ar-v1';
-import { ROUTE_CORRIDOR_HALF_WIDTH_M, routeCorridorBoundaries } from '../../web_gui/modules/situation-display.js?v=20261016-qingdao-v2';
+import { routeRibbonQuads } from '../../web_gui/modules/route-3d.js?v=20261023-radar-overlay-v3';
+import { ROUTE_CORRIDOR_HALF_WIDTH_M, routeCorridorBoundaries } from '../../web_gui/modules/situation-display.js?v=20261023-radar-overlay-v3';
 
 test('3D ribbon follows both 2D boundaries including the shared join at a turn', () => {
   const route = [[0, 1000, 1000], [0, 0, 1200]];

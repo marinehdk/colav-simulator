@@ -104,10 +104,15 @@ test('composition root wires the runtime into the projection singleton and expor
 });
 
 test('Config assets retain GNC tags and load the updated runtime shell', () => {
-  const tag = '20261020-owmask-v6';
-  assert.match(html, new RegExp(`/static/style\\.css\\?v=${tag}`));
-  assert.match(html, /\/static\/modules\/config-shell\.js\?v=20261020-owmask-v6/);
-  assert.match(shell, /validation-assembly\.js\?v=20261009-dt-environment-v1/);
+  // cache-bust 配对契约(动态断言,不再钉死单批 token):style.css 与 app.js
+  // 必须同 token,且带 token(无 token = 吃旧缓存的配对破损);Config 工位
+  // 加载 runtime shell(config-shell.js),shell 再带 token 引 validation-assembly。
+  const styleToken = html.match(/\/static\/style\.css\?v=([^"']+)"/)?.[1];
+  assert.ok(styleToken, 'style.css 链接带 cache-bust token');
+  const escaped = styleToken.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  assert.match(html, new RegExp(`/static/app\\.js\\?v=${escaped}"`));
+  assert.match(html, /\/static\/modules\/config-shell\.js\?v=[^"']+"/);
+  assert.match(shell, /validation-assembly\.js\?v=[^']+'/);
 });
 
 test('Deployment consumes the projection and no longer interprets raw envelopes inline', () => {

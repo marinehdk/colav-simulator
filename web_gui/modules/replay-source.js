@@ -11,7 +11,7 @@
  */
 
 import { interpolateVesselKinematics } from './kinematics.js';
-import { createGeography } from './scene-geography.js?v=20261016-qingdao-v2';
+import { createGeography } from './scene-geography.js?v=20261023-radar-overlay-v3';
 
 export const REPLAY_PRESENTATION_MODE = 'HISTORICAL_REPLAY';
 

@@ -176,6 +176,7 @@ test('Deployment renders FCB and default SOV OpenBridge ship-type icons without 
   }
   ctxStub.calls.length = 0;
   const { display } = await createDisplay({ createImage: loadedShipTypeImage });
+  display.setLayerVisible('aisTargets', true); // a2f0ae09 起默认关,显式开启
   assert.deepEqual(sources.slice(0, 2), [
     '/static/assets/openbridge/ship-types/fcb45.svg',
     '/static/assets/openbridge/ship-types/sov.svg',
@@ -380,6 +381,9 @@ test('recenterOwnship places ownship at the viewport centre for every scenario',
 
 test('render draws the documented LAYER_ORDER sequence and layer toggles filter it', async () => {
   const { display, mod } = await createDisplay();
+  // a2f0ae09 产品默认:AIS 数据/航行向量/航线预测/执行航点默认关——本用例
+  // 显式开启,保持每个 LAYER_ORDER 槽位的绘制路径覆盖。
+  for (const id of ['aisTargets', 'motionVectors', 'prediction', 'executionPoint']) display.setLayerVisible(id, true);
   display.render(sampleSnapshot());
   const full = display.getDrawSequence();
   const order = full.filter(id => mod.LAYER_ORDER.includes(id));
@@ -634,6 +638,7 @@ test('Config preview adapter is transparent, sprite-less, and side-effect free (
 
 test('LAYER_ORDER sequence claims a slot only when something drew (fix-round tightening)', async () => {
   const { display } = await createDisplay();
+  display.setLayerVisible('prediction', true); // a2f0ae09 起默认关,显式开启
   display.render(sampleSnapshot({
     plans: {
       prediction_horizon: [[100, 200]], // single point — not drawable

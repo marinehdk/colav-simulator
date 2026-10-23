@@ -1,8 +1,8 @@
-import { targetsForDisplay, RADAR_DETECTION_RANGE_M, drawVODecisionDisc, trackConfidenceColor } from './situation-display.js?v=20261016-qingdao-v2';
-import { routeRibbonQuads } from './route-3d.js?v=20260921-route-ar-v1';
-import { predictionMarkers, targetKey, offscreenDirection, NM } from './scene-geography.js?v=20261016-qingdao-v2';
+import { targetsForDisplay, RADAR_DETECTION_RANGE_M, drawVODecisionDisc, trackConfidenceColor } from './situation-display.js?v=20261023-radar-overlay-v3';
+import { routeRibbonQuads } from './route-3d.js?v=20261023-radar-overlay-v3';
+import { predictionMarkers, targetKey, offscreenDirection, NM } from './scene-geography.js?v=20261023-radar-overlay-v3';
 import { targetPresentation, updateTargetPoi, applyTargetAppearance, renderTargetCard } from './scene-target.js?v=20260923-follow-v1';
-import { createSceneCompass } from './scene-compass.js?v=20261013-dt-frame-cost-v1';
+import { createSceneCompass } from './scene-compass.js?v=20261023-radar-overlay-v3';
 import { AIS_SYMBOL_ASSETS, AIS_SYMBOL_SIZES, aisSymbolState } from './ais-display.js';
 
 export const FRAME_MARKER = Object.freeze({ width: 256, height: 16 });
@@ -672,6 +672,27 @@ export function buildTwinPresentation(projection, chart, info, vo = null, docume
   };
 }
 
+// 20261023 DT HUD 顶栏信息柱取值：与左栏 OWN SHIP 卡同源同算（app.js#
+// updateOwnshipTelemetry 消费同一份 projection：STW=nav.sog、COG=nav.cog
+// （缺席回退 nav.psi）、DEPTH=os.floor_depth_m），避免双来源显示矛盾。
+// ROLL 左栏没有对应读数，取 Unity motion 回显 = 画面实际横摇（后端横摇在场
+// 时 twinRollDeg 即后端值，两路同源）；motion 缺席回退 os.roll_rad。
+export function buildTwinTopbarReadouts(projection, motion = null) {
+  const nav = projection?.navigation || {}, os = projection?.raw?.os || {};
+  const toDeg = rad => rad * 180 / Math.PI;
+  const normalize = deg => ((deg % 360) + 360) % 360;
+  const headingDeg = Number.isFinite(nav.psi) ? normalize(toDeg(nav.psi)) : null;
+  const cogDeg = Number.isFinite(nav.cog) ? normalize(toDeg(nav.cog)) : headingDeg;
+  const rollDeg = Number.isFinite(motion?.roll_deg) ? motion.roll_deg
+    : os.has_roll && Number.isFinite(os.roll_rad) ? toDeg(os.roll_rad) : null;
+  return {
+    stw: Number.isFinite(nav.sog) ? (nav.sog * 1.94384).toFixed(1) : '—',
+    cog: cogDeg === null ? '—' : String(Math.round(cogDeg)).padStart(3, '0'),
+    depth: Number.isFinite(os.floor_depth_m) ? String(Math.round(os.floor_depth_m)) : '—',
+    roll: rollDeg === null ? '—' : (rollDeg > 0 ? '+' : '') + rollDeg.toFixed(1),
+  };
+}
+
 // OpenBridge DOM stays outside the video. All placements are taken from a decoded
 // frame, never from the newest camera heartbeat or a second Cesium camera.
 export function createTwinSituationOverlay({ host, video, chart, info, client, onSelect, onCameraChange = () => {}, getPlannerSurface, requestVODecisionSpace, getOwnship = () => null }) {
@@ -700,6 +721,45 @@ export function createTwinSituationOverlay({ host, video, chart, info, client, o
   }
   root.append(detectionsLayer, badges, layer, waypoints, edges, aisLayer, card); host.append(root, toolbar);
   const compass = createSceneCompass({ host: root, onSelect: id => choose(id) });
+  const compassRoot = root.querySelector('.scene3d-compass');
+  // 20261023 DT HUD 顶栏信息柱：罗盘由 CSS 收窄至中央 50%，左右各 1/4 放圆角
+  // 矩形信息框（与罗盘条带同款半透明材质、内容居中）。左组 STW/COG，右组
+  // DEPTH/ROLL；数值=buildTwinTopbarReadouts（与左栏同源）；与罗盘同显隐
+  // （俯视/无本船数据时一并收起）。
+  const topbar = doc.createElement('div'); topbar.className = 'twin-topbar-info'; topbar.hidden = true;
+  topbar.setAttribute('aria-label', '本船航行读数');
+  const topbarGroups = {};
+  for (const side of ['left', 'right']) {
+    const group = doc.createElement('div'); group.className = `twin-topbar-group twin-topbar-group--${side}`;
+    topbar.append(group); topbarGroups[side] = group;
+  }
+  const topbarNumber = (side, name, unit, title) => {
+    const box = doc.createElement('div'); box.className = 'twin-topbar-box'; box.title = title;
+    const label = doc.createElement('span'); label.className = 'twin-topbar-box-label'; label.textContent = name;
+    const value = doc.createElement('span'); value.className = 'twin-topbar-box-value';
+    const number = doc.createElement('strong'); number.className = 'twin-topbar-box-number'; number.textContent = '—';
+    const unitNode = doc.createElement('small'); unitNode.className = 'twin-topbar-box-unit'; unitNode.textContent = unit;
+    value.append(number, unitNode); box.append(label, value); topbarGroups[side].append(box);
+    return number;
+  };
+  const topbarStw = topbarNumber('left', 'STW', 'kn', '对水航速（与左栏 STW 同源）');
+  const topbarCog = topbarNumber('left', 'COG', '°', '对地航向（与左栏 COG 同源）');
+  const topbarDepth = topbarNumber('right', 'DEPTH', 'm', '船位 ENC 水深分层下限（与左栏 DPTH 同源）');
+  const topbarRoll = topbarNumber('right', 'ROLL', '°', '横摇（画面实际值）');
+  let topbarSignature = null;
+  const renderTopbar = projection => {
+    topbar.hidden = compassRoot?.hidden ?? true;
+    if (topbar.hidden) return;
+    const readouts = buildTwinTopbarReadouts(projection, client()?.lastState?.motion ?? null);
+    const signature = readouts.stw + readouts.cog + readouts.depth + readouts.roll;
+    if (signature === topbarSignature) return;
+    topbarSignature = signature;
+    topbarStw.textContent = readouts.stw;
+    topbarCog.textContent = readouts.cog;
+    topbarDepth.textContent = readouts.depth;
+    topbarRoll.textContent = readouts.roll;
+  };
+  root.append(topbar);
   const sample = doc.createElement('canvas'); sample.width = 32; sample.height = 1;
   const sampleContext = sample.getContext('2d', { willReadFrequently: true }); sampleContext.imageSmoothingEnabled = false;
   const models = new Map(), pois = new Map(), waypointNodes = new Map(), aisNodes = new Map();
@@ -867,6 +927,7 @@ export function createTwinSituationOverlay({ host, video, chart, info, client, o
     const selected = chart.getSelectedTargetId();
     if (selectedKey && !byKey.has(selectedKey)) { selectedKey = null; chart.selectTarget(null); onSelect?.(null); }
     compass.render(projection, frame.camera, chart.getLayerState().ships?.visible !== false);
+    renderTopbar(projection);
     const compassHeight = root.querySelector('.scene3d-compass')?.offsetHeight || 0;
     const visibleY = (frame.targets || []).filter(p => p.visible).map(p => p.y * rect.height);
     const lowHorizon = visibleY.length > 0 && Math.min(...visibleY) < compassHeight + 80;

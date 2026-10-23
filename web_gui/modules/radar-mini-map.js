@@ -1,4 +1,4 @@
-import { TARGET_RISK_STYLES } from './situation-display.js?v=20261016-qingdao-v2';
+import { TARGET_RISK_STYLES } from './situation-display.js?v=20261023-radar-overlay-v3';
 
 export const RADAR_FORWARD_HALF_ANGLE_RAD = Math.PI / 3;
 

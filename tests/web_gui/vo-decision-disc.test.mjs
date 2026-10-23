@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { drawVODecisionDisc } from '../../web_gui/modules/situation-display.js?v=20261016-qingdao-v2';
-import { voDiscRadiusM } from '../../web_gui/modules/scene-3d.js?v=20261020-bulk';
+import { drawVODecisionDisc } from '../../web_gui/modules/situation-display.js?v=20261023-radar-overlay-v3';
+import { voDiscRadiusM } from '../../web_gui/modules/scene-3d.js?v=20261023-radar-overlay-v3';
 
 function recordingContext() {
   const fills = [];
