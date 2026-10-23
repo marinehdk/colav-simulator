@@ -2694,7 +2694,9 @@ VIEWPORT_DETECTOR_POLYGON_URL = os.environ.get(
 _REMOTE_DETECT_PGID = "pid=$(cat ~/twin-detector/detector.pid 2>/dev/null) && kill -0 $pid 2>/dev/null && echo $pid"
 _REMOTE_DETECT_CMD = (
     "mkdir -p ~/twin-detector/logs && cd ~/twin-detector && "
-    "CUDA_VISIBLE_DEVICES=1 nohup ~/twin-detector-venv/bin/python sango_detector_service.py "
+    # 20261023 GPU 分工批:序号写法因 CUDA 枚举序≠nvidia-smi 序而落空(detector 实际落在
+    # GPU0 与渲染抢卡);UUID 写法钉 GPU1。SAHI 绕 CVD 由 service 内锁上下文兜住。
+    "CUDA_VISIBLE_DEVICES=GPU-f662e578-6888-2504-158f-681d3a3c2b13 nohup ~/twin-detector-venv/bin/python sango_detector_service.py "
     "--endpoint tcp://127.0.0.1:5556 --out tcp://127.0.0.1:5557 "
     "--viewport-forward-url http://127.0.0.1:18010/api/viewport-detections "
     "--ownship-polygon-url http://127.0.0.1:18010/api/viewport-ownship-polygon "

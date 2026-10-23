@@ -220,7 +220,9 @@ class TestSessionlessIngestAndEngine:
         http = TestClient(gui_main.app)
         assert http.post("/api/viewport-detection-engine", json={"enabled": True}).json() == {
             "started": True, "pid": 4242, "mode": "remote", "host": "a4000"}
-        assert any("nohup" in c and "CUDA_VISIBLE_DEVICES=1" in c for c in ssh_calls), "GPU1 + venv 启动命令"
+        # 20261023 GPU 分工批:UUID 写法钉 GPU1(序号写法因 CUDA 枚举序≠nvidia-smi 序而落空)
+        assert any("nohup" in c and "CUDA_VISIBLE_DEVICES=GPU-f662e578-6888-2504-158f-681d3a3c2b13" in c
+                   for c in ssh_calls), "GPU1(UUID) + venv 启动命令"
         assert local_stops == ["local"], "远程启动前收口本地残留"
         assert http.get("/api/viewport-detection-engine").json()["mode"] == "remote:a4000"
         stop = http.post("/api/viewport-detection-engine", json={"enabled": False}).json()

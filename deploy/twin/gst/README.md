@@ -151,9 +151,19 @@ scp deploy/twin/gst/sender/sender.py a4000:~/gst-spike/gst/sender/sender.py
 用户裁决:检测器部署 a4000 GPU(**GPU1 推理,Unity 渲染占 GPU0;不动驱动,marine 用户级安装**)。mac 后端以 `TWIN_VIEWPORT_DETECTOR_REMOTE=a4000` 启动时,engine 端点(`/api/viewport-detection-engine`)改走 ssh 托管:
 
 - a4000 侧(一次性,已完成):`~/twin-detector-venv`(torch 2.5.1+cu121/ultralytics/sahi/pyzmq)+ 脚本 `~/twin-detector/sango_detector_service.py`;权重由启动命令指定（生产 `yolov8s.pt` 首启自动下载；20261020 曾试同事海事单类 yolov18.pt 实测效果差已回退；船类过滤按权重 names 自适应，vessel/boat/ship 类名通吃）。
-- 引擎启动命令(常量在 `gui_server/main.py:_REMOTE_DETECT_CMD`):`CUDA_VISIBLE_DEVICES=1 … --device cuda:0 --model yolov8s.pt --slice-size 640 --pidfile detector.pid`——**SAHI 切片推理**(720p→640×640×6 片,小目标召回 +17%)。
+- 引擎启动命令(常量在 `gui_server/main.py:_REMOTE_DETECT_CMD`):`CUDA_VISIBLE_DEVICES=GPU-f662e578-… --device cuda:0 --model yolov8s.pt --slice-size 640 --pidfile detector.pid`——**SAHI 切片推理**(720p→640×640×6 片,小目标召回 +17%)。⚠ CUDA_VISIBLE_DEVICES 必须 UUID 写法钉 GPU1(20261023 实测序号写法因 CUDA 枚举序≠nvidia-smi 序而落空,detector 一直错挂 GPU0 抢渲染卡);SAHI `AutoDetectionModel.from_pretrained` 加载路径绕过 CVD,由 service(`tools/sango_detector_service.py` serve 段)先建 CUDA 主上下文锁卡兜住——两道防线都在,改任一处前先看 8.6。
 - 探活=远端 pidfile(`~/twin-detector/detector.pid`,serve 启动自写/退出自清);**不要用 pgrep -f 裸模式**(ssh/bash 包装进程自匹配假阳性)。
 - 结果回传走 `remote_control.py` 常驻反向隧道 `-R 127.0.0.1:18010:127.0.0.1:8010`(a4000:18010 → mac:8010):检测器 POST `http://127.0.0.1:18010/api/viewport-detections`。**渲染栈 stop 会拆隧道**(remote_control stop 语义),期间 POST 丢帧不致命,start 后自愈。
 - mac 8010 启动须带 env:`TWIN_VIEWPORT_DETECTOR_REMOTE=a4000 nohup .venv/bin/colav-sim serve --port 8010 …`(不带=回退本地 mac CPU 模式)。远程启动会先收口本地残留实例,防双推理双 POST。
 - 无观看者时 sender tap 不发帧(管线懒构建),检测器空转 recv 超时循环属正常态;日志 `~/twin-detector/logs/detector.log`。
 - a4000 shell 有 http_proxy,curl 测 18010 须 `--noproxy "*"`。
+
+### 8.6 a4000 双卡分工定版 + GPU0 锁频(20261023,DT 卡顿根治批)
+
+**分工(用户裁决)**:GPU0 = Unity player 渲染独占(`-force-device-index 0`,renderer_control 既有);GPU1 = detector 推理 + NVENC 编码(sender `nvautogpuh264enc cuda-device-id=1`,**勿改容器 `--gpus all`**——收紧可见性会翻转容器内枚举序,cuda-device-id=1 即失效)。Xorg/gnome ~80M 留 GPU0 无碍。
+
+**1080p 档(热降频主因修复)**:`remote-runtime.json` `player_window=1920x1080` + `gst_bitrate=16000`(`remote_control.py` 透传 `TWIN_GST_BITRATE`)。实测 player 显存 5.9G→1.5G、GPU0 满载 94°C/118W→68°C/45W、SW/HW thermal throttle 清零。1440p 为回退档(改回 json 即可,需配合锁频/拉风扇)。
+
+**GPU0 锁频(P-state 惰性治法)**:驱动 535 渲染中只给 600-720MHz(max 2100),1080p 轻载下更懒;帧均 33.4ms 贴 30fps 预算线,偶发超帧。`sudo nvidia-smi -lgc 1560,2100`(用户 20261023 实测观感显著改善)。**主机重启失效**——重启后跑 a4000 `~/gpu-lock.sh`(已放置);恢复自动调频 `sudo nvidia-smi -rgc`。锁频常态 ~62W/80°C@风扇 60%,安全余量充足。
+
+**残余已知**:锁频后帧账本仍偶见 34-36ms 单帧(每 10s 一两个,Unity 主线程资产流/GC 量级,非 GPU 算力);215ms 级尖峰仅 attach 加载瞬间。若再出现体感卡顿,先查传输段(HUD tooltip 丢包/NACK)再考虑人眼探针(`deploy/twin/gst/probe/twin_eye_probe.mjs`)。

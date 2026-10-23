@@ -33,6 +33,9 @@ def remote(action: str) -> subprocess.CompletedProcess[str]:
         if CFG.get("player_window"):
             # M5:gst 档窗口固化(免每次 env 直连)。legacy 不透传——保 640×360 逐字节等价。
             env_prefix.append(f"TWIN_PLAYER_WINDOW={CFG['player_window']}")
+        if CFG.get("gst_bitrate"):
+            # 20261023 1080p 批:码率随窗口档走(1440p=20000/1080p=16000,renderer_control 锚)。
+            env_prefix.append(f"TWIN_GST_BITRATE={CFG['gst_bitrate']}")
         if CFG.get("detect_tap"):
             # DT 视口检测分流(默认关):remote-runtime.json 声明开关透传给 renderer_control。
             env_prefix.append("TWIN_GST_DETECT_TAP=1")

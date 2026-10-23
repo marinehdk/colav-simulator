@@ -719,6 +719,14 @@ def serve(args: argparse.Namespace) -> int:
         Path(args.pidfile).write_text(f"{os.getpid()}\n")  # 引擎探活(engine 端点远程模式)
 
     model = load_model(args)
+    # 20261023 GPU 分工批:SAHI from_pretrained 的加载路径绕过 CUDA_VISIBLE_DEVICES
+    # (a4000 实测把 CUDA 上下文建到物理 GPU0,与 Unity 渲染抢卡——env 里 UUID 绑定
+    # 完好也被无视)。CUDA 可见性只在 runtime 首次 init 读取:先建一次主上下文把
+    # runtime 固化在 CVD 指定卡(start-detector.sh 用 UUID 写法),SAHI 随后只能在
+    # 既有 runtime 内加载。
+    if args.device not in (None, "cpu"):
+        import torch
+        torch.zeros(1, device=args.device).cpu()
     # 船类过滤按权重类别表自适应（yolov18 单类 'vessel'→[0]；COCO 系→[8]）。
     boat_ids = boat_class_ids(getattr(model, "names", {}))
     sahi_model = None
